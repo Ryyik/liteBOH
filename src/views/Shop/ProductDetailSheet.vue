@@ -50,7 +50,8 @@
             <div class="surface-prices">
               <!-- 浏览态（2026-11-11 修）：原先无条件把「积分价 39 积分」「现金价 ¥7.90」
                    并排成两行，用户读成「¥7.90 就能买下」，实际是两者都要付。
-                   现在先给一句结论（`39 积分 + ¥7.90`），下面一行说明支付方式；
+                   现在只给一句结论（`39 积分 + ¥7.90`）—— 加号本身已经表示组合，
+                   不再另起一行说明（用户明确要求删掉那句）；
                    逐项明细只在就地编辑态出现（那里才需要分别点改）。 -->
               <template v-if="!inlineEditing">
                 <p class="price-total">{{ priceDisplay }}</p>
@@ -78,7 +79,6 @@
                   </span>
                 </p>
               </template>
-              <p class="price-hint">{{ paymentSummary }}</p>
             </div>
 
             <p class="surface-desc">
@@ -157,7 +157,7 @@ import EditableText from '@/components/inline-editor/EditableText.vue';
 import EditableNumber from '@/components/inline-editor/EditableNumber.vue';
 import EditableImage from '@/components/inline-editor/EditableImage.vue';
 import { useInlineEditor } from '@/composables/useInlineEditor.js';
-import { formatPriceDisplay, paymentModeSummary } from '@/utils/product-pricing.js';
+import { formatPriceDisplay } from '@/utils/product-pricing.js';
 
 const props = defineProps({
   product: { type: Object, required: true },
@@ -174,13 +174,12 @@ const scrollRef = ref(null);
 const isLandscape = ref(false);
 
 /* 就地编辑态：只有这时才展开「积分 / 现金」逐项明细（那一层是为了点改价格）。
-   浏览态只给一句结论 + 支付方式说明 —— 两行并列会被读成「二选一」。 */
+   浏览态只给一句结论（`39 积分 + ¥7.90`）—— 两行并列会被读成「二选一」。 */
 const inlineEditor = useInlineEditor();
 const inlineEditing = computed(() => Boolean(inlineEditor?.active));
 
-/** 定价展示与支付方式文案都来自 utils/product-pricing.js（单一真源），不在这里另写一份判据 */
+/** 报价文案来自 utils/product-pricing.js（单一真源），不在这里另写一份判据 */
 const priceDisplay = computed(() => formatPriceDisplay(props.product));
-const paymentSummary = computed(() => paymentModeSummary(props.product?.payment_mode));
 const closing = ref(false);
 let mql = null;
 let onOrientationChange = null;
@@ -486,15 +485,6 @@ onBeforeUnmount(() => {
   margin: 0;
   font-size: 20px;
   font-weight: 600;
-}
-
-/* 支付方式说明，独占一行 —— 价格数字表达不了「同时付」，这句是唯一说清的地方 */
-.price-hint {
-  flex-basis: 100%;
-  margin: 0;
-  color: var(--boh-text-secondary, #86868b);
-  font-size: 12px;
-  line-height: 1.5;
 }
 
 .price-line {

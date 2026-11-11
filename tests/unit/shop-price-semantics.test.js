@@ -7,50 +7,17 @@
  *    积分价  39 积分
  *    现金价  ¥7.90
  * 用户读成两个独立报价（以为付 ¥7.90 就能拿走），实际是**两者都要付**。
- * 价格数字本身表达不了「同时付」，只能靠一句明确的说明。
  *
- * 改法：浏览态一行结论（`39 积分 + ¥7.90`）+ 一行支付方式说明
- * （`积分 + 现金 · 两者都要付`，文案取自 PAYMENT_MODE_OPTIONS 单一真源）；
+ * 改法：浏览态只给一行结论（`39 积分 + ¥7.90` —— 加号即组合），
  * 逐项明细只在就地编辑态出现，那里才需要分别点改。
+ * 曾加过一行「积分 + 现金 · 两者都要付」的说明，用户看过实机后要求删掉，已删。
  */
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import {
-  formatPriceDisplay,
-  paymentModeSummary,
-  PAYMENT_MODE_OPTIONS,
-} from '@/utils/product-pricing.js';
+import { formatPriceDisplay } from '@/utils/product-pricing.js';
 
 const read = (rel) => readFileSync(resolve(process.cwd(), rel), 'utf8');
-
-describe('支付方式说明（价格数字说不清「同时付」）', () => {
-  it('组合支付必须写出「两者都要付」', () => {
-    const summary = paymentModeSummary('combined');
-    expect(summary).toContain('积分');
-    expect(summary).toContain('现金');
-    expect(summary).toContain('两者都要付');
-  });
-
-  it('纯积分 / 纯现金各自说清，不出现另一侧的付款方式', () => {
-    expect(paymentModeSummary('points_only')).toContain('积分');
-    expect(paymentModeSummary('points_only')).not.toContain('现金');
-    expect(paymentModeSummary('rmb_only')).toContain('现金');
-    expect(paymentModeSummary('rmb_only')).not.toContain('积分');
-  });
-
-  it('脏模式回落纯积分（与 DB 列默认值同口径）', () => {
-    expect(paymentModeSummary('')).toBe(paymentModeSummary('points_only'));
-    expect(paymentModeSummary(null)).toBe(paymentModeSummary('points_only'));
-    expect(paymentModeSummary('whatever')).toBe(paymentModeSummary('points_only'));
-  });
-
-  it('文案取自 PAYMENT_MODE_OPTIONS（后台定价面板同一份），不是详情页另写的第二份', () => {
-    for (const option of PAYMENT_MODE_OPTIONS) {
-      expect(paymentModeSummary(option.value)).toBe(`${option.label} · ${option.hint}`);
-    }
-  });
-});
 
 describe('价格展示', () => {
   it('组合商品拼成一句 `N 积分 + ¥M`，顺序固定为积分在前', () => {
@@ -70,12 +37,16 @@ describe('价格展示', () => {
 describe('详情页渲染结构', () => {
   const sheet = read('src/views/Shop/ProductDetailSheet.vue');
 
-  it('浏览态用一句结论 + 支付说明，而不是两行并列的「积分价 / 现金价」', () => {
+  it('浏览态用一句结论，而不是两行并列的「积分价 / 现金价」', () => {
     expect(sheet).toContain('price-total');
-    expect(sheet).toContain('price-hint');
-    // 结论与说明都来自 product-pricing.js 的单一真源
+    // 结论来自 product-pricing.js 的单一真源，不在这里另拼一份
     expect(sheet).toContain('formatPriceDisplay');
-    expect(sheet).toContain('paymentModeSummary');
+  });
+
+  it('不再有「支付方式说明」那一行（用户明确要求删掉）', () => {
+    expect(sheet).not.toContain('price-hint');
+    expect(sheet).not.toContain('paymentSummary');
+    expect(sheet).not.toContain('paymentModeSummary');
   });
 
   it('逐项明细只在就地编辑态展开（`v-else` 分支），避免普通用户误读成二选一', () => {
