@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { dataConfig, tabs, TABS_ACTIONS } from '@/views/DataManagement/config.js';
 import { TAB_SEARCH_FIELDS, TAB_SELECT_COLUMNS } from '@/views/DataManagement/query-config.js';
 import { buildSearchSuggestions } from '@/views/DataManagement/composables/data-admin-search-suggestions.js';
-import { buildSearchFilters } from '@/utils/search-core.js';
+import { buildSearchFilters, describeUnexecutableKeyword } from '@/utils/search-core.js';
 
 /**
  * 搜索链路的配置不变量（2026-11-11）。
@@ -73,6 +73,13 @@ describe('搜索配置不变量', () => {
     // points 只是同表的另一种视角，给它 delete 等于在「积分」页面上误删账号。
     expect(TABS_ACTIONS.points).not.toContain('delete');
   });
+
+  it('数字主键的页签必须显式声明 id.type=number（否则 id: 精查永远空）', () => {
+    // admin_audit_logs 的主键是 bigint；不声明走默认 uuid 形状判定，
+    // 于是 id:123 被判成「非法 ID」，还会提示「UUID 是 36 位」（2026-11-11 复核发现）
+    const idField = (TAB_SEARCH_FIELDS.adminAuditLogs || []).find((f) => f.column === 'id');
+    expect(idField?.type).toBe('number');
+  });
 });
 
 describe('搜索联想：功能名也要能搜到', () => {
@@ -123,5 +130,55 @@ describe('搜索联想：功能名也要能搜到', () => {
     });
     expect(suggestions.every((item) => item.kind === 'tab')).toBe(true);
     expect(suggestions[0].tabId).toBe('ads');
+  });
+});
+
+/**
+ * 「搜不了」的原因必须说准（2026-11-11 复核）。
+ * 原来两种完全不同的情况共用一句「这张表没有可搜索的文本字段」：
+ *   · `id:<uuid>` 打到 bigint 主键（表里明明有文本列）
+ *   · 表里真的只有 uuid / 日期列
+ * 前者按错误原因引导用户，等于把他带偏。
+ */
+describe('搜不了的原因判定', () => {
+  const FIELDS = {
+    bigintTab: [
+      { column: 'id', type: 'number' },
+      { column: 'title', type: 'text' },
+    ],
+    uuidOnlyTab: [
+      { column: 'id', type: 'uuid' },
+      { column: 'week_start_date', type: 'date' },
+    ],
+  };
+
+  it('id: 给 UUID 但主键是数字 → id-shape（不是「没有文本字段」）', () => {
+    expect(
+      describeUnexecutableKeyword('bigintTab', 'id:2f8a1c9e-1111-4222-8333-abcdefabcdef', FIELDS),
+    ).toEqual({ reason: 'id-shape', idType: 'number' });
+  });
+
+  it('表里真的只有 uuid/日期列 → no-text-field', () => {
+    expect(describeUnexecutableKeyword('uuidOnlyTab', '广告', FIELDS)).toEqual({
+      reason: 'no-text-field',
+    });
+  });
+
+  it('能搜的时候不给原因', () => {
+    expect(describeUnexecutableKeyword('bigintTab', '广告', FIELDS)).toBeNull();
+    expect(describeUnexecutableKeyword('bigintTab', 'id:123', FIELDS)).toBeNull();
+  });
+
+  it('超出 bigint 范围的数字 ID 不构造条件（22003 会整表 400）', () => {
+    expect(buildSearchFilters('bigintTab', 'id:99999999999999999999', FIELDS)).toEqual([]);
+    expect(buildSearchFilters('bigintTab', 'id:9223372036854775807', FIELDS)).toEqual([
+      'id.eq.9223372036854775807',
+    ]);
+  });
+
+  it('超出 int32 范围的普通数字列不构造条件', () => {
+    const fields = { t: [{ column: 'points', type: 'number' }] };
+    expect(buildSearchFilters('t', '99999999999', fields)).toEqual([]);
+    expect(buildSearchFilters('t', '2147483647', fields)).toEqual(['points.eq.2147483647']);
   });
 });

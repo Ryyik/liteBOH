@@ -2257,6 +2257,7 @@ import {
   sanitizeSearchTerm,
 } from './composables/useDataAdminFilters.js';
 import {
+  describeUnexecutableKeyword,
   isUnexecutableKeyword,
   parseSearchQuery,
   rankRows,
@@ -3787,6 +3788,12 @@ const emptyState = computed(() => {
     canCreate: canCreateCurrentTab.value && !isModerationTab.value,
     // 关键词在本表构造不出任何条件（只有编号/日期列）时，文案要说「搜不了」而不是「没有」
     unsearchable: isUnexecutableKeyword(currentTab.value, searchQuery.value, TAB_SEARCH_FIELDS),
+    // 具体是「id: 形状与主键类型不符」还是「表里真没有文本列」—— 文案不能混为一谈
+    unsearchableReason: describeUnexecutableKeyword(
+      currentTab.value,
+      searchQuery.value,
+      TAB_SEARCH_FIELDS,
+    ),
   });
 });
 
@@ -4794,7 +4801,24 @@ const fetchStats = async () => {
 // 原实现固定 p_limit:500 拉全量再按 id 合并，用户超过 500 人时排在后面的人
 // 邮箱/收货信息静默为空（不报错、不提示）。现在只问这几个人，与总人数无关。
 const SENSITIVE_USERS_CACHE_TTL = 90 * 1000;
+/** 按 id 集合做 key 后条目会随翻页增长（每页一个 key），必须封顶 + 清过期 */
+const SENSITIVE_USERS_CACHE_MAX = 24;
 const sensitiveUsersCacheMap = new Map();
+
+const pruneSensitiveUsersCache = () => {
+  const now = Date.now();
+  for (const [key, entry] of sensitiveUsersCacheMap) {
+    if (!entry.pending && now - entry.fetchedAt >= SENSITIVE_USERS_CACHE_TTL) {
+      sensitiveUsersCacheMap.delete(key);
+    }
+  }
+  while (sensitiveUsersCacheMap.size > SENSITIVE_USERS_CACHE_MAX) {
+    // Map 迭代按插入顺序 ⇒ 先找到的就是最旧的；在飞的请求不淘汰
+    const oldest = [...sensitiveUsersCacheMap.entries()].find(([, entry]) => !entry.pending);
+    if (!oldest) break;
+    sensitiveUsersCacheMap.delete(oldest[0]);
+  }
+};
 
 const buildSensitiveCacheKey = ({ p_search, p_limit, p_ids }) => {
   if (Array.isArray(p_ids) && p_ids.length) return `ids:${[...p_ids].sort().join(',')}`;
@@ -4812,9 +4836,20 @@ const fetchSensitiveUsers = async ({ p_search = null, p_limit = 500, p_ids = nul
 
   const entry = { data: null, fetchedAt: 0, pending: null };
   sensitiveUsersCacheMap.set(key, entry);
+  pruneSensitiveUsersCache();
   entry.pending = supabase
     .rpc('admin_list_users_with_sensitive', { p_search, p_limit, p_ids })
-    .then(({ data }) => {
+    .then(({ data, error }) => {
+      /* 以前这里只取 data、不看 error：RPC 被拒或报错时 data 为 null，
+         列表上的邮箱/收货信息就整片空白，而控制台也没有任何线索。
+         不抛错（否则整页列表加载失败），但必须留下可查的痕迹。 */
+      if (error) {
+        logger.warn('data-admin', '敏感用户信息获取失败（列表仍可用）:', error);
+        // 清掉 pending，否则这条失败结果会被当成缓存一直复用、永不重试
+        entry.pending = null;
+        entry.data = null;
+        return [];
+      }
       entry.data = Array.isArray(data) ? data : [];
       entry.fetchedAt = Date.now();
       entry.pending = null;
@@ -5686,9 +5721,17 @@ const adminAvatarUrl = computed(() => String(userInfo.value?.avatarUrl || '').tr
 // 一个关键词 + 一个范围开关。范围切换即取消在飞的旧请求，避免两套结果互相覆盖。
 
 const onSearchInput = () => {
-  if (isGlobalSearchScope.value) scheduleGlobalSearch();
-  else handleSearch();
-  if (!isGlobalSearchScope.value) showSearchSuggestions.value = true;
+  if (isGlobalSearchScope.value) {
+    scheduleGlobalSearch();
+    /* 「全部表」范围也必须刷新本表列表（2026-11-11 修）。
+       默认范围改成了 all，而这里原来只跑跨表搜索 ⇒ 用户输入后本表列表毫无变化，
+       一旦收起浮层就又是「搜了跟没搜一样」的老观感（本就是用户这次报障的形态）。
+       本表那张表本来就在跨表结果里，多打一次同一张表的成本可以接受。 */
+    handleSearch();
+    return;
+  }
+  handleSearch();
+  showSearchSuggestions.value = true;
 };
 
 const onSearchEnter = () => {
@@ -5705,8 +5748,9 @@ const onSearchEnter = () => {
   if (applyTabPrefixJump()) return;
   // 只记「普通关键词」：`id:<uuid>` / `tab:xx` 记进历史对下次没有帮助，只会挤掉真有用的词
   if (parseSearchQuery(searchQuery.value).mode === 'text') rememberSearch(searchQuery.value);
+  // 全部表范围下也刷新本表列表（同 onSearchInput，2026-11-11）
   if (isGlobalSearchScope.value) runGlobalSearch();
-  else handleSearch();
+  handleSearch();
 };
 
 // ==================== 搜索联想（plans/042 C3）====================
@@ -5723,7 +5767,12 @@ const searchSuggestions = computed(() =>
       ...(currentFields.value || []),
       ...(currentColumns.value || []),
     ]),
-    tabs: tabs.map((tab) => ({ id: tab.id, label: tab.label })),
+    /* 只列当前角色看得见的页签（2026-11-11）。原来传全量：
+       非管理员会看到「跳到「密钥与模型」」这类候选，点进去被守卫拦 ——
+       与跨表搜索已经按角色过滤（searchableTabIds）不一致。 */
+    tabs: tabs
+      .filter((tab) => searchableTabIds.value.includes(tab.id))
+      .map((tab) => ({ id: tab.id, label: tab.label })),
   }),
 );
 
@@ -5792,8 +5841,9 @@ const applySearchSuggestion = (item) => {
   // 最近搜索 / 枚举值：直接按这个词搜
   searchQuery.value = item.value;
   rememberSearch(item.value);
+  // 全部表范围下也刷新本表列表（同 onSearchInput，2026-11-11）
   if (isGlobalSearchScope.value) runGlobalSearch();
-  else handleSearch();
+  handleSearch();
 };
 
 const onSearchKeydown = (event) => {

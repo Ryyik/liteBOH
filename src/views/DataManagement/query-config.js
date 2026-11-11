@@ -1105,6 +1105,9 @@ export const TAB_SEARCH_FIELDS = {
     { column: 'actor_id', type: 'uuid' },
   ],
   adminAuditLogs: [
+    // 主键是 bigint（线上核对）。不声明的话 `id:` 精查会被按 UUID 形状判成非法，
+    // 且空态会说「ID 是 36 位」—— 对数字主键是错的提示（2026-11-11 补）。
+    { column: 'id', type: 'number' },
     { column: 'actor_label', type: 'text' },
     { column: 'action', type: 'text' },
     { column: 'resource_table', type: 'text' },

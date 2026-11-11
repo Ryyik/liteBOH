@@ -105,6 +105,31 @@ describe('空态一定是可行动的（plans/042 C4 / AC-4）', () => {
       resolveEmptyState({ totalCount: 0, canCreate: false }).actions.map((a) => a.id),
     ).toContain(EMPTY_ACTIONS.GLOBAL_SEARCH);
   });
+
+  /* 2026-11-11 复核：两种「搜不了」的文案原来共用一句，其中一种是错的 */
+  it('id: 给 UUID 但主键是数字 → 说「编号是数字」，不复用「没有文本字段」', () => {
+    const state = resolveEmptyState({
+      totalCount: 0,
+      searchQuery: 'id:2f8a1c9e-1111-4222-8333-abcdefabcdef',
+      unsearchable: true,
+      unsearchableReason: { reason: 'id-shape', idType: 'number' },
+    });
+    expect(state.kind).toBe('no-match');
+    expect(state.title).toContain('数字');
+    expect(state.description).toContain('id:');
+    expect(state.description).not.toContain('没有可搜索的文本字段');
+    expect(state.actions.map((a) => a.id)).toContain(EMPTY_ACTIONS.CLEAR_FILTERS);
+  });
+
+  it('表里真的只有 uuid/日期列 → 才说「没有可搜索的文本字段」', () => {
+    const state = resolveEmptyState({
+      totalCount: 0,
+      searchQuery: '广告',
+      unsearchable: true,
+      unsearchableReason: { reason: 'no-text-field' },
+    });
+    expect(state.title).toContain('没有可搜索的文本字段');
+  });
 });
 
 describe('empty state wiring', () => {

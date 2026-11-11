@@ -39,6 +39,27 @@ export const UUID_PATTERN =
  */
 export const DATE_TERM_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
+/**
+ * 数字列的合法取值范围。
+ *
+ * 为什么不能只判 `^\d+$`（2026-11-11 补）：`eq` 到 `integer` / `bigint` 列时，
+ * 超出类型范围的值会被 PostgreSQL 拒成 `22003 numeric out of range` ——
+ * 和 ilike 打 timestamptz 一样，是**整张表 400**，不是「没结果」。
+ * 用户从别处粘贴一长串数字（订单号、时间戳）就会踩到。
+ */
+const INT32_MAX = 2147483647;
+const BIGINT_MAX_TEXT = '9223372036854775807';
+
+/** integer 列：10 位以内且不超过 2^31-1 */
+export const isValidInt32 = (term) => /^\d{1,10}$/.test(term) && Number(term) <= INT32_MAX;
+
+/** bigint 主键：19 位以内且不超过 9223372036854775807（等长数字按字典序比较即可） */
+export const isValidBigint = (term) => {
+  if (!/^\d{1,19}$/.test(term)) return false;
+  const digits = term.replace(/^0+(?=\d)/, '');
+  return digits.length < 19 || digits <= BIGINT_MAX_TEXT;
+};
+
 /* 长文本列：命中的信息量低，权重压低 */
 const CONTENT_COLUMNS = new Set([
   'content',
@@ -195,7 +216,8 @@ export const buildSearchMatchSpec = (tabId, keyword, tabSearchFields) => {
        （invalid input syntax for type bigint），又是一次整表 400。 */
     const idField = (tabSearchFields?.[tabId] || []).find((field) => field?.column === 'id');
     const idIsNumeric = idField?.type === 'number';
-    const validId = idIsNumeric ? /^\d+$/.test(term) : UUID_PATTERN.test(term);
+    // 数字主键按 bigint 范围判：超范围的值 eq 上去是 22003，整表 400
+    const validId = idIsNumeric ? isValidBigint(term) : UUID_PATTERN.test(term);
     // 半截 ID 交给调用方短路成空结果
     if (!validId) {
       return { mode: parsed.mode, term, pattern: '', columns: [], reason: 'invalid-id' };
@@ -209,7 +231,8 @@ export const buildSearchMatchSpec = (tabId, keyword, tabSearchFields) => {
   }
 
   const isUuid = UUID_PATTERN.test(term);
-  const isInteger = /^\d+$/.test(term);
+  // 普通数字列按 int32 判（面板里的 number 列绝大多数是 integer，超范围 eq 是 22003）
+  const isInteger = isValidInt32(term);
   const isDate = DATE_TERM_PATTERN.test(term);
   const scoped =
     parsed.mode === SEARCH_MODE_USER
@@ -266,6 +289,35 @@ export const isUnexecutableKeyword = (tabId, keyword, tabSearchFields) => {
   const parsed = parseSearchQuery(keyword);
   if (!parsed.value || parsed.mode === SEARCH_MODE_TAB) return false;
   return buildSearchMatchSpec(tabId, keyword, tabSearchFields).columns.length === 0;
+};
+
+/** `describeUnexecutableKeyword` 的原因枚举（UI 据它选文案，不要靠猜） */
+export const UNSEARCHABLE_REASON = {
+  /** `id:` 的形状与这张表的主键类型不一致（如数字主键却输了 UUID） */
+  ID_SHAPE: 'id-shape',
+  /** 这张表配置的搜索列里没有可比较的文本列（只有 uuid / 日期 / 数字） */
+  NO_TEXT_FIELD: 'no-text-field',
+};
+
+/**
+ * 为什么这个词在这张表上搜不了？`null` = 能搜。
+ *
+ * 分开的理由（2026-11-11）：两种情况原来共用一句「这张表没有可搜索的文本字段」，
+ * 但 `id:<uuid>` 打到 bigint 主键时，表里明明有文本列 —— 说「没有文本字段」是错的，
+ * 用户会按错误的原因去改关键词。
+ *
+ * @returns {null | {reason: string, idType?: 'uuid'|'number'}}
+ */
+export const describeUnexecutableKeyword = (tabId, keyword, tabSearchFields) => {
+  if (!isUnexecutableKeyword(tabId, keyword, tabSearchFields)) return null;
+  if (parseSearchQuery(keyword).mode === SEARCH_MODE_ID) {
+    const idField = (tabSearchFields?.[tabId] || []).find((field) => field?.column === 'id');
+    return {
+      reason: UNSEARCHABLE_REASON.ID_SHAPE,
+      idType: idField?.type === 'number' ? 'number' : 'uuid',
+    };
+  }
+  return { reason: UNSEARCHABLE_REASON.NO_TEXT_FIELD };
 };
 
 /* ==================== 相关性打分 ==================== */

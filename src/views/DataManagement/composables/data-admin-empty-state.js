@@ -25,6 +25,8 @@ export const resolveEmptyState = ({
   hasActiveFilters = false,
   canCreate = false,
   unsearchable = false,
+  /** `describeUnexecutableKeyword()` 的产物：{reason, idType?} —— 决定「搜不了」的具体原因 */
+  unsearchableReason = null,
 } = {}) => {
   if (Number(totalCount) > 0) return null;
 
@@ -38,6 +40,25 @@ export const resolveEmptyState = ({
         kind: 'no-match',
         title: 'ID 精查需要完整 ID',
         description: `「${keyword}」不是完整的记录 ID（UUID 是 36 位）。请粘贴完整 ID，或去掉 id: 前缀按关键词搜。`,
+        showClear: true,
+        showCreate: false,
+        actions: [
+          { id: EMPTY_ACTIONS.CLEAR_FILTERS, label: '清空搜索与筛选', tone: 'primary' },
+          { id: EMPTY_ACTIONS.GLOBAL_SEARCH, label: '搜索全部表', tone: 'secondary' },
+        ],
+      };
+    }
+    /* 关键词是 `id:` 前缀，但形状与这张表的主键类型不符（2026-11-11 补）。
+       典型：主键是 bigint，用户粘了一个 UUID。此时表里**有**文本列，
+       若沿用下面那句「这张表没有可搜索的文本字段」就是拿错原因误导人。 */
+    if (unsearchableReason?.reason === 'id-shape') {
+      const idIsNumber = unsearchableReason.idType === 'number';
+      return {
+        kind: 'no-match',
+        title: idIsNumber ? '这张表的编号是数字' : 'ID 精查需要完整 ID',
+        description: idIsNumber
+          ? `这张表的主键是数字编号（如 id:12345）。「${keyword}」不是合法数字编号，这条查询没有执行 —— 去掉 id: 前缀可按关键词搜。`
+          : `「${keyword}」不是这张表的完整记录 ID，这条查询没有执行。请粘贴完整 ID，或去掉 id: 前缀按关键词搜。`,
         showClear: true,
         showCreate: false,
         actions: [

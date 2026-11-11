@@ -1,4 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 /**
  * 跨表搜索中心（P1-2 反证 + 功能名匹配）。
@@ -115,5 +117,39 @@ describe('跨表搜索：功能名可搜', () => {
     const center = await makeCenter();
     await center.runGlobalSearch('tab:广告');
     expect(center.showGlobalSearchPanel.value).toBe(false);
+  });
+});
+
+/**
+ * 「全部表」范围下本表列表也必须跟着关键词过滤（2026-11-11 复核）。
+ *
+ * 默认范围从『本表』改成『全部表』之后，输入框的三个入口
+ * （输入 / 回车 / 选联想）如果只调 `scheduleGlobalSearch` 而不再调 `handleSearch`，
+ * 本表列表就完全不动 —— 收起浮层又变回「搜了跟没搜一样」，
+ * 正是用户这次报障的形态。这里用源码结构钉住三条路径，避免被改回去。
+ */
+describe('全部表范围也刷新本表列表', () => {
+  const src = readFileSync(
+    resolve(import.meta.dirname, '../../src/views/DataManagement/DataAdmin.vue'),
+    'utf8',
+  );
+
+  /** 取顶层 `const xxx = (...) => { ... }` 的函数体（到下一个行首 const 为止） */
+  const bodyOf = (name) => {
+    const marker = `const ${name} = (`;
+    const start = src.indexOf(marker);
+    expect(start, `找不到 ${name}`).toBeGreaterThan(-1);
+    const next = src.indexOf('\nconst ', start + marker.length);
+    return src.slice(start, next === -1 ? src.length : next);
+  };
+
+  it.each([
+    ['onSearchInput', 'scheduleGlobalSearch'],
+    ['onSearchEnter', 'runGlobalSearch'],
+    ['applySearchSuggestion', 'runGlobalSearch'],
+  ])('%s 同时调用跨表搜索与本表刷新', (name, globalCall) => {
+    const fn = bodyOf(name);
+    expect(fn).toContain(globalCall);
+    expect(fn).toContain('handleSearch');
   });
 });
