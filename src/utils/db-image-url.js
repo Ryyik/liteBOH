@@ -76,6 +76,19 @@ export const DB_CLOUD_TILE_LQIP_TRANSFORM = 'f_auto,q_1,c_fill,w_32,h_32,e_blur:
 export const DB_CLOUD_COVER_IMAGE_TRANSFORM = 'f_auto,q_auto:good,c_limit,w_800';
 
 /**
+ * 信息流广告卡（`advertisements.image_url`）。
+ *
+ * 为什么必须 `c_limit` 而不是 `c_fill`：广告卡有两档高度口径（`card_size`
+ * = `post` 固定高 / `custom` 自定义像素 / `auto` 跟随图片比例），裁切决策归 CSS 的
+ * `object-fit: cover`；在 CDN 侧按某个固定框预裁，等于把决策提前到服务端，
+ * `auto` 档会直接变形。
+ *
+ * `w_1400` 的依据：广告卡实测宽约 724px（1440×900 视口、论坛信息流单列），
+ * 2x 屏约 1448 ⇒ 1400 已够，且 `c_limit` 只压不拉，小图不会被放大糊掉。
+ */
+export const DB_AD_IMAGE_TRANSFORM = 'f_auto,q_auto:good,c_limit,w_1400';
+
+/**
  * 解析数据库图片地址为可直接进 `<img src>` 的 URL。
  * @param {string} rawUrl 数据库原始值（`@/assets/...` / 绝对 http(s) / data: / 空）
  * @param {string} [transform] Cloudinary 变换串；留空则只做 CDN 改写不做尺寸变换
@@ -132,3 +145,6 @@ export const resolveDbCloudTileLqip = (rawUrl) =>
 /** Cloud+ 条目封面（分享档卡片） */
 export const resolveDbCloudCoverImage = (rawUrl) =>
   resolveDbImageUrl(rawUrl, DB_CLOUD_COVER_IMAGE_TRANSFORM);
+
+/** 信息流广告卡图片（`advertisements.image_url`） */
+export const resolveDbAdImage = (rawUrl) => resolveDbImageUrl(rawUrl, DB_AD_IMAGE_TRANSFORM);

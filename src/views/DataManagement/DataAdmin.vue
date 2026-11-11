@@ -1168,7 +1168,7 @@
                             item[currentCardViewConfig.imageKey] &&
                             !isCardImageBroken(item, currentCardViewConfig)
                           "
-                          :src="getImageUrl(item[currentCardViewConfig.imageKey], { silent: true })"
+                          :src="resolveDbImageUrl(item[currentCardViewConfig.imageKey])"
                           :alt="item[currentCardViewConfig.titleKey]"
                           loading="lazy"
                           @error="onCardImageError(item, currentCardViewConfig)"
@@ -1561,7 +1561,7 @@
                             <template v-else-if="col.type === 'image'">
                               <div class="cell-image">
                                 <img
-                                  :src="getImageUrl(item[col.key])"
+                                  :src="resolveDbImageUrl(item[col.key])"
                                   :alt="item.title || 'Image'"
                                   loading="lazy"
                                 />
@@ -2136,7 +2136,7 @@ import { adminBatchDelete } from '@/utils/api/admin-batch-api.js';
 import DashboardPagination from './components/shared/DashboardPagination.vue';
 import RowActionMenu from './components/shared/RowActionMenu.vue';
 import ActiveFilterChips from './components/shared/ActiveFilterChips.vue';
-import { getImageUrl } from '../../utils/asset-helper';
+import { resolveDbImageUrl } from '../../utils/db-image-url.js';
 import { supabase } from '@/utils/supabase-client.js';
 import { invalidateByTags } from '@/utils/request-core.js';
 import { logoutAndReload } from '@/utils/logout-and-reload.js';

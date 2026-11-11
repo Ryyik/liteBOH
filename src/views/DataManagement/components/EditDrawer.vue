@@ -367,7 +367,7 @@
                         >
                           <img
                             v-if="product.image"
-                            :src="getImageUrl(product.image, { silent: true })"
+                            :src="resolveDbImageUrl(product.image)"
                             :alt="product.title"
                             class="product-picker-item-img"
                             loading="lazy"
@@ -612,7 +612,7 @@
                     >
                       <div class="image-preview" v-if="editingItem[field.key]">
                         <img
-                          :src="getImageUrl(editingItem[field.key])"
+                          :src="resolveDbImageUrl(editingItem[field.key])"
                           alt="Preview"
                           loading="lazy"
                         />
@@ -898,7 +898,7 @@
 
 <script setup>
 import { ref, computed, watch, nextTick, onBeforeUnmount, onMounted } from 'vue';
-import { getImageUrl } from '../../../utils/asset-helper';
+import { resolveDbImageUrl } from '../../../utils/db-image-url.js';
 import { supabase } from '../../../utils/supabase-client.js';
 import { listApiKeys } from '../../../utils/api/api-key-vault-api.js';
 import { composeActivityDateInput, parseActivityDate } from '../../../utils/activity-date';

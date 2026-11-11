@@ -6,8 +6,8 @@
     :aria-label="`广告：${ad.title || '推广内容'}`"
     @click.prevent="handleClick"
   >
-    <div v-if="ad.image_url && !imageFailed" class="ad-slot-media">
-      <img :src="ad.image_url" :alt="ad.title || '广告'" loading="lazy" @error="onImageError" />
+    <div v-if="mediaUrl && !isFailed(mediaUrl)" class="ad-slot-media">
+      <img :src="mediaUrl" :alt="ad.title || '广告'" loading="lazy" @error="markFailed(mediaUrl)" />
     </div>
     <div v-else class="ad-slot-placeholder">📢</div>
     <span class="ad-slot-tag">广告</span>
@@ -19,27 +19,36 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue';
+import { computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { supabase } from '../../../utils/supabase-client.js';
 import { toSafeNavHref } from '../../../utils/external-link.js';
+import { resolveDbAdImage } from '../../../utils/db-image-url.js';
+import { useImageFailure } from '../../../composables/useImageFailure.js';
 
 const props = defineProps({
   ad: { type: Object, required: true },
 });
 
 const router = useRouter();
-const imageFailed = ref(false);
+// 失败标记按**图片 URL** 记账：换一条广告 / 重新上传后 URL 变了，占位自动让位给新图
+// （此前是单个布尔 + watch 重置，两处状态容易不同步）
+const { isFailed, markFailed } = useImageFailure();
+
+/* 广告图也要过「数据库图片地址 → 可渲染 URL」这一层（2026-11-11 修）：
+   `advertisements.image_url` 存的是上传返回的 **Cloudinary 原址**
+   （`https://res.cloudinary.com/<cloud>/image/upload/...`），而该域名在中国大陆不可达
+   （实测记录见 `utils/db-image-url.js` 头部）。此前模板直接绑 `ad.image_url`，
+   大陆用户的表现是「图一直不落地、卡片只剩一块近白底」（`#f2f2f4`），
+   且因为请求是**挂起**而非失败，`@error` 不触发 ⇒ 连 📢 占位都不出现，只剩白图。
+   全站其它库图（帖子封面 / 活动 / 新闻 / 相册）都走 `resolveDbImageUrl`，只有这里漏了。 */
+const mediaUrl = computed(() => resolveDbAdImage(props.ad?.image_url));
 
 /* 落地地址过一遍协议闸门（2026-11-05 审查补）：
    原模板是 `:href="ad.link_url || 'javascript:;'"` —— 把伪协议当「空链接占位」用。
    左键被 @click.prevent 拦住，但中键 / Ctrl+点击会走浏览器默认行为，`javascript:`
    照样执行。现在非法值直接不出 href（<a> 变不可点，卡片仍可读）。 */
 const safeLinkUrl = computed(() => toSafeNavHref(props.ad?.link_url));
-
-const onImageError = () => {
-  imageFailed.value = true;
-};
 
 // 「帖子大小」档位的内置高度：前台实测帖子卡片高度（横屏 ≈ 536px / 竖屏 ≈ 400px）
 const POST_CARD_HEIGHT = { landscape: 520, portrait: 400 };
