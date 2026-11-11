@@ -48,27 +48,37 @@
             </h2>
 
             <div class="surface-prices">
-              <p v-for="line in priceLines" :key="line.label" class="price-line">
-                <span class="price-label">{{ line.label }}</span>
-                <span class="price-value">
-                  <!-- 价格是换算后的展示值（库里存分、界面显示元），
-                       所以用 EditableNumber 而不是 EditableText：scale 负责换算回来 -->
-                  <EditableNumber
-                    v-if="line.field"
-                    :model-value="product[line.field]"
-                    :row="product"
-                    :field="line.field"
-                    :label="line.label"
-                    :prefix="line.prefix || ''"
-                    :suffix="line.suffix || ''"
-                    :scale="line.scale || 1"
-                    :decimals="line.decimals ?? null"
-                    :min="0"
-                    @update:model-value="setField(line.field, $event)"
-                  />
-                  <template v-else>{{ line.value }}</template>
-                </span>
-              </p>
+              <!-- 浏览态（2026-11-11 修）：原先无条件把「积分价 39 积分」「现金价 ¥7.90」
+                   并排成两行，用户读成「¥7.90 就能买下」，实际是两者都要付。
+                   现在先给一句结论（`39 积分 + ¥7.90`），下面一行说明支付方式；
+                   逐项明细只在就地编辑态出现（那里才需要分别点改）。 -->
+              <template v-if="!inlineEditing">
+                <p class="price-total">{{ priceDisplay }}</p>
+              </template>
+              <template v-else>
+                <p v-for="line in priceLines" :key="line.label" class="price-line">
+                  <span class="price-label">{{ line.label }}</span>
+                  <span class="price-value">
+                    <!-- 价格是换算后的展示值（库里存分、界面显示元），
+                         所以用 EditableNumber 而不是 EditableText：scale 负责换算回来 -->
+                    <EditableNumber
+                      v-if="line.field"
+                      :model-value="product[line.field]"
+                      :row="product"
+                      :field="line.field"
+                      :label="line.label"
+                      :prefix="line.prefix || ''"
+                      :suffix="line.suffix || ''"
+                      :scale="line.scale || 1"
+                      :decimals="line.decimals ?? null"
+                      :min="0"
+                      @update:model-value="setField(line.field, $event)"
+                    />
+                    <template v-else>{{ line.value }}</template>
+                  </span>
+                </p>
+              </template>
+              <p class="price-hint">{{ paymentSummary }}</p>
             </div>
 
             <p class="surface-desc">
@@ -146,6 +156,8 @@ import { motionEase, motionMs } from '@/utils/motion.js';
 import EditableText from '@/components/inline-editor/EditableText.vue';
 import EditableNumber from '@/components/inline-editor/EditableNumber.vue';
 import EditableImage from '@/components/inline-editor/EditableImage.vue';
+import { useInlineEditor } from '@/composables/useInlineEditor.js';
+import { formatPriceDisplay, paymentModeSummary } from '@/utils/product-pricing.js';
 
 const props = defineProps({
   product: { type: Object, required: true },
@@ -160,6 +172,15 @@ const emit = defineEmits(['close', 'add', 'update:specValue', 'update-field']);
 const surfaceRef = ref(null);
 const scrollRef = ref(null);
 const isLandscape = ref(false);
+
+/* 就地编辑态：只有这时才展开「积分 / 现金」逐项明细（那一层是为了点改价格）。
+   浏览态只给一句结论 + 支付方式说明 —— 两行并列会被读成「二选一」。 */
+const inlineEditor = useInlineEditor();
+const inlineEditing = computed(() => Boolean(inlineEditor?.active));
+
+/** 定价展示与支付方式文案都来自 utils/product-pricing.js（单一真源），不在这里另写一份判据 */
+const priceDisplay = computed(() => formatPriceDisplay(props.product));
+const paymentSummary = computed(() => paymentModeSummary(props.product?.payment_mode));
 const closing = ref(false);
 let mql = null;
 let onOrientationChange = null;
@@ -454,8 +475,26 @@ onBeforeUnmount(() => {
 
 .surface-prices {
   display: flex;
-  gap: 22px;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 22px;
   margin-bottom: 16px;
+}
+
+/* 浏览态的一句话报价（`39 积分 + ¥7.90`）：比两行并列更不容易读成「二选一」 */
+.price-total {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+/* 支付方式说明，独占一行 —— 价格数字表达不了「同时付」，这句是唯一说清的地方 */
+.price-hint {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--boh-text-secondary, #86868b);
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .price-line {

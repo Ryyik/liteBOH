@@ -112,3 +112,19 @@ export const formatPriceDisplay = (product) => {
   if (Number.isFinite(cents) && cents > 0) parts.push(`¥${(cents / 100).toFixed(2)}`);
   return parts.length ? parts.join(' + ') : '暂无报价';
 };
+
+/**
+ * 支付方式的一句话说明（前台详情页用）：`积分 + 现金 · 两者都要付`。
+ *
+ * 为什么必须显式写出来（2026-11-11 用户报障「还以为是现金价可以买下」）：
+ * 详情页原本把「积分价 39 积分」「现金价 ¥7.90」并排成两行，`combined` 模式下
+ * 用户读成两个独立报价 —— 以为付 ¥7.90 就能拿走。价格数字本身表达不了
+ * 「同时付」，只能靠这句说明；文案仍取自 `PAYMENT_MODE_OPTIONS`（单一真源，
+ * 与后台定价面板同一份），不在这里另写一份。
+ */
+export const paymentModeSummary = (value) => {
+  const mode = normalizePaymentMode(value);
+  const option = PAYMENT_MODE_OPTIONS.find((item) => item.value === mode);
+  if (!option) return '';
+  return `${option.label} · ${option.hint}`;
+};
