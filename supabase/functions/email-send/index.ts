@@ -211,34 +211,26 @@ const buildOrderTemplateParams = async (
   const paymentMode = String(order.payment_mode || 'points_only');
   const points = Math.max(0, Number(order.points_used) || 0);
   const rmb = Math.max(0, Number(order.rmb_total) || 0);
+  /* 金额只写数字，不再出现「现金」二字（2026-11-10）：订单邮件正文的
+     「现金 ¥xx」与姓名/地址组合是国内反垃圾的高危特征，第二轮 A/B 的取舍。 */
   const paymentSummary =
     paymentMode === 'rmb_only'
-      ? `现金 ¥${(rmb / 100).toFixed(2)}`
+      ? `¥${(rmb / 100).toFixed(2)}`
       : paymentMode === 'combined'
-        ? `${points} 积分 + 现金 ¥${(rmb / 100).toFixed(2)}`
+        ? `${points} 积分 + ¥${(rmb / 100).toFixed(2)}`
         : `${points} 积分`;
-  /* 联系方式标签（2026-11-01）：新增 'profile' —— 结算改为一律取用户资料，
-     管理员邮件里要能直接看到「收件人 / 邮箱 / 电话 / 地址」，
-     不必再回后台翻订单。旧的 qq / vx 分支保留，历史订单重发邮件仍可读。 */
-  const contactLabel =
-    order.contact_type === 'qq' ? 'QQ' : order.contact_type === 'vx' ? '微信' : '电话';
+  /* 收件人/地址仍从资料读取（deliveryMethod 文案与 buyerName 兜底要用），
+     但不再整块进邮件正文 —— 见下方第二轮降特征注释。 */
   const buyerName = String(profile?.username || '未命名用户').trim();
   const recipient = String(profile?.shipping_recipient || '').trim();
-  const phone = String(profile?.shipping_phone || '').trim();
   const address = String(profile?.shipping_address || '').trim();
 
-  const contactLines = [
-    `订单号: ${order.order_no}`,
-    `昵称: ${buyerName}`,
-    `账户邮箱: ${user.email || '未绑定'}`,
-    `收件人: ${recipient || '（未填写）'}`,
-    `电话: ${maskPhone(phone || order.contact_value) || '（未填写）'}`,
-    `地址: ${address || '（未填写）'}`,
-  ];
-  if (order.contact_type === 'qq' || order.contact_type === 'vx') {
-    // 历史订单：手填的 QQ / 微信号仍要出现在邮件里，否则管理员联系不上
-    contactLines.push(`原联系方式: ${contactLabel}: ${order.contact_value}`);
-  }
+  /* 第二轮降特征（2026-11-10）：第一轮只改标题/电话脱敏仍被 QQ 硬退
+     （22:44 `周边订单 · Ryyik` 依旧 `blocked by Admin`），说明触发点还在正文。
+     同一发件人/收件人/IP 段能送达的邮件都不含「收件人 + 电话 + 详细地址」，
+     所以把整个联系方式块移出邮件 —— 管理员点「在后台打开」看全量信息。
+     订单号保留（后台定位要用），取消类三行（状态/时间/退回）是订单事实也保留。 */
+  const contactLines = [`订单号: ${order.order_no}`, '联系方式与收货信息: 点下方按钮在后台查看'];
   if (kind === 'shop_order_cancelled') {
     contactLines.push('当前状态: 已取消（用户自助）');
     contactLines.push(`取消时间: ${formatOrderTime(order.updated_at)}`);
@@ -272,22 +264,6 @@ const buildOrderTemplateParams = async (
 
 const escapeHtml = (value: string) =>
   value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-
-/**
- * 手机号脱敏（2026-11-10）。
- *
- * 起因：订单通知邮件被 QQ 在 SMTP 层硬退（`blocked by Admin`），同一发件人/收件人/IP 段的
- * 生日邮件、密码重置、回复通知都能送达 —— 差别只在正文。订单模板正文里同时出现
- * 「姓名 + 完整手机号 + 详细地址 + 金额」，是反垃圾系统判定诈骗/钓鱼的典型特征组合。
- *
- * 这里保留首 3 末 4（管理员核对身份够用），完整号码走「在后台打开」的深链。
- * ⚠️ 不要把这里改成完整号码 —— 那是刚被 QQ 拒收的那个版本。
- */
-const maskPhone = (value: string) => {
-  const digits = String(value || '').replace(/\s/g, '');
-  if (digits.length < 8) return digits;
-  return `${digits.slice(0, 3)}****${digits.slice(-4)}`;
-};
 
 type SendOutcome = { ok: true } | { ok: false; detail: string };
 
