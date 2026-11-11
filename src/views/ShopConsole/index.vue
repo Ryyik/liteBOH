@@ -317,11 +317,16 @@
 
             <div class="spec-section">
               <div class="spec-heading">
-                <span>规格选项</span>
+                <span>可选规格</span>
                 <button type="button" class="text-button" @click="addSpec">
-                  <Plus :size="15" aria-hidden="true" /> 添加规格
+                  <Plus :size="15" aria-hidden="true" /> 添加
                 </button>
               </div>
+              <!-- 一栏搞定（2026-11-11）：原先是「显示名称 + 内部值」两个输入框，
+                   运营几乎必然填错 —— 线上真实数据里既有把「配色」重复填三遍导致
+                   前台三个按钮全叫「配色」，也有名称填对、值多加「外观」二字的。
+                   现在只需要填「用户看到并选中的那个词」，落库时 label/value 双写同值
+                   （下游加购去重与订单快照仍读 value，不用改）。 -->
               <div v-if="selectedProduct.specifications.length" class="spec-list">
                 <div
                   v-for="(spec, index) in selectedProduct.specifications"
@@ -329,28 +334,28 @@
                   class="spec-row"
                 >
                   <input
-                    v-model="spec.label"
-                    placeholder="显示名称"
-                    aria-label="规格显示名称"
-                    @input="markDirty(selectedProduct.id)"
-                  />
-                  <input
-                    v-model="spec.value"
-                    placeholder="内部值"
-                    aria-label="规格内部值"
-                    @input="markDirty(selectedProduct.id)"
+                    :value="spec.label"
+                    :placeholder="index === 0 ? '有什么可选，如 红' : '下一个可选值'"
+                    :aria-label="`第 ${index + 1} 个可选规格`"
+                    :maxlength="SPEC_NAME_MAX_LENGTH"
+                    @input="updateSpecName(spec, $event.target.value)"
+                    @paste="handleSpecPaste($event, index)"
+                    @keydown.enter.prevent="addSpec"
                   />
                   <button
                     type="button"
                     class="spec-remove"
-                    title="移除规格"
+                    title="移除这个可选值"
                     @click="removeSpec(index)"
                   >
                     <X :size="16" aria-hidden="true" />
                   </button>
                 </div>
               </div>
-              <p v-else class="spec-empty">没有规格时，购买会使用默认规格。</p>
+              <p v-else class="spec-empty">
+                没有规格时，购买会使用默认规格。多个可选值（如 红 / 黄 / 蓝）就在这里逐个填，
+                也可以直接粘贴「红,黄,蓝」。
+              </p>
             </div>
 
             <footer class="editor-footer">
@@ -427,6 +432,14 @@ import {
   PRODUCT_CATEGORY_OPTIONS,
 } from '@/views/DataManagement/config.js';
 import { useProductsStore } from '@/stores/products';
+import {
+  SPEC_NAME_MAX_LENGTH,
+  SPEC_MAX_ROWS,
+  normalizeProductSpecs,
+  parseSpecInput,
+  toSpecRecords,
+  validateSpecNames,
+} from '@/utils/product-specs.js';
 
 const productsStore = useProductsStore();
 const authStore = useAuthStore();
@@ -454,21 +467,7 @@ const parseId = (value) => {
   const id = Number(typeof value === 'object' && value !== null ? value.id : value);
   return Number.isFinite(id) ? id : 0;
 };
-const normalizeSpecs = (value) => {
-  if (Array.isArray(value))
-    return value.map((item) => ({
-      label: String(item?.label || ''),
-      value: String(item?.value || ''),
-    }));
-  if (typeof value === 'string') {
-    try {
-      return normalizeSpecs(JSON.parse(value));
-    } catch {
-      return [];
-    }
-  }
-  return [];
-};
+const normalizeSpecs = (value) => normalizeProductSpecs(value);
 const cloneProduct = (product) => ({
   ...product,
   id: parseId(product),
@@ -572,9 +571,37 @@ function startNewProduct() {
   selectedId.value = tempCounter;
 }
 function addSpec() {
-  selectedProduct.value.specifications.push({ label: '', value: '' });
+  const list = selectedProduct.value?.specifications;
+  if (!list || list.length >= SPEC_MAX_ROWS) return;
+  list.push({ label: '', value: '' });
   markDirty(selectedId.value);
 }
+
+/* 单栏输入：label 就是用户看到并选中的那个词，value 双写成同一串 ——
+   `stores/bag.ts` 用 value 做购物袋同一商品不同规格的行去重，下单 RPC 快照也存它。 */
+function updateSpecName(spec, nextValue) {
+  spec.label = String(nextValue ?? '');
+  spec.value = spec.label;
+  markDirty(selectedId.value);
+}
+
+/* 粘贴「红,黄,蓝」直接拆成三行：运营最自然的输入方式，别逼他们一次只贴一个词。
+   单个词不拦截，走浏览器默认粘贴（保留光标位置等原生行为）。 */
+function handleSpecPaste(event, index) {
+  const text = event.clipboardData?.getData('text') || '';
+  const names = parseSpecInput(text);
+  if (names.length < 2) return;
+  event.preventDefault();
+  const list = selectedProduct.value?.specifications || [];
+  const head = list.slice(0, index);
+  const tail = list.slice(index + 1);
+  const inserted = toSpecRecords(names);
+  // 空行在这里顺手清掉：粘贴是在「正在编辑的那一行」上做的，那一行多半是空的
+  const merged = [...head, ...inserted, ...tail].filter((item) => item.label || item.value);
+  selectedProduct.value.specifications = merged.slice(0, SPEC_MAX_ROWS);
+  markDirty(selectedId.value);
+}
+
 function removeSpec(index) {
   selectedProduct.value.specifications.splice(index, 1);
   markDirty(selectedId.value);
@@ -713,8 +740,22 @@ function validateDraft(draft) {
     if (mode === 'rmb_only' && Number(draft.rmb_price) <= 0)
       return 'RMB 定价为 0 时不能勾选「允许购买」：请填写 RMB 价格，或关闭「允许购买」';
   }
+  /* 规格校验（2026-11-11）：旧实现是 `.filter(label && value)` 静默丢掉半填的行 ——
+     运营填了一个值没填第二个框，保存后规格凭空消失且没有任何提示。现在只有一个框，
+     要么是重复、要么是超长，都由 validateSpecNames 给中文原因。 */
+  const specError = validateSpecNames(collectSpecNames(draft.specifications));
+  if (specError) return specError;
   return '';
 }
+
+/** 把草稿里的规格行收成「选项名数组」（空行忽略）
+ *
+ *  刻意**不经过 normalizeSpecs**：那个函数会去重，而这里必须保留重复 ——
+ *  否则运营手填两个一样的值，校验发现不了，保存后静默少一个选项。 */
+const collectSpecNames = (specifications) =>
+  (Array.isArray(specifications) ? specifications : [])
+    .map((item) => String(item?.label ?? item?.value ?? '').trim())
+    .filter(Boolean);
 const buildPayload = (draft) => {
   const mode = String(draft.payment_mode || 'points_only');
   const base = {
@@ -729,9 +770,7 @@ const buildPayload = (draft) => {
         : null,
     stock: Math.max(0, Math.round(Number(draft.stock) || 0)),
     image: String(draft.image || '').trim(),
-    specifications: normalizeSpecs(draft.specifications).filter(
-      (item) => item.label.trim() && item.value.trim(),
-    ),
+    specifications: toSpecRecords(collectSpecNames(draft.specifications)),
     is_active: draft.is_active !== false,
     is_purchasable: draft.is_purchasable !== false,
   };

@@ -2137,6 +2137,7 @@ import DashboardPagination from './components/shared/DashboardPagination.vue';
 import RowActionMenu from './components/shared/RowActionMenu.vue';
 import ActiveFilterChips from './components/shared/ActiveFilterChips.vue';
 import { resolveDbImageUrl } from '../../utils/db-image-url.js';
+import { normalizeProductSpecs } from '@/utils/product-specs.js';
 import { supabase } from '@/utils/supabase-client.js';
 import { invalidateByTags } from '@/utils/request-core.js';
 import { logoutAndReload } from '@/utils/logout-and-reload.js';
@@ -2871,9 +2872,13 @@ const handleUpdateJsonBuffer = (fieldKey, value) => {
 
 const handleUpdateSpecField = (fieldKey, index, prop, value) => {
   if (!fieldKey || !editingItem.value || !Array.isArray(editingItem.value[fieldKey])) return;
-  const next = editingItem.value[fieldKey].map((spec, i) =>
-    i === index ? { ...spec, [prop]: value } : spec,
-  );
+  /* prop === 'both'：规格编辑器只有一个输入框（2026-11-11），
+     label 与 value 必须同步写 —— 否则加购去重与订单快照读到的还是旧 value。 */
+  const next = editingItem.value[fieldKey].map((spec, i) => {
+    if (i !== index) return spec;
+    if (prop === 'both') return { ...spec, label: value, value };
+    return { ...spec, [prop]: value };
+  });
   editingItem.value[fieldKey] = next;
 };
 
@@ -6660,8 +6665,16 @@ const openEditModal = async (item = null, opts = {}) => {
     showUserPickerModal.value = false;
     if (item) {
       isEditing.value = true;
-      editingItem.value = { ...item };
-      editingOriginalItem.value = cloneComparable(item);
+      /* 商品规格在**打开时**就归一（2026-11-11）：库里存的老数据可能是
+         `{label:'配色', value:'蓝'}` 这种把类目名当名称的形态，不归一会让编辑器里
+         出现三行一模一样的「配色」。原始项用同一份归一结果，否则一打开就显示
+         「有未保存修改」。 */
+      const baseItem =
+        currentTab.value === 'products'
+          ? { ...item, specifications: normalizeProductSpecs(item.specifications) }
+          : item;
+      editingItem.value = { ...baseItem };
+      editingOriginalItem.value = cloneComparable(baseItem);
       addRecentRecord(item);
 
       if (currentTab.value === 'forum') {

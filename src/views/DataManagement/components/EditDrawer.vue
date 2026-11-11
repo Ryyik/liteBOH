@@ -692,7 +692,10 @@
                       />
                     </div>
 
-                    <!-- 规格输入 (商品专用) -->
+                    <!-- 规格输入 (商品专用)
+                         单栏（2026-11-11）：与商城编辑器、前台规格面板同口径 ——
+                         运营只填「用户看到并点选的那个词」，落库时 label/value 双写同值。
+                         原先的「规格名称 / 规格值」两栏是线上数据填错的直接原因。 -->
                     <div v-else-if="field.type === 'specifications'" class="specs-input">
                       <div
                         v-for="(spec, idx) in editingItem[field.key] || []"
@@ -700,18 +703,11 @@
                         class="spec-item"
                       >
                         <input
-                          :value="spec.label"
-                          @input="setSpecField(field.key, idx, 'label', $event.target.value)"
+                          :value="spec.label || spec.value"
+                          @input="setSpecName(field.key, idx, $event.target.value)"
                           type="text"
                           class="form-input"
-                          placeholder="规格名称"
-                        />
-                        <input
-                          :value="spec.value"
-                          @input="setSpecField(field.key, idx, 'value', $event.target.value)"
-                          type="text"
-                          class="form-input"
-                          placeholder="规格值"
+                          :placeholder="idx === 0 ? '可选值，如 红' : '下一个可选值'"
                         />
                         <button
                           type="button"
@@ -736,7 +732,7 @@
                         class="btn-add-spec"
                         @click="$emit('addSpec', field.key)"
                       >
-                        + 添加规格
+                        + 添加可选值
                       </button>
                     </div>
 
@@ -1517,8 +1513,10 @@ function setJsonBuffer(fieldKey, value) {
   emit('updateJsonBuffer', fieldKey, value);
 }
 
-function setSpecField(fieldKey, index, prop, value) {
-  emit('updateSpecField', fieldKey, index, prop, value);
+/* 规格只有「一个可选值」这一个字段：label 与 value 一起写，
+   下游（购物袋按 value 去重 / 下单快照）继续读 value，契约不变。 */
+function setSpecName(fieldKey, index, value) {
+  emit('updateSpecField', fieldKey, index, 'both', value);
 }
 
 const copyFieldValue = (fieldKey) => {

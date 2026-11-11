@@ -36,7 +36,6 @@
 
         <div class="surface-body">
           <div ref="scrollRef" class="surface-scroll">
-            <p class="surface-category">{{ product.category }}</p>
             <h2 class="surface-title">
               <EditableText
                 :model-value="product.title"
@@ -442,12 +441,9 @@ onBeforeUnmount(() => {
   padding: 20px 22px 12px;
 }
 
-.surface-category {
-  margin: 0 0 6px;
-  color: var(--boh-text-secondary, #86868b);
-  font-size: 11px;
-  letter-spacing: 0.08em;
-}
+/* `.surface-category` 已随模板一起删除（2026-11-11）：详情页顶部那行分类
+   （「BOH Bag」）对用户没有信息量，而且分类只有这一个选项时，连吐司也会显示
+   「BOH Bag」。分类字段仍在库里、后台仍可筛，只是不再出现在详情页。 */
 
 .surface-title {
   margin: 0 0 14px;

@@ -20,34 +20,31 @@
           </header>
 
           <div class="specs-body">
-            <!-- 口径说明放在最上面：运营最常见的两个错是「只填了一边」和
-                 「两条规格值写成一样」—— 后者会让下单快照的 key 撞车。 -->
+            <!-- 只有「可选值」一栏（2026-11-11）。原先的「名称 + 值」双栏是本面板
+                 最容易出错的地方：线上数据里既有把「配色」重复填三遍的（前台三个
+                 按钮全叫「配色」），也有名称对、值多加「外观」的。用户只需要点一个
+                 能看懂的名字，内部标识由前端自己写，不该是运营的负担。 -->
             <p class="specs-hint">
-              「规格名称」给用户看（如 尺码），「规格值」是下单时记录的标识（如
-              M）。两项都必填，且规格值不能重复。没有多款式时留空即可。
+              填写用户可以选择的样式，例如 红 / 黄 / 蓝。没有多款式时留空即可；
+              填了之后前台会先让用户选一项再下单。
             </p>
 
             <div v-for="(row, index) in rows" :key="row.key" class="specs-row">
               <input
-                v-model="row.label"
+                :value="row.name"
                 type="text"
                 class="specs-input"
-                maxlength="24"
-                placeholder="规格名称（尺码）"
-                :aria-label="`第 ${index + 1} 条规格名称`"
-              />
-              <input
-                v-model="row.value"
-                type="text"
-                class="specs-input"
-                maxlength="32"
-                placeholder="规格值（M）"
-                :aria-label="`第 ${index + 1} 条规格值`"
+                :maxlength="SPEC_NAME_MAX_LENGTH"
+                :placeholder="index === 0 ? '可选值，如 红' : '下一个可选值'"
+                :aria-label="`第 ${index + 1} 个可选值`"
+                @input="row.name = $event.target.value"
+                @paste="onPaste($event, index)"
+                @keydown.enter.prevent="addRow"
               />
               <button
                 type="button"
                 class="specs-remove"
-                :aria-label="`删除第 ${index + 1} 条规格`"
+                :aria-label="`删除第 ${index + 1} 个可选值`"
                 @click="removeRow(index)"
               >
                 <Trash2 :size="15" :stroke-width="1.9" aria-hidden="true" />
@@ -55,17 +52,18 @@
             </div>
 
             <p v-if="!rows.length" class="specs-empty">
-              还没有规格。单一款式不需要添加；加了之后前台会先让用户选一项再下单。
+              还没有可选值。单一款式不需要添加；加了之后前台会先让用户选一项再下单。
+              多个值可以一次粘贴「红,黄,蓝」。
             </p>
 
             <button
               type="button"
               class="specs-add"
-              :disabled="rows.length >= MAX_ROWS"
+              :disabled="rows.length >= SPEC_MAX_ROWS"
               @click="addRow"
             >
               <Plus :size="14" :stroke-width="2" aria-hidden="true" />
-              <span>添加规格</span>
+              <span>添加可选值</span>
             </button>
 
             <p v-if="error" class="specs-error" role="alert">{{ error }}</p>
@@ -86,6 +84,14 @@
 <script setup>
 import { nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import { Plus, Trash2, X } from 'lucide-vue-next';
+import {
+  SPEC_MAX_ROWS,
+  SPEC_NAME_MAX_LENGTH,
+  normalizeProductSpecs,
+  parseSpecInput,
+  toSpecRecords,
+  validateSpecNames,
+} from '@/utils/product-specs.js';
 
 /**
  * 商品「规格」编辑面板（**只在就地编辑态渲染**）。
@@ -107,23 +113,24 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'save']);
 
-/** 一行规格的本地副本：`key` 只服务于 v-for，不进库（库里是 { label, value }） */
-const MAX_ROWS = 10;
+/** 一行 = 一个可选值。`key` 只服务于 v-for，不进库（库里仍是 { label, value }） */
 let rowSeq = 0;
 const rows = ref([]);
 const error = ref('');
 
 const productTitle = ref('');
 
-const makeRow = (label = '', value = '') => ({
+const makeRow = (name = '') => ({
   key: `spec-${(rowSeq += 1)}`,
-  label,
-  value,
+  name,
 });
 
 const resetFromProduct = () => {
-  const list = Array.isArray(props.product?.specifications) ? props.product.specifications : [];
-  rows.value = list.map((item) => makeRow(String(item?.label || ''), String(item?.value || '')));
+  // `normalizeProductSpecs` 会把旧数据（名称栏填「配色」、真实选项在 value 里）归一成
+  // 「蓝色的那一个词」，所以运营打开面板看到的就是干净的可选值，不必再手改历史数据。
+  rows.value = normalizeProductSpecs(props.product?.specifications).map((item) =>
+    makeRow(item.label),
+  );
   productTitle.value = String(props.product?.title || '未命名商品');
   error.value = '';
 };
@@ -143,7 +150,7 @@ watch(
 );
 
 const addRow = () => {
-  if (rows.value.length >= MAX_ROWS) return;
+  if (rows.value.length >= SPEC_MAX_ROWS) return;
   error.value = '';
   rows.value = [...rows.value, makeRow()];
 };
@@ -151,6 +158,17 @@ const addRow = () => {
 const removeRow = (index) => {
   error.value = '';
   rows.value = rows.value.filter((_, idx) => idx !== index);
+};
+
+/** 粘贴「红,黄,蓝」拆成三行；单个词不拦截，走原生粘贴 */
+const onPaste = (event, index) => {
+  const names = parseSpecInput(event.clipboardData?.getData('text') || '');
+  if (names.length < 2) return;
+  event.preventDefault();
+  const head = rows.value.slice(0, index).filter((row) => row.name.trim());
+  const tail = rows.value.slice(index + 1);
+  error.value = '';
+  rows.value = [...head, ...names.map((name) => makeRow(name)), ...tail].slice(0, SPEC_MAX_ROWS);
 };
 
 const requestClose = () => {
@@ -161,34 +179,18 @@ const requestClose = () => {
 const submit = () => {
   if (props.saving) return;
 
-  /* 清洗顺序：先 trim，再把「两栏都空」的行当作用户放弃的草稿丢掉，
-     然后才校验「只填了一边」—— 反过来会把新增后没填的空行报成错误。 */
-  const cleaned = rows.value
-    .map((row) => ({
-      label: String(row.label || '').trim(),
-      value: String(row.value || '').trim(),
-    }))
-    .filter((row) => row.label || row.value);
-
-  const halfFilled = cleaned.findIndex((row) => !row.label || !row.value);
-  if (halfFilled >= 0) {
-    error.value = `第 ${halfFilled + 1} 条规格只填了一边：名称和规格值都要填，或整条删掉。`;
-    return;
-  }
-
-  const seen = new Set();
-  const duplicated = cleaned.find((row) => {
-    if (seen.has(row.value)) return true;
-    seen.add(row.value);
-    return false;
-  });
-  if (duplicated) {
-    error.value = `规格值「${duplicated.value}」重复了：下单快照用它当唯一标识，不能重名。`;
+  /* 空行（新增了没填）当作用户放弃的草稿丢掉，其余按「可选值」校验：
+     重复 / 超长 / 超个数都由 validateSpecNames 给中文原因。
+     写入形态仍是 { label, value } 且两者同值 —— 下游加购去重与订单快照读 value。 */
+  const names = rows.value.map((row) => String(row.name || '').trim()).filter(Boolean);
+  const validationError = validateSpecNames(names);
+  if (validationError) {
+    error.value = validationError;
     return;
   }
 
   error.value = '';
-  emit('save', cleaned);
+  emit('save', toSpecRecords(names));
 };
 
 /* Esc 关闭：面板是 Teleport 到 body 的，键盘焦点在输入框里，
@@ -307,7 +309,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown));
 
 .specs-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 32px;
+  grid-template-columns: minmax(0, 1fr) 32px;
   gap: 8px;
   margin-bottom: 8px;
 }

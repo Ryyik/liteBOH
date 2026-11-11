@@ -8,6 +8,7 @@ import { getDefaultApiUrlForBohaiProvider } from '@/utils/api/bohai-model-config
 import { TAB_WRITABLE_FIELDS } from './index.js';
 import { normalizeActivityDateInput } from '@/utils/activity-date.js';
 import { normalizeCardLayout } from '@/config/product-card-layout.js';
+import { normalizeProductSpecs } from '@/utils/product-specs.js';
 import {
   normalizeCampaignSlug,
   toIsoOrNull,
@@ -544,14 +545,11 @@ export const SAVE_STRATEGIES = {
       throw new Error('RMB 定价必须是大于等于 0 的数字');
     }
 
-    const normalizedSpecifications = Array.isArray(editingItem.specifications)
-      ? editingItem.specifications
-          .map((spec) => ({
-            label: String(spec?.label || '').trim(),
-            value: String(spec?.value || '').trim(),
-          }))
-          .filter((spec) => spec.label && spec.value)
-      : [];
+    /* 规格归一（2026-11-11）：和商城编辑器共用 utils/product-specs.js ——
+       运营在后台改别的字段、顺手保存商品时，历史脏数据（名称栏填「配色」、
+       真实选项在 value 里）会被顺手洗干净，而不是原样写回去。
+       旧实现按 `label && value` 过滤，半填的行静默消失、脏行原样留存。 */
+    const normalizedSpecifications = normalizeProductSpecs(editingItem.specifications);
 
     /* 与 DB 的两条价格约束**逐字对齐**（2026081102 迁移）：
          chk_products_points_required → points_only 且 points_cost = 0 时，必须 is_purchasable = false

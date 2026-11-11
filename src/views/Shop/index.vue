@@ -216,7 +216,7 @@
                     v-for="spec in product.specifications.slice(0, 3)"
                     :key="spec.value"
                     class="p-spec"
-                    >{{ spec.label }} {{ spec.value }}</span
+                    >{{ spec.label }}</span
                   >
                 </span>
                 <!-- 编辑工具（规格 / 形态）放在 meta 之内：小卡里靠 CSS 绝对定位浮到

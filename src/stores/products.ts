@@ -3,6 +3,7 @@ import { ref } from 'vue';
 import { supabase } from '@/utils/supabase-client';
 import { logger } from '@/utils/logger.js';
 import { normalizeCardLayout } from '@/config/product-card-layout.js';
+import { normalizeProductSpecs } from '@/utils/product-specs.js';
 import type { Product, ProductSpec } from '@/types';
 
 // 延迟加载 fallback 产品数据，避免打包到初始 chunk
@@ -43,22 +44,11 @@ const clearProductCache = (): void => {
   }
 };
 
-const normalizeSpecs = (specifications: unknown): ProductSpec[] => {
-  if (Array.isArray(specifications)) {
-    return specifications as ProductSpec[];
-  }
-
-  if (typeof specifications === 'string') {
-    try {
-      const parsed = JSON.parse(specifications);
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
-    }
-  }
-
-  return [];
-};
+/* 规格归一收敛到 utils/product-specs.js（2026-11-11）：这里原先只是「数组/JSON 字符串」
+   的形态兼容，不看内容 —— 于是线上那批「名称栏填类目名、真实选项在 value 里」的脏数据
+   会原样流到前台（三条规格全叫「配色」）。现在统一走单一真源，读取即愈合。 */
+const normalizeSpecs = (specifications: unknown): ProductSpec[] =>
+  normalizeProductSpecs(specifications) as ProductSpec[];
 
 const normalizeProduct = (item: Record<string, unknown>): Product => {
   const mode = String(item.payment_mode || 'points_only');
