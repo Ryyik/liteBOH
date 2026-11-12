@@ -6324,6 +6324,17 @@ const toolbarMenuItems = computed(() => {
       run: () => togglePinnedTab(currentTab),
     },
   ];
+  // 极简骨架原型（2026-11-12）：入口只挂在用户表上 —— 那一页目前只接了 users，
+  // 放进其它 tab 会让人以为「点了能看积分」，实际还是用户列表（骗人的入口比没有更糟）。
+  if (currentTab.value === 'users') {
+    items.push({
+      id: 'minimal-view',
+      label: '极简视图（实验）',
+      run: () => {
+        router.push('/admin/users-minimal').catch(() => {});
+      },
+    });
+  }
   if (currentTab.value === 'lotterySchedulerLogs') {
     items.push({
       id: 'clean-logs',

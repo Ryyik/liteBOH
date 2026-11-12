@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>用户 · 极简视图（静态预览）</title>
+<style>
+  :root{
+    --background:#fafaf9; --card:#fff; --border:#e6e6e4; --muted:#faf9f7;
+    --foreground:#1a1a1a; --muted-foreground:#8a8a88; --ring:#1a1a1a;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,"PingFang SC",sans-serif;background:#f2f2f0;color:var(--foreground);font-size:13px;line-height:1.5}
+  .preview-bar{display:flex;align-items:center;gap:8px;padding:10px 14px;background:#1a1a1a;color:#fff;font-size:12px}
+  .preview-bar .tag{opacity:.6}
+  .preview-bar .grow{flex:1}
+  .preview-bar button{border:1px solid #4a4a48;background:transparent;color:#fff;border-radius:999px;padding:3px 10px;font:inherit;font-size:12px;cursor:pointer}
+  .preview-bar button.on{background:#fff;color:#1a1a1a;border-color:#fff}
+  .stage{padding:16px;display:flex;justify-content:center}
+  .frame{width:100%;max-width:860px;transition:max-width .18s ease;container-type:inline-size;position:relative}
+
+  .um{background:var(--background);padding:18px 16px 28px}
+  .um-shell{max-width:100%;margin:0 auto;background:var(--card);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+  .um-bar{display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid var(--border)}
+  .um-mods{display:flex;gap:2px;min-width:0;overflow-x:auto;scrollbar-width:none}
+  .um-mods::-webkit-scrollbar{display:none}
+  .um-mod{display:inline-flex;align-items:center;gap:3px;border:0;background:transparent;color:var(--muted-foreground);font:inherit;font-size:12.5px;padding:5px 9px;border-radius:7px;white-space:nowrap;cursor:pointer}
+  .um-mod.is-on{background:var(--foreground);color:var(--card)}
+  .um-old{font-size:10px;line-height:1.2;padding:1px 4px;border:1px solid currentColor;border-radius:4px;opacity:.55}
+  .um-find{display:flex;align-items:center;gap:6px;flex:1;min-width:120px;border-bottom:1px solid var(--border);padding:0 2px;color:var(--muted-foreground)}
+  .um-find input{flex:1;min-width:0;border:0;outline:0;background:transparent;color:inherit;font:inherit;font-size:12.5px;padding:5px 0}
+  .um-clear{border:0;background:transparent;color:inherit;cursor:pointer;padding:2px;display:none}
+  .um-total{font-size:11.5px;color:var(--muted-foreground);white-space:nowrap}
+  .um-head,.um-row{display:grid;grid-template-columns:14px minmax(0,1fr) 110px 80px 96px 14px;gap:10px;align-items:center}
+  .um-head{padding:7px 12px;background:var(--muted);border-bottom:1px solid var(--border);font-size:11.5px;color:var(--muted-foreground)}
+  .um-body{max-height:calc(100vh - 260px);overflow-y:auto}
+  .um-row{width:100%;border:0;border-bottom:1px solid #f4f4f2;background:transparent;color:inherit;font:inherit;text-align:left;padding:0 12px;height:46px;cursor:pointer}
+  .um-row:hover{background:var(--muted)}
+  .um-row:focus-visible{outline:2px solid var(--ring);outline-offset:-2px}
+  .um-dot{width:7px;height:7px;border-radius:50%;background:#9a9a98}
+  .um-dot.is-admin{background:#b5794a}
+  .um-dot.is-moderator{background:#4a7fb5}
+  .um-dot.is-user{background:#7f9c5a}
+  .um-id{min-width:0;display:block;overflow:hidden}
+  .um-name{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .um-meta{display:none;font-size:11.5px;color:var(--muted-foreground);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .um-c{font-size:12.5px;color:#4a4a48;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .um-caret{color:#c4c4c2;justify-self:end}
+  .um-hint{margin:0;padding:34px 14px;text-align:center;color:var(--muted-foreground);font-size:12.5px}
+  .um-more{padding:10px;text-align:center}
+  .um-more button{border:1px solid var(--border);background:transparent;color:var(--muted-foreground);border-radius:7px;padding:6px 16px;font:inherit;font-size:12.5px;cursor:pointer;display:none}
+
+  .um-scrim{position:absolute;inset:0;z-index:1200;background:rgba(20,20,20,.18);display:none;justify-content:flex-end}
+  .um-scrim.on{display:flex}
+  .um-sheet{width:min(360px,100%);height:100%;display:flex;flex-direction:column;background:var(--card);border-left:1px solid var(--border)}
+  .um-sheet-top{display:flex;align-items:center;justify-content:space-between;padding:13px 15px;border-bottom:1px solid var(--border)}
+  .um-sheet-title{margin:0;font-size:13px;font-weight:500}
+  .um-x{border:0;background:transparent;color:var(--muted-foreground);cursor:pointer;padding:2px 6px;font-size:16px;line-height:1}
+  .um-fields{flex:1;overflow-y:auto;padding:15px;display:grid;gap:12px;align-content:start}
+  .um-f label{display:block;margin-bottom:4px;font-size:11.5px;color:var(--muted-foreground)}
+  .um-f input,.um-f select,.um-f textarea{width:100%;border:1px solid var(--border);border-radius:7px;background:var(--card);color:inherit;font:inherit;font-size:12.5px;padding:7px 9px;outline:0}
+  .um-f input:focus,.um-f select:focus,.um-f textarea:focus{border-color:var(--foreground)}
+  .um-f textarea{min-height:62px;resize:vertical}
+  .um-actions{display:flex;align-items:center;gap:8px;padding:11px 15px;border-top:1px solid var(--border)}
+  .um-id-hint{font-size:10.5px;color:#b0b0ae;font-variant-numeric:tabular-nums}
+  .um-spacer{flex:1}
+  .um-btn{border:1px solid #e0e0de;background:transparent;color:inherit;border-radius:7px;padding:6px 14px;font:inherit;font-size:12.5px;cursor:pointer}
+  .um-btn.is-primary{background:var(--foreground);border-color:var(--foreground);color:var(--card)}
+  .um-toast{position:absolute;left:50%;bottom:24px;transform:translate(-50%,8px);background:#1a1a1a;color:#fff;font-size:12px;padding:6px 12px;border-radius:999px;opacity:0;transition:.2s;pointer-events:none;z-index:1300}
+  .um-toast.on{opacity:1;transform:translate(-50%,0)}
+
+  @container (max-width:720px){
+    .um{padding:0 0 24px;background:var(--card)}
+    .um-shell{border:0;border-radius:0}
+    .um-bar{flex-wrap:wrap;gap:6px;padding:8px 10px}
+    .um-mods{order:1;width:100%}
+    .um-find{order:2}
+    .um-total{order:3}
+    .um-head{display:none}
+    .um-row{grid-template-columns:14px minmax(0,1fr) 14px;height:58px}
+    .um-meta{display:block}
+    .um-c{display:none}
+    .um-body{max-height:none}
+    .um-scrim{align-items:flex-end}
+    .um-sheet{width:100%;height:auto;max-height:86%;border-left:0;border-top:1px solid var(--border);border-radius:14px 14px 0 0}
+    .um-fields{flex:0 1 auto}
+  }
+</style>
+</head>
+<body>
+<div class="preview-bar">
+  <strong>用户 · 极简视图</strong>
+  <span class="tag">静态预览 · mock 数据 · 真实页面在 /#/admin/users-minimal</span>
+  <span class="grow"></span>
+  <span class="tag">预览宽度</span>
+  <button data-w="wide" class="on">横屏</button>
+  <button data-w="390">竖屏</button>
+</div>
+
+<div class="stage">
+  <div class="frame" id="frame">
+    <div class="um">
+      <div class="um-shell">
+        <header class="um-bar">
+          <nav class="um-mods" aria-label="模块">
+            <span class="um-mod is-on" aria-current="page">用户</span>
+            <button class="um-mod">积分<span class="um-old">旧</span></button>
+            <button class="um-mod">商品<span class="um-old">旧</span></button>
+            <button class="um-mod">帖子<span class="um-old">旧</span></button>
+          </nav>
+          <label class="um-find">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M16.6 16.6 21 21"/></svg>
+            <input id="q" type="search" placeholder="搜索用户名 / 角色" aria-label="搜索用户" />
+          </label>
+          <span class="um-total" id="total"></span>
+        </header>
+
+        <div class="um-head" aria-hidden="true">
+          <span></span><span>用户名</span><span>角色</span><span>积分</span><span>注册</span><span></span>
+        </div>
+
+        <div class="um-body" id="list"></div>
+      </div>
+    </div>
+
+    <div class="um-scrim" id="scrim" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
+      <form class="um-sheet" id="sheet" autocomplete="off"></form>
+    </div>
+    <div class="um-toast" id="toast">已保存</div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var ROLE_LABELS = { user: '普通用户', admin: '管理员', moderator: '版主' };
+  var rows = [
+    { id: 'a1b2c3d4-0000-4000-8000-000000000001', username: 'lin_xiaoyu', role: 'user', points: 120, join_date: '2026-01-03', bio: '' },
+    { id: 'a1b2c3d4-0000-4000-8000-000000000002', username: 'mo_yu', role: 'moderator', points: 860, join_date: '2026-02-11', bio: '负责摄影区' },
+    { id: 'a1b2c3d4-0000-4000-8000-000000000003', username: 'zhou_zq', role: 'user', points: 15, join_date: '2026-03-28', bio: '' },
+    { id: 'a1b2c3d4-0000-4000-8000-000000000004', username: 'an_ran', role: 'admin', points: 2400, join_date: '2025-11-02', bio: '' },
+    { id: 'a1b2c3d4-0000-4000-8000-000000000005', username: 'hei_mao', role: 'user', points: 64, join_date: '2026-04-17', bio: '举报过两次' },
+    { id: 'a1b2c3d4-0000-4000-8000-000000000006', username: 'shu_yi', role: 'user', points: 318, join_date: '2026-05-09', bio: '' },
+    { id: 'a1b2c3d4-0000-4000-8000-000000000007', username: 'qi_qi', role: 'moderator', points: 512, join_date: '2026-05-21', bio: '负责问答区' },
+    { id: 'a1b2c3d4-0000-4000-8000-000000000008', username: 'mu_mu', role: 'user', points: 7, join_date: '2026-06-02', bio: '' },
+    { id: 'a1b2c3d4-0000-4000-8000-000000000009', username: 'chen_xi', role: 'user', points: 1450, join_date: '2026-06-19', bio: '' },
+    { id: 'a1b2c3d4-0000-4000-8000-000000000010', username: 'yu_ling', role: 'user', points: 233, join_date: '2026-07-04', bio: '' },
+    { id: 'a1b2c3d4-0000-4000-8000-000000000011', username: 'bai_lu', role: 'user', points: 88, join_date: '2026-07-30', bio: '' },
+    { id: 'a1b2c3d4-0000-4000-8000-000000000012', username: 'xiao_man', role: 'admin', points: 3200, join_date: '2025-12-15', bio: '' }
+  ];
+
+  var listEl = document.getElementById('list');
+  var totalEl = document.getElementById('total');
+  var qEl = document.getElementById('q');
+  var scrim = document.getElementById('scrim');
+  var sheet = document.getElementById('sheet');
+  var toast = document.getElementById('toast');
+  var editing = null;
+  var toastTimer = 0;
+
+  var roleLabel = function (r) { return ROLE_LABELS[r] || '—'; };
+  var fmtPoints = function (v) { return Number(v).toLocaleString('zh-CN'); };
+  var fmtDate = function (v) { return v ? String(v).slice(0, 10) : '—'; };
+  var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]; }); };
+
+  function visible() {
+    var term = qEl.value.trim().toLowerCase();
+    if (!term) return rows;
+    return rows.filter(function (r) {
+      return String(r.username).toLowerCase().indexOf(term) >= 0 || String(r.role).indexOf(term) >= 0 || roleLabel(r.role).indexOf(term) >= 0;
+    });
+  }
+
+  function render() {
+    var items = visible();
+    totalEl.textContent = items.length + ' / ' + rows.length + ' 位用户';
+    if (!items.length) { listEl.innerHTML = '<p class="um-hint">没有匹配的用户</p>'; return; }
+    listEl.innerHTML = items.map(function (r, i) {
+      return '<button type="button" class="um-row" data-i="' + rows.indexOf(r) + '">' +
+        '<span class="um-dot is-' + (ROLE_LABELS[r.role] ? r.role : 'user') + '"></span>' +
+        '<span class="um-id"><span class="um-name">' + esc(r.username) + '</span>' +
+        '<span class="um-meta">' + roleLabel(r.role) + ' · ' + fmtPoints(r.points) + ' 分 · ' + fmtDate(r.join_date) + '</span></span>' +
+        '<span class="um-c">' + roleLabel(r.role) + '</span>' +
+        '<span class="um-c">' + fmtPoints(r.points) + '</span>' +
+        '<span class="um-c">' + fmtDate(r.join_date) + '</span>' +
+        '<span class="um-caret">›</span></button>';
+    }).join('');
+  }
+
+  function field(id, label, inner) {
+    return '<div class="um-f"><label for="' + id + '">' + label + '</label>' + inner + '</div>';
+  }
+
+  function open(i) {
+    editing = rows[i];
+    var r = editing;
+    sheet.innerHTML =
+      '<div class="um-sheet-top"><h2 id="sheet-title" class="um-sheet-title">编辑用户</h2>' +
+      '<button type="button" class="um-x" data-close aria-label="关闭">×</button></div>' +
+      '<div class="um-fields">' +
+        field('f-name', '用户名', '<input id="f-name" value="' + esc(r.username) + '" maxlength="32" />') +
+        field('f-role', '角色', '<select id="f-role">' + Object.keys(ROLE_LABELS).map(function (k) {
+          return '<option value="' + k + '"' + (k === r.role ? ' selected' : '') + '>' + ROLE_LABELS[k] + '（' + k + '）</option>';
+        }).join('') + '</select>') +
+        field('f-points', '积分', '<input id="f-points" type="number" min="0" step="1" value="' + Number(r.points) + '" />') +
+        field('f-bio', '备注', '<textarea id="f-bio" rows="3">' + esc(r.bio) + '</textarea>') +
+      '</div>' +
+      '<div class="um-actions"><span class="um-id-hint">' + esc(r.id.slice(0, 8)) + '</span>' +
+      '<span class="um-spacer"></span><button type="button" class="um-btn" data-close>取消</button>' +
+      '<button type="submit" class="um-btn is-primary">保存</button></div>';
+    scrim.classList.add('on');
+    setTimeout(function () { var el = document.getElementById('f-name'); if (el) el.focus(); }, 30);
+  }
+
+  function close() { scrim.classList.remove('on'); editing = null; }
+
+  function flash(t) {
+    toast.textContent = t;
+    toast.classList.add('on');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { toast.classList.remove('on'); }, 1100);
+  }
+
+  listEl.addEventListener('click', function (e) {
+    var row = e.target.closest('.um-row');
+    if (row) open(Number(row.getAttribute('data-i')));
+  });
+
+  qEl.addEventListener('input', render);
+
+  scrim.addEventListener('click', function (e) {
+    if (e.target === scrim || e.target.closest('[data-close]')) close();
+  });
+
+  sheet.addEventListener('submit', function (e) {
+    e.preventDefault();
+    if (!editing) return;
+    var name = document.getElementById('f-name').value.trim();
+    if (!name) { document.getElementById('f-name').focus(); return; }
+    editing.username = name;
+    editing.role = document.getElementById('f-role').value;
+    editing.points = Math.max(0, Math.round(Number(document.getElementById('f-points').value) || 0));
+    editing.bio = document.getElementById('f-bio').value;
+    close();
+    render();
+    flash('已保存（预览，不写库）');
+  });
+
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
+
+  document.querySelectorAll('.preview-bar button').forEach(function (b) {
+    b.addEventListener('click', function () {
+      document.querySelectorAll('.preview-bar button').forEach(function (x) { x.classList.remove('on'); });
+      b.classList.add('on');
+      document.getElementById('frame').style.maxWidth = b.getAttribute('data-w') === 'wide' ? '860px' : '390px';
+    });
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
