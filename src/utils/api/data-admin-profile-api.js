@@ -47,3 +47,64 @@ export const updateProfileRow = async (userId, payload, selectColumns) => {
   }
   return data[0];
 };
+
+/**
+ * 列表页只取「能读、且一眼要用」的列。
+ * ⚠️ 不要加 email / shipping_* —— profiles 没有表级 SELECT，那些列被 H-1 收窄过，
+ * 加进来会整条查询 42501（真实事故，见 2026070802 迁移与 §2 P0-1）。
+ */
+export const PROFILE_LIST_COLUMNS = [
+  'id',
+  'username',
+  'role',
+  'points',
+  'join_date',
+  'bio',
+  'avatar_url',
+].join(', ');
+
+/**
+ * 关键词转义：ilike 的通配符与 PostgREST `.or()` 的语法字符都要清掉，
+ * 否则用户输入一个 `%` 就能把整表捞出来，输入 `(` 直接语法错（400）。
+ * 抽成纯函数是为了能被单测直接覆盖（见 tests/unit/admin-users-minimal.test.js）。
+ */
+export const sanitizeProfileKeyword = (raw) =>
+  String(raw ?? '')
+    .replace(/[%,()*\\"]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+/**
+ * 极简用户列表的数据入口（`/admin/users-minimal` 用）。
+ * 与 DataAdmin 的区别只有两点：只取列表要显示的列、只支持用户名/角色搜索。
+ *
+ * @param {{ keyword?: string, limit?: number, offset?: number }} [options]
+ * @returns {Promise<{ rows: Array<Record<string, unknown>>, total: number|null }>}
+ *   total 为 null 表示服务端没回 count（不是 0 —— 别把它当「没有数据」）
+ */
+export const fetchAdminProfiles = async ({ keyword = '', limit = 50, offset = 0 } = {}) => {
+  const term = sanitizeProfileKeyword(keyword);
+  // 非正数 / 非数字按默认 50 处理（`limit: 0` 不是「取零条」，是「没指定」），
+  // 上限 200：真要看更多应该翻页，而不是一次拉满。
+  const requested = Number(limit);
+  const size =
+    Number.isFinite(requested) && requested > 0 ? Math.min(200, Math.round(requested)) : 50;
+  const from = Math.max(0, Number(offset) || 0);
+
+  let query = supabase
+    .from('profiles')
+    .select(PROFILE_LIST_COLUMNS, { count: 'exact' })
+    .order('join_date', { ascending: false, nullsFirst: false })
+    .range(from, from + size - 1);
+
+  if (term) {
+    query = query.or(`username.ilike.%${term}%,role.ilike.%${term}%`);
+  }
+
+  const { data, error, count } = await query;
+  if (error) throw error;
+  return {
+    rows: Array.isArray(data) ? data : [],
+    total: typeof count === 'number' ? count : null,
+  };
+};

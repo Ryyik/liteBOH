@@ -28,6 +28,17 @@ export const adminRoutes: RouteRecordRaw[] = [
     meta: { requiresAdmin: true, adminSection: 'api-keys', hideNavbar: true },
   },
   {
+    // 极简骨架原型（2026-11-12）：只有「用户」一个模块接了新骨架，与
+    // /admin/data-management?tab=users 并存，用来比对密度与操作步数。
+    // ⚠️ 路径刻意不带 `-console` 后缀：`admin-console-wiring.test.js` 会把
+    // 所有 /admin/*-console 当成独立控制台页，要求它在 tabModules 里有一席
+    // （本页是面板内页签的替代形态，不是控制台）。
+    path: '/admin/users-minimal',
+    name: 'AdminUsersMinimal',
+    component: () => import('../../views/AdminUsersMinimal/index.vue'),
+    meta: { requiresAdmin: true, hideNavbar: true },
+  },
+  {
     path: '/admin/alert-style-editor',
     name: 'AlertStyleEditor',
     component: () => import('../../views/AlertStyleEditor/index.vue'),

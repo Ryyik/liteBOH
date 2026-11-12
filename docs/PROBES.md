@@ -34,6 +34,7 @@
 | **商城商品详情的滚动归属**（详情打开期间背后列表必须一动不动；竖屏详情内容区自己能滚；关闭后页面恢复可滚；上锁不引起横向位移；抽奖/订单分区不误上锁） | `probe-shop-detail-scroll.mjs` | 11 |
 | 竖屏导航菜单的接缝与内部几何（一级/二级/三级 + 窄横屏档） | `probe-nav-mobile-menu.mjs` | 48 |
 | **数据管理面板「按功能名找入口」**（侧栏搜「补发」→ 积分发放 / 订阅发放；独立控制台页也能搜到；↵ 直接打开；⌘K 与侧栏共用同一份索引；同一个模块不在「功能」「模块」两组重复出现）。功能清单唯一真源 `src/views/DataManagement/config/function-index.js`（别名表也在里面），纯逻辑由 `tests/unit/admin-function-index.test.js` 覆盖 | `probe-admin-function-search.mjs` | 16 |
+| **极简骨架第一个真模块**（`/admin/users-minimal`：第一行数据 ≤160px、首屏可交互 ≤40、6 列；竖屏行高 ≥56、三列折进第二行、编辑改底部抽屉；横屏编辑从右侧进；空用户名禁用保存；未接模块带「旧」角标且落回旧面板）。阈值是上限，骨架稳定后应继续收紧 | `probe-admin-users-minimal.mjs` | 15 |
 | 头像框发放 | `probe-avatar-frame-grant.mjs` | 23 |
 | 头像框控制台 | `probe-avatar-frame-console.mjs` | 44 |
 | 加载性能基线（线上冷首访 CWV / 资源账本 / DB RTT；只读打线上，**不进 verify**） | `probe-perf-baseline.mjs` | 4 |
