@@ -3,12 +3,14 @@
     <AdminSidebar
       :active-module="activeModule"
       :denied-ids="deniedIds"
+      :functions="functions"
       :is-open="sidebarOpen"
       :modules="modules"
       :search-query="searchQuery"
       :show-quick-actions="false"
       @module-click="handleModuleClick"
       @denied-click="handleDeniedClick"
+      @function-click="handleFunctionClick"
       @update:searchQuery="searchQuery = $event"
     />
 
@@ -62,6 +64,7 @@ import { Menu } from 'lucide-vue-next';
 import { storeToRefs } from 'pinia';
 import AdminSidebar from './AdminSidebar.vue';
 import { tabModules } from '../config/tabs.js';
+import { buildAdminFunctionIndex } from '../config/function-index.js';
 import { ROUTE_MAP } from '../composables/useDataAdminNavigation.js';
 import { canViewModule, getDeniedModuleIds, getRoleLabel, getUserRole } from '../config/rbac.js';
 import { useAuthStore } from '@/stores/auth';
@@ -92,6 +95,8 @@ const notice = ref('');
 const modules = computed(() => tabModules.map((mod) => ({ ...mod })));
 const role = computed(() => getUserRole(userInfo.value));
 const deniedIds = computed(() => getDeniedModuleIds(modules.value, role.value));
+/** 功能索引：与数据管理面板同一份（见 config/function-index.js） */
+const functions = computed(() => buildAdminFunctionIndex({ role: role.value }));
 
 let noticeTimer = 0;
 const showNotice = (text) => {
@@ -148,6 +153,31 @@ const handleModuleClick = (mod) => {
   const section = mod.section === 'system' ? 'media' : 'data';
   const tab = mod.defaultTab || (Array.isArray(mod.tabIds) ? mod.tabIds[0] : '');
   goTo(`/admin/data-management?section=${section}${tab ? `&tab=${tab}` : ''}`);
+};
+
+/**
+ * 侧栏搜到「功能」后点击（2026-11-12）：落点仍然只用 URL 表达，
+ * 面板那边由 resolveInitialAdminTab 认 `tab`（显式 tab 优先级最高），
+ * 所以这里不需要知道 DataAdmin 的 switchTab 内部状态。
+ */
+const handleFunctionClick = (entry) => {
+  if (!entry) return;
+  if (entry.denied) {
+    handleDeniedClick({ id: entry.moduleId, label: entry.label });
+    return;
+  }
+  searchQuery.value = '';
+  if (entry.kind === 'module') {
+    const mod = tabModules.find((item) => item.id === entry.id);
+    if (mod) handleModuleClick(mod);
+    return;
+  }
+  if (entry.kind === 'section') {
+    // 媒体资源 / 网站设置（section 型占位页）
+    goTo(`/admin/data-management?section=${entry.id}`);
+    return;
+  }
+  goTo(`/admin/data-management?section=data&tab=${entry.id}`);
 };
 </script>
 

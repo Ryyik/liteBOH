@@ -9,17 +9,22 @@
       </div>
     </button>
 
-    <!-- Search pill：真实过滤侧栏模块 -->
+    <!-- Search pill：搜「功能」（页签 / 独立控制台页 / 系统子页）+ 过滤侧栏模块
+         2026-11-12：此前只按 label/description 过滤 10 个模块，搜「积分发放」「补发」
+         「头像框」一律「无匹配模块」—— 用户找功能的主路径整个缺失。 -->
     <div class="g-sidebar-search">
       <SearchIcon :size="14" class="g-search-icon" />
       <input
         v-model="localSearchQuery"
         type="text"
-        placeholder="筛选模块..."
+        placeholder="搜索功能 / 模块..."
         class="g-sidebar-search-input"
-        aria-label="筛选导航模块"
+        aria-label="搜索功能或导航模块"
         @input="onSearchInput"
         @keydown.esc="clearSearch"
+        @keydown.down.prevent="moveActive(1)"
+        @keydown.up.prevent="moveActive(-1)"
+        @keydown.enter.prevent="confirmActive"
       />
       <button
         v-if="localSearchQuery"
@@ -33,12 +38,49 @@
     </div>
 
     <div v-if="normalizedQuery" class="g-sidebar-search-status" role="status">
-      <span v-if="matchCount > 0">找到 {{ matchCount }} 个模块</span>
-      <span v-else>无匹配模块</span>
+      <span v-if="functionMatchCount || matchCount">
+        找到 {{ functionMatchCount }} 个功能<template v-if="matchCount">
+          · {{ matchCount }} 个模块</template
+        >
+      </span>
+      <span v-else>没有匹配的功能或模块</span>
+      <kbd v-if="functionMatchCount" class="g-sidebar-search-hint">↵ 打开</kbd>
     </div>
 
     <!-- Navigation (grouped by section) -->
     <nav class="g-sidebar-nav" aria-label="管理导航">
+      <!-- 功能命中排在最前：搜到功能名的人要的是「打开那一页」，不是「进某个模块再翻」 -->
+      <div v-if="functionMatches.length" class="g-sidebar-group">
+        <span class="g-sidebar-group-label">功能</span>
+        <button
+          v-for="(fn, idx) in functionMatches"
+          :key="fn.key"
+          type="button"
+          :class="[
+            'g-nav-btn',
+            'g-nav-fn',
+            { 'is-active': idx === activeFnIndex, 'is-denied': fn.denied },
+          ]"
+          :aria-disabled="fn.denied"
+          :title="fn.denied ? `${fn.label}（当前角色无权限）` : `${fn.moduleLabel} › ${fn.label}`"
+          @click="pickFunction(fn)"
+          @mouseenter="activeFnIndex = idx"
+        >
+          <component
+            :is="fn.iconComponent"
+            v-if="fn.iconComponent"
+            :size="15"
+            class="g-nav-glyph"
+          />
+          <span v-else class="g-nav-glyph g-nav-fn-emoji" aria-hidden="true">{{
+            fn.icon || '📄'
+          }}</span>
+          <span class="g-nav-label">{{ fn.label }}</span>
+          <span class="g-nav-fn-module">{{ fn.moduleLabel }}</span>
+          <Lock v-if="fn.denied" :size="12" class="g-nav-lock" aria-hidden="true" />
+        </button>
+      </div>
+
       <template v-for="group in groupedModules" :key="group.section">
         <div v-if="group.items.length" class="g-sidebar-group">
           <span class="g-sidebar-group-label">{{ group.label }}</span>
@@ -65,7 +107,9 @@
           </button>
         </div>
       </template>
-      <p v-if="normalizedQuery && matchCount === 0" class="g-sidebar-empty">换个关键词试试</p>
+      <p v-if="normalizedQuery && !matchCount && !functionMatchCount" class="g-sidebar-empty">
+        换个关键词试试（也可搜「补发」「banner」这类叫法）
+      </p>
       <p v-if="!modules.length" class="g-sidebar-empty">暂无可用模块，请刷新重试</p>
     </nav>
 
@@ -105,12 +149,20 @@
 import { computed, ref, watch } from 'vue';
 import { Lock, Plus, RefreshCw, Search as SearchIcon } from 'lucide-vue-next';
 import { SIDEBAR_SECTION_LABELS } from '../config/rbac.js';
+import { searchAdminFunctions } from '../config/function-index.js';
 
 const SECTION_ORDER = ['overview', 'data', 'system'];
+/** 功能命中最多列几条：再多就把模块列表挤到看不见的地方，剩下的交给 ⌘K */
+const FUNCTION_MATCH_LIMIT = 8;
 
 const props = defineProps({
   activeModule: { type: String, required: true },
   modules: { type: Array, required: true },
+  /**
+   * 可搜索的「功能」清单（buildAdminFunctionIndex 的产物，宿主按角色算一次）。
+   * 两个宿主（数据管理面板 / 独立控制台壳）都传；不传就退化成只过滤模块。
+   */
+  functions: { type: Array, default: () => [] },
   /** 当前角色无权访问的模块 id（置灰禁用，不断层隐藏，便于审计） */
   deniedIds: { type: Array, default: () => [] },
   isOpen: { type: Boolean, required: true },
@@ -141,12 +193,15 @@ const props = defineProps({
 const emit = defineEmits([
   'module-click',
   'denied-click',
+  'function-click',
   'update:searchQuery',
   'create-record',
   'refresh-data',
 ]);
 
 const localSearchQuery = ref(props.searchQuery || '');
+/** 键盘选中项（只作用于「功能」那一组） */
+const activeFnIndex = ref(-1);
 
 watch(
   () => props.searchQuery,
@@ -178,6 +233,31 @@ const filteredModules = computed(() => {
 
 const matchCount = computed(() => filteredModules.value.length);
 
+/**
+ * 功能命中：搜「功能名 / 别名 / 模块名」都能命中页签、独立控制台页与系统子页。
+ * 关键词为空时不出这一组（默认视图保持「模块导航」不变）。
+ *
+ * 已经被下面「模块」那一组筛出来的模块不在这里重复一遍 ——
+ * 否则搜「积分」会看到两个「用户」（一次在功能组、一次在模块组），
+ * 用户会以为这是两个不同的东西。只靠别名才命中的模块仍留在这里（模块组筛不出它）。
+ */
+const functionMatches = computed(() => {
+  if (!normalizedQuery.value) return [];
+  const shownModules = new Set(filteredModules.value.map((mod) => mod.id));
+  return searchAdminFunctions(props.functions, localSearchQuery.value, {
+    // 先多取几条再过滤：否则被过滤掉的模块会把名额占满，能搜到的功能反而变少
+    limit: FUNCTION_MATCH_LIMIT + 4,
+  })
+    .filter((fn) => !(fn.kind === 'module' && shownModules.has(fn.id)))
+    .slice(0, FUNCTION_MATCH_LIMIT);
+});
+const functionMatchCount = computed(() => functionMatches.value.length);
+
+// 关键词一变，键盘选中项回到第一条（否则会停在上一次的下标上，Enter 打开意外的东西）
+watch(localSearchQuery, () => {
+  activeFnIndex.value = -1;
+});
+
 const groupedModules = computed(() =>
   SECTION_ORDER.map((section) => ({
     section,
@@ -194,7 +274,33 @@ const onSearchInput = () => {
 
 const clearSearch = () => {
   localSearchQuery.value = '';
+  activeFnIndex.value = -1;
   emit('update:searchQuery', '');
+};
+
+const pickFunction = (fn) => {
+  if (!fn) return;
+  // 跳过去之后把关键词清掉：否则侧栏一直停在过滤态，刚打开的功能还是看不见高亮
+  localSearchQuery.value = '';
+  activeFnIndex.value = -1;
+  emit('update:searchQuery', '');
+  emit('function-click', fn);
+};
+
+/** ↑/↓ 在「功能」命中里移动；到底/到顶回绕。没有命中时不吞键。 */
+const moveActive = (delta) => {
+  const len = functionMatches.value.length;
+  if (!len) return;
+  const current = activeFnIndex.value;
+  activeFnIndex.value =
+    delta > 0 ? (current >= len - 1 ? 0 : current + 1) : current <= 0 ? len - 1 : current - 1;
+};
+
+/** ↵ 打开当前选中项；还没用 ↑↓ 选过就默认第一条（搜完直接回车是最常见的动作） */
+const confirmActive = () => {
+  const list = functionMatches.value;
+  if (!list.length) return;
+  pickFunction(list[activeFnIndex.value >= 0 ? activeFnIndex.value : 0]);
 };
 
 const selectModule = (mod) => {
@@ -437,6 +543,39 @@ const goHome = () => {
 }
 .g-nav-lock {
   flex: 0 0 12px;
+}
+
+/* 功能命中行：比模块行多一个「所属模块」小字，用来回答「这页在哪」 */
+.g-nav-fn .g-nav-fn-emoji {
+  width: 16px;
+  flex: 0 0 16px;
+  font-size: 13px;
+  line-height: 1;
+  text-align: center;
+}
+.g-nav-fn-module {
+  flex: 0 0 auto;
+  max-width: 42%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.68rem;
+  color: var(--muted-foreground);
+  padding-left: calc(var(--spacing) * 1);
+}
+.g-nav-fn.is-active .g-nav-fn-module {
+  color: color-mix(in srgb, var(--sidebar-primary-foreground) 78%, transparent);
+}
+/* 键盘选中直接用 .g-nav-btn.is-active 的实心态（与模块行同一套视觉） */
+.g-sidebar-search-hint {
+  margin-left: auto;
+  font-size: 0.62rem;
+  font-family: inherit;
+  color: var(--muted-foreground);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0 4px;
+  line-height: 15px;
 }
 
 /* Status dot (for moderation) */

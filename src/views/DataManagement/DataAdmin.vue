@@ -9,9 +9,11 @@
         :is-open="isAdminSidebarOpen"
         :module-badges="draftBadges"
         :modules="sidebarModules"
+        :functions="adminFunctions"
         :search-query="sidebarSearchQuery"
         @denied-click="handleDeniedModuleClick"
         @module-click="guardedModuleClick"
+        @function-click="handleFunctionClick"
         @create-record="handleAdminCreate"
         @refresh-data="refreshAllData"
         @update:searchQuery="sidebarSearchQuery = $event"
@@ -2050,7 +2052,7 @@
               v-model="commandQuery"
               type="text"
               class="command-palette-input"
-              placeholder="搜索命令 / 表名 / 字段名 / 任意记录…"
+              placeholder="搜索功能 / 命令 / 表名 / 字段名 / 任意记录…"
               aria-label="命令搜索"
               @keydown="onCommandInputKeydown"
             />
@@ -2219,6 +2221,7 @@ import {
   getUserRole,
 } from './config/rbac.js';
 import { BOHAI_MODEL_PROVIDER_OPTIONS, PROFILE_SAVE_SELECT_COLUMNS } from './config/fields.js';
+import { buildAdminFunctionIndex, searchAdminFunctions } from './config/function-index.js';
 import { splitProfileWritePayload } from './composables/data-admin-profile-write.js';
 import { excludeInternalBohaiModes } from './config/bohai-internal-modes.js';
 import {
@@ -5682,6 +5685,36 @@ const handleDeniedModuleClick = (mod) => {
   );
 };
 
+// ==================== 功能索引（侧栏搜索 / ⌘K 共用一份） ====================
+/**
+ * 面板里所有可跳转的落点：模块 + 每个页签 + 独立控制台页 + 系统子页。
+ * 侧栏搜索框与 ⌘K 都从这一份取，避免「同一个词在两个入口给出两种结论」。
+ * 2026-11-12：此前侧栏只过滤 10 个模块、⌘K 自己写了一段最多 3 条的遍历，
+ * 于是「按功能名找入口」这件事在界面上没有任何一条路能走通。
+ */
+const adminFunctions = computed(() => buildAdminFunctionIndex({ role: currentUserRole.value }));
+
+/** 侧栏搜到功能后点击：按 kind 分派到既有的三条导航路径，不另造第四条 */
+const handleFunctionClick = (entry) => {
+  if (!entry) return;
+  if (entry.denied) {
+    handleDeniedModuleClick({ id: entry.moduleId, label: entry.label });
+    return;
+  }
+  sidebarSearchQuery.value = '';
+  if (entry.kind === 'module') {
+    guardedModuleClick({ id: entry.id, label: entry.label });
+    return;
+  }
+  if (entry.kind === 'section') {
+    // 媒体资源 / 网站设置：与侧栏「系统」同一条入口（section 型占位页）
+    handleAdminNavClick({ id: entry.id });
+    return;
+  }
+  // 页签：与模块内 tab 条、⌘K 的表跳转同一条路径（权限兜底在 watch(currentTab) 里）
+  switchTab(entry.id);
+};
+
 // 角色切换时若正停留在无权模块，自动退回概览
 // （跳过用户信息水合前：此时 role 回落为 user，避免误触发）
 watch(currentUserRole, (role) => {
@@ -8597,16 +8630,21 @@ const commandPaletteItems = computed(() => {
 const filteredCommandPaletteItems = computed(() => {
   const q = commandQuery.value.trim().toLowerCase();
   if (!q) return commandPaletteItems.value;
-  const commands = commandPaletteItems.value.filter((it) => it.label.toLowerCase().includes(q));
-  // 先给「跳转/筛选/记录」，再给命令（plans/042 B1）
+  /* 「切换到：X」那一批模块命令在有关键词时让位给派生项：
+     派生项走 function-index，认别名、带所属模块、还能落到页签上 ——
+     两批同时出现就是同一个目标在列表里出现两次。 */
+  const commands = commandPaletteItems.value.filter(
+    (it) => it.label.toLowerCase().includes(q) && !String(it.id).startsWith('module-'),
+  );
+  // 先给「功能/跳转/筛选/记录」，再给命令（plans/042 B1）
   return [...commandSearchDerivedItems.value, ...commands];
 });
 
 /** 面板空态文案：区分「还在搜」「搜完了没有」「还没输入」 */
 const commandPaletteEmptyText = computed(() => {
   if (commandSearch.isGlobalSearching.value) return '正在搜索全部表…';
-  if (commandQuery.value.trim()) return '没有匹配的命令、表名、字段名或记录';
-  return '输入命令、表名、字段名或任意关键词';
+  if (commandQuery.value.trim()) return '没有匹配的功能、命令、表名、字段名或记录';
+  return '输入功能名、命令、表名、字段名或任意关键词';
 });
 
 const openCommandPalette = () => {
@@ -8769,7 +8807,7 @@ const commandSearch = createGlobalSearchCenter({
 });
 
 /** ⌘K 面板里每类结果的前缀标签 */
-const COMMAND_KIND_LABELS = { tab: '表', field: '筛选', record: '记录' };
+const COMMAND_KIND_LABELS = { tab: '功能', module: '模块', field: '筛选', record: '记录' };
 
 /** 已经打开详情：直接按「tab + 记录 id」跳，不再回到列表再点一次 */
 const openCommandRecord = (result) => {
@@ -8784,8 +8822,12 @@ const openCommandRecord = (result) => {
 };
 
 /**
- * 关键词派生的候选：表跳转 → 字段筛选 → 记录。命令（新增/刷新/主题…）排在最后，
+ * 关键词派生的候选：功能 → 字段筛选 → 记录。命令（新增/刷新/主题…）排在最后，
  * 因为输入了具体词的人多半是在找东西，而不是找命令。
+ *
+ * 功能这一档 2026-11-12 起与侧栏搜索共用 `config/function-index.js`：
+ * 认别名（「补发」→ 积分发放）、覆盖独立控制台页（商城装修 / 开屏管理 / 头像框）
+ * 与系统子页，且不再有「最多 3 条」的截断（原实现 `if (items.length >= 3) break`）。
  */
 const commandSearchDerivedItems = computed(() => {
   const raw = commandQuery.value.trim();
@@ -8793,17 +8835,14 @@ const commandSearchDerivedItems = computed(() => {
   const keyword = raw.toLowerCase();
   const items = [];
 
-  for (const tab of tabs) {
-    const label = String(tab.label || '');
-    if (!label.toLowerCase().includes(keyword) && String(tab.id) !== keyword) continue;
+  for (const entry of searchAdminFunctions(adminFunctions.value, raw, { limit: 6 })) {
     items.push({
-      id: `tab-${tab.id}`,
-      kind: 'tab',
-      label: `切换到表：${label}`,
-      hint: '跳转',
-      run: () => switchTab(tab.id),
+      id: `fn-${entry.key}`,
+      kind: entry.kind === 'tab' ? 'tab' : 'module',
+      label: entry.denied ? `${entry.label}（无权限）` : `打开：${entry.label}`,
+      hint: entry.kind === 'tab' ? entry.moduleLabel : '模块',
+      run: () => handleFunctionClick(entry),
     });
-    if (items.length >= 3) break;
   }
 
   const fieldHits = (currentColumns.value || []).filter((col) =>
