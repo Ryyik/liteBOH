@@ -1012,7 +1012,7 @@
       ],
       notes: {
         points: '<b>最干净</b>：结果页只谈积分，没有「待付款」这一态。但 <code>rmb_only</code> / <code>combined</code> 的商品得全部改价或下架。',
-        offline: '<b>0 代码，但必须把话说清</b>：结果页写「订单已提交 · 待付 ¥x」，订单状态补一态「待付款」，并交代「管理员 1 个工作日内联系你」。现在的「支付成功」是错的。',
+        offline: '<b>0 代码，但必须把话说清</b>：结果页写「礼物已提交 · 待付 ¥x」，订单状态补一态「待付款」，并交代「管理员 1 个工作日内联系你」。现在的「支付成功」是错的。',
         wechat: '<b>P2 里最大的一块</b>：下单 → 预支付 → 回调 → 对账四段，还要处理超时关单与退款，前置条件是商户号与备案。做完才能真的在结果页说「支付成功」。'
       }
     }
@@ -1073,13 +1073,13 @@
     } else if (pay === 'offline') {
       html = '' +
         '<span class="pv-chip">待付款</span>' +
-        '<p class="pv-title">订单已提交 · 待付 ' + money(totalCents) + '</p>' +
+        '<p class="pv-title">礼物已提交 · 待付 ' + money(totalCents) + '</p>' +
         '<p class="pv-sub">管理员会在 1 个工作日内联系你收款与确认寄送；积分部分已扣除。</p>' +
         '<div class="pv-btns"><button type="button" class="pv-btn is-primary">查看订单</button><button type="button" class="pv-btn">继续逛</button></div>';
     } else {
       html = '' +
         '<span class="pv-chip is-none">-</span>' +
-        '<p class="pv-title">订单已提交</p>' +
+        '<p class="pv-title">礼物已提交</p>' +
         '<p class="pv-sub">' + goodsPoints + ' 积分已扣除，等待管理员发货。没有现金环节，就没有「待付款」这一态。</p>' +
         '<div class="pv-btns"><button type="button" class="pv-btn is-primary">查看订单</button><button type="button" class="pv-btn">继续逛</button></div>';
     }

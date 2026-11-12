@@ -77,7 +77,7 @@ const FAKE_ORDERS = [
     orderNo: 'BOH-ORDER-PROBE-0002',
     buyerName: '小方块',
     status: 'shipped',
-    statusLabel: '已发货',
+    statusLabel: '已寄出',
     priceText: '45 积分 + ¥6.90',
     createdAt: new Date().toISOString(),
     items: [{ title: '钥匙扣', quantity: 1 }],
@@ -89,7 +89,7 @@ const FAKE_ORDERS = [
     orderNo: 'BOH-ORDER-PROBE-0003',
     buyerName: 'Ryyik',
     status: 'completed',
-    statusLabel: '完成',
+    statusLabel: '已送达',
     priceText: '10 积分',
     createdAt: new Date().toISOString(),
     items: [{ title: '贴纸', quantity: 3 }],
@@ -112,7 +112,7 @@ const FAKE_ORDERS = [
   await page.click('.avatar-btn');
   await page.waitForTimeout(300);
   check('A1 普通用户点头像不弹菜单', (await page.locator('.avatar-menu').count()) === 0);
-  /* 普通用户点头像 = 去「我的订单」；未登录时这条链先弹登录框（goBag 的既有行为）。
+  /* 普通用户点头像 = 去「我的礼物」；未登录时这条链先弹登录框（goBag 的既有行为）。
      不拿 hash 断言 —— switchTab 只改 activeTab，路由 query 是**单向**同步的。 */
   const loginPrompt = await page.evaluate(
     () =>
@@ -120,7 +120,7 @@ const FAKE_ORDERS = [
         .showLoginModal,
   );
   check(
-    'A2 普通用户点头像走「我的订单」链（未登录先弹登录）',
+    'A2 普通用户点头像走「我的礼物」链（未登录先弹登录）',
     loginPrompt === true,
     String(loginPrompt),
   );
@@ -145,13 +145,13 @@ const FAKE_ORDERS = [
   const menu = await page.evaluate(() =>
     [...document.querySelectorAll('.avatar-menu-item')].map((el) => el.innerText.trim()),
   );
-  check('B1 管理员菜单含「订单管理」', menu.includes('订单管理'), JSON.stringify(menu));
-  check('B2 菜单仍保留「我的订单」', menu.includes('我的订单'));
+  check('B1 管理员菜单含「礼物管理」', menu.includes('礼物管理'), JSON.stringify(menu));
+  check('B2 菜单仍保留「我的礼物」', menu.includes('我的礼物'));
 
-  const index = menu.indexOf('订单管理');
+  const index = menu.indexOf('礼物管理');
   await page.locator('.avatar-menu-item').nth(index).click();
   await page.waitForTimeout(500);
-  check('B3 点「订单管理」打开弹层', (await page.locator('.ao-root').count()) === 1);
+  check('B3 点「礼物管理」打开弹层', (await page.locator('.ao-root').count()) === 1);
 
   const geo = await page.evaluate(() => {
     const box = document.querySelector('.ao-sheet').getBoundingClientRect();
@@ -164,15 +164,38 @@ const FAKE_ORDERS = [
   );
 
   // ---------- C) 列表：动作与状态严格对应 ----------
-  await page.evaluate((orders) => {
-    const root = document.querySelector('.ao-root');
-    let comp = root.__vueParentComponent;
-    while (comp && !comp.setupState?.orders) comp = comp.parent;
-    comp.setupState.orders = orders;
-    comp.setupState.loading = false;
-    comp.setupState.loadError = '';
-  }, FAKE_ORDERS);
-  await page.waitForTimeout(400);
+  /* 注入前必须等真实请求落地（2026-11-12 踩到）：
+     `*.supabase.co` 恢复可达后，打开弹层触发的 load() 真的会发出并耗时，
+     而它结尾是 `orders.value = data` —— 若在它返回前注入，注入结果会被
+     覆盖成空数组（C1~C7 全红，表现为「三单全部列出 | []」）。
+     网络快慢不定，所以先等 loading 归零，注入后再补一次兜底注入。 */
+  const injectOrders = () =>
+    page.evaluate((orders) => {
+      const root = document.querySelector('.ao-root');
+      let comp = root.__vueParentComponent;
+      while (comp && !comp.setupState?.orders) comp = comp.parent;
+      comp.setupState.orders = orders;
+      comp.setupState.loading = false;
+      comp.setupState.loadError = '';
+    }, FAKE_ORDERS);
+
+  await page
+    .waitForFunction(
+      () => {
+        const root = document.querySelector('.ao-root');
+        let comp = root?.__vueParentComponent;
+        while (comp && !comp.setupState?.orders) comp = comp.parent;
+        return Boolean(comp) && comp.setupState.loading === false;
+      },
+      null,
+      { timeout: 20000 },
+    )
+    .catch(() => {});
+
+  await injectOrders();
+  await page.waitForTimeout(500);
+  await injectOrders();
+  await page.waitForTimeout(300);
 
   const rows = await page.evaluate(() =>
     [...document.querySelectorAll('.ao-item')].map((el) => ({
@@ -183,13 +206,16 @@ const FAKE_ORDERS = [
   );
   check('C1 三单全部列出', rows.length === 3, JSON.stringify(rows));
   check(
-    'C2 准备中 →「标记已发货」',
-    rows[0]?.status === '准备中' && rows[0]?.action === '标记已发货',
+    'C2 准备中 →「标记已寄出」',
+    rows[0]?.status === '准备中' && rows[0]?.action === '标记已寄出',
   );
-  check('C3 已发货 →「标记完成」', rows[1]?.status === '已发货' && rows[1]?.action === '标记完成');
   check(
-    'C4 完成态不再给推进按钮',
-    rows[2]?.status === '完成' && rows[2]?.action === '' && rows[2]?.done === '已完成',
+    'C3 已寄出 →「标记已送达」',
+    rows[1]?.status === '已寄出' && rows[1]?.action === '标记已送达',
+  );
+  check(
+    'C4 送达态不再给推进按钮',
+    rows[2]?.status === '已送达' && rows[2]?.action === '' && rows[2]?.done === '已送达',
     JSON.stringify(rows[2]),
   );
 
@@ -219,7 +245,7 @@ const FAKE_ORDERS = [
   const menu3 = await page.evaluate(() =>
     [...document.querySelectorAll('.avatar-menu-item')].map((el) => el.innerText.trim()),
   );
-  await page.locator('.avatar-menu-item').nth(menu3.indexOf('订单管理')).click();
+  await page.locator('.avatar-menu-item').nth(menu3.indexOf('礼物管理')).click();
   await page.waitForTimeout(500);
   const land = await page.evaluate(() => {
     const box = document.querySelector('.ao-sheet').getBoundingClientRect();

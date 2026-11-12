@@ -407,23 +407,28 @@ type OrderStatusKey = 'preparing' | 'shipped' | 'completed' | 'cancelled';
 
 /* ⚠️ 刻意**不带 tone / bg / label**：状态只由标题文案表达，不配彩色徽章、不画进度条。
    一封信里出现 2~3 个色块或者一条流程线，这套极简版式立刻不成立。
-   要加状态色或进度条，先读 _shared/mail-theme.ts 的设计纪律第 1 条。 */
+   要加状态色或进度条，先读 _shared/mail-theme.ts 的设计纪律第 1 条。
+
+   2026-11-12 用户口径：商城商品统一叫「方块礼物」（自己买的也叫礼物），
+   「订单 / 下单 / 发货 / 支付」等交易词全部退场。保留「方块」二字是为了和
+   另一套免费赠送的 gift 功能区分开 —— 两者状态词相同，不加前缀用户会分不清
+   「我买的」和「别人送我的」。 */
 const ORDER_STATUS_META: Record<OrderStatusKey, { headline: string; desc: string }> = {
   preparing: {
-    headline: '订单已确认，正在准备',
-    desc: '我们正在为你打包，发货后会再通知你一次。',
+    headline: '你的方块礼物已确认',
+    desc: '我们正在为你准备，寄出后会再通知你一次。',
   },
   shipped: {
-    headline: '你的订单已发货',
-    desc: '包裹已经寄出，请留意查收。',
+    headline: '你的方块礼物已寄出',
+    desc: '已经交给快递，请留意查收。',
   },
   completed: {
-    headline: '你的订单已完成',
-    desc: '订单已完结，感谢支持。',
+    headline: '你的方块礼物已送达',
+    desc: '礼物已送达，感谢支持。',
   },
   cancelled: {
-    headline: '你的订单已取消',
-    desc: '支付积分已原路退回，订单流程已终止，无需等待发货。',
+    headline: '你的方块礼物已取消',
+    desc: '积分已原路退回，流程已结束，无需等待寄出。',
   },
 };
 
@@ -477,7 +482,7 @@ const buildShopOrderPayload = (order: Record<string, unknown>, to: string): Mail
     : updatedAt.toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', hour12: false });
 
   const html = mailDocument({
-    preheader: `${meta.headline}${orderNo ? ` · 订单 ${orderNo}` : ''}`,
+    preheader: `${meta.headline}${orderNo ? ` · 编号 ${orderNo}` : ''}`,
     body: [
       mailCard(
         [
@@ -492,10 +497,10 @@ const buildShopOrderPayload = (order: Record<string, unknown>, to: string): Mail
           mailSpacer(MAIL_GAP.l),
           mailDivider(),
           mailSpacer(MAIL_GAP.m),
-          `<div style="font-size:13px;color:${MAIL_COLOR.ink3}">订单 ${escapeHtml(orderNo)}</div>`,
+          `<div style="font-size:13px;color:${MAIL_COLOR.ink3}">编号 ${escapeHtml(orderNo)}</div>`,
           buildOrderItemRows((order.items as unknown[]) || []),
           mailSpacer(MAIL_GAP.l),
-          `<div style="text-align:center">${mailButton(targetUrl, '查看订单')}</div>`,
+          `<div style="text-align:center">${mailButton(targetUrl, '查看详情')}</div>`,
         ].join(''),
       ),
       mailFooter(
@@ -504,7 +509,7 @@ const buildShopOrderPayload = (order: Record<string, unknown>, to: string): Mail
          * 浏览器按 CJK 规则硬断，会把「退订」拆成「退 / 订」—— 视觉上像错字。
          * 断点放在语义边界上，桌面和手机都不会出现拆词。
          */
-        `${updatedText ? `更新于 ${escapeHtml(updatedText)}<br>` : ''}此邮件是订单进度通知<br>发送到你的账号邮箱，无法单独退订。`,
+        `${updatedText ? `更新于 ${escapeHtml(updatedText)}<br>` : ''}此邮件是礼物进度通知<br>发送到你的账号邮箱，无法单独退订。`,
       ),
     ].join(''),
   });
@@ -512,12 +517,12 @@ const buildShopOrderPayload = (order: Record<string, unknown>, to: string): Mail
   const text = [
     meta.headline,
     '',
-    `订单 ${orderNo}`,
+    `编号 ${orderNo}`,
     meta.desc,
     '',
-    `查看订单：${targetUrl}`,
+    `查看详情：${targetUrl}`,
     '',
-    '此邮件是订单进度通知，会发送到你的账号邮箱，无法单独退订。',
+    '此邮件是礼物进度通知，会发送到你的账号邮箱，无法单独退订。',
   ].join('\n');
 
   return {

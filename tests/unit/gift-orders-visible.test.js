@@ -99,12 +99,12 @@ describe('订单分区能看见礼物', () => {
 });
 
 describe('订单是商城的一级分区，不再是购物袋的第二段', () => {
-  it('顶栏含「订单」，且排在「购物袋」之后', () => {
+  it('顶栏含「礼物」，且排在「购物袋」之后', () => {
     const tabBlock = shopRaw.slice(shopRaw.indexOf('const tabs = ['));
     const labels = [...tabBlock.slice(0, tabBlock.indexOf('];')).matchAll(/label: '([^']+)'/g)].map(
       (m) => m[1],
     );
-    expect(labels).toEqual(['产品', '抽奖', '购物袋', '订单', '地址']);
+    expect(labels).toEqual(['产品', '抽奖', '购物袋', '礼物', '地址']);
   });
 
   it('?tab=order 能直达（值域与顶栏同源，不手抄清单）', () => {

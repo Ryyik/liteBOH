@@ -12,12 +12,12 @@
          v-if 直接摘节点会让整层瞬间消失，看起来像页面闪了一下。 -->
     <Transition name="od">
       <div v-if="order" class="od-overlay shop-sheet-tokens" @click.self="$emit('close')">
-        <section class="od-sheet" role="dialog" aria-modal="true" aria-label="订单详情">
+        <section class="od-sheet" role="dialog" aria-modal="true" aria-label="礼物详情">
           <header class="od-head">
             <button type="button" class="od-back" aria-label="返回" @click="$emit('close')">
               <ChevronLeft :size="20" :stroke-width="2" aria-hidden="true" />
             </button>
-            <span class="od-head-title">订单详情</span>
+            <span class="od-head-title">礼物详情</span>
             <!-- 占位：让标题在视觉上居中，不依赖 flex 的 space-between 凑 -->
             <span class="od-head-spacer" aria-hidden="true" />
           </header>
@@ -77,15 +77,15 @@
 
             <dl class="od-meta">
               <div>
-                <dt>订单号</dt>
+                <dt>编号</dt>
                 <dd>{{ order.orderNo || '—' }}</dd>
               </div>
               <div>
-                <dt>下单时间</dt>
+                <dt>领取时间</dt>
                 <dd>{{ formatDateTime(order.createdAt) || '—' }}</dd>
               </div>
               <div>
-                <dt>支付</dt>
+                <dt>费用</dt>
                 <dd>{{ order.priceText || '—' }}</dd>
               </div>
               <div>
@@ -119,7 +119,7 @@
 
             <!-- 买家备注：只在当时真写了才出现，空备注不占版面 -->
             <div v-if="order.remark" class="od-section">
-              <h3 class="od-section-title">订单备注</h3>
+              <h3 class="od-section-title">礼物备注</h3>
               <p class="od-remark">{{ order.remark }}</p>
             </div>
 
@@ -198,9 +198,9 @@ useBodyScrollLock(() => Boolean(props.order), 'shop-order-detail');
 /* 四态（2026-11-02 用户口径）：准备中 → 已发货 → 完成；取消是终止态。
    订单和礼物共用同一条流程 —— 对用户来说两者都是「一件实物在寄」。 */
 const FLOW = [
-  { key: 'preparing', label: '准备中', hint: '正在打包' },
-  { key: 'shipped', label: '已发货', hint: '已交给承运方' },
-  { key: 'completed', label: '完成', hint: '已送达' },
+  { key: 'preparing', label: '准备中', hint: '正在为你准备' },
+  { key: 'shipped', label: '已寄出', hint: '已交给快递' },
+  { key: 'completed', label: '已送达', hint: '已被签收' },
 ];
 
 const TIMELINES = { shop: FLOW, gift: FLOW };
@@ -278,10 +278,10 @@ const cashDue = computed(() => {
 const cashDueText = computed(() => `¥${(cashDue.value / 100).toFixed(2)}`);
 
 const statusHint = computed(() => {
-  if (isCancelled.value) return '订单已取消，积分已退回账户';
+  if (isCancelled.value) return '礼物已取消，积分已退回账户';
   const flow = TIMELINES[kind.value];
   const step = flow.find((entry) => entry.key === status.value);
-  return step?.hint || '订单处理中';
+  return step?.hint || '礼物处理中';
 });
 
 const currentIndex = computed(() => {
@@ -299,13 +299,13 @@ const steps = computed(() => {
       {
         key: 'created',
         label: '已提交',
-        hint: '订单已创建',
+        hint: '礼物已确认',
         time: formatDateTime(props.order?.createdAt),
       },
       {
         key: 'cancelled',
         label: '取消',
-        hint: '订单已关闭，积分已退回',
+        hint: '礼物已关闭，积分已退回',
         time: formatDateTime(props.order?.updatedAt),
       },
     ];
@@ -334,7 +334,7 @@ const items = computed(() => {
   }
   return [
     {
-      title: props.order?.title || '订单',
+      title: props.order?.title || '方块礼物',
       specLabel: props.order?.subtitle || '',
       quantity: 1,
       imageUrl: resolveDbCardImage(props.order?.image) || '',
@@ -356,13 +356,14 @@ const canCancel = computed(() => {
     : CANCELABLE_SHOP.has(status.value);
 });
 
-const cancelLabel = computed(() => (kind.value === 'gift' ? '取消礼物' : '取消订单'));
+/* 商城商品与赠礼在用户口径里都叫「礼物」（2026-11-12），取消动作因此不再分两种文案 */
+const cancelLabel = '取消礼物';
 const cancelHint = computed(() => {
   if (isCancelled.value) return '';
   if (kind.value === 'gift') return '礼物已发出，无法自助取消，请联系管理员。';
   return status.value === 'completed'
-    ? '订单已完成，无法自助取消，售后请联系管理员。'
-    : '订单已发货，无法自助取消，售后请联系管理员。';
+    ? '礼物已送达，无法自助取消，售后请联系管理员。'
+    : '礼物已寄出，无法自助取消，售后请联系管理员。';
 });
 
 const armed = ref(false);
@@ -450,7 +451,7 @@ const adminNextStatus = computed(() => {
   return '';
 });
 const adminAdvanceLabel = computed(() =>
-  adminNextStatus.value === 'shipped' ? '标记已发货' : '标记完成',
+  adminNextStatus.value === 'shipped' ? '标记已寄出' : '标记已送达',
 );
 
 const handleAdvance = async () => {
@@ -463,7 +464,7 @@ const handleAdvance = async () => {
       emit('notify', result.message || '推进失败，请稍后再试');
       return;
     }
-    emit('notify', next === 'shipped' ? '已标记发货，用户已收到通知' : '订单已标记完成');
+    emit('notify', next === 'shipped' ? '已标记寄出，用户已收到通知' : '礼物已标记送达');
     emit('changed');
     emit('close');
   } catch (error) {

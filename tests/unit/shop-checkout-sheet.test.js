@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 /**
- * 周边「确认订单」页结构契约（2026-11-03 改版，替代 shop-contact-modal.test.js）
+ * 周边「确认礼物」页结构契约（2026-11-03 改版，替代 shop-contact-modal.test.js）
  *
  * 原来测的是「确认收货信息」弹窗；改版后是整页的 CheckoutSheet。这里钉住的都是
  * 「删掉不会报错、但用户会立刻吃亏」的结构：
@@ -16,7 +16,7 @@ import { resolve } from 'node:path';
 const read = (p) => readFileSync(resolve(process.cwd(), p), 'utf8');
 const compact = (s) => s.replace(/\s+/g, '');
 
-describe('确认订单页（CheckoutSheet）形态契约', () => {
+describe('确认礼物页（CheckoutSheet）形态契约', () => {
   const sheet = compact(read('src/views/Shop/CheckoutSheet.vue'));
 
   it('竖屏是整页：root 与 sheet 都铺满视口，不留圆角/阴影的卡片感', () => {
@@ -138,9 +138,9 @@ describe('下单结果页话术', () => {
   const modal = compact(read('src/views/Shop/ShopPaymentSuccessModal.vue'));
 
   it('标题与卡片背面都不许再出现「支付成功」', () => {
-    // 标题按是否含现金分两档：纯积分「订单已提交」，含现金「订单已提交，还差一步」
+    // 标题按是否含现金分两档：纯积分「礼物已提交」，含现金「礼物已提交，还差一步」
     expect(modal).toContain('id="payment-success-title"');
-    expect(modal).toContain("'订单已提交，还差一步'");
+    expect(modal).toContain("'礼物已提交，还差一步'");
     expect(modal).not.toContain('<strong>支付成功</strong>');
   });
 
@@ -165,7 +165,7 @@ describe('交互动效契约：不许硬切', () => {
   const bag = compact(read('src/views/Shop/BagPanel.vue'));
   const order = compact(read('src/views/Shop/OrderDetailSheet.vue'));
 
-  it('确认订单整页有进出场（竖屏从右推进来）', () => {
+  it('确认礼物整页有进出场（竖屏从右推进来）', () => {
     expect(sheet).toContain('<Transitionname="ck">');
     expect(sheet).toMatch(/\.ck-enter-from\.ck-sheet,[^{]*\{transform:translateX\(100%\)/);
   });

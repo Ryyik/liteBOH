@@ -230,7 +230,7 @@ const buildOrderTemplateParams = async (
      同一发件人/收件人/IP 段能送达的邮件都不含「收件人 + 电话 + 详细地址」，
      所以把整个联系方式块移出邮件 —— 管理员点「在后台打开」看全量信息。
      订单号保留（后台定位要用），取消类三行（状态/时间/退回）是订单事实也保留。 */
-  const contactLines = [`订单号: ${order.order_no}`, '联系方式与收货信息: 点下方按钮在后台查看'];
+  const contactLines = [`编号: ${order.order_no}`, '联系方式与收货信息: 点下方按钮在后台查看'];
   if (kind === 'shop_order_cancelled') {
     contactLines.push('当前状态: 已取消（用户自助）');
     contactLines.push(`取消时间: ${formatOrderTime(order.updated_at)}`);
@@ -243,13 +243,13 @@ const buildOrderTemplateParams = async (
     /* 后台深链的定位参数。原来邮件里**一个链接都没有** —— 管理员读完商品和地址，
        还得自己去后台列表里按订单号找那一行。 */
     orderId,
-    product: isCancelled ? '方块之家周边订单（已取消）' : '方块之家周边订单',
+    product: isCancelled ? '方块礼物（已取消）' : '方块礼物',
     specifications: productList,
-    giftOptions: isCancelled ? '周边订单取消' : '周边购物',
+    giftOptions: isCancelled ? '礼物取消' : '礼物领取',
     paymentMethod: paymentSummary,
     paymentAmount: paymentSummary,
     deliveryMethod: isCancelled
-      ? '无需发货'
+      ? '无需寄送'
       : recipient || address
         ? '按资料地址寄送'
         : '待管理员确认',
@@ -269,11 +269,15 @@ type SendOutcome = { ok: true } | { ok: false; detail: string };
 
 /* 标题刻意不带「通知」二字、也不再套 `[BOH]` 方括号前缀（2026-11-10）：
    方括号品牌前缀 + 「通知」是国内邮箱反垃圾最常命中的两个营销特征，而这类信只是
-   给管理员看的业务提醒，不需要品牌前缀。改完仍要能一眼看出是什么事，所以保留事件词。 */
+   给管理员看的业务提醒，不需要品牌前缀。改完仍要能一眼看出是什么事，所以保留事件词。
+
+   2026-11-12 用户口径：「订单」这个词全站退场，商城商品统一叫「方块礼物」
+   （用户自己买的也叫礼物）。同一封邮件里不再出现「订单 / 下单 / 发货 / 支付」等
+   交易词，一并降低被反垃圾判成商业邮件的概率。 */
 const MAIL_TITLES: Record<string, string> = {
   gift: '礼物申请',
-  merchandise_settlement: '周边订单',
-  shop_order_cancelled: '周边订单已取消',
+  merchandise_settlement: '方块礼物',
+  shop_order_cancelled: '方块礼物已取消',
 };
 
 /**
@@ -292,7 +296,7 @@ const sendBrevoMail = async (
     return { ok: false, detail: '未解析到管理员收件邮箱' };
   }
 
-  const title = MAIL_TITLES[templateType] || '订单通知';
+  const title = MAIL_TITLES[templateType] || '礼物提醒';
   const isCancelled = templateType === 'shop_order_cancelled';
 
   /** 多行值（规格明细 / 地址）必须显式换行 —— <td> 不认 \n，不转就直接挤成一行 */
@@ -308,14 +312,14 @@ const sendBrevoMail = async (
       .join('')}</table>`;
 
   const orderRows: Array<[string, string]> = [
-    ['商品', safeParams.product || '—'],
+    ['礼物', safeParams.product || '—'],
     ['规格 / 明细', safeParams.specifications || '—'],
     [
-      '支付',
+      '费用',
       safeParams.paymentSummary || safeParams.paymentMethod || safeParams.paymentAmount || '—',
     ],
     ['配送', safeParams.deliveryMethod || '—'],
-    ['下单时间', safeParams.orderTime || '—'],
+    ['领取时间', safeParams.orderTime || '—'],
   ];
 
   /* 「收件人」刻意**不**放进上面那块：联系方式块里已经有一行「收件人」，两块都放会重复；
@@ -374,7 +378,7 @@ const sendBrevoMail = async (
             : '',
         ].join(''),
       ),
-      mailFooter('订单数据以后台为准 · 本邮件由系统自动发送，请勿直接回复。'),
+      mailFooter('记录以后台为准 · 本邮件由系统自动发送，请勿直接回复。'),
     ].join(''),
   });
 
@@ -389,7 +393,7 @@ const sendBrevoMail = async (
     plainRows([...orderRows, ...cancelRows]),
     contactOnly.length ? `\n联系方式\n${plainRows(contactOnly)}` : '',
     adminLink ? `\n在后台打开: ${adminLink}` : '',
-    '\n订单数据以后台为准 · 本邮件由系统自动发送，请勿直接回复。',
+    '\n记录以后台为准 · 本邮件由系统自动发送，请勿直接回复。',
   ]
     .filter((part) => part !== '')
     .join('\n');

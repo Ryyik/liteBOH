@@ -5,8 +5,8 @@
 //   2) 金额：按**实时商品价**算（服务端下单也是这么算的），价差要就地提示；
 //   3) 预检：积分不足 / 商品下架 / 超库存 → 拦住提交并给出可点的修复入口，
 //      而不是让用户点了「提交订单」再收一句 toast；
-//   4) 结果页：说「订单已提交」（现金是线下确认的，说"支付成功"是误导）、
-//      订单号完整可复制、有「查看订单 / 继续逛逛」两个出口。
+//   4) 结果页：说「礼物已提交」（现金是线下确认的，说"支付成功"是误导）、
+//      编号完整可复制、有「查看礼物 / 继续逛逛」两个出口。
 //
 // 用法：先 `npm run dev`（默认 5173），再 `node scripts/probes/probe-shop-checkout.mjs`
 import { chromium } from 'playwright';
@@ -260,17 +260,17 @@ const browser = await chromium.launch({ args: ['--no-sandbox'] });
   await page.waitForTimeout(2600);
   const text = await page.evaluate(() => document.body.innerText);
   check(
-    'F1 标题是「订单已提交」而不是「支付成功」',
-    text.includes('订单已提交') && !text.includes('支付成功'),
+    'F1 标题是「礼物已提交」而不是「支付成功」',
+    text.includes('礼物已提交') && !text.includes('支付成功'),
   );
-  check('F2 订单号完整显示（不截断）', text.includes('BOH20261103220218'));
+  check('F2 编号完整显示（不截断）', text.includes('BOH20261103220218'));
   check('F3 有复制入口', (await page.isVisible('.payment-success-copy-btn')) === true);
   check(
     'F4 两个出口都在',
     (await page.isVisible('.payment-success-confirm')) &&
       (await page.isVisible('.payment-success-secondary')),
   );
-  check('F5 写明后续步骤', text.includes('管理员确认') && text.includes('备货发出'));
+  check('F5 写明后续步骤', text.includes('管理员确认') && text.includes('备货寄出'));
   await ctx.close();
 }
 

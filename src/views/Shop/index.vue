@@ -46,7 +46,7 @@
               @click="runAvatarMenu('order')"
             >
               <Package :size="15" :stroke-width="1.9" aria-hidden="true" />
-              <span>我的订单</span>
+              <span>我的礼物</span>
             </button>
             <!-- 订单管理（2026-11-10 用户口径「点击头像出现一个订单管理」）：
                  管理员的操作台 —— 全部订单 + 就地推进进度。现金单收完钱不用再进
@@ -59,7 +59,7 @@
               @click="runAvatarMenu('manage')"
             >
               <ClipboardList :size="15" :stroke-width="1.9" aria-hidden="true" />
-              <span>订单管理</span>
+              <span>礼物管理</span>
             </button>
             <!-- 编辑态里已经有 InlineEditorBar 的退出入口，两个入口并存会让
                  「我现在到底在哪种模式」变得可疑，所以这一项只在浏览态出现。 -->
@@ -536,7 +536,7 @@ const tabs = [
   { id: 'products', label: '产品' },
   { id: 'lottery', label: '抽奖' },
   { id: 'bag', label: '购物袋' },
-  { id: 'order', label: '订单' },
+  { id: 'order', label: '礼物' },
   { id: 'address', label: '地址' },
 ];
 
@@ -720,7 +720,7 @@ const avatarBtnEl = ref(null);
 
 const avatarButtonLabel = computed(() => {
   if (isAdmin.value) return avatarMenuOpen.value ? '收起账号菜单' : '打开账号菜单';
-  return isLoggedIn.value ? '打开订单' : '登录';
+  return isLoggedIn.value ? '打开礼物' : '登录';
 });
 
 const handleAvatarMenuPointerDown = (event) => {
@@ -1118,8 +1118,8 @@ function showOperationToast(message) {
   if (text === '已加入购物袋') {
     title = '已加入购物袋';
     detail = selectedProduct.value?.title ? String(selectedProduct.value.title).slice(0, 32) : '';
-  } else if (text === '订单已提交') {
-    title = '订单已提交';
+  } else if (text === '礼物已提交') {
+    title = '礼物已提交';
     detail = '已邮件通知管理员处理';
   } else if (text.startsWith('积分不足')) {
     title = '积分不足';
@@ -1149,14 +1149,14 @@ const markSettlementEmailState = (state) => {
     paymentSuccess.value = { ...paymentSuccess.value, emailState: state };
     return;
   }
-  if (state === 'failed') showOperationToast('订单已提交，进度邮件发送失败');
+  if (state === 'failed') showOperationToast('礼物已提交，进度邮件发送失败');
 };
 
 const closePaymentSuccess = () => {
   const emailFailed = paymentSuccess.value?.emailState === 'failed';
   paymentSuccess.value = null;
   unlockPageScroll();
-  if (emailFailed) showOperationToast('订单已提交，进度邮件发送失败');
+  if (emailFailed) showOperationToast('礼物已提交，进度邮件发送失败');
 };
 
 /* 成功页的两个出口：主流电商都让用户「立刻能看到刚下的单」或「接着逛」，
@@ -1212,9 +1212,9 @@ const loadFallbackAddress = async () => {
 const startCheckout = async () => {
   if (!isLoggedIn.value) {
     showLoginModal.value = true;
-    return showOperationToast('请先登录后再提交订单');
+    return showOperationToast('请先登录后再提交礼物');
   }
-  if (!canCheckout.value) return showOperationToast('订单内容无效，请检查购物袋');
+  if (!canCheckout.value) return showOperationToast('礼物内容无效，请检查购物袋');
   /* 打开前先备好「老用户兜底地址」，CheckoutSheet 自己在打开时读地址簿；
      两边都异步，先把这个 promise 等完再开层，避免卡片先空一下再跳成地址。 */
   await loadFallbackAddress();
@@ -1244,7 +1244,7 @@ function resolveOrderErrorMessage(result) {
   if (code === 'PRODUCT_NOT_EXCHANGEABLE') return '购物袋中包含暂不可购买商品';
   if (code === 'PRODUCT_NOT_FOUND') return '购物袋存在已下架商品';
   if (String(code).startsWith('INVALID_') || code === 'EMPTY_ITEMS')
-    return '订单信息不完整，请检查后重试';
+    return '礼物信息不完整，请检查后重试';
   return result?.error?.message || '积分支付失败，请稍后重试';
 }
 
@@ -1362,14 +1362,14 @@ async function submitContact(address) {
       mode: paymentMode,
     });
 
-    const summary = `--- 方块之家周边结算单 ---\n订单号: ${orderNo}\n昵称: ${userInfo.username}\n邮箱: ${userInfo.email || '未绑定'}\n收件人: ${recipient}\n电话: ${phone}\n地址: ${fullAddress}\n时间: ${time}\n${remark ? `备注: ${remark}\n` : ''}\n支付方式: ${paymentSummary}\n\n商品清单:\n- ${itemText}\n\n剩余积分: ${remainingPoints}`;
+    const summary = `--- 方块礼物结算单 ---\n编号: ${orderNo}\n昵称: ${userInfo.username}\n邮箱: ${userInfo.email || '未绑定'}\n收件人: ${recipient}\n电话: ${phone}\n地址: ${fullAddress}\n时间: ${time}\n${remark ? `备注: ${remark}\n` : ''}\n费用: ${paymentSummary}\n\n礼物清单:\n- ${itemText}\n\n剩余积分: ${remainingPoints}`;
     userInfo.points = remainingPoints;
     await copyToClipboard(summary);
     closeCheckout();
     clearBag();
     /* 成功页要能回答「买了什么、寄给谁」——只给一个订单号是核对不了的 */
     const totalQty = orderedItems.reduce((sum, item) => sum + (Number(item.quantity) || 1), 0);
-    const firstTitle = String(orderedItems[0]?.title || '周边订单');
+    const firstTitle = String(orderedItems[0]?.title || '方块礼物');
     const itemSummaryText =
       orderedItems.length > 1 ? `${firstTitle} 等 ${totalQty} 件` : `${firstTitle} × ${totalQty}`;
     paymentSuccess.value = {
@@ -1392,7 +1392,7 @@ async function submitContact(address) {
         markSettlementEmailState('failed');
       });
     void notifyAdministrators(
-      `收到新的周边订单！\n订单号: ${orderNo}\n昵称: ${userInfo.username}\n邮箱: ${userInfo.email || '未绑定'}\n收件人: ${recipient}\n电话: ${phone}\n地址: ${fullAddress}\n${remark ? `备注: ${remark}\n` : ''}支付: ${paymentSummary}\n商品: ${itemText}`,
+      `收到新的方块礼物！\n编号: ${orderNo}\n昵称: ${userInfo.username}\n邮箱: ${userInfo.email || '未绑定'}\n收件人: ${recipient}\n电话: ${phone}\n地址: ${fullAddress}\n${remark ? `备注: ${remark}\n` : ''}费用: ${paymentSummary}\n礼物: ${itemText}`,
     );
     /* 不再 showOperationToast('订单已提交')：支付成功弹窗本身就在说这件事，
        而岛挂在导航里、层级低于弹窗（且会盖住卡片翻转动画）—— 2026-11-02 用户报障后去掉。 */

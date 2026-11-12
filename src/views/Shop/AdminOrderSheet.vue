@@ -11,12 +11,12 @@
 
         <section class="ao-sheet" role="dialog" aria-modal="true" aria-labelledby="ao-title">
           <header class="ao-head">
-            <h2 id="ao-title" class="ao-title">订单管理</h2>
+            <h2 id="ao-title" class="ao-title">礼物管理</h2>
             <span class="ao-count">{{ orders.length }} 单</span>
             <button
               type="button"
               class="ao-close"
-              aria-label="关闭订单管理"
+              aria-label="关闭礼物管理"
               @click="$emit('close')"
             >
               <X :size="19" :stroke-width="1.9" aria-hidden="true" />
@@ -40,10 +40,10 @@
           </div>
 
           <div class="ao-body">
-            <p v-if="loading" class="ao-hint">正在加载订单…</p>
+            <p v-if="loading" class="ao-hint">正在加载礼物…</p>
             <p v-else-if="loadError" class="ao-hint is-error">{{ loadError }}</p>
             <p v-else-if="!visibleOrders.length" class="ao-hint">
-              {{ filter === 'all' ? '还没有订单' : '这个状态下没有订单' }}
+              {{ filter === 'all' ? '还没有礼物' : '这个状态下没有礼物' }}
             </p>
 
             <ul v-else class="ao-list">
@@ -114,8 +114,8 @@ useBodyScrollLock(() => props.visible, 'shop-admin-orders');
 const FILTERS = [
   { value: 'all', label: '全部' },
   { value: 'preparing', label: '准备中' },
-  { value: 'shipped', label: '已发货' },
-  { value: 'completed', label: '完成' },
+  { value: 'shipped', label: '已寄出' },
+  { value: 'completed', label: '已送达' },
   { value: 'cancelled', label: '取消' },
 ];
 
@@ -159,10 +159,10 @@ const nextStatus = (order) => {
   return '';
 };
 
-const advanceLabel = (order) => (nextStatus(order) === 'shipped' ? '标记已发货' : '标记完成');
+const advanceLabel = (order) => (nextStatus(order) === 'shipped' ? '标记已寄出' : '标记已送达');
 
 const doneText = (order) => {
-  if (order?.status === 'completed') return '已完成';
+  if (order?.status === 'completed') return '已送达';
   if (order?.status === 'cancelled') return '已取消';
   return '';
 };
@@ -173,10 +173,10 @@ const load = async () => {
   try {
     const { data, error } = await fetchAllShopOrders();
     orders.value = data;
-    if (error) loadError.value = '订单读取失败，请稍后重试';
+    if (error) loadError.value = '礼物读取失败，请稍后重试';
   } catch (error) {
     logger.warn('shop-order', '加载订单管理列表失败', error);
-    loadError.value = '订单读取失败，请稍后重试';
+    loadError.value = '礼物读取失败，请稍后重试';
   } finally {
     loading.value = false;
   }
@@ -195,7 +195,7 @@ const advance = async (order) => {
     /* 就地更新，不整表重拉：重拉会让列表跳一下，管理员正在看的那一行跑掉 */
     order.status = result.status || next;
     order.statusLabel = shopStatusLabel(order.status);
-    emit('notify', next === 'shipped' ? '已标记发货，用户已收到通知' : '订单已标记完成');
+    emit('notify', next === 'shipped' ? '已标记寄出，用户已收到通知' : '礼物已标记送达');
   } catch (error) {
     logger.warn('shop-order', '推进订单进度失败', error);
     emit('notify', '推进失败，请稍后再试');

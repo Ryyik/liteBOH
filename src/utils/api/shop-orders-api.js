@@ -31,9 +31,13 @@ const GIFT_ORDER_LIMIT = 200;
    但用户开着旧标签页时列表可能还握着旧数据，别让它显示成英文。 */
 const SHOP_STATUS_LABELS = {
   preparing: '准备中',
-  shipped: '已发货',
-  completed: '完成',
-  cancelled: '取消',
+  /* 2026-11-12 礼物口径：「发货 / 完成」改成「寄出 / 送达」。
+     与 follow-mail-send 的 ORDER_STATUS_META、DB 站内信触发器
+     （2026111202_shop_progress_gift_wording.sql）三处必须同步，否则
+     用户会在邮件里看到「已寄出」、在页面上看到「已发货」。 */
+  shipped: '已寄出',
+  completed: '已送达',
+  cancelled: '已取消',
   // 历史值兜底（迁移 2026110201 已把它们归并成 preparing）
   pending: '准备中',
   processing: '准备中',
@@ -94,7 +98,7 @@ const normalizeShopOrder = (row) => {
     kind: 'shop',
     id: String(row?.id || row?.order_no || ''),
     orderNo: String(row?.order_no || ''),
-    title: items[0]?.title || '周边订单',
+    title: items[0]?.title || '方块礼物',
     subtitle:
       items.length > 1 ? `${items[0].specLabel} 等 ${items.length} 件` : items[0]?.specLabel || '',
     createdAt: row?.created_at || null,

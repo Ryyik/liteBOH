@@ -210,10 +210,10 @@ describe('④ 管理员邮件版式（与用户侧同一套 Apple 极简主题�
     expect(flat).toContain(flattenSource(`replace(/\\n/g, '<br>')`));
   });
 
-  it('订单编号进 preheader 之外的正文可见位置（标题下第一块就是商品与金额）', () => {
+  it('编号进 preheader 之外的正文可见位置（标题下第一块就是礼物与费用）', () => {
     const flat = flattenSource(efBare);
-    expect(flat).toContain(flattenSource(`['商品', safeParams.product || '—']`));
-    expect(flat).toContain(flattenSource(`['支付',`));
+    expect(flat).toContain(flattenSource(`['礼物', safeParams.product || '—']`));
+    expect(flat).toContain(flattenSource(`['费用',`));
     expect(flat).toContain(flattenSource(`['配送', safeParams.deliveryMethod || '—']`));
   });
 

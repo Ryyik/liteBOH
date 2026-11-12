@@ -25,7 +25,7 @@
       <span class="order-address-btn">去添加</span>
     </button>
 
-    <div class="order-filters" role="tablist" aria-label="订单筛选">
+    <div class="order-filters" role="tablist" aria-label="礼物筛选">
       <button
         v-for="option in filterOptions"
         :key="option.value"
@@ -167,7 +167,7 @@ const filterOptions = [
 
 /* 三种记录共用一张卡，差异只在「这一格写什么」：集中在这里，模板里不再写三元堆叠 */
 const KIND_LABELS = { shop: '购物', lottery: '中奖', gift: '礼物' };
-const kindLabel = (order) => KIND_LABELS[order?.kind] || '订单';
+const kindLabel = (order) => KIND_LABELS[order?.kind] || '方块礼物';
 const statusText = (order) => {
   if (order?.kind === 'lottery') return order.resultText || order.statusLabel || '';
   return order?.statusLabel || '';
@@ -193,10 +193,10 @@ const visibleOrders = computed(() =>
     : orders.value.filter((order) => order.kind === filter.value),
 );
 const emptyOrderText = computed(() => {
-  if (filter.value === 'shop') return '还没有购物订单';
+  if (filter.value === 'shop') return '还没有礼物';
   if (filter.value === 'lottery') return '还没有中奖记录';
   if (filter.value === 'gift') return '还没有礼物记录';
-  return '还没有订单';
+  return '还没有礼物';
 });
 
 const formatDate = (value) => {

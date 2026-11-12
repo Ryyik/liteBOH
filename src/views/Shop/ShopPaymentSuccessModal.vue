@@ -11,7 +11,7 @@
           <button
             type="button"
             class="payment-success-close"
-            aria-label="关闭订单结果提示"
+            aria-label="关闭礼物结果提示"
             @click="$emit('close')"
           >
             <X :size="19" aria-hidden="true" />
@@ -61,9 +61,9 @@
                 {{ cashDue > 0 ? '待付款' : '积分已扣除' }}
               </span>
               <h2 id="payment-success-title">
-                {{ cashDue > 0 ? '订单已提交，还差一步' : '订单已提交' }}
+                {{ cashDue > 0 ? '礼物已提交，还差一步' : '礼物已提交' }}
               </h2>
-              <p>{{ paymentSummary || '订单已确认' }}</p>
+              <p>{{ paymentSummary || '礼物已确认' }}</p>
               <p v-if="cashDue > 0" class="payment-success-due">
                 现金 {{ cashDueText }} 由管理员联系收取，收款后寄出
               </p>
@@ -73,7 +73,7 @@
               <!-- 订单号独占一行（grid-column 1/-1）：两列并排时 18 位单号必被截断，
                  而截断的订单号等于没有 —— 用户报单号给管理员时读不全。 -->
               <div>
-                <dt>订单号</dt>
+                <dt>编号</dt>
                 <dd class="payment-success-orderno">
                   <span>{{ orderNo || '—' }}</span>
                   <button type="button" class="payment-success-copy-btn" @click="copyOrderNo">
@@ -112,7 +112,7 @@
                     : '通过资料电话联系你，确认寄送细节'
                 }}</span>
               </li>
-              <li><strong>备货发出</strong><span>进度可在「订单」查看</span></li>
+              <li><strong>备货寄出</strong><span>进度可在「礼物」查看</span></li>
               <li><strong>收货确认</strong><span>收到后自动转「完成」，中途可取消</span></li>
             </ol>
 
@@ -125,12 +125,12 @@
               role="status"
             >
               <AlertTriangle :size="14" aria-hidden="true" />
-              <span>进度 Email 发送失败，订单已记录</span>
+              <span>进度 Email 发送失败，礼物已记录</span>
             </p>
 
             <div class="payment-success-actions" :class="{ revealed: isComplete }">
               <button type="button" class="payment-success-confirm" @click="$emit('view-orders')">
-                查看订单
+                查看礼物
               </button>
               <button type="button" class="payment-success-secondary" @click="$emit('continue')">
                 继续逛逛
@@ -155,7 +155,7 @@ const props = defineProps({
   skin: { type: String, default: 'blank' },
   imageUrl: { type: String, default: '' },
   orderNo: { type: String, default: '' },
-  paymentSummary: { type: String, default: '订单已确认' },
+  paymentSummary: { type: String, default: '礼物已确认' },
   /** 商品摘要（「围巾小狗 等 2 件」）：成功页不显示买了什么，用户只能靠记忆核对 */
   itemSummary: { type: String, default: '' },
   /** 寄往哪儿（「张三 · 江苏省苏州市…」） */

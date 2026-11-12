@@ -28,7 +28,7 @@
             <button type="button" class="ck-back" aria-label="返回购物袋" @click="requestClose">
               <ChevronLeft :size="22" :stroke-width="1.9" aria-hidden="true" />
             </button>
-            <h2 id="ck-title" class="ck-title">确认订单</h2>
+            <h2 id="ck-title" class="ck-title">确认礼物</h2>
             <span class="ck-count">共 {{ summary.totalQty }} 件</span>
           </header>
 
@@ -128,16 +128,14 @@
 
               <!-- 运费口径 2026-11-04：大部分地区不收邮费、积分之外的支付人工对接。
                    一句话说清「提交后会发生什么」，不再复述金额区已有内容。 -->
-              <p class="ck-note">
-                BOH 大部分地区不收寄送邮费；积分之外的支付，管理员会与你联系。
-              </p>
+              <p class="ck-note">BOH 大部分地区不收寄送邮费；积分之外的支付，管理员会与你联系。</p>
 
               <!-- 订单备注（2026-11-04）：尺码、收货时间这类要求以前只能事后私聊，
                    商家备货时看不到、退款换货时也说不清当初要求过什么。
                    限 200 字（DB 侧同约束），随订单落库，不进用户资料。 -->
-              <section class="ck-block ck-remark" aria-label="订单备注">
+              <section class="ck-block ck-remark" aria-label="礼物备注">
                 <label class="ck-remark-head" for="ck-remark-input">
-                  订单备注
+                  礼物备注
                   <span class="ck-remark-opt">选填 · 最多 200 字</span>
                 </label>
                 <input
@@ -185,7 +183,7 @@
                 @click="handleSubmit"
               >
                 <span v-if="submitting" class="ck-spinner" aria-hidden="true"></span>
-                {{ submitting ? '提交中…' : '提交订单' }}
+                {{ submitting ? '提交中…' : '提交礼物' }}
               </button>
             </div>
           </footer>

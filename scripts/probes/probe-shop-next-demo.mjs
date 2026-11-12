@@ -284,8 +284,8 @@ try {
     sub: document.querySelector('#pv-result .pv-sub').textContent,
   }));
   check(
-    '收款=纯积分：标题回到「订单已提交」，且没有待付款态',
-    pointsOnly.title.includes('订单已提交') && !pointsOnly.title.includes('待付'),
+    '收款=纯积分：标题回到「礼物已提交」，且没有待付款态',
+    pointsOnly.title.includes('礼物已提交') && !pointsOnly.title.includes('待付'),
     JSON.stringify(pointsOnly),
   );
 
