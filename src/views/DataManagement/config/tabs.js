@@ -381,8 +381,8 @@ export const TABS_ACTIONS = {
   'moderation-model': ['view', 'edit'],
   'lab-ai-model': ['view', 'edit'],
   labUsageRecords: ['view'],
-  userFollows: ['view'],
-  userImpressions: ['view'],
+  /* userFollows / userImpressions 的动作条目随页签一起下线（2026-11-14）：
+     页签已从 tabs 移除，留着条目只会让「这张表还能做什么」有两份互相矛盾的说法。 */
   userDataExportJobs: ['view'],
 };
 

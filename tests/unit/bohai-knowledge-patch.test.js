@@ -7,6 +7,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import {
+  KNOWLEDGE_CHUNK_MAX_CHARS,
   KNOWLEDGE_PATCH_TAG,
   buildKnowledgePatchPromptAppendix,
   hasKnowledgePatchBlock,
@@ -79,6 +80,19 @@ describe('单条提议校验', () => {
     expect(normalizeKnowledgePatch(null)).toBeNull();
     expect(normalizeKnowledgePatch('update')).toBeNull();
     expect(normalizeKnowledgePatch([{ action: 'update' }])).toBeNull();
+  });
+
+  /* 正文上限必须与 DB 的 `boh_ai_knowledge_chunks_content_len`（1..3000）
+     和 EF 的 MAX_CHUNK_CONTENT_CHARS 一致，否则「合法的变更单」到库里才炸。
+     反证：把 KNOWLEDGE_CHUNK_MAX_CHARS 改回 20000 → 第一条必红。 */
+  it('正文上限与 DB / EF 同口径（3000），且超长内容不被静默截断', () => {
+    expect(KNOWLEDGE_CHUNK_MAX_CHARS).toBe(3000);
+
+    const longContent = '甲'.repeat(4500);
+    const patch = normalizeKnowledgePatch({ action: 'update', id: UUID, content: longContent });
+    // 不能让 4500 字悄悄变成 3000 字再入库（少了哪句没人知道）——
+    // 原样保留，由 EF 回可读的 400「content is too long (max 3000 chars)」
+    expect(patch.content).toHaveLength(4500);
   });
 });
 

@@ -455,6 +455,15 @@ export const SAVE_STRATEGIES = {
     const normalizedPityRewardDescription = String(
       editingItem.pity_reward_description || '',
     ).trim();
+    /* 保底溢出礼（2026-11-14）：DB 的 `lotteries_pity_reward_config_check` 要求
+       eligible 时**两个**标题都非空。此前这里只读主保底礼 ⇒ 白名单也没有它 ⇒
+       「计入并兑现」这一档在 UI 上选得出来、写库必然 400/500。 */
+    const normalizedPityOverflowRewardTitle = String(
+      editingItem.pity_overflow_reward_title || '',
+    ).trim();
+    const normalizedPityOverflowRewardDescription = String(
+      editingItem.pity_overflow_reward_description || '',
+    ).trim();
     const normalizedEntryDeadlineAt = toISOStringFromInput(editingItem.entry_deadline_at);
     const normalizedDrawAt = toISOStringFromInput(editingItem.draw_at);
 
@@ -480,6 +489,8 @@ export const SAVE_STRATEGIES = {
       throw new Error('中奖人数不能大于报名人数上限');
     if (normalizedPityMode === 'eligible' && !normalizedPityRewardTitle)
       throw new Error('允许保底时必须填写主保底礼');
+    if (normalizedPityMode === 'eligible' && !normalizedPityOverflowRewardTitle)
+      throw new Error('允许保底时必须填写溢出保底礼（DB 约束要求两个保底礼都非空）');
     if (editingItem.draw_at && !normalizedDrawAt) throw new Error('自动开奖时间无效');
     if (editingItem.entry_deadline_at && !normalizedEntryDeadlineAt)
       throw new Error('报名截止时间无效');
@@ -499,6 +510,12 @@ export const SAVE_STRATEGIES = {
       pity_reward_title: normalizedPityMode === 'eligible' ? normalizedPityRewardTitle : null,
       pity_reward_description:
         normalizedPityMode === 'eligible' ? normalizedPityRewardDescription : null,
+      /* 非 eligible 时必须写 null：留下的旧值会让「本来不计保底」的抽奖继续挂着一份
+         永远不会发出去的保底礼，后台看不出它已失效。 */
+      pity_overflow_reward_title:
+        normalizedPityMode === 'eligible' ? normalizedPityOverflowRewardTitle : null,
+      pity_overflow_reward_description:
+        normalizedPityMode === 'eligible' ? normalizedPityOverflowRewardDescription : null,
       cover_image_url: String(editingItem.cover_image_url || '').trim(),
       status: normalizedStatus,
       fulfillment_status: normalizedFulfillmentStatus,

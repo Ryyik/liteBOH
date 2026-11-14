@@ -21,11 +21,21 @@ export const normalizeBirthday = (month, day) => {
   };
 };
 
+/**
+ * 今天是不是这个人的生日。
+ *
+ * ⚠️ 判据与生日页 / 生日邮件一致：**北京时间**（`getShanghaiDate`）。
+ * 2026-11-14 前这里用设备本地时区，而 `/birthday` 页与 `boh_enqueue_birthday_mails()`
+ * 都用 Asia/Shanghai ⇒ 海外用户在 UTC 凌晨会看到「首页说今天我生日、生日页把我排在明天」。
+ * 三处（首页英雄区 / 生日页 / 邮件）必须是同一个「今天」。
+ */
 export const isBirthdayToday = (month, day, now = new Date()) => {
   const birthday = normalizeBirthday(month, day);
   if (!birthday || !(now instanceof Date) || Number.isNaN(now.getTime())) return false;
+  const today = getShanghaiDate(now);
+  if (!today) return false;
 
-  return birthday.month === now.getMonth() + 1 && birthday.day === now.getDate();
+  return birthday.month === today.month && birthday.day === today.day;
 };
 
 const SHANGHAI_OFFSET_MS = 8 * 60 * 60 * 1000;

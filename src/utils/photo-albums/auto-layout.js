@@ -2,7 +2,13 @@
  * 自动初排引擎（规则版，无 AI）
  *
  * 市调共识（Shutterfly 论文）：自动初排是留存关键 —— 用户从零手排大量弃坑。
- * 引擎输入照片池（已按时间升序），输出页面流（photo_refs），用户在其上手动微调。
+ * 引擎输入照片池（已按时间升序），输出页面流（photoRefs），用户在其上手动微调。
+ *
+ * ⚠️ **字段名一律驼峰**（`pageType` / `layoutId` / `chapterTitle` / `note` / `photoRefs`），
+ *    与 `useAlbumEditor` / `PageCanvas` / `AlbumSheet` / `saveAlbumPages` 是同一套页面对象。
+ *    2026-11-14 之前本文件吐的是蛇形（`page_type` / `photo_refs`），而全链路只读驼峰 ⇒
+ *    「自动初排」后页面渲染成空、保存时 `photo_refs` 被写成 `[]`（照片引用全丢）。
+ *    写入数据库的 snake_case 转换只在 `photo-albums-api.js` 的 `saveAlbumPages` 里做一次。
  *
  * 策略：
  *   1. 时间聚类：拍摄/上传间隔 ≤ CLUSTER_GAP_MS 归为同组（同组才有"连拍成页"意义）；
@@ -32,7 +38,7 @@ function take(queue, n) {
  * @param {Array<{id:string, ratio:string, createdAt?:string, capturedAt?:string}>} photos
  * @param {object} [options]
  * @param {boolean} [options.appendEndPage=true] 是否追加尾页
- * @returns {Array<{page_type:string, layout_id:string, chapter_title:string, note:string, photo_refs:string[]}>}
+ * @returns {Array<{pageType:string, layoutId:string, chapterTitle:string, note:string, photoRefs:string[]}>}
  */
 export function buildAutoLayoutPages(photos, options = {}) {
   const appendEndPage = options.appendEndPage !== false;
@@ -58,11 +64,11 @@ export function buildAutoLayoutPages(photos, options = {}) {
   const flush = (queue) => {
     while (queue.length) {
       pages.push({
-        page_type: 'content',
-        layout_id: 'note',
-        chapter_title: '',
+        pageType: 'content',
+        layoutId: 'note',
+        chapterTitle: '',
         note: '',
-        photo_refs: take(queue, NOTE_MAX_PHOTOS),
+        photoRefs: take(queue, NOTE_MAX_PHOTOS),
       });
     }
   };
@@ -73,11 +79,11 @@ export function buildAutoLayoutPages(photos, options = {}) {
 
   if (appendEndPage) {
     pages.push({
-      page_type: 'end',
-      layout_id: 'full',
-      chapter_title: '',
+      pageType: 'end',
+      layoutId: 'full',
+      chapterTitle: '',
       note: '',
-      photo_refs: [],
+      photoRefs: [],
     });
   }
   return pages;
@@ -85,28 +91,29 @@ export function buildAutoLayoutPages(photos, options = {}) {
 
 /**
  * 把新照片追加进已有页面流：优先填未满槽位，再开新页
+ * @param {Array} pages 驼峰页面对象（`useAlbumEditor` 的 pages.value）
  * @returns {{pages: Array, changed: boolean}}
  */
 export function appendPhotosToPages(pages, newPhotos) {
-  const next = (pages || []).map((p) => ({ ...p, photo_refs: [...(p.photo_refs || [])] }));
+  const next = (pages || []).map((p) => ({ ...p, photoRefs: [...(p.photoRefs || [])] }));
   let changed = false;
 
   for (const photo of newPhotos) {
     const openPage = next.find((p) => {
-      if (p.page_type !== 'content') return false;
+      if (p.pageType !== 'content') return false;
       // 历史三图/四图页即使还有空槽也不再塞图：口径是一页最多两张
-      const cap = Math.min(NOTE_MAX_PHOTOS, getLayout(p.layout_id).maxPhotos);
-      return (p.photo_refs || []).length < cap;
+      const cap = Math.min(NOTE_MAX_PHOTOS, getLayout(p.layoutId).maxPhotos);
+      return (p.photoRefs || []).length < cap;
     });
     if (openPage) {
-      openPage.photo_refs.push(photo.id);
+      openPage.photoRefs.push(photo.id);
     } else {
       next.push({
-        page_type: 'content',
-        layout_id: 'note',
-        chapter_title: '',
+        pageType: 'content',
+        layoutId: 'note',
+        chapterTitle: '',
         note: '',
-        photo_refs: [photo.id],
+        photoRefs: [photo.id],
       });
     }
     changed = true;

@@ -17,6 +17,10 @@
  *    不显式传 true 等于悄悄关掉账号年龄门槛。
  * 3. `winner_count` 不是自由输入：`pity_mode === 'eligible'` 时必须 2，
  *    其余必须 1，填错会被 `SAVE_STRATEGIES` 直接抛错。所以它是**派生值**。
+ * 4. `pity_mode === 'eligible'` 在 DB 上还要求 `pity_overflow_reward_title` **非空**
+ *    （`lotteries_pity_reward_config_check`，这个字段是给第二位中奖人的）。
+ *    2026-11-14 之前它不在保存策略 / 字段白名单 / 本表任何一处 ⇒ 选「计入并兑现」
+ *    必然写库失败。现在三处都补齐了，别再把它当成「可选的第二份保底礼」删掉。
  */
 import { SAVE_STRATEGIES } from '@/views/DataManagement/config/saveStrategies.js';
 import { insertAdminRow } from '@/utils/api/data-admin-table-api.js';
@@ -67,6 +71,12 @@ const validateLotteryDraft = (draft) => {
   if (draft.pity_mode === 'eligible' && isBlank(draft.pity_reward_title)) {
     return '选了「兑现保底」就必须填保底礼';
   }
+  /* 溢出保底礼（2026-11-14）：DB 的 `lotteries_pity_reward_config_check` 要求
+     eligible 时**两个**保底礼标题都非空。只校验主保底礼等于放一个必然失败的组合过去 ——
+     用户点确认后只会看到一条数据库约束错误。 */
+  if (draft.pity_mode === 'eligible' && isBlank(draft.pity_overflow_reward_title)) {
+    return '选了「兑现保底」还必须填溢出保底礼（第二位中奖人的奖品）';
+  }
 
   const cover = String(draft.cover_image_url ?? '').trim();
   if (cover && !/^https?:\/\//i.test(cover)) return '封面链接必须以 http(s):// 开头';
@@ -102,7 +112,13 @@ const summarizeLottery = (draft) => {
         { label: '中奖人数', value: `${winnerCount} 人` },
         { label: '保底', value: pityLabel },
         ...(draft.pity_mode === 'eligible'
-          ? [{ label: '保底礼', value: String(draft.pity_reward_title || '').trim() || '未填' }]
+          ? [
+              { label: '保底礼', value: String(draft.pity_reward_title || '').trim() || '未填' },
+              {
+                label: '溢出保底礼',
+                value: String(draft.pity_overflow_reward_title || '').trim() || '未填',
+              },
+            ]
           : []),
         { label: '报名上限', value: optionalNumber(draft.max_entries) ?? '不限' },
         {
@@ -161,6 +177,8 @@ export const ADMIN_ACTIONS = [
       max_entries: '',
       pity_mode: 'none',
       pity_reward_title: '',
+      // 溢出保底礼（eligible 的第二个中奖人）：DB 约束要求与主保底礼同时非空
+      pity_overflow_reward_title: '',
       is_community_visible: true,
       is_home_visible: false,
       enforce_account_age_check: true,
@@ -226,6 +244,16 @@ export const ADMIN_ACTIONS = [
         placeholder: '例如：BOH 基础礼盒',
         visibleWhen: (draft) => draft.pity_mode === 'eligible',
         hint: '仅 1 位达到保底且未获普通奖的用户获得',
+      },
+      {
+        key: 'pity_overflow_reward_title',
+        label: '溢出保底礼',
+        type: 'text',
+        maxLength: 120,
+        group: 'more',
+        placeholder: '例如：BOH 纪念徽章',
+        visibleWhen: (draft) => draft.pity_mode === 'eligible',
+        hint: '第二位中奖人的奖品（与保底礼一起构成 2 人档，两者都必填）',
       },
       {
         key: 'prize_description',
@@ -296,6 +324,7 @@ export const ADMIN_ACTIONS = [
           cover_image_url: draft.cover_image_url,
           pity_mode: draft.pity_mode || 'none',
           pity_reward_title: draft.pity_reward_title,
+          pity_overflow_reward_title: draft.pity_overflow_reward_title,
           draw_at: draft.draw_at,
           entry_deadline_at: draft.entry_deadline_at,
           max_entries: optionalNumber(draft.max_entries),

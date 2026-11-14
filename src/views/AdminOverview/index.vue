@@ -303,6 +303,7 @@ import {
   searchAdminFunctions,
 } from '@/views/DataManagement/config/function-index.js';
 import { canViewModule } from '@/views/DataManagement/config/rbac.js';
+import { ROUTE_MAP } from '@/views/DataManagement/composables/useDataAdminNavigation.js';
 import {
   buildActionRoute,
   filterActions,
@@ -376,12 +377,12 @@ const results = computed(() => {
     }));
 });
 
+/* ⚠️ 不能要求 `results.length > 0`：空态文案（「没有匹配的动作」/「没有找到 X」）
+   就渲染在这个面板**里面**，加上这条就等于把空态变成死代码 ——
+   输入 `@zzz` 或搜不到任何东西时界面零反馈（2026-11-14 修）。
+   面板的出现条件只应该是「有输入 ∧ 聚焦 ∧ 未进入动作表单」。 */
 const showResults = computed(
-  () =>
-    !selectedAction.value &&
-    focused.value &&
-    results.value.length > 0 &&
-    raw.value.trim().length > 0,
+  () => !selectedAction.value && focused.value && raw.value.trim().length > 0,
 );
 
 const validateMessage = computed(() =>
@@ -531,9 +532,24 @@ const functionHref = (entry) => {
   return firstTab ? `${panelHref}?tab=${firstTab}` : panelHref;
 };
 
+/**
+ * 模块入口的落点（与面板内 `handleModuleClick` 同口径，别在这里另写一份路径表）：
+ *   ① `type === 'page'` 的独立控制台 —— 走 `ROUTE_MAP` 的真实路径
+ *      （商城装修 / 就地编辑 / 资讯编辑 / 首页装修 / 开屏管理 / 头像框）；
+ *   ② 数据类模块 —— 取该模块第一个页签 `?tab=`；
+ *   ③ 只有 subNav 的模块（system：媒体资源 / 网站设置）—— 落第一个子分区 `?section=`。
+ *
+ * ⚠️ 2026-11-14 修：原来只写 `tabIds[0]`，而上述 6 个 page 型模块与 system **都没有
+ *    tabIds** ⇒ 全部静默回落到 `panelHref`（= 概览分区）。表现是「点头像框回到概览」，
+ *    侧栏 7 个入口形同虚设。ROUTE_MAP 是唯一真源（AdminConsoleShell 也这么用）。
+ */
 const moduleHref = (mod) => {
+  if (!mod) return panelHref;
+  if (mod.type === 'page' && ROUTE_MAP[mod.id]) return ROUTE_MAP[mod.id];
   const firstTab = mod?.tabIds?.[0];
-  return firstTab ? `${panelHref}?tab=${firstTab}` : panelHref;
+  if (firstTab) return `${panelHref}?tab=${firstTab}`;
+  const firstSubSection = mod?.subNav?.[0]?.id;
+  return firstSubSection ? `${panelHref}?section=${firstSubSection}` : panelHref;
 };
 
 const go = (href) => {
@@ -628,7 +644,9 @@ const cards = computed(() => [
     id: 'reports',
     label: '待处理举报',
     value: counts.value.activeReports ?? null,
-    to: { tab: 'reportedPosts', status: 'active' },
+    /* 落点见 admin-overview-api.js 同处注释：举报要走 forumPostReports（举报表），
+       不能走 reportedPosts（posts 表 + 写死 status='limited'）—— 后者叠 status=active 恒 0 行。 */
+    to: { tab: 'forumPostReports', status: 'active' },
   },
   {
     id: 'draws',
@@ -644,7 +662,21 @@ const cards = computed(() => [
   },
 ]);
 
-const pendingCount = computed(() => inbox.value.length);
+/**
+ * 待处理徽标 = 三类待办的**真实数量之和**，不是 `inbox.length`。
+ *
+ * ⚠️ `fetchPendingInbox` 对每个源都 `.limit(20)`（只取用于展示的那几行），
+ * 用行数当徽标会把「500 条举报」显示成 20，且三源合计最多 60 —— 长期低报。
+ * 计数失败的源（null）按 0 计：徽标回答的是「有多少事要做」，少算一类
+ * 也比钉死一个永远不动的假数字好；具体某个源不可用由上方卡片的「—」表达。
+ */
+const pendingCount = computed(() => {
+  const { pendingShipments, activeReports, dueDraws } = counts.value || {};
+  return [pendingShipments, activeReports, dueDraws].reduce(
+    (sum, value) => sum + (value === null || value === undefined ? 0 : Number(value) || 0),
+    0,
+  );
+});
 const visibleInbox = computed(() => inbox.value.slice(0, 5));
 
 const relativeTime = (iso) => {

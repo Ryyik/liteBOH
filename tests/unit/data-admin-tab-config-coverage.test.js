@@ -84,7 +84,7 @@ describe('数据管理面板 · tab 查询配置覆盖', () => {
     }
   });
 
-  it('已下线的三页签不再出现在任何模块里（表保留、入口删除）', () => {
+  it('已下线的页签不再出现在任何模块里（表保留、入口删除）', () => {
     const retired = ['posterRequests', 'userFollows', 'userImpressions'];
     const mounted = new Set(tabModules.flatMap((mod) => mod.tabIds || []));
     for (const id of retired) {
@@ -93,6 +93,11 @@ describe('数据管理面板 · tab 查询配置覆盖', () => {
         `${id} 仍在 tabs 数组里`,
       ).toBe(false);
       expect(mounted.has(id), `${id} 仍挂载在某个模块的 tabIds 里`).toBe(false);
+      // 动作清单也要一起删：留着条目等于「这张表还能做什么」有两份互相矛盾的说法
+      expect(
+        Object.prototype.hasOwnProperty.call(TABS_ACTIONS, id),
+        `${id} 的动作条目还在 TABS_ACTIONS 里`,
+      ).toBe(false);
     }
   });
 });

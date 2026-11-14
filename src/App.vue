@@ -556,7 +556,10 @@ const showGlobalNavbar = computed(() => isGlobalNavbarVisible(route));
                   与本 bug 的表现一模一样，所以这条由单测 + 探针双重守。
                 · `:key` 必须按「缓存 / 不缓存」分开：缓存页用 name（同页换 query 不重建），
                   不缓存页用 path（/news/1 → /news/2 要重建，见下方长注释）。
-                · `:max` 是兜底而不是策略：白名单最多 4 条，6 只用来防将来加页时无限涨。
+                · `:max` 是兜底而不是策略：白名单现有 **6** 条（Home / Shop / BohAiChat /
+                  UserSpace / CloudPlus / BetaPreview），8 = 6 + 2 格余量。
+                  ⚠️ 别把它调回 6：那就正好等于当前席位数，再加一页就会静默触发 LRU 淘汰
+                  （被淘汰的页不再缓存，且没有任何报错）。
             -->
           <!--
               刷新还原弹窗时（isModalOwningDetail=true）跳过整页详情组件：
@@ -567,7 +570,7 @@ const showGlobalNavbar = computed(() => isGlobalNavbarVisible(route));
               两个子节点，dev 下 HTML 注释也算一个（会直接报
               「expects exactly one child component」），所以解释文字只能放在标签外面。
             -->
-          <KeepAlive :include="keepAliveNames" :max="6">
+          <KeepAlive :include="keepAliveNames" :max="8">
             <component
               v-if="!(isModalOwningDetail && activeRoute.name === 'PostDetail')"
               :is="Component"

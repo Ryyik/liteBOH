@@ -826,6 +826,16 @@ const KNOWNLEDGE_WRITABLE_SOURCE_TYPES = new Set([
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+/**
+ * 单条 chunk 正文上限 —— 与 DB 的 `boh_ai_knowledge_chunks_content_len`
+ * （`char_length(content) between 1 and 3000`）**必须一致**。
+ *
+ * ⚠️ 2026-11-14 修：此前 upsert/edit 都按 20000 放行，超过 3000 会直接撞库约束，
+ *    返回的是 PostgREST 的 23514 而不是可读的 400 —— 管理员只看到「保存失败」。
+ *    改口径时 DB 约束与这里的数要一起动，别只改一边。
+ */
+const MAX_CHUNK_CONTENT_CHARS = 3000;
+
 interface KnowledgeWriteActor {
   userId?: string;
   label?: string;
@@ -883,7 +893,17 @@ const upsertKnowledgeChunk = async (
   }
 
   const chunkId = toText(body.id || body.chunkId, 80);
-  const content = toText(body.content, 20000);
+  // 上限与 DB CHECK 同口径（见 MAX_CHUNK_CONTENT_CHARS）：超长要回可读的 400，
+  // 不能放进库里靠约束抛错。截断到这里更不合适 —— 静默改短内容比报错更危险。
+  const content = toText(body.content, MAX_CHUNK_CONTENT_CHARS);
+  const rawContentLength = String(body.content ?? '').length;
+  if (rawContentLength > MAX_CHUNK_CONTENT_CHARS) {
+    return {
+      ok: false,
+      status: 400,
+      message: `content is too long (max ${MAX_CHUNK_CONTENT_CHARS} chars)`,
+    };
+  }
   if (!content) {
     return { ok: false, status: 400, message: 'Missing content' };
   }
@@ -1037,10 +1057,11 @@ const archiveKnowledgeChunk = async (
   return { ok: true, data: { id: chunkId, status: 'archived', audit: auditOk } };
 };
 
-/** `find` 文本上限：够覆盖「一句话 / 一个段落」，又不至于让一次替换变成整段重写。 */
-const MAX_EDIT_FIND_CHARS = 4000;
-/** 替换后正文上限：与 `upsert_chunk` 的 `toText(content, 20000)` 同口径。 */
-const MAX_EDIT_CONTENT_CHARS = 20000;
+/** `find` 文本上限：够覆盖「一句话 / 一个段落」，又不至于让一次替换变成整段重写。
+ *  另外它不可能超过正文本身的上限（一条 chunk 最多 3000 字）。 */
+const MAX_EDIT_FIND_CHARS = MAX_CHUNK_CONTENT_CHARS;
+/** 替换后正文上限：与 `upsert_chunk` 和 DB CHECK 同口径。 */
+const MAX_EDIT_CONTENT_CHARS = MAX_CHUNK_CONTENT_CHARS;
 
 const countOccurrences = (haystack: string, needle: string) => {
   if (!needle) return 0;

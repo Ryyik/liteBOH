@@ -21,11 +21,26 @@ export const KNOWLEDGE_PATCH_ACTIONS = ['update', 'create', 'edit', 'archive'];
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-/** 正文长度上限：与 EF 的 toText(body.content, 20000) 对齐 */
-const MAX_CONTENT_CHARS = 20000;
+/**
+ * 一条 chunk 的正文上限 —— 与 DB 的 `boh_ai_knowledge_chunks_content_len`
+ * （1..3000）、EF 的 `MAX_CHUNK_CONTENT_CHARS` **同口径**。三处必须一起动。
+ *
+ * ⚠️ 2026-11-14 修：此前这里写 20000（只跟 EF 对齐，没跟 DB 对齐），
+ * 于是「模型给出 4000 字的改写」会被判为合法、到库里才炸。
+ */
+export const KNOWLEDGE_CHUNK_MAX_CHARS = 3000;
+
+/**
+ * 变更单载荷的内存护栏（**不是**业务上限）。
+ *
+ * 刻意不按 3000 截断：把 4000 字的改写悄悄剪成 3000 再入库，等于静默改写内容
+ * （少了哪一句没人知道）。宁可原样送去 EF、由它回一条可读的 400
+ * 「content is too long (max 3000 chars)」，让管理员重想让模型写短一点。
+ */
+const MAX_PATCH_TEXT_CHARS = 20000;
 const MAX_TITLE_CHARS = 160;
-/** 与 EF 的 MAX_EDIT_FIND_CHARS 对齐 */
-const MAX_FIND_CHARS = 4000;
+/** find 是正文里的一段锚点，不可能比正文本身长。 */
+const MAX_FIND_CHARS = KNOWLEDGE_CHUNK_MAX_CHARS;
 
 const clampText = (value, max) => {
   const text = String(value == null ? '' : value).trim();
@@ -63,7 +78,7 @@ export const normalizeKnowledgePatch = (raw) => {
   if (!KNOWLEDGE_PATCH_ACTIONS.includes(action)) return null;
 
   const id = clampText(raw.id || raw.chunkId || raw.chunk_id, 64);
-  const content = clampText(raw.content, MAX_CONTENT_CHARS);
+  const content = clampText(raw.content, MAX_PATCH_TEXT_CHARS);
   const title = clampText(raw.title, MAX_TITLE_CHARS);
   const reason = clampText(raw.reason, 200);
 
@@ -80,7 +95,7 @@ export const normalizeKnowledgePatch = (raw) => {
       action,
       id,
       find,
-      replace: clampRaw(raw.replace, MAX_CONTENT_CHARS),
+      replace: clampRaw(raw.replace, MAX_PATCH_TEXT_CHARS),
       allowMultiple: raw.allowMultiple === true || raw.all === true,
       title: '',
       content: '',

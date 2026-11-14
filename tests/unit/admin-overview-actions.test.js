@@ -9,6 +9,7 @@ import {
   validateDraft,
   visibleParams,
 } from '../../src/views/AdminOverview/actions/registry.js';
+import { TAB_WRITABLE_FIELDS } from '../../src/views/DataManagement/config/fields.js';
 
 /**
  * 概览页 `@抽奖` 的参数契约（2026-11-12）。
@@ -82,6 +83,19 @@ describe('抽奖动作的字段契约', () => {
       expect(keys).toContain(key);
     }
   });
+
+  /* 上面那条断言的是**手写清单** —— 它证明不了「动作参数」与「写库白名单」对得上。
+     2026-11-14 的 eligible 事故正是这样漏的：动作里没这个字段、白名单里也没有，
+     而测试只检查手写的那 8 个键，全绿。这里做一次真正的跨文件契约断言。 */
+  it('溢出的两个保底礼字段：动作参数与写库白名单必须同时存在', () => {
+    const keys = lottery.params.map((param) => param.key);
+    for (const key of ['pity_overflow_reward_title', 'pity_overflow_reward_description']) {
+      // description 允许不出现在表单里，但必须在白名单里（否则保存策略写了也会被丢掉）
+      expect(TAB_WRITABLE_FIELDS.lotteries).toContain(key);
+    }
+    // title 是 DB 约束的必填项 ⇒ 必须在表单里能填
+    expect(keys).toContain('pity_overflow_reward_title');
+  });
 });
 
 describe('抽奖的提交前体检', () => {
@@ -116,6 +130,19 @@ describe('抽奖的提交前体检', () => {
   it('选了兑现保底却没填保底礼 → 拦住', () => {
     const draft = { ...base(), pity_mode: 'eligible', pity_reward_title: '' };
     expect(validateDraft(lottery, draft)).toContain('保底礼');
+  });
+
+  /* DB 的 `lotteries_pity_reward_config_check` 要求 eligible 时
+     pity_reward_title 与 pity_overflow_reward_title **都**非空。
+     只校验前者 ⇒ 用户填完点确认，拿到的是一条数据库约束错误（2026-11-14 修）。 */
+  it('填了保底礼但没填溢出保底礼 → 也要拦住', () => {
+    const draft = {
+      ...base(),
+      pity_mode: 'eligible',
+      pity_reward_title: 'BOH 基础礼盒',
+      pity_overflow_reward_title: '',
+    };
+    expect(validateDraft(lottery, draft)).toContain('溢出保底礼');
   });
 
   it('封面不是 http(s) 链接 → 拦住', () => {

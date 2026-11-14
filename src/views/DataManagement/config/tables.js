@@ -1439,6 +1439,29 @@ export const dataConfig = {
         visibleWhen: (item) => item.pity_mode === 'eligible',
         group: 'prize',
       },
+      /* 溢出保底礼（2026-11-14）：DB 的 `lotteries_pity_reward_config_check` 要求
+         eligible 时这两个标题都非空（第二位中奖人）。没有这两个输入框，后台就
+         **没有任何途径**建出「计入并兑现」这一档 —— 保存只会撞约束。 */
+      {
+        key: 'pity_overflow_reward_title',
+        label: '溢出保底礼',
+        type: 'text',
+        maxLength: 120,
+        placeholder: '例如：BOH 纪念徽章',
+        hint: '第二位中奖人的奖品；与上面的保底礼一起构成 2 人档，两者都必填。',
+        visibleWhen: (item) => item.pity_mode === 'eligible',
+        group: 'prize',
+      },
+      {
+        key: 'pity_overflow_reward_description',
+        label: '溢出保底礼说明',
+        type: 'textarea',
+        rows: 2,
+        maxLength: 800,
+        placeholder: '写明规格、发放方式或使用条件。',
+        visibleWhen: (item) => item.pity_mode === 'eligible',
+        group: 'prize',
+      },
       {
         key: 'cover_image_url',
         label: '抽奖封面',

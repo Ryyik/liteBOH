@@ -9,10 +9,33 @@
  */
 import { supabase } from '@/utils/supabase-client.js';
 
+/**
+ * 从失败响应里挖出**真正的原因**。
+ *
+ * `functions.invoke` 在非 2xx 时只会给一句固定的
+ * `Edge Function returned a non-2xx status code`（见 @supabase/functions-js 的
+ * FunctionsHttpError），而 EF 实际回了 `{ ok: false, message: 'find text is ambiguous (2 matches)' }`
+ * —— 正文挂在 `error.context`（一个 Response）上。不读它，管理员永远只看到那句通用话。
+ */
+const readErrorMessage = async (error) => {
+  const response = error?.context;
+  try {
+    if (response && typeof response.clone === 'function') {
+      const payload = await response.clone().json();
+      const message = String(payload?.message || payload?.error || '').trim();
+      if (message) return message;
+    }
+  } catch {
+    // 响应体不是 JSON（网关错误页 / 空 body）—— 落到通用文案
+  }
+  return String(error?.message || '').trim() || '知识库变更请求失败';
+};
+
 const invokeKnowledgeWrite = async (body) => {
   const { data, error } = await supabase.functions.invoke('boh-ai-retrieval', { body });
   if (error) {
-    return { ok: false, error, message: error.message || '知识库变更请求失败' };
+    const message = await readErrorMessage(error);
+    return { ok: false, error: { message }, message };
   }
   const payload = data && typeof data === 'object' ? data : {};
   if (payload.ok === false) {

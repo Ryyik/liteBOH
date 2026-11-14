@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { getNextBirthdayDistance, isBirthdayToday, normalizeBirthday } from '../../src/utils/birthday.js';
+import {
+  getNextBirthdayDistance,
+  isBirthdayToday,
+  normalizeBirthday,
+} from '../../src/utils/birthday.js';
 
 describe('birthday utilities', () => {
   it('normalizes valid birthday strings', () => {
@@ -15,6 +19,15 @@ describe('birthday utilities', () => {
     const today = new Date('2026-05-15T10:30:00+08:00');
     expect(isBirthdayToday('5', '15', today)).toBe(true);
     expect(isBirthdayToday('5', '16', today)).toBe(false);
+  });
+
+  /* 「今天」的判据是**北京时间**，与 /birthday 页、boh_enqueue_birthday_mails() 同口径。
+     反证：这条在 UTC 机器上跑，若实现退回设备本地时区，getDate() 会得到 15 日 ⇒ 必红。 */
+  it('按北京时间判「今天」，不随设备时区漂移', () => {
+    // 北京时间 5/16 00:30 == UTC 5/15 16:30
+    const shanghaiAfterMidnight = new Date('2026-05-16T00:30:00+08:00');
+    expect(isBirthdayToday('5', '16', shanghaiAfterMidnight)).toBe(true);
+    expect(isBirthdayToday('5', '15', shanghaiAfterMidnight)).toBe(false);
   });
 
   it('calculates the next birthday distance', () => {

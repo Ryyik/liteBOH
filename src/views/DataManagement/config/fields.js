@@ -170,6 +170,12 @@ export const TAB_WRITABLE_FIELDS = {
     'prize_description',
     'pity_reward_title',
     'pity_reward_description',
+    /* 保底溢出礼（2026-11-14）：DB 的 `lotteries_pity_reward_config_check` 要求
+       `pity_mode='eligible'` 时 `pity_overflow_reward_title` **非空** —— 白名单里没有它，
+       这一档就永远建不出来（表现为保存时抛一条数据库约束错误）。
+       description 允许为空，但一并列在这里，避免「能改标题不能改说明」。 */
+    'pity_overflow_reward_title',
+    'pity_overflow_reward_description',
     'cover_image_url',
     'status',
     'is_community_visible',

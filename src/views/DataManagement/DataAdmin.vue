@@ -3294,35 +3294,10 @@ const lastRefreshClock = computed(() => {
   return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
 });
 
-// 收集结果类 tab: 管理员查看用户提交的收集表数据 (当前为海报申请, 后续可扩展自建收集表)
-const COLLECTION_RESULT_TABS = new Set(['posterRequests']);
-const isCollectionResultTab = computed(() => COLLECTION_RESULT_TABS.has(currentTab.value));
-
-// 收集结果状态分布概览: 基于当前视图统计各状态条数, 点击 chip 即按状态筛选
-const collectionStatusBreakdown = computed(() => {
-  if (!isCollectionResultTab.value) return [];
-  const options = statusFilterOptions.value;
-  const counts = new Map();
-  let total = 0;
-  for (const row of currentData.value) {
-    total++;
-    const statusKey = String(row?.status ?? '');
-    if (statusKey) counts.set(statusKey, (counts.get(statusKey) || 0) + 1);
-  }
-  return [
-    { value: '', label: '全部', count: total, tone: 'muted', active: statusFilter.value === '' },
-    ...options.map((option) => {
-      const value = String(option.value);
-      return {
-        value,
-        label: option.label,
-        count: counts.get(value) || 0,
-        tone: getBadgeType(value),
-        active: statusFilter.value === value,
-      };
-    }),
-  ];
-});
+/* 「收集结果类 tab」的状态分布（海报申请 posterRequests 专用）已随该页签一起下线
+   （2026-11-14）：tab 从 tabs.js 移除后 `currentTab` 永远不会等于它，这里的整套
+   计算（COLLECTION_RESULT_TABS / isCollectionResultTab / collectionStatusBreakdown）
+   都成了死代码。状态分布改由下方 config 驱动的通用实现负责（kanbanViewConfig）。 */
 
 const applyCollectionStatusFilter = (value) => {
   statusFilter.value = value;
@@ -3398,7 +3373,7 @@ const fetchStatusBreakdownCounts = async (tabId) => {
 // 通用状态分布（config 驱动）：有看板/状态字段的表都显示状态分布条并支持下钻筛选
 const statusBreakdownForCurrentTab = computed(() => {
   const kb = kanbanViewConfig.value;
-  if (!kb) return collectionStatusBreakdown.value;
+  if (!kb) return [];
   // 服务端全量计数优先；还没回来时回退当前页行数（首屏一瞬间）
   const serverCounts = statusBreakdownCache[currentTab.value];
   const counts = new Map();
@@ -3561,16 +3536,15 @@ const selectedGiftUser = computed(() => {
   );
   if (fromStore) return fromStore;
 
-  // addresses / posterRequests 表使用 recipient / phone 字段，归一化为 EditDrawer 显示所需的 shipping_* 键
-  if (currentTab.value === 'addresses' || currentTab.value === 'posterRequests') {
+  // addresses 表使用 recipient / phone 字段，归一化为 EditDrawer 显示所需的 shipping_* 键
+  if (currentTab.value === 'addresses') {
     return {
       id: userId,
       username: editingItem.value?.username || '',
       email: '',
       shipping_recipient: editingItem.value?.recipient || '',
       shipping_phone: editingItem.value?.phone || '',
-      shipping_address:
-        currentTab.value === 'posterRequests' ? editingItem.value?.address || '' : '',
+      shipping_address: '',
     };
   }
 
@@ -4594,12 +4568,7 @@ const isFieldDisabled = (field) => {
     if (isEditing.value && field.key === 'user_id') return true;
   }
 
-  // posterRequests 的 recipient/phone/address 均为 disabled，编辑时换 user_id 会导致
-  // 收件信息与所属用户错位且无法手动修正，故编辑态禁止换人。
-  if (currentTab.value === 'posterRequests' && isEditing.value && field.key === 'user_id') {
-    return true;
-  }
-
+  // posterRequests 页签已下线（2026-11-14），其「编辑态禁止换人」的守卫一并移除。
   return false;
 };
 
@@ -5274,19 +5243,6 @@ const fetchTabData = async (tabId = currentTab.value, options = {}) => {
         };
       });
       assignTabRows(tabId, addressRows, count);
-      return;
-    }
-
-    if (tabId === 'posterRequests') {
-      const posterRows = rows.map((request) => {
-        const { profile: rawProfile, ...restRequest } = request;
-        const profile = normalizeJoinedObject(rawProfile);
-        return {
-          ...restRequest,
-          username: profile.username || '-',
-        };
-      });
-      assignTabRows(tabId, posterRows, count);
       return;
     }
 
@@ -7311,7 +7267,7 @@ const fetchUserPickerUsers = async () => {
 };
 
 const openUserPicker = () => {
-  if (!['gifts', 'subscriptions', 'addresses', 'posterRequests'].includes(currentTab.value)) return;
+  if (!['gifts', 'subscriptions', 'addresses'].includes(currentTab.value)) return;
   showUserPickerModal.value = true;
   fetchUserPickerUsers();
 };
@@ -7357,14 +7313,11 @@ const loadGiftAddresses = async (userId) => {
 const selectGiftUser = async (user) => {
   editingItem.value.user_id = user.id;
   editingItem.value.username = user.username || '';
-  // addresses / posterRequests 表用 recipient / phone（posterRequests 额外有 address）
+  // addresses 表用 recipient / phone
   // 仅在为空时自动填充用户已有收货信息，避免覆盖已编辑内容
-  if (currentTab.value === 'addresses' || currentTab.value === 'posterRequests') {
+  if (currentTab.value === 'addresses') {
     if (!editingItem.value.recipient) editingItem.value.recipient = user.shipping_recipient || '';
     if (!editingItem.value.phone) editingItem.value.phone = user.shipping_phone || '';
-    if (currentTab.value === 'posterRequests' && !editingItem.value.address) {
-      editingItem.value.address = user.shipping_address || '';
-    }
   } else {
     editingItem.value.email = user.email || '';
     // 从 user_addresses 加载地址列表，填入地址选择器
@@ -7423,10 +7376,9 @@ const handleSelectGiftAddress = (addrId) => {
 const clearSelectedGiftUser = () => {
   editingItem.value.user_id = '';
   editingItem.value.username = '';
-  if (currentTab.value === 'addresses' || currentTab.value === 'posterRequests') {
+  if (currentTab.value === 'addresses') {
     editingItem.value.recipient = '';
     editingItem.value.phone = '';
-    if (currentTab.value === 'posterRequests') editingItem.value.address = '';
   } else {
     editingItem.value.email = '';
     editingItem.value.shipping_recipient = '';
@@ -9052,6 +9004,11 @@ const { getRelatedJump } = createRelatedJumpHelpers({ currentTabRef: currentTab 
 // 反向同步：浏览器后退/前进改变 URL query 时，UI 跟随回退。
 // tab 恢复走 switchTab（完整状态重置 + 数据重拉），与手动点击行为一致；
 // 相等守卫保证不会与上方正向写回 watcher 形成循环。
+//
+// ⚠️ 2026-11-14：筛选 / 页码 / 排序 / 搜索也必须跟随 URL 回退。此前只同步 section/tab，
+//    浏览器后退到 `?tab=lotteries&status=open` 时 URL 变了但 statusFilter 还是旧值，
+//    紧跟其后的正向 watcher 又用旧（空）值把 URL 覆盖回去 —— 表现为「后退丢筛选」。
+//    新卡片/动作大量依赖 status 深链，这条不修等于深链只能「直进」不能「回退」。
 watch(
   () => router.currentRoute.value?.query,
   (query) => {
@@ -9061,9 +9018,47 @@ watch(
     if (qSection && qSection !== activeAdminSection.value) {
       activeAdminSection.value = qSection;
     }
-    if (qTab && isValidAdminTab(qTab) && qTab !== currentTab.value) {
-      switchTab(qTab);
+
+    const nextStatus = typeof q.status === 'string' ? q.status : '';
+    const nextFrom = typeof q.from === 'string' ? q.from : '';
+    const nextTo = typeof q.to === 'string' ? q.to : '';
+    const nextSearch = typeof q.q === 'string' ? q.q : '';
+    const nextSort = typeof q.sort === 'string' ? q.sort : '';
+    const nextDir = q.dir === 'asc' || q.dir === 'desc' ? q.dir : '';
+    const parsedPage = Number(q.page);
+    const nextPage = Number.isFinite(parsedPage) && parsedPage > 1 ? parsedPage : 1;
+
+    const tabChanged = Boolean(qTab && isValidAdminTab(qTab) && qTab !== currentTab.value);
+    const urlHasFilters = Boolean(nextStatus || nextFrom || nextTo || nextSearch || nextSort);
+    const filtersChanged =
+      nextStatus !== statusFilter.value ||
+      nextFrom !== dateFromFilter.value ||
+      nextTo !== dateToFilter.value ||
+      nextSearch !== searchQuery.value ||
+      nextSort !== sortKey.value ||
+      (nextDir && nextDir !== sortOrder.value);
+    const pageChanged = nextPage !== currentPage.value;
+
+    if (!tabChanged && !filtersChanged && !pageChanged) return;
+
+    // 顺序不能换：switchTab 内部会 resetFiltersForTab()，先写筛选会被清掉。
+    if (tabChanged) switchTab(qTab);
+    // 只换了 tab、URL 又没带任何筛选 ⇒ switchTab 那次「空条件」请求已经等价，别再打一遍。
+    if (tabChanged && !urlHasFilters && !pageChanged) return;
+
+    statusFilter.value = nextStatus;
+    dateFromFilter.value = nextFrom;
+    dateToFilter.value = nextTo;
+    searchQuery.value = nextSearch;
+    sortKey.value = nextSort;
+    if (nextDir) sortOrder.value = nextDir;
+
+    // 页码最后恢复：page watcher 的那一次请求由 suppress 吃掉，下面统一只发一次。
+    if (pageChanged) {
+      suppressNextPageFetch.value = true;
+      currentPage.value = nextPage;
     }
+    fetchTabData(currentTab.value);
   },
 );
 

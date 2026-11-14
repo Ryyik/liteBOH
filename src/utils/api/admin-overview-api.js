@@ -6,7 +6,12 @@
  *   · 待发货   shop_points_orders.status = 'preparing'
  *   · 待处理举报 forum_post_reports.status = 'active'
  *   · 待开奖   lotteries.status = 'open' 且 draw_at <= now()
- *   · 7 日新增 profiles.created_at >= now() - 7d
+ *   · 7 日新增 profiles.join_date >= (今天 - 7d)
+ *
+ * ⚠️ `profiles` **没有 `created_at` 列**（2026-11-14 实测：`column "created_at" does not exist`，
+ *    SQLSTATE 42703）。入站时间只有 `join_date`（date，无时分秒），所以这里传的是
+ *    `YYYY-MM-DD` 而不是 ISO 时间戳 —— 用 `toISOString()` 整串去比 date 列，
+ *    PostgREST 会按 UTC 切日，与库里 `current_date` 写入的日期差一天。
  *
  * 设计约束：
  *   1. 任一指标查询失败返回 null（页面显示「—」），**不要**返回 0 ——
@@ -37,7 +42,9 @@ const countOrNull = async (builder) => {
  * 单项失败为 null。
  */
 export const fetchOverviewCounts = async ({ now = new Date() } = {}) => {
-  const since7d = new Date(now.getTime() - 7 * DAY_MS).toISOString();
+  /* join_date 是 date 列（DB 侧由 auth 触发器用 current_date 写入，即 UTC 日期），
+     所以这里也取 UTC 日期切片 —— 两端同口径，不会因为设备时区把「今天」推前一天。 */
+  const since7d = new Date(now.getTime() - 7 * DAY_MS).toISOString().slice(0, 10);
   const nowIso = now.toISOString();
 
   const [pendingShipments, activeReports, dueDraws, newUsers7d] = await Promise.all([
@@ -64,7 +71,7 @@ export const fetchOverviewCounts = async ({ now = new Date() } = {}) => {
       supabase
         .from('profiles')
         .select('id', { count: 'exact', head: true })
-        .gte('created_at', since7d),
+        .gte('join_date', since7d),
     ),
   ]);
 
@@ -130,7 +137,14 @@ export const fetchPendingInbox = async ({ now = new Date(), limit = 20 } = {}) =
         createdAt: row.created_at,
         severity: 'danger',
         actionLabel: '去处理',
-        to: { path: '/admin/data-management', query: { tab: 'reportedPosts', status: 'active' } },
+        /* ⚠️ 落点必须是 `forumPostReports`（forum_post_reports 表），不是 `reportedPosts`：
+           后者是 **posts** 表的「举报下架」视图，tab 级基础过滤写死 `status='limited'`，
+           再叠一个 `status='active'` 就是 `limited AND active` ⇒ 恒 0 行（posts.status 的合法值
+           只有 approved/limited/rejected）。2026-11-14 修。 */
+        to: {
+          path: '/admin/data-management',
+          query: { tab: 'forumPostReports', status: 'active' },
+        },
       });
     }
   }
