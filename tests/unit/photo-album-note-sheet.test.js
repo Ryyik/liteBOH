@@ -147,23 +147,29 @@ describe('resolveNoteContent 兜底链', () => {
 });
 
 describe('自动初排与追加页面', () => {
+  /* ⚠️ 页面对象一律**驼峰**（pageType/layoutId/photoRefs）—— 与 useAlbumEditor /
+     PageCanvas / saveAlbumPages 同一套字段名。这里断言 snake_case 的话，
+     等于把「自动初排后渲染为空、保存丢照片」这个 bug 钉成正确行为（2026-11-14 改）。 */
   it('自动初排一页最多两图，全部用 note 版式', () => {
     const five = ['a', 'b', 'c', 'd', 'e'].map((id) => ({ id, ratio: 'landscape' }));
     const pages = buildAutoLayoutPages(five, { appendEndPage: false });
-    expect(pages.map((page) => page.layout_id)).toEqual(['note', 'note', 'note']);
-    expect(pages.map((page) => page.photo_refs.length)).toEqual([2, 2, 1]);
+    expect(pages.map((page) => page.layoutId)).toEqual(['note', 'note', 'note']);
+    expect(pages.map((page) => page.photoRefs.length)).toEqual([2, 2, 1]);
+    // 反证：改回蛇形输出 → 上面两条立刻读到 undefined
+    expect(pages[0]).not.toHaveProperty('photo_refs');
+    expect(pages[0].pageType).toBe('content');
   });
 
   it('新开页默认 note，已有页最多再补到两张', () => {
     const { pages } = appendPhotosToPages([], [{ id: 'x', ratio: 'portrait' }]);
-    expect(pages[0].layout_id).toBe('note');
+    expect(pages[0].layoutId).toBe('note');
 
     const filled = appendPhotosToPages(
-      [{ page_type: 'content', layout_id: 'note', photo_refs: ['a'] }],
+      [{ pageType: 'content', layoutId: 'note', photoRefs: ['a'] }],
       [{ id: 'b' }, { id: 'c' }],
     ).pages;
-    expect(filled[0].photo_refs).toEqual(['a', 'b']);
-    expect(filled[1].photo_refs).toEqual(['c']);
+    expect(filled[0].photoRefs).toEqual(['a', 'b']);
+    expect(filled[1].photoRefs).toEqual(['c']);
   });
 });
 
