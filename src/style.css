@@ -496,6 +496,10 @@ html {
   .theme {
     --font-sans: 'Geist Variable', sans-serif;
     --font-heading: var(--font-sans);
+    /* 宋体栈（影集笔记版式）：只走系统字体，零下载；macOS/iOS 是 Songti，Windows 是 SimSun */
+    --font-serif:
+      'Songti SC', 'STSong', 'Songti TC', 'Noto Serif CJK SC', 'Noto Serif SC',
+      'Source Han Serif SC', 'SimSun', serif;
   }
   :root {
     --background: oklch(1 0 0);

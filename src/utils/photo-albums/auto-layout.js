@@ -6,28 +6,19 @@
  *
  * 策略：
  *   1. 时间聚类：拍摄/上传间隔 ≤ CLUSTER_GAP_MS 归为同组（同组才有"连拍成页"意义）；
- *   2. 组内按剩余张数与横竖比匹配版式：
- *        1 张  landscape→full / portrait→img-left-text（隔页换 img-right-text 制造节奏）
- *              square→full
- *        2 张  duo
- *        3 张  trio
- *        4 张  grid4
- *        ≥5 张 strip（截取前 5 张，其余留在池中下一组续排）
+ *   2. 组内按「最多两图」切页：每组按 2 张一页顺序切开，1 张也成一页；
+ *      所有内容页统一 note（笔记版式：横图图上文下、竖图左图右文，两图上下堆叠）；
  *   3. 尾页固定追加 end 页。
  */
 
 import { getLayout } from './layouts.js';
 
-const CLUSTER_GAP_MS = 3 * 60 * 60 * 1000;      // 3 小时内的照片视为同一场景
-const STRIP_MAX = 5;
+const CLUSTER_GAP_MS = 3 * 60 * 60 * 1000; // 3 小时内的照片视为同一场景
+const NOTE_MAX_PHOTOS = 2; // 影集口径：一页最多两图
 
 function photoTime(photo) {
   const t = Date.parse(photo?.capturedAt || photo?.createdAt || '');
   return Number.isFinite(t) ? t : 0;
-}
-
-function ratioOf(photo) {
-  return String(photo?.ratio || 'landscape');
 }
 
 /**
@@ -62,31 +53,17 @@ export function buildAutoLayoutPages(photos, options = {}) {
   }
   if (current.length) clusters.push(current);
 
-  // 2) 组内匹配版式
+  // 2) 组内切页：一页最多两张，统一笔记版式
   const pages = [];
-  let textAlternator = 0;
   const flush = (queue) => {
     while (queue.length) {
-      const count = queue.length;
-      if (count === 1) {
-        const only = queue[0];
-        const r = ratioOf(only);
-        let layoutId = 'full';
-        if (r === 'portrait') {
-          layoutId = textAlternator % 2 === 0 ? 'img-left-text' : 'img-right-text';
-          textAlternator += 1;
-        }
-        pages.push({ page_type: 'content', layout_id: layoutId, chapter_title: '', note: '', photo_refs: take(queue, 1) });
-      } else if (count === 2) {
-        pages.push({ page_type: 'content', layout_id: 'duo', chapter_title: '', note: '', photo_refs: take(queue, 2) });
-      } else if (count === 3) {
-        pages.push({ page_type: 'content', layout_id: 'trio', chapter_title: '', note: '', photo_refs: take(queue, 3) });
-      } else if (count === 4) {
-        pages.push({ page_type: 'content', layout_id: 'grid4', chapter_title: '', note: '', photo_refs: take(queue, 4) });
-      } else {
-        // ≥5：胶片条带走至多 5 张，剩余滚动到下一轮
-        pages.push({ page_type: 'content', layout_id: 'strip', chapter_title: '', note: '', photo_refs: take(queue, STRIP_MAX) });
-      }
+      pages.push({
+        page_type: 'content',
+        layout_id: 'note',
+        chapter_title: '',
+        note: '',
+        photo_refs: take(queue, NOTE_MAX_PHOTOS),
+      });
     }
   };
 
@@ -95,7 +72,13 @@ export function buildAutoLayoutPages(photos, options = {}) {
   }
 
   if (appendEndPage) {
-    pages.push({ page_type: 'end', layout_id: 'full', chapter_title: '', note: '', photo_refs: [] });
+    pages.push({
+      page_type: 'end',
+      layout_id: 'full',
+      chapter_title: '',
+      note: '',
+      photo_refs: [],
+    });
   }
   return pages;
 }
@@ -111,18 +94,19 @@ export function appendPhotosToPages(pages, newPhotos) {
   for (const photo of newPhotos) {
     const openPage = next.find((p) => {
       if (p.page_type !== 'content') return false;
-      return (p.photo_refs || []).length < getLayout(p.layout_id).maxPhotos;
+      // 历史三图/四图页即使还有空槽也不再塞图：口径是一页最多两张
+      const cap = Math.min(NOTE_MAX_PHOTOS, getLayout(p.layout_id).maxPhotos);
+      return (p.photo_refs || []).length < cap;
     });
     if (openPage) {
       openPage.photo_refs.push(photo.id);
     } else {
-      const r = ratioOf(photo);
       next.push({
         page_type: 'content',
-        layout_id: r === 'portrait' ? 'img-left-text' : 'full',
+        layout_id: 'note',
         chapter_title: '',
         note: '',
-        photo_refs: [photo.id]
+        photo_refs: [photo.id],
       });
     }
     changed = true;

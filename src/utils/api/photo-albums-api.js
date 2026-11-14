@@ -14,7 +14,7 @@ const ALBUM_COLUMNS =
 const PHOTO_COLUMNS =
   'id, album_id, user_id, cloudinary_url, public_id, width, height, ratio, caption, sort_order, moderation_status, moderation_score, moderation_source, created_at';
 const PAGE_COLUMNS =
-  'id, album_id, page_index, page_type, layout_id, chapter_title, note, photo_refs, created_at, updated_at';
+  'id, album_id, page_index, page_type, layout_id, chapter_title, note, photo_refs, headline, taken_on, place, created_at, updated_at';
 
 /** 当前登录用户 id（insert 时显式携带；表列 not null 且依赖 RLS 限定本人） */
 async function getDbUserId() {
@@ -75,10 +75,19 @@ function normalizePage(row) {
     layoutId: row.layout_id || 'full',
     chapterTitle: row.chapter_title || '',
     note: row.note || '',
+    headline: row.headline || '',
+    takenOn: row.taken_on || '',
+    place: row.place || '',
     photoRefs: Array.isArray(row.photo_refs) ? row.photo_refs.map(String) : [],
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
+}
+
+/** taken_on 只接受 YYYY-MM-DD；空值 / 非法值落 null（列允许空） */
+function normalizeDateOnly(value) {
+  const text = String(value || '').trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : null;
 }
 
 export function normalizeAlbumBundle(albumRow, photoRows, pageRows) {
@@ -336,7 +345,7 @@ export async function updatePhotoCaption(photoId, caption) {
 
 /**
  * 整体保存页面流（编辑器保存：先清后写，页数有限可接受）
- * @param {Array<{pageType:string, layoutId:string, chapterTitle:string, note:string, photoRefs:string[]}>} pages
+ * @param {Array<{pageType:string, layoutId:string, chapterTitle:string, note:string, headline:string, takenOn:string, place:string, photoRefs:string[]}>} pages
  */
 export async function saveAlbumPages(albumId, pages = []) {
   try {
@@ -354,6 +363,9 @@ export async function saveAlbumPages(albumId, pages = []) {
       layout_id: String(page.layoutId || 'full').slice(0, 32),
       chapter_title: String(page.chapterTitle || '').slice(0, 80),
       note: String(page.note || '').slice(0, 500),
+      headline: String(page.headline || '').slice(0, 80),
+      taken_on: normalizeDateOnly(page.takenOn),
+      place: String(page.place || '').slice(0, 60),
       photo_refs: Array.isArray(page.photoRefs) ? page.photoRefs.map(String) : [],
     }));
     if (rows.length) {

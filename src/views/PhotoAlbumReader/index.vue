@@ -58,9 +58,9 @@
       </section>
 
       <template v-else>
-        <!-- 书本舞台（2026-11-04 硬切审计：装载骨架⇄书页补内容侧淡入；翻页过渡 ar-turn 不变） -->
+        <!-- 单页笔记舞台：一屏一页，页面自身内部滚动 -->
         <section
-          class="ar-book-stage content-swap-in-fade"
+          class="ar-stage content-swap-in-fade"
           @touchstart.passive="onTouchStart"
           @touchend.passive="onTouchEnd"
         >
@@ -74,54 +74,11 @@
             <ChevronLeft :size="20" :stroke-width="2.2" aria-hidden="true" />
           </button>
 
-          <!-- 桌面：摊开的双页书（全出血贴边） -->
-          <div v-if="!isMobile" class="ar-book">
-            <Transition name="ar-turn" mode="out-in">
-              <div :key="spreadIndex" class="ar-spread">
-                <!-- 左页 -->
-                <div class="ar-page ar-page-left">
-                  <AlbumPageSheet
-                    v-if="leftPage"
-                    :page="leftPage"
-                    :album="bundle.album"
-                    :photos="bundle.photos"
-                  />
-                  <!-- 封面 spread 的书壳内衬 -->
-                  <div v-else-if="spreadIndex === 0" class="ar-lining">
-                    <span class="ar-lining-mark">方块之家 · 摄影集</span>
-                  </div>
-                  <div v-else class="ar-blank-page"></div>
-                </div>
-                <!-- 书脊 -->
-                <div class="ar-spine" aria-hidden="true"></div>
-                <!-- 右页 -->
-                <div class="ar-page ar-page-right">
-                  <AlbumPageSheet
-                    v-if="rightPage"
-                    :page="rightPage"
-                    :album="bundle.album"
-                    :photos="bundle.photos"
-                  />
-                  <div v-else class="ar-blank-page"></div>
-                </div>
-              </div>
-            </Transition>
-          </div>
-
-          <!-- 移动：单页 -->
-          <div v-else class="ar-book is-mobile">
-            <Transition name="ar-turn" mode="out-in">
-              <div :key="currentIndex" class="ar-spread is-single">
-                <div class="ar-page ar-page-full">
-                  <AlbumPageSheet
-                    :page="currentPage"
-                    :album="bundle.album"
-                    :photos="bundle.photos"
-                  />
-                </div>
-              </div>
-            </Transition>
-          </div>
+          <Transition name="ar-turn" mode="out-in">
+            <article :key="currentIndex" class="ar-page-scroll">
+              <AlbumPageSheet :page="currentPage" :album="bundle.album" :photos="bundle.photos" />
+            </article>
+          </Transition>
 
           <button
             v-if="canGoNext"
@@ -140,7 +97,7 @@
           <div class="ar-progress" aria-hidden="true">
             <div class="ar-progress-fill" :style="{ width: progressPercent }"></div>
           </div>
-          <span class="ar-footer-page">{{ navPosition }} / {{ totalNavUnits }}</span>
+          <span class="ar-footer-page">{{ currentIndex + 1 }} / {{ totalPages }}</span>
         </footer>
 
         <!-- 章节目录抽屉 -->
@@ -188,11 +145,7 @@ import { ArrowLeft, CameraOff, ChevronLeft, ChevronRight, List, Pencil, X } from
 import { useAuthStore } from '@/stores/auth';
 import { getPublicAlbum } from '@/utils/api/photo-albums-api.js';
 import { buildDemoAlbumBundle } from '@/utils/photo-albums/demo-album.js';
-import AlbumPageSheet from './components/AlbumPageSheet.vue';
-
-/** 极窄窗才强制单页；横屏手机（如 844 宽）保持双页书 */
-const MOBILE_QUERY = '(max-width: 600px)';
-const PORTRAIT_QUERY = '(orientation: portrait)';
+import AlbumPageSheet from '@/components/PhotoAlbums/AlbumPageSheet.vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -202,13 +155,10 @@ const bundle = ref(null);
 const isLoading = ref(true);
 const loadError = ref('');
 
-/** 页指针：桌面模式下始终指向当前 spread 的左页（封面 spread 为 0） */
+/** 页指针：单页阅读，一页一屏 */
 const currentIndex = ref(0);
 const showToc = ref(false);
-const isMobile = ref(false);
 
-let mobileMql = null;
-let portraitMql = null;
 let touchStartX = 0;
 let touchStartY = 0;
 
@@ -225,38 +175,13 @@ const pages = computed(() => bundle.value?.pages || []);
 const totalPages = computed(() => pages.value.length);
 const currentPage = computed(() => pages.value[currentIndex.value] || null);
 
-/**
- * 书页摊开模型：spread 0 = 封面（右页封面，左页书壳内衬）；
- * spread s≥1 → 左页 pages[2s-1]、右页 pages[2s]。
- */
-const spreadIndex = computed(() => Math.ceil(currentIndex.value / 2));
-const totalSpreads = computed(() =>
-  totalPages.value <= 1 ? 1 : 1 + Math.ceil((totalPages.value - 1) / 2),
-);
-
-const leftPage = computed(() => {
-  if (spreadIndex.value === 0) return null;
-  return pages.value[spreadIndex.value * 2 - 1] || null;
-});
-
-const rightPage = computed(() => pages.value[spreadIndex.value * 2] || null);
-
-const canGoPrev = computed(() => (isMobile.value ? currentIndex.value > 0 : spreadIndex.value > 0));
-const canGoNext = computed(() =>
-  isMobile.value
-    ? currentIndex.value < totalPages.value - 1
-    : spreadIndex.value < totalSpreads.value - 1,
-);
-
-const navPosition = computed(() =>
-  isMobile.value ? currentIndex.value + 1 : spreadIndex.value + 1,
-);
-const totalNavUnits = computed(() => (isMobile.value ? totalPages.value : totalSpreads.value));
+const canGoPrev = computed(() => currentIndex.value > 0);
+const canGoNext = computed(() => currentIndex.value < totalPages.value - 1);
 
 const progressPercent = computed(() =>
-  totalNavUnits.value <= 1
+  totalPages.value <= 1
     ? '100%'
-    : `${Math.round(((navPosition.value - 1) / (totalNavUnits.value - 1)) * 100)}%`,
+    : `${Math.round((currentIndex.value / (totalPages.value - 1)) * 100)}%`,
 );
 
 const currentChapterLabel = computed(() => {
@@ -316,29 +241,15 @@ async function loadAlbum() {
 }
 
 function prevPage() {
-  if (isMobile.value) {
-    if (currentIndex.value > 0) currentIndex.value -= 1;
-    return;
-  }
-  const prev = spreadIndex.value - 1;
-  if (prev < 0) return;
-  currentIndex.value = prev === 0 ? 0 : prev * 2 - 1;
+  if (currentIndex.value > 0) currentIndex.value -= 1;
 }
 
 function nextPage() {
-  if (isMobile.value) {
-    if (currentIndex.value < totalPages.value - 1) currentIndex.value += 1;
-    return;
-  }
-  const next = spreadIndex.value + 1;
-  if (next > totalSpreads.value - 1) return;
-  currentIndex.value = next * 2 - 1;
+  if (currentIndex.value < totalPages.value - 1) currentIndex.value += 1;
 }
 
-/** 目录跳转：把目标页落到所在 spread 的左页（封面 spread 落 0） */
 function jumpTo(pageIndex) {
-  const target = Math.max(0, Math.min(totalPages.value - 1, pageIndex));
-  currentIndex.value = isMobile.value || target === 0 ? target : Math.ceil(target / 2) * 2 - 1;
+  currentIndex.value = Math.max(0, Math.min(totalPages.value - 1, pageIndex));
   showToc.value = false;
 }
 
@@ -363,11 +274,6 @@ function onTouchEnd(event) {
   else prevPage();
 }
 
-/** 单页模式：竖屏或窄窗（双页书需要横向空间） */
-function syncMobile() {
-  isMobile.value = Boolean(portraitMql?.matches || mobileMql?.matches);
-}
-
 function onKeydown(event) {
   if (event.key === 'ArrowLeft') prevPage();
   else if (event.key === 'ArrowRight') nextPage();
@@ -376,32 +282,23 @@ function onKeydown(event) {
 
 onMounted(() => {
   loadAlbum();
-  if (typeof window !== 'undefined' && 'matchMedia' in window) {
-    mobileMql = window.matchMedia(MOBILE_QUERY);
-    portraitMql = window.matchMedia(PORTRAIT_QUERY);
-    syncMobile();
-    mobileMql.addEventListener('change', syncMobile);
-    portraitMql.addEventListener('change', syncMobile);
-  }
   window.addEventListener('keydown', onKeydown);
 });
 
 onBeforeUnmount(() => {
-  mobileMql?.removeEventListener('change', syncMobile);
-  portraitMql?.removeEventListener('change', syncMobile);
   window.removeEventListener('keydown', onKeydown);
 });
 </script>
 
 <style scoped>
 .album-reader {
-  /* 全屏阅读：页面自身不滚动，书本在剩余空间内自适应 */
+  /* 全屏阅读：纸面就是视口，页面自身不滚动（每页内部滚动） */
   height: 100dvh;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: var(--boh-page-bg, #f4f4f6);
-  color: var(--text-primary, #1d1d1f);
+  background: #fff;
+  color: #1a1a1a;
   /* 导航已收成左上角迷你球（52px，fixed 14,14）：顶栏只需少量避让 + 左端让位 */
   --ar-nav-safe: 20px;
   --ar-orb: 52px;
@@ -411,7 +308,6 @@ onBeforeUnmount(() => {
   flex: 1;
   min-height: 0;
   width: 100%;
-  /* 全出血书：顶栏/底栏悬浮在书上，整个视口就是摊开的影集 */
   position: relative;
   display: flex;
   flex-direction: column;
@@ -450,18 +346,20 @@ onBeforeUnmount(() => {
   gap: 6px;
   padding: 8px 14px;
   border-radius: 999px;
-  background: var(--surface-primary, #fff);
-  color: var(--text-secondary, #515154);
+  background: rgba(0, 0, 0, 0.045);
+  color: #4a4a4a;
   font-size: 13px;
   font-weight: 500;
   text-decoration: none;
   white-space: nowrap;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
-  transition: color 0.15s ease;
+  transition:
+    color 0.15s ease,
+    background 0.15s ease;
 }
 
 .ar-back:hover {
-  color: var(--text-primary, #1d1d1f);
+  color: #1a1a1a;
+  background: rgba(0, 0, 0, 0.075);
 }
 
 .ar-topbar-title {
@@ -472,16 +370,17 @@ onBeforeUnmount(() => {
 
 .ar-topbar-title h1 {
   margin: 0;
-  font-size: 16px;
-  font-weight: 650;
+  font-size: 14px;
+  font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  color: #1a1a1a;
 }
 
 .ar-topbar-title > span {
   font-size: 12px;
-  color: var(--text-tertiary, #86868b);
+  color: #8a8a8a;
 }
 
 .ar-demo-badge {
@@ -493,8 +392,8 @@ onBeforeUnmount(() => {
   font-weight: 700;
   letter-spacing: 0.1em;
   vertical-align: 2px;
-  color: var(--brand, #0a84ff);
-  background: rgba(10, 132, 255, 0.12);
+  color: #1a1a1a;
+  background: rgba(0, 0, 0, 0.06);
 }
 
 .ar-topbar-actions {
@@ -511,18 +410,17 @@ onBeforeUnmount(() => {
   padding: 8px 14px;
   border: 0;
   border-radius: 999px;
-  background: var(--surface-primary, #fff);
-  color: var(--text-primary, #1d1d1f);
+  background: rgba(0, 0, 0, 0.045);
+  color: #1a1a1a;
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
   white-space: nowrap;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
-  transition: transform 0.15s ease;
+  transition: background 0.15s ease;
 }
 
 .ar-top-btn:hover {
-  transform: translateY(-1px);
+  background: rgba(0, 0, 0, 0.075);
 }
 
 .ar-draft-banner {
@@ -534,7 +432,7 @@ onBeforeUnmount(() => {
   margin: 0;
   padding: 8px 16px;
   border-radius: 12px;
-  background: rgba(255, 159, 10, 0.16);
+  background: rgba(255, 159, 10, 0.14);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   color: #b25000;
@@ -564,19 +462,19 @@ onBeforeUnmount(() => {
   width: 64px;
   height: 64px;
   border-radius: 22px;
-  background: var(--surface-primary, #fff);
-  color: var(--text-tertiary, #86868b);
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+  background: #f5f5f6;
+  color: #86868b;
 }
 
 .ar-state h2 {
   margin: 6px 0 0;
   font-size: 20px;
 }
+
 .ar-state p {
   margin: 0;
   font-size: 14px;
-  color: var(--text-secondary, #515154);
+  color: #515154;
 }
 
 .ar-state-actions {
@@ -601,124 +499,48 @@ onBeforeUnmount(() => {
 
 .ar-btn.primary {
   border: 0;
-  background: var(--brand, #0a84ff);
+  background: #1a1a1a;
   color: #fff;
 }
 
 .ar-btn.ghost {
-  border: 1px solid var(--border-color, #d1d1d6);
-  background: var(--surface-primary, #fff);
-  color: var(--text-primary, #1d1d1f);
+  border: 1px solid #d1d1d6;
+  background: #fff;
+  color: #1a1a1a;
 }
 
 .ar-skeleton-page {
-  width: min(880px, 100%);
-  aspect-ratio: 3 / 2;
+  width: min(760px, 100%);
+  aspect-ratio: 3 / 4;
   border-radius: 14px;
 }
 
-/* ---------- 书本 ---------- */
-.ar-book-stage {
+/* ---------- 单页笔记舞台 ---------- */
+.ar-stage {
   position: absolute;
   inset: 0;
   display: flex;
-  align-items: stretch;
-  justify-content: stretch;
-}
-
-/* 全出血：书 = 视口剩余区域，左右页即屏幕左右两缘 */
-.ar-book {
-  position: relative;
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: stretch;
-}
-
-.ar-spread {
-  position: relative;
-  flex: 1;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  background: var(--surface-primary, #fff);
-  overflow: hidden;
-}
-
-.ar-page {
-  position: relative;
-  min-width: 0;
-  min-height: 0;
-  overflow: hidden;
-}
-
-/* 中缝：左右页相向的内阴影 */
-.ar-spine {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 50%;
-  width: 64px;
-  transform: translateX(-50%);
-  pointer-events: none;
-  z-index: 2;
-  background: linear-gradient(
-    to right,
-    rgba(0, 0, 0, 0) 0%,
-    rgba(0, 0, 0, 0.14) 50%,
-    rgba(0, 0, 0, 0) 100%
-  );
-}
-
-/* 页面外侧无圆角（全出血贴边），仅保留中缝相向内阴影 */
-.ar-page-left {
-  box-shadow: inset -14px 0 22px -18px rgba(0, 0, 0, 0.35);
-}
-.ar-page-right {
-  box-shadow: inset 14px 0 22px -18px rgba(0, 0, 0, 0.35);
-}
-
-/* 封面 spread：左页书壳内衬 */
-.ar-lining {
-  height: 100%;
-  display: flex;
-  align-items: flex-end;
   justify-content: center;
-  padding-bottom: 28px;
-  background:
-    radial-gradient(120% 90% at 30% 20%, rgba(255, 255, 255, 0.05), rgba(0, 0, 0, 0) 60%),
-    linear-gradient(135deg, #46403a, #332d27);
 }
 
-.ar-lining-mark {
-  font-size: 11px;
-  letter-spacing: 0.32em;
-  color: rgba(255, 255, 255, 0.34);
-}
-
-.ar-blank-page {
+/* 纸面：居中单栏，超长页在纸内纵向滚动 */
+.ar-page-scroll {
+  width: min(760px, 100%);
   height: 100%;
-  background: linear-gradient(to right, rgba(0, 0, 0, 0.02), rgba(0, 0, 0, 0) 18%), #fbfaf8;
+  /* height:100% + padding-top 在 content-box 下会恒溢出 54px ⇒ 永远挂一条空滚动条 */
+  box-sizing: border-box;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: #fff;
+  /* 顶栏避让已在 padding-top 里，滚动条本身不需要露出来 */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  /* 顶部避让悬浮顶栏（返回/目录按钮） */
+  padding-top: 54px;
 }
 
-/* 移动/竖屏单页：书撑满 stage 高度 */
-.ar-book.is-mobile {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: stretch;
-}
-
-.ar-spread.is-single {
-  flex: 1;
-  grid-template-columns: 1fr;
-  aspect-ratio: auto;
-  min-height: 0;
-}
-
-.ar-page-full {
-  border-radius: 6px;
-  min-height: 0;
-  height: 100%;
+.ar-page-scroll::-webkit-scrollbar {
+  display: none;
 }
 
 /* ---------- 翻页按钮 ---------- */
@@ -734,7 +556,7 @@ onBeforeUnmount(() => {
   height: 40px;
   border: 0;
   border-radius: 999px;
-  background: rgba(29, 29, 31, 0.55);
+  background: rgba(26, 26, 26, 0.42);
   color: #fff;
   cursor: pointer;
   backdrop-filter: blur(8px);
@@ -742,11 +564,13 @@ onBeforeUnmount(() => {
 }
 
 .ar-page-nav:hover {
-  background: rgba(29, 29, 31, 0.78);
+  background: rgba(26, 26, 26, 0.68);
 }
+
 .ar-page-nav.prev {
   left: 6px;
 }
+
 .ar-page-nav.next {
   right: 6px;
 }
@@ -761,8 +585,7 @@ onBeforeUnmount(() => {
   transition: opacity 0.16s ease;
 }
 .ar-turn-enter-from {
-  transform: perspective(1600px) rotateY(-6deg);
-  transform-origin: left center;
+  transform: translateY(8px);
   opacity: 0;
 }
 .ar-turn-leave-to {
@@ -781,7 +604,7 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 16px;
   font-size: 12px;
-  color: var(--text-tertiary, #86868b);
+  color: #8a8a8a;
   pointer-events: none;
 }
 
@@ -799,16 +622,16 @@ onBeforeUnmount(() => {
 
 .ar-progress {
   width: min(260px, 40%);
-  height: 3px;
+  height: 2px;
   border-radius: 999px;
-  background: var(--border-color, #e5e5ea);
+  background: #ededed;
   overflow: hidden;
 }
 
 .ar-progress-fill {
   height: 100%;
   border-radius: 999px;
-  background: var(--brand, #0a84ff);
+  background: #1a1a1a;
   transition: width 0.25s ease;
 }
 
@@ -833,7 +656,7 @@ onBeforeUnmount(() => {
   right: 0;
   bottom: 0;
   width: min(320px, 86vw);
-  background: var(--surface-primary, #fff);
+  background: #fff;
   box-shadow: -12px 0 40px rgba(0, 0, 0, 0.18);
   display: flex;
   flex-direction: column;
@@ -857,8 +680,8 @@ onBeforeUnmount(() => {
   padding: 6px;
   border: 0;
   border-radius: 999px;
-  background: var(--surface-secondary, #f2f2f7);
-  color: var(--text-secondary, #515154);
+  background: #f2f2f7;
+  color: #515154;
   cursor: pointer;
 }
 
@@ -882,7 +705,7 @@ onBeforeUnmount(() => {
   border: 0;
   border-radius: 12px;
   background: transparent;
-  color: var(--text-primary, #1d1d1f);
+  color: #1a1a1a;
   font-size: 13.5px;
   text-align: left;
   cursor: pointer;
@@ -890,11 +713,11 @@ onBeforeUnmount(() => {
 }
 
 .ar-toc-list button:hover {
-  background: var(--surface-secondary, #f2f2f7);
+  background: #f5f5f6;
 }
 .ar-toc-list button.active {
-  background: rgba(10, 132, 255, 0.1);
-  color: var(--brand, #0a84ff);
+  background: rgba(0, 0, 0, 0.06);
+  color: #1a1a1a;
 }
 
 .ar-toc-label {
@@ -908,18 +731,14 @@ onBeforeUnmount(() => {
   font-style: normal;
   font-size: 11px;
   font-weight: 600;
-  color: var(--text-tertiary, #86868b);
+  color: #8a8a8a;
   margin-right: 8px;
-}
-
-.ar-toc-list button.active .ar-toc-label em {
-  color: var(--brand, #0a84ff);
 }
 
 .ar-toc-page {
   flex-shrink: 0;
   font-size: 12px;
-  color: var(--text-tertiary, #86868b);
+  color: #8a8a8a;
   font-variant-numeric: tabular-nums;
 }
 
@@ -940,8 +759,7 @@ onBeforeUnmount(() => {
   transform: translateX(30px);
 }
 
-/* ---------- 响应式（横竖屏适配） ---------- */
-/* 竖屏或极窄窗：单页模式（模板由 isMobile 切换），避让紧凑化 */
+/* ---------- 响应式 ---------- */
 @media (orientation: portrait), (max-width: 600px) {
   .album-reader {
     --ar-nav-safe: 14px;
@@ -951,8 +769,25 @@ onBeforeUnmount(() => {
     padding: 0 12px;
   }
 
+  /* 窄屏：返回按钮只留箭头，避免与居中书名挤在一起 */
+  .ar-back {
+    padding: 8px 10px;
+  }
+
+  .ar-back span {
+    display: none;
+  }
+
+  .ar-topbar-title h1 {
+    font-size: 13px;
+  }
+
   .ar-topbar-title span:not(.ar-demo-badge) {
     display: none;
+  }
+
+  .ar-page-scroll {
+    padding-top: 60px;
   }
 
   .ar-page-nav {
@@ -965,10 +800,14 @@ onBeforeUnmount(() => {
   }
 }
 
-/* 横屏矮视口（如横屏手机）：压缩避让，让书尽量占满高度 */
+/* 横屏矮视口（如横屏手机）：压缩避让，让纸面尽量占满高度 */
 @media (orientation: landscape) and (max-height: 560px) {
   .album-reader {
     --ar-nav-safe: 10px;
+  }
+
+  .ar-page-scroll {
+    padding-top: 44px;
   }
 
   .ar-topbar .ar-top-btn {

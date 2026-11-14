@@ -75,6 +75,17 @@ export const ALBUM_LAYOUTS = {
     gridRows: '1.7fr 1fr',
     gridColumns: '1fr',
   },
+  note: {
+    id: 'note',
+    name: '笔记',
+    icon: '▤',
+    description: '1–2 张照片 + 左标题右正文（竖图自动左图右文）',
+    maxPhotos: 2,
+    noteSheet: true,
+    gridAreas: '"p0"',
+    gridRows: '1fr',
+    gridColumns: '1fr',
+  },
   strip: {
     id: 'strip',
     name: '胶片条',
@@ -93,8 +104,13 @@ export function getLayout(layoutId) {
   return ALBUM_LAYOUTS[layoutId] || ALBUM_LAYOUTS.full;
 }
 
+/**
+ * 可新建的版式：只暴露「笔记」。
+ * 影集口径是「一页最多两图、统一图文笔记格式」，旧版式（duo/trio/grid4/strip/full…）
+ * 仍保留定义，仅用于打开历史影集时按原样渲染，不再出现在选择器里。
+ */
 export function getLayoutOptions() {
-  return Object.values(ALBUM_LAYOUTS).map(({ id, name, icon, description }) => ({
+  return [ALBUM_LAYOUTS.note].map(({ id, name, icon, description }) => ({
     id,
     name,
     icon,

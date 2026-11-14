@@ -8,6 +8,7 @@
  */
 
 import { getLayout } from './layouts.js';
+import { isNoteSheetPage, resolveNoteContent } from './note-sheet.js';
 import { getCloudinaryTransformedUrl } from '../cloudinary-client.js';
 
 const SINGLE_FILE_PHOTO_LIMIT = 40;
@@ -52,7 +53,7 @@ function extFromDataUrl(dataUrl) {
 /**
  * 页面主体渲染（单文件与 ZIP 共用同一套结构）
  */
-function renderPageMarkup(page, index, photoById, imageSrc) {
+function renderPageMarkup(page, index, photoById, imageSrc, album = null) {
   const layout = getLayout(page.layoutId);
   const refs = page.photoRefs || [];
   const slots = refs
@@ -95,6 +96,35 @@ function renderPageMarkup(page, index, photoById, imageSrc) {
         <div class="end-inner">
           <span class="end-mark">FIN</span>
           <p class="end-note">${escapeHtml(page.note || '感谢翻阅')}</p>
+        </div>
+      </section>`;
+  }
+
+  // 笔记版式（与阅读页同一套解析与排版）
+  if (isNoteSheetPage(page)) {
+    const note = resolveNoteContent({ page, photos: [...photoById.values()], album });
+    const meta = [note.dateText, note.placeText].filter(Boolean).join(' ');
+    const photoHtml = note.photos.length
+      ? `<figure class="note-photo${note.isPair ? ' is-pair' : ''}">${note.photos
+          .map(
+            (photo) =>
+              `<img src="${imageSrc(photo)}" alt="${escapeHtml(photo.caption || note.headline || '照片')}" loading="lazy">`,
+          )
+          .join('')}</figure>`
+      : '<figure class="note-photo note-photo-empty"></figure>';
+    const bodyHtml = [
+      ...note.paragraphs.map((text) => `<p>${escapeHtml(text)}</p>`),
+      ...note.captions.map((text) => `<p class="note-caption">${escapeHtml(text)}</p>`),
+    ].join('');
+    return `
+      <section class="page page-note" data-page="${index}">
+        <div class="note-sheet${note.isPortrait ? ' is-portrait' : ''}">
+          ${photoHtml}
+          <header class="note-head">
+            <h1 class="note-title">${escapeHtml(note.headline || '未命名')}</h1>
+            ${meta ? `<p class="note-meta">${escapeHtml(meta)}</p>` : ''}
+          </header>
+          <div class="note-body">${bodyHtml || '<p class="note-body-empty">这一页还没有文字</p>'}</div>
         </div>
       </section>`;
   }
@@ -157,9 +187,9 @@ ${pagesMarkup}
 }
 
 const ALBUM_EXPORT_CSS = `
-:root{--album-gap:14px;--ink:#26221c;--paper:#f7f4ee;--card:#fffdf8;--muted:#8a8378;--accent:#b98a3c}
+:root{--album-gap:14px;--ink:#1a1a1a;--paper:#f4f4f4;--card:#fff;--muted:#6f6f6f;--accent:#1a1a1a;--album-serif:"Songti SC","STSong","Songti TC","Noto Serif CJK SC","Noto Serif SC","Source Han Serif SC","SimSun",serif}
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:var(--paper);color:var(--ink);font-family:"Songti SC","Noto Serif SC",Georgia,serif}
+body{background:var(--paper);color:var(--ink);font-family:var(--album-serif)}
 img{display:block;max-width:100%}
 .album-toolbar{position:sticky;top:0;z-index:20;display:flex;justify-content:space-between;align-items:center;padding:10px 18px;background:rgba(247,244,238,.92);backdrop-filter:blur(8px);border-bottom:1px solid #e4ddd0}
 .album-title{font-size:15px;letter-spacing:.08em}
@@ -169,19 +199,21 @@ img{display:block;max-width:100%}
 .toc-list{position:absolute;left:18px;right:18px;top:44px;z-index:30;background:var(--card);border:1px solid #e4ddd0;border-radius:14px;padding:10px 14px;box-shadow:0 12px 32px rgba(40,30,10,.12);max-height:50vh;overflow:auto}
 .toc-list a{display:flex;justify-content:space-between;gap:16px;padding:7px 4px;color:var(--ink);text-decoration:none;border-bottom:1px dashed #eee5d4;font-size:14px}
 .toc-list a:last-child{border-bottom:0}
-.album-book{max-width:980px;margin:0 auto;padding:18px 18px 90px}
+.album-book{max-width:820px;margin:0 auto;padding:18px 18px 90px}
 body[data-mode="flip"] .page{display:none;min-height:calc(100vh - 210px)}
 body[data-mode="flip"] .page.is-active{display:block;animation:fadeIn .28s ease}
 @keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
-.page{background:var(--card);border:1px solid #eae2d2;border-radius:18px;padding:22px;margin:0 0 26px;box-shadow:0 6px 24px rgba(60,45,20,.06)}
+.page{background:#fff;border:0;border-radius:0;padding:0;margin:0 0 24px;box-shadow:none}
+.page-content{padding:16px}
+.page-cover,.page-chapter,.page-end{padding:22px}
 .page-grid{display:grid;height:100%;min-height:52vh}
 .slot{position:relative;overflow:hidden;border-radius:12px;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:0}
 .slot img{flex:1 1 auto;min-height:0;max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;border-radius:8px}
-.slot figcaption{flex-shrink:0;padding:6px 4px 0;font-size:12px;color:#57503f;text-align:center;line-height:1.5}
+.slot figcaption{flex-shrink:0;padding:6px 4px 0;font-size:12px;color:#6f6f6f;text-align:center;line-height:1.5}
 .slot-empty{border:1.5px dashed #d8d0c0}
 .page-text{display:flex;flex-direction:column;justify-content:center;gap:10px;padding:6px 4px}
-.page-note{font-size:16px;line-height:1.9}
-.page-caption{font-size:14px;line-height:1.8;color:#57503f;border-left:3px solid var(--accent);padding-left:10px}
+.page-note{font-size:16px;line-height:1.95}
+.page-caption{font-size:14px;line-height:1.85;color:#6f6f6f}
 .page-cover,.page-chapter,.page-end{display:flex;align-items:center;justify-content:center;text-align:center;min-height:56vh}
 .cover-photo{width:min(520px,86%);aspect-ratio:4/3;object-fit:cover;border-radius:16px;margin:0 auto 26px;box-shadow:0 18px 44px rgba(50,35,10,.18)}
 .cover-placeholder{background:#efe9dc}
@@ -189,6 +221,27 @@ body[data-mode="flip"] .page.is-active{display:block;animation:fadeIn .28s ease}
 .cover-subtitle,.chapter-note,.end-note{font-size:15px;color:var(--muted);letter-spacing:.12em}
 .chapter-kicker,.end-mark{display:block;font-size:12px;letter-spacing:.5em;color:var(--accent);margin-bottom:14px}
 .chapter-title{font-size:28px;letter-spacing:.2em}
+/* ---------- 笔记版式（与阅读页同规格） ---------- */
+.page-note{container-type:inline-size;background:#fff}
+.note-sheet{display:grid;grid-template-areas:'photo photo' 'head body';grid-template-columns:minmax(84px,30%) minmax(0,1fr);column-gap:24px;row-gap:18px;align-items:start;padding:56px 44px 88px;background:#fff;color:#1a1a1a;font-family:var(--album-serif)}
+.note-photo{grid-area:photo;margin:0;background:#fff}
+.note-photo.is-pair{display:grid;grid-template-columns:1fr;gap:8px}
+.note-photo img{display:block;width:100%;aspect-ratio:4/3;object-fit:cover}
+.note-sheet.is-portrait .note-photo img{width:100%;max-width:100%;height:auto;max-height:62vh;aspect-ratio:auto;margin:0 auto;object-fit:contain}
+.note-photo-empty{aspect-ratio:4/3;background:#f7f7f8}
+.note-head{grid-area:head;min-width:0}
+.note-title{margin:0;font-size:clamp(22px,6.2cqi,32px);font-weight:700;line-height:1.3;letter-spacing:.01em;word-break:break-word}
+.note-meta{margin:10px 0 0;font-size:clamp(11px,3cqi,13px);line-height:1.5;letter-spacing:.02em;color:#6f6f6f}
+.note-body{grid-area:body;min-width:0;font-size:clamp(14px,3.8cqi,16.5px);line-height:1.95;letter-spacing:.01em}
+.note-body p{margin:0 0 1em;word-break:break-word}
+.note-body p:last-child{margin-bottom:0}
+.note-caption{font-size:.84em;line-height:1.8;color:#6f6f6f}
+.note-body-empty{color:#b3b3b8}
+@container (min-width:720px){
+  .note-sheet.is-portrait{grid-template-areas:'photo head' 'photo body';grid-template-columns:52% minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);column-gap:36px;row-gap:10px}
+  .note-sheet.is-portrait .note-photo{align-self:start}
+  .note-sheet.is-portrait .note-photo img{max-height:72vh}
+}
 .album-footer{position:fixed;left:0;right:0;bottom:0;z-index:20;display:flex;justify-content:center;align-items:center;gap:14px;padding:12px;background:rgba(247,244,238,.94);backdrop-filter:blur(8px);border-top:1px solid #e4ddd0}
 .page-counter{font-size:13px;color:var(--muted);letter-spacing:.1em;min-width:70px;text-align:center}
 body[data-mode="scroll"] .album-footer{display:none}
@@ -200,7 +253,11 @@ body[data-mode="scroll"] .album-footer{display:none}
 }
 @media (max-width:640px){
   .album-book{padding:12px 10px 90px}
-  .page{padding:14px;border-radius:14px}
+  .page{padding:0;border-radius:0}
+  .page-content{padding:0 10px}
+  .note-sheet{padding:28px 18px 64px;column-gap:22px;row-gap:16px;grid-template-columns:minmax(78px,32%) minmax(0,1fr)}
+  .note-photo img{aspect-ratio:4/3}
+  .note-sheet.is-portrait .note-photo img{max-height:62vh}
   .page-grid{min-height:auto;grid-template-rows:initial!important;grid-template-columns:initial!important;grid-template-areas:initial!important}
   .page-grid .slot{grid-area:auto!important;aspect-ratio:4/3;margin-bottom:10px}
   .page-grid .page-text{grid-area:auto!important}
@@ -311,7 +368,7 @@ export async function buildAlbumExportHtml(payload, options = {}) {
 
   const imageSrcSingle = (photo) => imageMap.get(String(photo.id)) || exportUrl(photo);
   const pagesMarkup = safePages
-    .map((page, index) => renderPageMarkup(page, index, photoById, imageSrcSingle))
+    .map((page, index) => renderPageMarkup(page, index, photoById, imageSrcSingle, album))
     .join('\n');
 
   const html = buildAlbumDocument({

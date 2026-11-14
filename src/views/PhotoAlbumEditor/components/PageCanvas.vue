@@ -32,7 +32,23 @@
       <p>{{ page.note || '感谢翻阅' }}</p>
     </div>
 
-    <!-- 内容页（版式渲染） -->
+    <!-- 笔记内容页（与阅读页同一渲染器：所见即所得） -->
+    <div v-else-if="page && isNoteSheet" class="canvas-note">
+      <AlbumPageSheet :page="page" :album="album" :photos="photos" />
+      <button
+        v-for="(ref, photoIndex) in page.photoRefs || []"
+        :key="ref"
+        type="button"
+        class="slot-remove note-remove"
+        :style="noteRemoveStyle(photoIndex)"
+        :aria-label="`移除第 ${photoIndex + 1} 张照片`"
+        @click="$emit('remove-photo', photoIndex)"
+      >
+        <X :size="13" :stroke-width="2.4" aria-hidden="true" />
+      </button>
+    </div>
+
+    <!-- 多图内容页（版式渲染） -->
     <div
       v-else-if="page"
       class="canvas-grid"
@@ -102,6 +118,8 @@
 import { computed, ref } from 'vue';
 import { X, Image as ImageIcon } from 'lucide-vue-next';
 import { getLayout } from '@/utils/photo-albums/layouts.js';
+import { isNoteSheetPage } from '@/utils/photo-albums/note-sheet.js';
+import AlbumPageSheet from '@/components/PhotoAlbums/AlbumPageSheet.vue';
 
 const props = defineProps({
   page: { type: Object, default: null },
@@ -115,6 +133,12 @@ const isDragOver = ref(false);
 
 const photoById = computed(() => new Map(props.photos.map((p) => [String(p.id), p])));
 const layout = computed(() => getLayout(props.page?.layoutId));
+const isNoteSheet = computed(() => isNoteSheetPage(props.page));
+
+/** 两图页上下堆叠：移除按钮在右上角按顺序竖排，一个按钮对应一张图 */
+function noteRemoveStyle(index) {
+  return { top: `${10 + index * 34}px`, right: '10px', left: 'auto' };
+}
 
 const gapValue = computed(() => (layout.value.gap === 'sm' ? '8px' : '14px'));
 
@@ -239,6 +263,30 @@ function onDrop(event) {
   flex: 1;
   display: grid;
   min-height: 420px;
+}
+
+/* 笔记页：直接复用阅读页渲染器，画布只负责尺寸与移除按钮 */
+.canvas-note {
+  position: relative;
+  flex: 1;
+  display: flex;
+  min-height: 480px;
+  border-radius: 18px;
+  overflow: hidden;
+  background: #fff;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+}
+
+.canvas-note :deep(.sheet) {
+  flex: 1;
+}
+
+.note-remove {
+  right: 10px;
+}
+
+.canvas-note:hover .note-remove {
+  opacity: 1;
 }
 
 .canvas-slot {

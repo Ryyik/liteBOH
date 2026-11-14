@@ -90,6 +90,9 @@ export function useAlbumEditor() {
       layoutId: p.layoutId,
       chapterTitle: p.chapterTitle,
       note: p.note,
+      headline: p.headline,
+      takenOn: p.takenOn,
+      place: p.place,
       photoRefs: [...p.photoRefs],
     }));
     ensureCoverPage();
@@ -410,6 +413,9 @@ export function useAlbumEditor() {
     if (patch.chapterTitle !== undefined)
       page.chapterTitle = String(patch.chapterTitle).slice(0, 80);
     if (patch.note !== undefined) page.note = String(patch.note).slice(0, 500);
+    if (patch.headline !== undefined) page.headline = String(patch.headline).slice(0, 80);
+    if (patch.takenOn !== undefined) page.takenOn = String(patch.takenOn).slice(0, 10);
+    if (patch.place !== undefined) page.place = String(patch.place).slice(0, 60);
     markDirty();
   }
 
@@ -442,9 +448,12 @@ export function useAlbumEditor() {
     const insertAt = Math.min(currentIndex.value + 1, pages.value.length);
     pages.value.splice(insertAt, 0, {
       pageType,
-      layoutId: pageType === 'content' ? 'full' : 'full',
+      layoutId: 'note',
       chapterTitle: '',
       note: '',
+      headline: '',
+      takenOn: '',
+      place: '',
       photoRefs: [],
     });
     currentIndex.value = insertAt;
