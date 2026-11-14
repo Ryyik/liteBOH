@@ -4,11 +4,21 @@
 ## Supabase / 网络
 - ref `nplnlefdwfgtyimfkyih`；SMTP 走 Brevo（smtp-relay.brevo.com:587；key 90 天不活跃回收，探活 `POST /auth/v1/recover` 期待 200+`{}`；保活＝mail-keepalive EF + 每日巡检/每月兜底两条 pg_cron，运维单点 `scripts/mail-keepalive-ops.mjs`）。
 - ⚠️ EF 部署：① **CLI（2026-10-16 实证）**：`supabase functions deploy <slug> --use-api` 本机可用（无 config.toml 也行，靠 `supabase/.temp/project-ref`）；部署前先 `functions download <slug>` + diff 校验部署面（plans/024 纪律）。② admin-API 路线见下条。`/secrets` GET 读回值 ≠ EF env。
+- 🔵 **CLI 能力边界（2026-11-12 实测，别再笼统说「CLI 操作不了 Supabase」）**：
+  · ✅ 走 `api.supabase.com` 的命令**全部可用**，且沙箱内直跑即可（`functions list/deploy/delete`、`projects list`、`secrets list` 均已实证）；
+  · ❌ 走**数据库直连**的命令失败（`migration list/push`、`gen types` 报 `tls error (EOF)`）：`db.<ref>.supabase.co:5432` TCP 通但 TLS `unexpected eof`。
+    🔴 **归因是本机 Clash TUN + fake-ip，不是 GFW/Supabase 封**：`dig db.<ref>.supabase.co` → `198.18.0.64`（试过 11 个 utun）；
+    同一时刻 `aws-{0,1}-ap-southeast-1.pooler.supabase.com:5432` TLS `Verify return code: 0` 全通 ⇒ 同一进程、同一网络，差异只在**域名命中的分流规则**。
+    别再看到 `unexpected eof` 就写「域族被 reset」——先 `dig` 看是不是 198.18.x.x。
+  · ✅ **迁移根本不需要 DB 连接**：`POST https://api.supabase.com/v1/projects/<ref>/database/query` + `Authorization: Bearer <sbp_ token>`
+    可直接执行任意 SQL（2026-11-12 实测 `select 1` → `[{"ok":1}]` HTTP 201）。配合**手写 `schema_migrations` 记号**即为完整迁移通道，
+    比 pooler/`--db-url` 少一步密码。（pooler 方案仍有效，但需 DB 密码；`supabase/.temp/pooler-url` 只存无密码串。）
 - ⚠️ 本机→`*.supabase.co` **直连不通**（沙箱代理 TLS reset + 直连 reset；浏览器 / `api.supabase.com` / `api.siliconflow.cn` 均通）⇒ 触发 EF 与端到端冒烟走 **Management API + pg_net**：`select net.http_post(url:=…, body:=…::jsonb, headers:=…::jsonb, timeout_milliseconds:=120000)` → 轮询 `net._http_response where id=<request_id>`（status_code 非空即回）。**`x-` 头经 headers JSONB 实测可过**（`x-retrieval-sync-secret`，sync+search 双验证）—— 旧注记「x- 头过不了 pg_net→EF」不成立；若丢头先查 `net._http_response.error_msg`。
 - 检索链路密钥（2026-10-16 已设）：`SILICON_CLOUD_API_KEY` + `BOH_AI_RETRIEVAL_SYNC_SECRET`（`boh-ai-forum-memory` 读同一把）；`boh-ai-retrieval` v33 = 提交树（重排默认 `BAAI/bge-reranker-v2-m3`）。
 - ⚠️ **cron 通道函数必须 `verify_jwt=false`**（push-send / generate-forum-weekly-report / mail-keepalive / boh-ai-forum-memory v4 起均是）：cron 的 dispatch key 非 JWT，网关校验开会全量 401（`UNAUTHORIZED_INVALID_JWT_FORMAT`）。本仓库无 config.toml ⇒ **重部署这些函数必须显式 `--no-verify-jwt`**（2026-10-16 boh-ai-forum-memory 首部署漏带 ⇒ jobid 28 每晚 401，v4 已修）。论坛摄取冒烟实录：limit=12 → 11 扫 / 4 卡 / 1 超时；检索端到端 ✓（来源 `forum_memory`）。
 - 部署脚本 `scripts/lib/supabase-admin-api.mjs` → `POST /functions/deploy?slug=<name>`（`slug` 是 **query 参数**，不传＝UUID slug→404；multipart 字段 `file`（单数）+`metadata`；`_shared/*` 依赖必须一起传；`verify_jwt` 沿用线上现值）。`api-key-vault` 依赖 `_shared/{cors,rate-limiter,supabase}.ts`。
 - 迁移走 Management API + 手写 `schema_migrations`；凭据在钥匙串（剥 `go-keyring-base64:`）。撤 EXECUTE 用 `from anon,authenticated,public`；撤权优先于 drop；新表 grant anon+authenticated；RPC 静默失败＝审计表取 code。
+- 🔴 **`profiles` 新增列 ⇒ 同一迁移里 `grant select` 与 `grant update` 都要写**（列级白名单见 2026110308）。漏 select 的表现不是「字段空」，而是「前端开关永久置灰 + 显示关闭」（2026-11-10 生日邮件事故：`birthday_mail_enabled` 只授了 UPDATE）。排查第一步查 `has_column_privilege('authenticated',…,'SELECT')`，别从组件状态反推。注意「表级权限在时，列级 `revoke select (列)` 静默无效」。
 
 ## GitHub CI
 - ⚠️ Dependabot 触发的 workflow 读不到 repository secrets（须 `gh secret list --app dependabot` 另配一套）；改 secrets 后要 `gh run rerun` 才验得到。
