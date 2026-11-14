@@ -451,6 +451,7 @@
       :unread-count="unreadCount"
       @preload-tab="preloadUserSpaceTab"
       @nav-click="handleBottomNavClick"
+      @expand-request="resetBottomNavAutoHide"
     />
 
     <!-- 主题已改为设置三级页（ThemePanel），这里不再挂弹层：

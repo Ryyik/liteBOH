@@ -139,6 +139,12 @@ const clearDock = () => {
   docked.value = false;
 };
 
+/* 开合动画窗口（measureTop 里会写；scheduleMeasure 读）—— 声明必须在 measureTop 之前 */
+const MORPH_WINDOW_MS = 380;
+let morphUntil = 0;
+let measureRaf = 0;
+let trailingMeasure = null;
+
 const measureTop = () => {
   // 关岛后 ResizeObserver 仍可能回调一次 —— 此时不能再把 has-boh-island 加回去，
   // 否则退场动画刚收完就又被撑开（2026-11-04 实测：高度收到 56 后突然跳回 176）
@@ -147,6 +153,10 @@ const measureTop = () => {
   const nav = document.querySelector('#unified-nav-container');
   const surface = document.querySelector('#unified-nav-container .unified-nav-surface');
   const surfaceRect = surface?.getBoundingClientRect();
+  /* 卡片的尺寸必须在这里（任何写操作之前）一次读掉：
+     它是 syncIslandHeight 唯一的输入，放到写 class / 变量之后再读就是一次
+     「写后读」的强制同步布局（2026-11-14 profile 里 getBoundingClientRect 占 38.8ms/70 次）。 */
+  const cardRect = document.querySelector('.boh-island-root .boh-card')?.getBoundingClientRect();
   if (surface && surfaceRect && surfaceRect.height > 0) {
     const cs = getComputedStyle(surface);
     const wasDocked = docked.value;
@@ -167,13 +177,20 @@ const measureTop = () => {
     islandTop.value = Math.round(surfaceRect.top + 1 + base);
     islandWidth.value = Math.round(surfaceRect.width - 16);
     islandLeft.value = Math.round(surfaceRect.left + 8);
-    syncIslandHeight();
+    // 用上面读到的那份卡片高度，不再二次读 rect（见函数头的注释）
+    if (cardRect && cardRect.height > 0) {
+      surface.style.setProperty('--global-nav-island-height', `${Math.ceil(cardRect.height)}px`);
+    } else {
+      syncIslandHeight();
+    }
     // 「从导航长出来」的动效：基础 surface 冻结了 transition（Beta 6），首帧改高度
     // 不会触发 CSS 过渡 —— 用 WAAPI 显式把高度从当前值长到目标值（height 已不带
     // !important，动画压得过静态规则）。
     if (!wasDocked && typeof surface.animate === 'function') {
       const target = surface.getBoundingClientRect().height;
       if (target > prevHeight + 2) {
+        // 这段高度动画期间不让 RO 再进来重测（见 scheduleMeasure 的注释）
+        morphUntil = Date.now() + MORPH_WINDOW_MS;
         surface.animate([{ height: `${prevHeight}px` }, { height: `${target}px` }], {
           duration: 300,
           easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
@@ -227,6 +244,37 @@ const handleOutsideClick = (event) => {
   close();
 };
 
+/* ---------------- 尺寸观测：合并到帧 + 开合窗口内让路 ----------------
+   2026-11-14（用户口径「下拉唤出 AI 会卡一下」）：开岛时 surface 的高度在 300ms 里
+   逐帧变化，nav 的 ResizeObserver 就**每帧回调一次 measureTop**；而 measureTop 内部是
+   「读 rect → 写 class / 自定义属性 → 再读 rect」，等于每帧 2~3 次强制同步布局。
+   6× CPU 降速实测：松手后出现 67~83ms 的长帧。
+   两条纪律：
+     ① RO 回调一律合并到下一帧、且同一帧只跑一次（scheduleMeasure）；
+     ② 程序性改高度的窗口（开 / 退场动画）内直接跳过 —— 动画结束补一次尾测，
+        保证「任务卡 / 通知卡把导航撑高、岛要跟着下移」这件正事不被漏掉。 */
+
+const scheduleMeasure = () => {
+  if (measureRaf) return;
+  measureRaf = requestAnimationFrame(() => {
+    measureRaf = 0;
+    if (!isOpen.value) return;
+    if (Date.now() < morphUntil) {
+      if (!trailingMeasure) {
+        trailingMeasure = window.setTimeout(
+          () => {
+            trailingMeasure = null;
+            if (isOpen.value) measureTop();
+          },
+          Math.max(60, morphUntil - Date.now() + 40),
+        );
+      }
+      return;
+    }
+    measureTop();
+  });
+};
+
 /**
  * 盯住导航容器的尺寸：任务卡 / 通知卡 / 自定义岛会把 surface 撑高，
  * 而岛挂在「容器底边 + 12」—— 不重测就会被撑出来的卡片压住。
@@ -254,9 +302,7 @@ const watchNavHeight = () => {
   if (navResizeObserver && observedNav === nav) return;
   navResizeObserver?.disconnect();
   observedNav = nav;
-  navResizeObserver = new ResizeObserver(() => {
-    measureTop();
-  });
+  navResizeObserver = new ResizeObserver(scheduleMeasure);
   navResizeObserver.observe(nav);
 };
 
@@ -289,6 +335,8 @@ const playClose = () =>
     const surface = document.querySelector('#unified-nav-container .unified-nav-surface');
     const card = document.querySelector('.boh-island-root .boh-card');
     closing.value = true;
+    // 退场同样是程序性改高度：窗口内不让 RO 重入（同 scheduleMeasure 注释）
+    morphUntil = Date.now() + MORPH_WINDOW_MS;
     card?.style.setProperty('opacity', '0');
     const done = () => {
       closing.value = false;
@@ -328,6 +376,8 @@ watch(isOpen, async (val) => {
     closing.value = false;
     rendered.value = true;
     openedAt = Date.now();
+    // 挂载这一下会连带把 surface 撑高：从这里开始到动画结束，RO 不要重入
+    morphUntil = Date.now() + MORPH_WINDOW_MS;
     await nextTick();
     // 上一次退场给卡片写过内联 opacity:0（淡出），它不会自己消失 ——
     // 不清掉的话，重新打开出来的岛是**隐形**的（DOM 在、看得见的是空的深色底）。

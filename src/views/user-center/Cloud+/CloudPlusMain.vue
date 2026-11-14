@@ -1138,6 +1138,7 @@
       :unread-count="unreadCount"
       @preload-tab="preloadUserSpaceForNav"
       @nav-click="handleBottomNavClick"
+      @expand-request="resetBottomNavAutoHide"
     />
 
     <!-- 2026-10-03 动效：详情是**放大展开 / 缩回**的进出场（Transition 挂 .detail-overlay），

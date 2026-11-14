@@ -774,16 +774,20 @@ const onPullTouchEnd = () => {
   pullState = null;
   // 下拉 = 「我想问点什么」：直接进对话面（openChat），不是先落搜索列表
   if (!shouldOpen || !bohIsland.openChat()) return;
-  // 回答面是异步组件：首次打开可能还没挂上，重试几次把光标落进对话输入条
+  /* 回答面是异步组件：首次打开可能还没挂上，重试几次把光标落进对话输入条。
+     ⚠️ 必须和 BohIslandAnswer 的自动聚焦同一个时间基准（340ms = 导航长出来的 300ms
+        动画 + 余量）：提前落焦会让 iOS 键盘与岛的高度动画并发，实测叠出 50~80ms 长任务。
+        这里只是**兜底**（正常情况本组件已经聚焦过），所以不抢跑。
+     preventScroll：避免聚焦把页面滚一段。 */
   const focusInput = (tries = 0) => {
     const input = document.querySelector('.boh-island-root .boh-answer-input');
     if (input) {
-      input.focus();
+      if (document.activeElement !== input) input.focus({ preventScroll: true });
       return;
     }
     if (tries < 6) setTimeout(() => focusInput(tries + 1), 80);
   };
-  nextTick(() => focusInput());
+  setTimeout(() => nextTick(() => focusInput()), 340);
 };
 
 const handleStatusCardResize = (height) => {

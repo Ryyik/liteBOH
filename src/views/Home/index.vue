@@ -93,6 +93,7 @@
         :has-unread-messages="hasUnreadMessages"
         :unread-count="unreadCount"
         @nav-click="handleBottomNavClick"
+        @expand-request="resetBottomNavAutoHide"
       />
     </div>
 
@@ -118,7 +119,7 @@
    - 论坛本体与 UserSpace 的「方块」分区共用 ForumSectionShell（单源），
      分区七席、30s 轮询、分区过渡动画全部原样。
    - 底栏四席来自 @/config/bottom-nav，进度过半时从下方浮入，随后由滚动方向驱动显隐。 */
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, onActivated, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { createPanelAsync } from '@/utils/async-component.js';
 import { storeToRefs } from 'pinia';
 import { useRoute, useRouter } from 'vue-router';
@@ -360,7 +361,7 @@ watch(
 // ============================================
 // 底栏（四席）：进入论坛后滑入，此后随滚动方向隐藏 / 显现
 // ============================================
-const { hidden: bottomNavHidden } = useScrollDirectionHide({
+const { hidden: bottomNavHidden, reset: resetBottomNavAutoHide } = useScrollDirectionHide({
   // 底栏还没就位（开场画阶段 / 浮现延迟窗口内）不需要方向联动
   forceVisible: computed(() => !bottomNavReady.value),
 });
@@ -532,6 +533,11 @@ const streetSceneHero = computed(
   () => homeHeroesStore.publishedHeroes.find((hero) => hero.template === 'street-scene') || null,
 );
 
+/* 路由级缓存的名字（2026-11-14）：与 router/routes/public.ts 的 meta.keepAliveName
+   逐字一致，否则 <KeepAlive :include> 静默不缓存（不报错，只表现为每次回来整页重挂）。
+   守：tests/unit/keep-alive-names.test.js */
+defineOptions({ name: 'HomePage' });
+
 onMounted(async () => {
   document.body.classList.add('is-loaded');
   /* 开场画：键盘手势 + reduce 偏好监听 + 底栏浮现的进度联动，全部在 useGatePull 里 */
@@ -564,6 +570,13 @@ onMounted(async () => {
 
   // 只为让「首屏初始化完成」这句话真的成立；上面已经并行跑起来了
   await gateConfigTask;
+});
+
+/* 被 KeepAlive 缓存后「回到首页」不会再走 onMounted（2026-11-14）：
+   只补一件与「回来了」有关的状态 —— 底栏若是在别处/离开时收成了球，回来要铺开
+   （用户刚点完一次导航，见到的应该是整条，不是一颗球）。 */
+onActivated(() => {
+  resetBottomNavAutoHide();
 });
 
 onBeforeUnmount(() => {

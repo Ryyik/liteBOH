@@ -153,8 +153,9 @@ const bottomNavLabels = (page) =>
   page
     .$$eval('.bottom-nav-glass .nav-label', (els) => els.map((el) => el.textContent.trim()))
     .catch(() => []);
+/* 2026-11-14：滚动后的状态是 is-collapsed（缩成左下圆），不再是 is-hidden */
 const bottomNavHidden = (page) =>
-  page.$eval('.bottom-nav-glass', (el) => el.classList.contains('is-hidden')).catch(() => null);
+  page.$eval('.bottom-nav-glass', (el) => el.classList.contains('is-collapsed')).catch(() => null);
 const bottomNavExists = (page) =>
   page.evaluate(() => Boolean(document.querySelector('.bottom-nav-glass')));
 const gateExists = (page) => page.evaluate(() => Boolean(document.querySelector('.home-gate')));

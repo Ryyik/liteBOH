@@ -60,6 +60,26 @@
   box-shadow: 0 2px 6px rgba(255, 82, 82, 0.5);
 }
 
+/* 收起态（2026-11-14）：圆里的「当前席」图标 + 收紧后的投影。
+   投影必须带 !important —— 上面那条暗色玻璃投影是 !important，
+   否则收起时还是那颗「浮得很高」的阴影，圆和条的手感不统一。 */
+.user-space-page[data-theme="dark"] .bottom-nav-glass .nav-compact,
+[data-theme="dark"] .user-space-page .bottom-nav-glass .nav-compact,
+[data-theme="dark"] .bottom-nav-glass .nav-compact {
+  color: #f8fafc;
+}
+
+.user-space-page[data-theme="dark"] .bottom-nav-glass.is-collapsed,
+[data-theme="dark"] .user-space-page .bottom-nav-glass.is-collapsed,
+[data-theme="dark"] .bottom-nav-glass.is-collapsed {
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.5) !important;
+}
+
+.user-space-page[data-theme="dark"] .bottom-nav-glass .nav-compact-dot,
+[data-theme="dark"] .bottom-nav-glass .nav-compact-dot {
+  box-shadow: 0 0 0 1.5px rgba(26, 26, 36, 0.9);
+}
+
 /* ============================================
    Apple 风格卡片 - 提高对比度
    ============================================ */

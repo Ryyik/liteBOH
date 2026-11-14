@@ -35,11 +35,24 @@ export const publicRoutes: RouteRecordRaw[] = [
     path: '/',
     name: 'Home',
     component: () => import('../../views/Home/index.vue'),
+    /* keepAlive（2026-11-14）：底栏五席里有它一席，而「内容」也是从别处回到论坛的
+       唯一入口 —— 不缓存时每次回来都是重挂 + 全量取数（probe-cloud-keepalive 实测 8 次
+       请求），用户口径「底栏来回切换不要整页重载」。
+       代价（已确认接受）：帖子流那套 30s 轮询在离开首页后仍在后台跑；回来看到的是
+       缓存内容，不会因为「刚在别的页待了 10 分钟」而自动变新。
+       ⚠️ 组件侧 Home/index.vue 必须有 defineOptions({ name: 'HomePage' })，由
+          tests/unit/keep-alive-names.test.js 逐字校验。 */
+    meta: { keepAlive: true, keepAliveName: 'HomePage' },
   },
   {
     path: '/shop',
     name: 'Shop',
     component: () => import('../../views/Shop/index.vue'),
+    /* keepAlive（2026-11-14）：周边是底栏第五席，同样是高频来回的落点；
+       列表与滚动位置都留在缓存里，回来不用再走一遍骨架 + 全量商品请求。
+       ⚠️ 分区（?tab=）不在缓存里保留：底栏「周边」的落点是裸 `/shop`，
+          handleNavClick 显式回「产品」—— 这是既有口径，本次没动。 */
+    meta: { keepAlive: true, keepAliveName: 'ShopPage' },
   },
   {
     path: '/shop/account',

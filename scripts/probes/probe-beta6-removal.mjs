@@ -24,7 +24,8 @@ const launch = async (viewport, theme) => {
     args: ['--no-proxy-server', '--proxy-server=direct://', '--proxy-bypass-list=*'],
   });
   const context = await browser.newContext({ viewport });
-  if (theme === 'dark') await context.addInitScript(() => localStorage.setItem('boh-theme', 'dark'));
+  if (theme === 'dark')
+    await context.addInitScript(() => localStorage.setItem('boh-theme', 'dark'));
   const page = await context.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(String(e.message).slice(0, 120)));
@@ -33,7 +34,9 @@ const launch = async (viewport, theme) => {
 
 const settleAndLogin = async (page, hash) => {
   await page.goto(`${BASE}/#${hash}`, { waitUntil: 'domcontentloaded', timeout: 60000 });
-  await page.waitForFunction(() => document.querySelector('#app')?.__vue_app__, null, { timeout: 30000 });
+  await page.waitForFunction(() => document.querySelector('#app')?.__vue_app__, null, {
+    timeout: 30000,
+  });
   await page.waitForTimeout(3000); // 等 init 会话检查放完
   await page.evaluate((uid) => {
     const pinia = document.querySelector('#app').__vue_app__.config.globalProperties.$pinia;
@@ -43,7 +46,9 @@ const settleAndLogin = async (page, hash) => {
   }, UUID);
   await page.waitForTimeout(600);
   // requiresLogin 守卫可能在游客态已把路由弹走：注入登录后站内再跳一次
-  await page.evaluate((h) => { window.location.hash = h; }, hash);
+  await page.evaluate((h) => {
+    window.location.hash = h;
+  }, hash);
   await page.waitForTimeout(1200);
 };
 
@@ -64,7 +69,8 @@ const settleAndLogin = async (page, hash) => {
       hasRollback: body.includes('回退'),
       hasSwitch,
       hasToggleBar,
-      metaVersion: document.querySelector('meta[name="boh-version"]')?.getAttribute('content') || ''
+      metaVersion:
+        document.querySelector('meta[name="boh-version"]')?.getAttribute('content') || '',
     };
   });
   check('版本页标题为「版本」', pageInfo.h1 === '版本', pageInfo.h1);
@@ -84,12 +90,18 @@ const settleAndLogin = async (page, hash) => {
   await settleAndLogin(page, '/user-space?tab=posts');
   await page.waitForSelector('.bottom-nav-glass', { timeout: 15000 });
   await page.waitForTimeout(800);
-  const readHidden = () => page.evaluate(() => document.querySelector('.bottom-nav-glass')?.classList.contains('is-hidden'));
-  const scrollContainer = (y) => page.evaluate((top) => {
-    // 移动端用户空间由 window 层滚动（嵌套 tab-page 多为隐藏态/零高度）
-    const el = document.scrollingElement || document.documentElement;
-    el.scrollTop = top;
-  }, y);
+  /* 2026-11-14：滚动收起的契约从 is-hidden（捏扁淡出）改成 is-collapsed（缩成左下圆），
+     is-hidden 只剩键盘 / 消息选择态。 */
+  const readHidden = () =>
+    page.evaluate(() =>
+      document.querySelector('.bottom-nav-glass')?.classList.contains('is-collapsed'),
+    );
+  const scrollContainer = (y) =>
+    page.evaluate((top) => {
+      // 移动端用户空间由 window 层滚动（嵌套 tab-page 多为隐藏态/零高度）
+      const el = document.scrollingElement || document.documentElement;
+      el.scrollTop = top;
+    }, y);
   check('底部导航初始可见', (await readHidden()) === false);
   // 分帧累计向下行程（composable 需两次滚动事件间 travel >= 20px 才收起）
   await scrollContainer(60);
@@ -111,13 +123,17 @@ const settleAndLogin = async (page, hash) => {
 {
   const { browser, page, errors } = await launch({ width: 1280, height: 900 });
   await page.goto(`${BASE}/#/home`, { waitUntil: 'domcontentloaded', timeout: 60000 });
-  await page.waitForFunction(() => document.querySelector('#app')?.__vue_app__, null, { timeout: 30000 });
+  await page.waitForFunction(() => document.querySelector('#app')?.__vue_app__, null, {
+    timeout: 30000,
+  });
   await page.waitForSelector('#unified-nav-container', { timeout: 15000 });
   await page.waitForTimeout(2500);
   // 滚动后 scrolled class 不应再出现
   await page.evaluate(() => window.scrollTo(0, 600));
   await page.waitForTimeout(600);
-  const scrolledClass = await page.evaluate(() => document.querySelector('#unified-nav-container')?.classList.contains('scrolled'));
+  const scrolledClass = await page.evaluate(() =>
+    document.querySelector('#unified-nav-container')?.classList.contains('scrolled'),
+  );
   check('滚动后无 .scrolled 收缩态', scrolledClass === false);
   check('首页无 JS 错误(浅色)', errors.length === 0, errors.join(' | '));
   await page.screenshot({ path: `${OUT}/navbar-light-after-removal.png` });
@@ -127,8 +143,14 @@ const settleAndLogin = async (page, hash) => {
   await dark.page.goto(`${BASE}/#/home`, { waitUntil: 'domcontentloaded', timeout: 60000 });
   await dark.page.waitForSelector('#unified-nav-container', { timeout: 15000 });
   await dark.page.waitForTimeout(2500);
-  const navBg = await dark.page.evaluate(() => getComputedStyle(document.querySelector('.unified-nav-surface')).backgroundColor);
-  check('暗色导航背景为深色', /rgba\(2[0-9],\s*2[0-9]/.test(navBg) || navBg.includes('28, 28'), navBg);
+  const navBg = await dark.page.evaluate(
+    () => getComputedStyle(document.querySelector('.unified-nav-surface')).backgroundColor,
+  );
+  check(
+    '暗色导航背景为深色',
+    /rgba\(2[0-9],\s*2[0-9]/.test(navBg) || navBg.includes('28, 28'),
+    navBg,
+  );
   check('首页无 JS 错误(暗色)', dark.errors.length === 0, dark.errors.join(' | '));
   await dark.page.screenshot({ path: `${OUT}/navbar-dark-after-removal.png` });
   await dark.browser.close();
@@ -140,7 +162,11 @@ const settleAndLogin = async (page, hash) => {
   await settleAndLogin(page, '/user-space?tab=assets');
   await page.waitForTimeout(2000);
   const assets = await page.evaluate(() => {
-    const tabs = [...document.querySelectorAll('.segment-tab, .ah-hub-tabs button, [class*="segment"] button')].map((b) => b.textContent.trim()).filter(Boolean);
+    const tabs = [
+      ...document.querySelectorAll('.segment-tab, .ah-hub-tabs button, [class*="segment"] button'),
+    ]
+      .map((b) => b.textContent.trim())
+      .filter(Boolean);
     const shell = !!document.querySelector('.profile-subpage-shell, .assets-shell');
     return { tabs: tabs.slice(0, 12), shell };
   });

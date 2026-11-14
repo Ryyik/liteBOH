@@ -82,6 +82,8 @@ const navState = (page) =>
       display: cs.display,
       opacity: cs.opacity,
       hiddenClass: el.classList.contains('is-hidden'),
+      // 2026-11-14 起「滚动收起」的契约是 is-collapsed（缩成左下圆），is-hidden 只剩键盘态
+      collapsedClass: el.classList.contains('is-collapsed'),
       rect: {
         x: Math.round(rect.x),
         y: Math.round(rect.y),
@@ -163,16 +165,19 @@ const assertLanded = async (page, hash, label) => {
   await scrollInSteps(520, 0);
   const backToTop = await navState(page);
 
-  rows.push({ name: 'A 竖屏：底部→收起', value: scrolled.hiddenClass ? '收起 ✓' : '未收起 ✗' });
-  rows.push({ name: 'A 竖屏：到顶→恢复', value: !backToTop.hiddenClass ? '恢复 ✓' : '未恢复 ✗' });
+  rows.push({ name: 'A 竖屏：底部→收起', value: scrolled.collapsedClass ? '收起 ✓' : '未收起 ✗' });
+  rows.push({
+    name: 'A 竖屏：到顶→恢复',
+    value: !backToTop.collapsedClass ? '恢复 ✓' : '未恢复 ✗',
+  });
 
   if (!before.present) violations.push('A：竖屏下图库没有底栏 —— 这条断言无从谈起');
-  if (!scrolled.hiddenClass) {
+  if (!scrolled.collapsedClass) {
     violations.push(
       'A：竖屏下滑后底栏没有收起（useScrollDirectionHide 未生效 / 事件没挂上 window 滚动）',
     );
   }
-  if (backToTop.hiddenClass) violations.push('A：回到顶部后底栏没有恢复显示');
+  if (backToTop.collapsedClass) violations.push('A：回到顶部后底栏没有恢复显示');
 
   // 页头返回按钮：底栏席位不该有（见 backButtonPresent 上的注释）
   const hasBackButton = await backButtonPresent(page);
@@ -284,7 +289,12 @@ const assertLanded = async (page, hash, label) => {
     await page.waitForTimeout(60);
   }
   await page.waitForTimeout(360);
-  const hiddenBeforeLeaving = (await navState(page)).hiddenClass;
+  const hiddenBeforeLeaving = (await navState(page)).collapsedClass;
+
+  /* 2026-11-14：收起态下 5 席是 inert + 不可见的，程序化 click 不再可靠 ——
+     先按真实路径点一下圆把导航铺回来，再去点某一席。 */
+  await page.evaluate(() => document.querySelector('.nav-compact')?.click());
+  await page.waitForTimeout(420);
 
   // 切去「我」再切回图库（两个都走缓存实例，正是 keepAlive 的路径）
   await page.evaluate(() => {
@@ -305,11 +315,11 @@ const assertLanded = async (page, hash, label) => {
 
   rows.push({
     name: 'D 竖屏：收起后回来',
-    value: hiddenBeforeLeaving && !navBack.hiddenClass ? '复位 ✓' : '卡在收起 ✗',
+    value: hiddenBeforeLeaving && !navBack.collapsedClass ? '复位 ✓' : '卡在收起 ✗',
   });
   if (!hiddenBeforeLeaving) {
     violations.push('D：前置条件不成立（离开前底栏并没有收起），本组读数不可用');
-  } else if (navBack.hiddenClass) {
+  } else if (navBack.collapsedClass) {
     violations.push(
       'D：回到图库时底栏卡在收起态 —— 缓存实例的 onActivated 没有复位 useScrollDirectionHide',
     );

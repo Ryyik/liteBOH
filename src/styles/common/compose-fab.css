@@ -37,7 +37,7 @@
   backdrop-filter: var(--glass-filter-sm, blur(18px));
   -webkit-backdrop-filter: var(--glass-filter-sm, blur(18px));
   cursor: pointer;
-  transition: transform 0.2s, box-shadow 0.2s, background-color 0.2s;
+  transition: transform 0.2s, box-shadow 0.2s, background-color 0.2s, bottom 300ms cubic-bezier(0.38, 0.24, 0.2, 1);
 }
 
 .mobile-compose-fab span {
@@ -56,6 +56,21 @@
 .mobile-compose-fab.embedded-compose-fab {
   bottom: calc(144px + env(safe-area-inset-bottom, 0px));
   z-index: 1200;
+}
+
+/* ── 底栏收起成球时，发帖 + 跟着降下来（2026-11-14，用户口径）─────────────
+   底栏收成左下那颗球之后，原本为了「避开 75px 高的整条底栏」而抬到 144 的
+   FAB 就悬在半空了 —— 两件事必须一起发生，否则右下角空一块、左上角一颗球。
+   标记 `body.boh-bottom-nav-collapsed` 由 UserSpaceBottomNav 唯一写入
+   （Teleport 到 body 的兄弟节点读不到底栏的 class，只能靠 body 传播）。
+   22px 是「与球垂直居中」算出来的：球 60 高、底 20 ⇒ 球心 50；FAB 56 高 ⇒
+   底边 50 - 28 = 22。改球径/球底距时这条要跟着改。
+   ⚠️ 只作用于**竖屏 + ≤1024**：横屏（折叠屏竖胶囊档）底栏走的是整体淡出、
+     没有球，FAB 不该跟着动；≥1025 底栏本身 display:none，也不该动。 */
+@media (orientation: portrait) and (max-width: 1024px) {
+  body.boh-bottom-nav-collapsed .mobile-compose-fab.embedded-compose-fab {
+    bottom: calc(22px + env(safe-area-inset-bottom, 0px));
+  }
 }
 
 /* 折叠屏展开态 / 横屏窄档（2026-10-29）：底栏改成贴右竖向胶囊

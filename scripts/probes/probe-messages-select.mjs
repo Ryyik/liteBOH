@@ -232,9 +232,13 @@ for (const c of CASES) {
   check(`${c.name} · Esc 摘掉 body 标记`, !afterEsc.bodyFlag);
   if (c.wide) check(`${c.name} · Esc 后详情恢复`, afterEsc.detailOpen);
   if (c.landscape) {
-    // 底栏还有一套「滚动方向自动隐藏」（is-hidden），与选择模式无关 ——
-    // 只要不是被我们的规则藏住即可：要么 opacity 回到 1，要么带的是 is-hidden。
-    const navBack = afterEsc.navOpacity === '1' || afterEsc.navCls.includes('is-hidden');
+    // 底栏还有一套「滚动方向自动收起」，与选择模式无关 ——
+    // 只要不是被我们的规则藏住即可：要么 opacity 回到 1，要么带的是
+    // is-hidden（键盘态）/ is-collapsed（滚动收起，2026-11-14 起的新契约）。
+    const navBack =
+      afterEsc.navOpacity === '1' ||
+      afterEsc.navCls.includes('is-hidden') ||
+      afterEsc.navCls.includes('is-collapsed');
     check(
       `${c.name} · 底栏不再被选择模式藏住`,
       navBack,

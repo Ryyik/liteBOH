@@ -95,6 +95,8 @@ const ROOTS = {
   cloud: '.cloud-page',
   userspace: '.user-space-page',
   home: '.home-page, .forum-page',
+  shop: '.store-page',
+  gift: '.gift-page',
 };
 
 const markRoot = async (key) => {
@@ -201,22 +203,28 @@ if (dataRequests > 0) {
   violations.push(`C：经过周边回图库时又发了 ${dataRequests} 条数据请求`);
 }
 
-/* ══════════════ D. 反证：首页必须**不**缓存 ══════════════ */
+/* ══════════════ D. 首页也必须复用（2026-11-14 起进白名单） ══════════════
+   用户口径：「底栏五席来回切换都不要整页重载」⇒ 首页与周边也进了 keepAlive。
+   本组反转成「必须复用」；「非白名单页面不许被缓存」这条反证挪到 F 组（/gift）。 */
 await clickBottomNav('内容', 1800);
 const homeMark = await markRoot('home');
 resetRequests();
 await clickBottomNav('图库');
 await clickBottomNav('内容', 1800);
 const homeAfter = await readMark('home');
-record('D 内容→图库→内容（反证）', {
-  rebuilt: homeAfter !== homeMark,
+record('D 内容→图库→内容', {
+  reused: homeAfter === homeMark,
   requests: dataRequests,
 });
-if (!homeMark) violations.push('D：首页根节点没找到，反证不可用');
-else if (homeAfter === homeMark) {
-  violations.push(
-    'D：首页被缓存了 —— 非白名单页面不该复用实例（开场画、取数、滚动都会停在旧状态）',
-  );
+if (!homeMark) violations.push('D：首页根节点没找到，断言不可用');
+else if (homeAfter !== homeMark) {
+  violations.push('D：首页被重建了 —— 2026-11-14 起它在 KeepAlive 白名单里（底栏五席都不该重载）');
+}
+if (dataRequests > 2) {
+  /* 首页被缓存后，那套 30s 轮询仍在后台跑（这是「不重载」的既定代价，见 public.ts 注释），
+     所以窗口里偶尔撞上 1 条轮询请求是正常的。真正要拦的是「重新全量取数」——修复前
+     这一拍是 8 条。 */
+  violations.push(`D：回到首页发了 ${dataRequests} 条数据请求（疑似重新全量取数，修复前基线是 8）`);
 }
 
 /* ══════════════ E. 反证：同路由换 tab 不重建「我」 ══════════════ */
@@ -237,6 +245,33 @@ else if (userspaceAfterTab !== userspaceMark) {
   violations.push(
     'E：同路由换 ?tab 把「我」整棵重建了 —— 缓存页的 :key 必须用 route.name，不能用 path',
   );
+}
+
+/* ══════════════ F. 周边复用 + 非白名单页反证 ══════════════
+   五席里最后一块：周边（/shop）。反证换成 /gift —— 它不在白名单，
+   必须每次重建；否则「什么都缓存」也能让上面的断言全绿。 */
+await clickBottomNav('周边', 1600);
+const shopMark = await markRoot('shop');
+resetRequests();
+await clickBottomNav('图库');
+await clickBottomNav('周边', 1600);
+const shopAfter = await readMark('shop');
+record('F 周边→图库→周边', { reused: shopAfter === shopMark, requests: dataRequests });
+if (!shopMark) violations.push('F：周边页根节点 (.store-page) 没出现，复用判定不可用');
+else if (shopAfter !== shopMark) {
+  violations.push('F：周边被重建了 —— 2026-11-14 起它在 KeepAlive 白名单里');
+}
+if (dataRequests > 0) violations.push(`F：回到周边又发了 ${dataRequests} 条数据请求`);
+
+await gotoHash('#/gift', 1600);
+const giftMark = await markRoot('gift');
+await gotoHash('#/user-space?tab=posts', 1400);
+await gotoHash('#/gift', 1600);
+const giftAfter = await readMark('gift');
+record('F2 礼物页往返（反证）', { rebuilt: giftAfter !== giftMark });
+if (!giftMark) violations.push('F2：/gift 根节点没找到，反证不可用');
+else if (giftAfter === giftMark) {
+  violations.push('F2：/gift 被缓存了 —— 它不在白名单里，反证失效（什么都缓存同样是 bug）');
 }
 
 const realErrors = pageErrors.filter((e) => !/ResizeObserver|AbortError/i.test(e));
@@ -261,6 +296,6 @@ if (violations.length) {
 }
 
 console.log(
-  '\n✓ probe-cloud-keepalive：图库在「我 / 内容 / 周边」三种来路上都复用同一实例；' +
-    '首页与另一条非缓存页按预期重建。',
+  '\n✓ probe-cloud-keepalive：底栏五席（我 / 图库 / 内容 / 周边）来回切都复用同一实例；' +
+    '非白名单页（/gift）按预期重建。',
 );

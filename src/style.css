@@ -847,21 +847,10 @@ input[type='checkbox'].boh-switch:focus-visible {
 }
 
 /* ============================================================
-   路由级过渡（2026-11-04 硬切审计 P0-1，plans/005 落地）：
-   App.vue RouterView 内 <Transition name="route-fade">，**只做 enter、
-   不定义 leave 类** —— leave 无时长 ⇒ 旧页立即卸载、新页 200ms 淡入，
-   不给切换硬加等待。类名不生效时的最坏表现 = 退回瞬切（原状）。
+   路由级过渡：**已移除**（2026-11-14）。
+   2026-11-04 加过一版「只做 enter 的 200ms 淡入」，本意是软化切换；
+   实测它给**每一次**跨路由切换都加了一次 opacity 0 → 1，而缓存页的 DOM 本来
+   就是复用的 ⇒ 用户看到的是「整页闪一下」（底栏来回切尤其明显，深色页上是
+   从透明闪出底色）。已连同 App.vue 的 <Transition> 一起删掉，回到瞬切。
+   切换的落定感由分区分档级过渡承担（shell-community.css 的 .tab-page 系列）。
    ============================================================ */
-.route-fade-enter-active {
-  transition: opacity 0.2s var(--ease-out, ease);
-}
-
-.route-fade-enter-from {
-  opacity: 0;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .route-fade-enter-active {
-    transition: none;
-  }
-}

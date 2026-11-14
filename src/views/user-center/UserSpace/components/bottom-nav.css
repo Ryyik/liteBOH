@@ -6,6 +6,25 @@
   --bottom-nav-bridge-opacity: 0;
   --bottom-nav-bridge-scale: 0.56;
   --bottom-nav-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  /* ── 尺寸真源（2026-11-14 收起态改造）────────────────────────────────
+     item-h     = 单项高度（展开态的高度主要由它 + 标签行高撑出来）
+     item-min-w = 单项最小宽度，用于「居中胶囊」档反推展开宽度
+     compact-size = 收起态直径：**固定值**，不跟条高走（用户口径「球小一点」，
+                    75 的条收成 60 的球才有「缩」的对比；两侧都靠 JS 量出的
+                    --bottom-nav-shell-h 参与过渡，所以高宽仍然严格相等）
+     expanded-w = 居中档展开宽度（居中档必须显式宽度才能做 width 过渡） */
+  --bottom-nav-item-h: 52px;
+  --bottom-nav-item-min-w: 72px;
+  --bottom-nav-compact-size: 60px;
+  --bottom-nav-expanded-w: calc(
+    var(--bottom-nav-item-min-w) * var(--nav-count, 5) + var(--bottom-nav-shell-padding) * 2
+  );
+  /* 收起/展开的宽度曲线。刻意**不用** iOS 面板那条 (0.32,0.72,0,1)：
+     实测它在 30% 时间点已经走完 85%，350→75 的收缩会变成「一下缩没 + 尾巴干等」。
+     换 (0.38,0.24,0.2,1)：30% → 49%、50% → 83%，读起来才像「同一团玻璃在长/缩」。 */
+  --bottom-nav-morph-ease: cubic-bezier(0.38, 0.24, 0.2, 1);
+  /* 时长方向不对称：收起 280（躲让内容）、展开 320（把 5 席铺回来要更从容） */
+  --bottom-nav-morph-ms: 320ms;
   position: fixed;
   bottom: 20px;
   left: 50%;
@@ -22,10 +41,15 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.8);
   border: 1px solid rgba(255, 255, 255, 0.5);
   padding: var(--bottom-nav-shell-padding);
+  /* 展开态高度由内容和 JS 量出来的 --bottom-nav-shell-h 定住（量不到时回落到 auto）。
+     必须显式：`height: auto` 与长度之间**不可过渡**，不量就没有「条 ⇄ 球」的高度动画。 */
+  height: var(--bottom-nav-shell-h, auto);
   opacity: 1;
   overflow: hidden;
   clip-path: inset(0 0 0 0 round 999px);
   transition:
+    width var(--bottom-nav-morph-ms) var(--bottom-nav-morph-ease),
+    height var(--bottom-nav-morph-ms) var(--bottom-nav-morph-ease),
     transform 220ms var(--bottom-nav-ease),
     clip-path 240ms var(--bottom-nav-ease),
     opacity 180ms ease,
@@ -33,6 +57,20 @@
     padding-top 240ms var(--bottom-nav-ease),
     border-radius 240ms var(--bottom-nav-ease);
   will-change: transform, opacity;
+}
+
+/* ── 收起态（2026-11-14）：从「向中间捏扁消失」改成「向左收成一颗圆」──────
+   只动 width/height，left 钉死不动 ⇒ 天然向左收缩；尺寸变小后底边不回退，
+   所以球是「原地瘪下去」而不是「浮起来」。
+   这是 rolling 状态：滚动方向一变就回来，不是消失态 —— 键盘 / 消息选择态
+   仍走 .is-hidden（真消失），两者互不替代。 */
+.bottom-nav-glass.is-collapsed {
+  --bottom-nav-morph-ms: 280ms;
+  width: var(--bottom-nav-compact-size);
+  height: var(--bottom-nav-compact-size);
+  box-shadow:
+    0 10px 24px rgba(15, 23, 42, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
 }
 
 .bottom-nav-glass.ai-overlay-open {
@@ -209,6 +247,88 @@
     opacity 120ms ease;
 }
 
+/* ── 收起态：5 席交叉淡出（2026-11-14）────────────────────────────────
+   为什么要「先退场再看壳收缩」：壳的宽度在 280ms 里持续变窄，5 席仍占满
+   100% 时会被挤成一列、被 clip 掉一半 —— 那 90ms 的挤压过程就是「脏」的来源。
+   90ms 内退干净，剩下的 190ms 观众只看到一颗玻璃壳在缩，最后圆图标入场。
+   visibility 用 0s + 延迟，避免淡出中途元素仍可被点。 */
+.bottom-nav-glass.is-collapsed .nav-items {
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
+  transition:
+    opacity 90ms linear,
+    visibility 0s linear 90ms;
+}
+
+/* 展开方向：必须**延迟**淡入（130ms），否则 5 席会在壳还没铺开时就已全亮、
+   被 overflow:hidden 拦腰切掉；这也是收起/展开两套时长不对称的另一半。
+   :not(.is-hidden) 是为了不覆盖键盘态那条（真消失不该有延迟）。 */
+.bottom-nav-glass:not(.is-collapsed):not(.is-hidden) .nav-items {
+  visibility: visible;
+  transition:
+    transform 180ms var(--bottom-nav-ease),
+    opacity 180ms ease 170ms,
+    visibility 0s linear 0s;
+}
+
+/* ── 圆内那颗「当前席」图标（收起态唯一可点的东西）────────────────── */
+.nav-compact {
+  position: absolute;
+  /* 盖住整个胶囊（含 shell padding），否则 62px 的圆只有 48px 可点 */
+  inset: calc(var(--bottom-nav-shell-padding) * -1);
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  /* 与 .nav-item.active 同色（明色 #1d1d1f）；暗色由 styles/themes/user-space-dark.css 覆写，
+     不在这里写 :global —— 本文件是非 scoped 的普通 CSS，:global 在它身上不保证被编译掉。 */
+  color: #1d1d1f;
+  cursor: pointer;
+  opacity: 0;
+  transform: scale(0.86);
+  pointer-events: none;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    opacity 90ms linear,
+    transform 90ms linear;
+}
+
+.bottom-nav-glass.is-collapsed .nav-compact {
+  opacity: 1;
+  transform: scale(1);
+  pointer-events: auto;
+  /* 延迟 120ms 入场：壳缩到一半时才把图标显出来，视觉上是「同一团玻璃重新长出一颗图标」 */
+  transition:
+    opacity 160ms linear 120ms,
+    transform 160ms cubic-bezier(0.34, 1.3, 0.64, 1) 120ms;
+}
+
+.bottom-nav-glass.is-collapsed .nav-compact:active {
+  transform: scale(0.92);
+}
+
+.nav-compact-icon {
+  /* 75 的圆里放 26：约 1/3，与 X 那颗收起圆的比例接近；22 会显得空 */
+  width: 26px;
+  height: 26px;
+}
+
+.nav-compact-dot {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ff3b30;
+  box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.85);
+}
+
 .nav-item {
   z-index: 1;
   display: flex;
@@ -217,8 +337,10 @@
   justify-content: center;
   gap: 3px;
   width: 100%;
-  min-width: 0;
-  min-height: 52px;
+  /* 高度/最小宽度都读 shell 上的变量（2026-11-14）：收起态的圆的直径由
+     --bottom-nav-item-h 反算，两边若各写一份像素，换档时就会出现椭圆。 */
+  min-width: var(--bottom-nav-item-min-w);
+  min-height: var(--bottom-nav-item-h);
   padding: 7px 14px;
   border: none;
   background: transparent;
@@ -908,8 +1030,6 @@
   }
 
   .nav-item {
-    min-width: 72px;
-    min-height: 52px;
     padding: 10px 20px;
   }
 
@@ -922,13 +1042,21 @@
    底栏是小胶囊（nav-items 自然宽 + 居中），而不是手机档那条被 left/right:16 拉满
    704px 的横条。三档必须首尾相接（699 | 700–1024 | 1025），漏一档就会掉回基础定位。 */
 @media (min-width: 700px) and (max-width: 1024px) {
+  /* 这一档原本靠 left:50% + 自然宽居中 ⇒ 宽度是 auto，width 无法过渡。
+     2026-11-14 改成「显式宽度 + 显式左边界」：宽度由 item-min-w 反算，
+     left 取「居中等价式」50% - W/2。好处是收起时只改 width，左边缘原地不动
+     —— 圆就停在这颗胶囊原来的左缘，不需要动 left（动 left 会和居中变换打架）。
+     若以后 nav 席位数变了，--nav-count 跟着变，这里不用改。 */
   .bottom-nav-glass {
+    --bottom-nav-item-h: 48px;
+    --bottom-nav-item-min-w: 64px;
     bottom: 20px;
+    left: calc(50% - var(--bottom-nav-expanded-w) / 2);
+    width: var(--bottom-nav-expanded-w);
+    transform: none;
   }
 
   .nav-item {
-    min-width: 64px;
-    min-height: 48px;
     padding: 8px 16px;
   }
 
@@ -939,18 +1067,19 @@
 
 /* 手机档：≤699（原 767）。这一档才把底栏拉满（left/right:16），
    所以边界必须卡在「拉满不丑」的宽度上 —— 704px 的横条在 744 屏上是 94.6% 铺满，
-   单项 138px 而图标仍 17px，看着像手机 UI 放大（见 docs/2026-10-30-iPad适配调查.md）。 */
+   单项 138px 而图标仍 17px，看着像手机 UI 放大（见 docs/2026-10-30-iPad适配调查.md）。
+   ⚠️ right:16 改成 width，是为了让收起态只动一条属性（宽度）就能向左收）。 */
 @media (max-width: 699px) {
   .bottom-nav-glass {
+    --bottom-nav-item-h: 44px;
+    --bottom-nav-item-min-w: 52px;
     bottom: 16px;
     left: 16px;
-    right: 16px;
+    width: calc(100% - 32px);
     transform: scaleX(var(--bottom-nav-collapse-scale));
   }
 
   .nav-item {
-    min-width: 52px;
-    min-height: 44px;
     padding: 6px 10px;
   }
 
@@ -966,9 +1095,12 @@
 
 @media (max-width: 699px) and (orientation: portrait) {
   .bottom-nav-glass {
+    --bottom-nav-item-h: 48px;
+    --bottom-nav-item-min-w: 56px;
     bottom: 20px;
     left: 20px;
-    right: 20px;
+    /* right:20 换成等价的显式宽度：362 宽的拉满条 ⇄ 62 的圆，只改这一条属性 */
+    width: calc(100% - 40px);
     transform: none;
   }
 
@@ -977,8 +1109,6 @@
   }
 
   .nav-item {
-    min-width: 56px;
-    min-height: 48px;
     padding: 8px 12px;
   }
 
@@ -1007,10 +1137,17 @@
   .nav-items::before,
   .nav-item,
   .nav-icon,
+  .nav-compact,
   .unread-badge {
     animation: none !important;
     transition-duration: 0.12s !important;
     transition-delay: 0s !important;
+  }
+
+  /* 收起/展开是「同一条物体的形变」，不属于装饰动画 —— 但 reduce 下不能保留
+     280ms 的宽度滑动（位移类一律砍）。宽度改为瞬时，只留交叉淡入的 120ms 反馈。 */
+  .bottom-nav-glass {
+    transition-duration: 0.12s !important;
   }
 }
 
@@ -1140,6 +1277,25 @@
   /* 隐藏态：横向是左右向中收拢，竖排要改成上下向中收拢 */
   .bottom-nav-glass.is-hidden {
     clip-path: inset(50% 0 50% 0 round 26px);
+  }
+
+  /* ── 收起态的例外（2026-11-14）──────────────────────────────────────
+     竖胶囊是「5 行 × 70 宽」，收缩到「1 行宽」只会变成一根火柴盒，语义不成立；
+     所以这一档不跟新的宽度动效，降级成旧的整体淡出（仍有「让出屏幕」的反馈）。
+     两条必须同时写：宽度改回 --fold-nav-w（否则 62px 会把竖排挤塌），
+     圆图标整颗不渲染（它的 inset:0 在 5 行高度里会飘在中间）。 */
+  .bottom-nav-glass.is-collapsed {
+    width: var(--fold-nav-w);
+    /* 高度必须还回去：基类那条 .is-collapsed 会把它压成 60（为圆服务），
+       竖胶囊是 5 行，压成 60 就只剩一行半 */
+    height: var(--bottom-nav-shell-h, auto);
+    opacity: 0;
+    pointer-events: none;
+    clip-path: inset(50% 0 50% 0 round 26px);
+  }
+
+  .bottom-nav-glass.is-collapsed .nav-compact {
+    display: none;
   }
 
   /* 入场：横向是「从下方浮上来」，竖排从右侧滑入才符合方位 */

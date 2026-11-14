@@ -1,15 +1,24 @@
 <template>
   <div
     v-if="visible"
+    ref="rootRef"
     class="bottom-nav-glass"
     :class="{
-      'is-hidden': navHidden,
+      'is-collapsed': navCollapsed,
+      'is-hidden': navGone,
       'is-entering': isEntering,
       'ai-overlay-open': aiOverlayOpen,
     }"
-    :style="{ '--bottom-nav-enter-duration': `${enterDurationMs}ms` }"
+    :style="{
+      '--bottom-nav-enter-duration': `${enterDurationMs}ms`,
+      /* 席位数交给 CSS 反推「居中档」的展开宽度（--bottom-nav-expanded-w）——
+         底栏自己的 root 读不到 .nav-items 上那份内联变量（自定义属性不向上继承）。 */
+      '--nav-count': navItems.length,
+      /* 展开态高度（实测）。收起的球靠它做 height 过渡：auto 与长度之间不可过渡。 */
+      '--bottom-nav-shell-h': shellH ? `${shellH}px` : undefined,
+    }"
   >
-    <div class="nav-items" :style="resolvedNavIndicatorStyle">
+    <div class="nav-items" :inert="navCollapsed" :style="resolvedNavIndicatorStyle">
       <button
         v-for="item in navItems"
         :key="item.id"
@@ -33,6 +42,26 @@
         </div>
       </button>
     </div>
+
+    <!-- 收起态唯一可点的面：整颗圆就是「展开」按钮（2026-11-14）。
+         点击只展开、不导航 —— 收起时用户想找的是「导航去哪了」，
+         不是「我刚好点到了哪一席」，所以这里刻意不复用 nav-item 的点击链路。 -->
+    <button
+      class="nav-compact"
+      type="button"
+      :aria-label="compactLabel"
+      aria-expanded="false"
+      @click.stop="handleCompactClick"
+    >
+      <component
+        :is="activeItem.icon"
+        class="nav-compact-icon"
+        :size="26"
+        :stroke-width="1.9"
+        aria-hidden="true"
+      />
+      <span v-if="hasUnreadMessages" class="nav-compact-dot" aria-hidden="true" />
+    </button>
   </div>
 </template>
 
@@ -87,7 +116,7 @@ const markEnterPlayed = () => {
   if (typeof window !== 'undefined') window.__bohBottomNavHasEntered = true;
 };
 
-const emit = defineEmits(['preload-tab', 'nav-click']);
+const emit = defineEmits(['preload-tab', 'nav-click', 'expand-request']);
 
 const props = defineProps({
   visible: {
@@ -134,7 +163,51 @@ const enterDurationMs = computed(() =>
   props.enterDuration > 0 ? props.enterDuration : BOTTOM_NAV_ENTER_MS,
 );
 
-const navHidden = computed(() => props.hidden || isKeyboardOpen.value);
+/* 两种「不在展开态」，语义必须分开（2026-11-14 收起态改造）：
+   · is-collapsed —— 滚动方向驱动的**收起**：缩成左下角一颗圆，仍在，点一下就回来
+   · is-hidden    —— 键盘弹起 / 消息选择态的**真消失**：键盘上方浮一颗圆反而挡手
+   合并成一个布尔回到旧行为（向中间捏扁淡出）；拆开才能让「滚回去」和
+   「键盘收起」两件事看起来不一样。 */
+const navCollapsed = computed(() => props.hidden && !isKeyboardOpen.value);
+const navGone = computed(() => isKeyboardOpen.value);
+
+/* ── 展开态高度 = 实测值（2026-11-14）────────────────────────────────
+   收起态要把整条压成一颗 60 的球，height 必须能从「条高」过渡到 60；而
+   height: auto ↔ 长度**不可过渡**，所以量一次写进 --bottom-nav-shell-h。
+   ⚠️ 只在展开态量：收起时的高度是我们强制的 60，量回去会把真值污染成 60。
+   ⚠️ 不用 ResizeObserver：收起动画全程宽度/高度都在变，RO 会把中间态写回去，
+      形成「动画越走越偏」的自激。横竖屏与字号变化走 window resize 足够。 */
+const rootRef = ref(null);
+const shellH = ref(0);
+
+const syncShellHeight = () => {
+  const el = rootRef.value;
+  if (!el || navCollapsed.value) return;
+  const h = Math.ceil(el.getBoundingClientRect().height);
+  if (h > 0 && h !== shellH.value) shellH.value = h;
+};
+
+/* ── 收起态要给发帖 FAB 一个信号（2026-11-14）──────────────────────────
+   .mobile-compose-fab 是 Teleport 到 body 的兄弟节点，拿不到底栏的 class，
+   只能在 body 上挂一枚标记，由 compose-fab.css 负责「跟着降下来 / 跟着升回去」。
+   标记必须是**这个组件**加的：收起态的真源只有这里，别在别处再推断一次。 */
+const NAV_COLLAPSED_BODY_CLASS = 'boh-bottom-nav-collapsed';
+let ownsBodyFlag = false;
+
+const syncBodyFlag = () => {
+  if (typeof document === 'undefined') return;
+  if (navCollapsed.value) {
+    document.body.classList.add(NAV_COLLAPSED_BODY_CLASS);
+    ownsBodyFlag = true;
+    return;
+  }
+  if (ownsBodyFlag) {
+    document.body.classList.remove(NAV_COLLAPSED_BODY_CLASS);
+    ownsBodyFlag = false;
+  }
+};
+
+watch(navCollapsed, syncBodyFlag, { immediate: true });
 
 /* ── 选中态位移（2026-10-26）─────────────────────────────────────────────
    displayIndex 是「指示器此刻停在哪」，activeIndex 是「它应该去哪」。
@@ -145,6 +218,11 @@ const activeIndex = computed(() => {
   const found = props.navItems.findIndex((item) => item.id === props.currentTab);
   return Math.max(0, found);
 });
+
+/* 收起态圆里那颗图标 = 当前席（与选中指示器同一个 index 口径）。
+   navItems 为空时给一个空对象兜底：模板里 :is 会渲染成注释节点，不会炸。 */
+const activeItem = computed(() => props.navItems[activeIndex.value] || props.navItems[0] || {});
+const compactLabel = computed(() => `展开底部导航，当前：${activeItem.value.label || ''}`);
 
 const initialHandoff = consumeBottomNavHandoff({
   toId: props.currentTab,
@@ -230,6 +308,9 @@ const refreshPendingHandoff = () => {
 };
 
 onMounted(() => {
+  syncShellHeight();
+  window.addEventListener('resize', syncShellHeight, { passive: true });
+
   /* 已播过就不再播：直接落到终态（无 keyframes ⇒ 无位移，视觉上是「原地就在」，
      而不是从屏幕外再滑一遍）。 */
   if (initialHandoff) moveToActiveIndex();
@@ -248,6 +329,9 @@ onMounted(() => {
 let hasShownOnce = false;
 
 onActivated(() => {
+  /* 重新激活时尺寸可能已变（横竖屏切换 / 字号变化），重量一次 */
+  syncShellHeight();
+  syncBodyFlag();
   /* 首次挂载也会触发 onActivated：该次交给 onMounted，避免同一接力被消费两次。 */
   if (!hasShownOnce) {
     hasShownOnce = true;
@@ -256,16 +340,47 @@ onActivated(() => {
   applyActivatedHandoff();
 });
 
-onDeactivated(refreshPendingHandoff);
+/* visible 由 false 翻回 true 时元素是重新挂载的，高度要重新量 */
+watch(
+  () => props.visible,
+  async (next) => {
+    if (!next) return;
+    await nextTick();
+    syncShellHeight();
+  },
+);
+
+onDeactivated(() => {
+  refreshPendingHandoff();
+  /* 页面切走时把 FAB 标记摘掉，否则下一个宿主在底栏展开的情况下
+     仍会看到「+ 停在低位」（标记没有别人负责清） */
+  if (ownsBodyFlag) {
+    document.body.classList.remove(NAV_COLLAPSED_BODY_CLASS);
+    ownsBodyFlag = false;
+  }
+});
 
 onBeforeUnmount(() => {
   cancelHandoffRaf();
   refreshPendingHandoff();
+  window.removeEventListener('resize', syncShellHeight);
+  if (ownsBodyFlag) {
+    document.body.classList.remove(NAV_COLLAPSED_BODY_CLASS);
+    ownsBodyFlag = false;
+  }
   if (enterTimer) {
     window.clearTimeout(enterTimer);
     enterTimer = null;
   }
 });
+
+/* 点圆只做「展开」这一件事，不导航。⚠️ 宿主必须接 expand-request 去调
+   resetBottomNavAutoHide()：滚动位置没变时 props.hidden 不会自己回 false，
+   不 reset 就会「点开一次之后再也收不起来」（这是本次改造最容易漏的一条）。 */
+const handleCompactClick = () => {
+  if (!navCollapsed.value) return;
+  emit('expand-request');
+};
 
 const handleNavClick = (itemId) => {
   const fromId = props.currentTab;

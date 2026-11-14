@@ -434,12 +434,22 @@
       :has-unread-messages="hasUnreadMessages"
       :unread-count="unreadCount"
       @nav-click="handleNavClick"
+      @expand-request="resetBottomNavAutoHide"
     />
   </div>
 </template>
 
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import {
+  computed,
+  nextTick,
+  onActivated,
+  onBeforeUnmount,
+  onDeactivated,
+  onMounted,
+  ref,
+  watch,
+} from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { storeToRefs } from 'pinia';
 import {
@@ -602,7 +612,7 @@ const hasUnreadMessages = computed(() => unreadCount.value > 0);
    复用同一份 composable（滚动容器自动判定，/shop 是 body 滚动 ⇒ document.scrollingElement），
    不另写一套阈值 —— 三个宿主的隐藏手感必须一致。
    forceVisible 恒 false：周边页没有「底栏还没就位」的入场期。 */
-const { hidden: bottomNavHidden } = useScrollDirectionHide({
+const { hidden: bottomNavHidden, reset: resetBottomNavAutoHide } = useScrollDirectionHide({
   forceVisible: computed(() => false),
 });
 
@@ -1432,6 +1442,11 @@ const syncNavHeight = () => {
   if (height > 0) page.style.setProperty('--nav-h', `${Math.ceil(height)}px`);
 };
 
+/* 路由级缓存的名字（2026-11-14）：与 router/routes/public.ts 的 meta.keepAliveName
+   逐字一致，否则 <KeepAlive :include> 静默不缓存（不报错，只表现为每次回来整页重挂）。
+   守：tests/unit/keep-alive-names.test.js */
+defineOptions({ name: 'ShopPage' });
+
 onMounted(() => {
   syncTabFromRoute();
   /* 商品拿到之后就给购物袋对一次账（2026-11-04）：袋里存的是加购时的快照，
@@ -1461,18 +1476,57 @@ onMounted(() => {
   }
 });
 
-onBeforeUnmount(() => {
+/* 2026-11-14 起本页进了 KeepAlive 白名单（router/routes/public.ts），
+   「离开周边」不再等于「卸载」—— 下面这一堆收尾必须挪到**停用**时就做，否则：
+     · 头像菜单的 document 级 pointerdown 守卫会跟着你去别的页面继续拦点击；
+     · 购物袋只在卸载时才落盘 ⇒ 加购后点底栏切走，袋里的东西会丢；
+     · 弹层滚动锁 / 抖动排序态 / 拖拽监听会跨页残留。
+   onBeforeUnmount 仍然复用同一份（真正卸载时也要收干净）。 */
+const teardownTransient = () => {
   if (toastTimer) clearTimeout(toastTimer);
   unlockPageScroll();
   bagStore.flushShoppingBag();
-  window.removeEventListener('theme-changed', handleThemeChanged);
-  // 头像菜单的 document 级监听必须显式摘掉：组件卸载后它还在，会一直拦 pointerdown
   detachAvatarMenuGuards();
-  // 抖动排序模式必须彻底收干净：定时器 / 拖拽监听 / Esc 监听
-  window.removeEventListener('keydown', handleSortKeydown);
   clearSortExit();
   pressCleanup?.();
   if (dragState) onDragEnd();
+};
+
+/* 全局监听 + 导航高度观察：停用时摘、回来时重新挂。
+   ⚠️ 首次挂载也会触发 onActivated（在 onMounted 之后），必须用闩锁跳过，
+      否则会重复 addEventListener。 */
+let hasActivatedOnce = false;
+
+onDeactivated(() => {
+  teardownTransient();
+  window.removeEventListener('theme-changed', handleThemeChanged);
+  window.removeEventListener('keydown', handleSortKeydown);
+  navResizeObserver?.disconnect();
+  navResizeObserver = null;
+});
+
+onActivated(() => {
+  if (!hasActivatedOnce) {
+    hasActivatedOnce = true;
+    return;
+  }
+  window.addEventListener('theme-changed', handleThemeChanged);
+  window.addEventListener('keydown', handleSortKeydown);
+  syncNavHeight();
+  if (typeof ResizeObserver !== 'undefined') {
+    navResizeObserver = new ResizeObserver(syncNavHeight);
+    const navEl = document.getElementById('unified-nav-container');
+    if (navEl) navResizeObserver.observe(navEl);
+  }
+  // 用户刚点完一次导航，见到的应该是整条底栏而不是一颗球
+  resetBottomNavAutoHide();
+});
+
+onBeforeUnmount(() => {
+  teardownTransient();
+  window.removeEventListener('theme-changed', handleThemeChanged);
+  // 抖动排序模式必须彻底收干净：定时器 / 拖拽监听 / Esc 监听
+  window.removeEventListener('keydown', handleSortKeydown);
   navResizeObserver?.disconnect();
   navResizeObserver = null;
 });

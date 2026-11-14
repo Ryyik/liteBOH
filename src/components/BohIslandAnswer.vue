@@ -473,6 +473,11 @@ watch(streaming, (val) => {
 
 /* ---------------- 生命周期 ---------------- */
 
+/* 自动聚焦延迟：== 导航 surface「长出来」的 300ms 动画 + 一点余量。
+   与 UnifiedNavbar 的 focusInput 兜底同一个数（那边也只是兜底，正常情况下本组件先落焦）。 */
+const ISLAND_FOCUS_DELAY_MS = 340;
+let focusTimer = null;
+
 onMounted(async () => {
   // 快速会话（§3.4）：岛内问答不接主会话 —— 每次岛内问答链路都从全新会话开始。
   // origin 标记让全页侧栏把它归进「在搜索里问过」分组（可提升为主会话）。
@@ -490,12 +495,25 @@ onMounted(async () => {
   if (String(bohIsland.pendingAsk.value || '').trim()) {
     await consumeSeed();
   } else {
-    inputRef.value?.focus();
+    /* 落焦点**故意延后到导航「长出来」的 300ms 之后**（2026-11-14）。
+       立刻 focus 会在同一帧里同时触发：iOS 键盘弹起 + 可视视口高度变化（岛 max-height
+       读 100dvh ⇒ 整块重排）+ 导航 surface 的高度动画，6× CPU 降速实测叠出 50~80ms
+       的长任务 —— 用户感知就是「下拉唤出 AI 卡一下」。
+       推后到动画结束后，键盘与岛是先后关系而不是并发，长任务消失。
+       preventScroll：避免聚焦把页面滚一段（iOS 上会额外触发一次视口位移）。 */
+    focusTimer = window.setTimeout(() => {
+      focusTimer = null;
+      inputRef.value?.focus({ preventScroll: true });
+    }, ISLAND_FOCUS_DELAY_MS);
   }
 });
 
 onBeforeUnmount(() => {
   queuedSeed = '';
+  if (focusTimer) {
+    clearTimeout(focusTimer);
+    focusTimer = null;
+  }
   bodyObserver?.disconnect();
   bodyObserver = null;
 });

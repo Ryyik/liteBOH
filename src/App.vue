@@ -516,8 +516,21 @@ const showGlobalNavbar = computed(() => isGlobalNavbarVisible(route));
             守：tests/unit/global-error-boundary.test.js（源码级不变量）+
                 scripts/probes/probe-dm-lottery-entries-jump.mjs（切表只发 1 次列表请求）。
           -->
-          <Transition name="route-fade">
-            <!--
+          <!--
+            ⚠️ 2026-11-14 起这里**没有** <Transition name="route-fade"> 了，别再加回来。
+
+            用户报障「底栏来回切换的时候整页会闪一下，非常难受」。实测（PerformanceObserver
+            + 逐帧采样 .route-fade-enter-*）：每一次跨路由切换都会给**整页**加一次
+            opacity 0 → 1 的 200ms 淡入。而缓存页（我 / 图库）的 DOM 其实是复用的
+            （scripts/probes/probe-cloud-keepalive.mjs 实测 0 次数据请求），
+            内容本来就是「瞬时就在」的 —— 再淡入一遍等于每次都主动闪一下：
+            深色页上是从透明闪出底色，浅色页上是内容先消失再浮现。
+
+            2026-11-04 那条注释已经写过「类名不生效时的最坏表现 = 退回瞬切（原状）」，
+            即瞬切是更早的既定基线；本次就是回退到它。切换的「落定感」由分区分档级
+            过渡（shell-community.css 的 .tab-page / .is-leaving）承担，不受影响。
+          -->
+          <!--
               ⚠️ KeepAlive **必须常驻**，不要再写回 `v-if="activeRoute.meta?.keepAlive"`。
 
               旧写法把「要不要缓存」挂在了**容器自身的有无**上：导航目标一旦是不缓存的页
@@ -545,7 +558,7 @@ const showGlobalNavbar = computed(() => isGlobalNavbarVisible(route));
                   不缓存页用 path（/news/1 → /news/2 要重建，见下方长注释）。
                 · `:max` 是兜底而不是策略：白名单最多 4 条，6 只用来防将来加页时无限涨。
             -->
-            <!--
+          <!--
               刷新还原弹窗时（isModalOwningDetail=true）跳过整页详情组件：
               路由名仍是 PostDetail，照渲染会得到「弹窗 + 整页详情」两棵树同时在跑
               （实测 pageCount=2），关掉弹窗后旧版整页详情会露出来 —— 就是用户报的
@@ -554,14 +567,13 @@ const showGlobalNavbar = computed(() => isGlobalNavbarVisible(route));
               两个子节点，dev 下 HTML 注释也算一个（会直接报
               「expects exactly one child component」），所以解释文字只能放在标签外面。
             -->
-            <KeepAlive :include="keepAliveNames" :max="6">
-              <component
-                v-if="!(isModalOwningDetail && activeRoute.name === 'PostDetail')"
-                :is="Component"
-                :key="activeRoute.meta?.keepAlive ? activeRoute.name : activeRoute.path"
-              />
-            </KeepAlive>
-          </Transition>
+          <KeepAlive :include="keepAliveNames" :max="6">
+            <component
+              v-if="!(isModalOwningDetail && activeRoute.name === 'PostDetail')"
+              :is="Component"
+              :key="activeRoute.meta?.keepAlive ? activeRoute.name : activeRoute.path"
+            />
+          </KeepAlive>
         </RouterView>
       </template>
       <template #fallback>
