@@ -1556,6 +1556,14 @@
     width: 100%;
   }
 
+  /* 2026-11-12：竖屏直接收起分布 chips。
+     390px 下 4 个胶囊只能露出一个半，还和「筛选/导出」挤在同一行 ——
+     与其留一排看不懂的碎片，不如整行让给数据。状态值域仍然完整可用：
+     走「筛选 → 全部状态」下拉（同一份 statusFilterOptions）。 */
+  .data-management-page .toolbar-secondary .collection-overview {
+    display: none;
+  }
+
   /* 状态 chips 单行横滑，不再换行吃掉 30~60px */
   .data-management-page .toolbar-secondary .collection-chips {
     flex-wrap: nowrap;

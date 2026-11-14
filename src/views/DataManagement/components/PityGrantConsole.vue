@@ -2,7 +2,6 @@
   <section class="pity-grant-page">
     <header class="quota-config-hero">
       <div>
-        <span class="quota-kicker">Pity Management</span>
         <h2>保底次数管理</h2>
         <p>
           统一管理全站用户的保底次数（连续失败场次）。支持对全部或指定用户进行增加、减少、设值、清零；
@@ -792,13 +791,6 @@ onMounted(() => {
   align-items: center;
   gap: 20px;
   padding: 22px;
-}
-.quota-kicker {
-  color: var(--muted-foreground);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
 }
 .quota-config-hero h2 {
   margin: 4px 0 0;

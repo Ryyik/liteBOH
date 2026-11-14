@@ -1,6 +1,8 @@
 <template>
   <!-- Compact overview header (topbar already shows the page title) -->
-  <div v-if="activeFilterSummary" class="g-overview-filter-bar">
+  <!-- 没有生效条件时整条不渲染：原来会显示一行「当前筛选 未应用筛选」，
+       40px 高、零信息量，还让首屏第一眼是「没筛什么」。 -->
+  <div v-if="hasActiveFilters" class="g-overview-filter-bar">
     <span class="g-eyebrow">当前筛选</span>
     <span class="g-overview-filter-text">{{ activeFilterSummary }}</span>
   </div>
@@ -360,6 +362,8 @@ import DashboardDonut from './shared/DashboardDonut.vue';
 const props = defineProps({
   activeDiagnostics: { type: Array, required: true },
   activeFilterSummary: { type: String, required: true },
+  /** 是否真有生效条件（决定顶部那条筛选摘要要不要占 40px） */
+  hasActiveFilters: { type: Boolean, default: false },
   currentTab: { type: String, required: true },
   currentTabLabel: { type: String, required: true },
   isLoading: { type: Boolean, default: false },
@@ -1021,6 +1025,12 @@ watch(
 .g-overview-side {
   display: grid;
   gap: calc(var(--spacing) * 4);
+  align-content: start;
+}
+/* 左卡曾经被拉伸到与右栏等高，而 .g-card 是 grid 且默认 stretch，
+   多出来的高度被平分到两行 ⇒ 「常用入口」下面凭空多出一块 90px 空白。
+   align-content: start 让内容贴顶，空白留在卡底（视觉上就是一张正常的卡）。 */
+.g-overview-grid > .g-card {
   align-content: start;
 }
 .g-quick-grid {

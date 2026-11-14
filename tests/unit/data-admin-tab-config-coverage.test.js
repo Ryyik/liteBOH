@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { tabs, TABS_ACTIONS } from '@/views/DataManagement/config/tabs.js';
+import { tabs, TABS_ACTIONS, tabModules } from '@/views/DataManagement/config/tabs.js';
 import { dataConfig } from '@/views/DataManagement/config/tables.js';
 import {
   DATE_FILTER_FIELDS,
@@ -61,5 +61,38 @@ describe('数据管理面板 · tab 查询配置覆盖', () => {
 
   it('活动报名明细开放删除（管理员清理报名/投稿记录，DB 删除政策本就含管理员分支）', () => {
     expect(TABS_ACTIONS.campaignEntries).toContain('delete');
+  });
+
+  // ── 2026-11-14 §13.9 落地清单的两条守卫 ──────────────────────────────
+  // 反证：把 lotteryDrawLogs 从 lottery 模块的 tabIds 里删掉 → 第 1 条必红；
+  //      把 posterRequests 加回 tabs 数组 → 第 2 条必红。
+  it('抽奖诊断四页签都必须挂在「抽奖」模块下（缺 tabIds 挂载 = 定义了但侧栏看不见）', () => {
+    const lotteryModule = tabModules.find((mod) => mod.id === 'lottery');
+    expect(lotteryModule, '没找到 lottery 模块').toBeTruthy();
+    const need = [
+      'lotteryJoinAttempts',
+      'lotteryDrawLogs',
+      'lotteryFailureStats',
+      'lotteryNotificationJobs',
+    ];
+    for (const id of need) {
+      expect(lotteryModule.tabIds, `lottery 模块下缺 ${id}`).toContain(id);
+      expect(
+        tabs.some((tab) => tab.id === id),
+        `tabs 里缺 ${id} 条目`,
+      ).toBe(true);
+    }
+  });
+
+  it('已下线的三页签不再出现在任何模块里（表保留、入口删除）', () => {
+    const retired = ['posterRequests', 'userFollows', 'userImpressions'];
+    const mounted = new Set(tabModules.flatMap((mod) => mod.tabIds || []));
+    for (const id of retired) {
+      expect(
+        tabs.some((tab) => tab.id === id),
+        `${id} 仍在 tabs 数组里`,
+      ).toBe(false);
+      expect(mounted.has(id), `${id} 仍挂载在某个模块的 tabIds 里`).toBe(false);
+    }
   });
 });

@@ -45,12 +45,10 @@ export const tabs = [
   // 凌晨 pg_cron 从公开帖抽的事实卡（boh_ai_forum_memories，boh-ai-forum-memory 产出）
   { id: 'forumMemories', label: '论坛事实卡', icon: '🗂️', module: 'ai-config' },
   { id: 'bohCreatorShows', label: '创作者展示', icon: '🎬', module: 'operations' },
-  { id: 'birthdayEvents', label: '生日活动', icon: '🎂', module: 'operations' },
-  { id: 'birthdayWishes', label: '生日祝福', icon: '💌', module: 'operations' },
   { id: 'campaigns', label: '活动平台', icon: '🎪', module: 'operations' },
   { id: 'campaignEntries', label: '活动报名明细', icon: '🧾', module: 'operations' },
   { id: 'campaignRewards', label: '活动发放台账', icon: '🏅', module: 'operations' },
-  { id: 'posterRequests', label: '海报申请', icon: '🖼️', module: 'operations' },
+  // 'posterRequests'（海报申请）已按 §13.9 下线（2026-11-14）：前端无写入点，删了不影响任何用户路径。
   { id: 'reportedPosts', label: '举报下架', icon: '🚩', module: 'moderation' },
   { id: 'reviewPosts', label: '已拒绝帖子', icon: '🧾', module: 'moderation' },
   { id: 'reviewComments', label: '已拒绝评论', icon: '🗨️', module: 'moderation' },
@@ -63,6 +61,13 @@ export const tabs = [
   { id: 'lotteryFulfillments', label: '履约与通知', icon: '📦', module: 'lottery' },
   { id: 'lotteryEntries', label: '报名明细', icon: '🧾', module: 'lottery' },
   { id: 'lotteryAuditLogs', label: '运行审计', icon: '📜', module: 'lottery' },
+  // 抽奖诊断（§13.9「要新增的 2 页」之一）：表定义与查询配置早就在 tables.js /
+  // query-config.js / TABS_ACTIONS 里，唯独漏了页签条目 ⇒ 数据一直只能在库里看。
+  // 四个诊断面各自成页签，共用统一列表骨架，不建新组件。
+  { id: 'lotteryJoinAttempts', label: '报名尝试', icon: '🚦', module: 'lottery' },
+  { id: 'lotteryDrawLogs', label: '开奖日志', icon: '🎯', module: 'lottery' },
+  { id: 'lotteryFailureStats', label: '失败统计', icon: '📉', module: 'lottery' },
+  { id: 'lotteryNotificationJobs', label: '通知作业', icon: '✉️', module: 'lottery' },
   { id: 'pity-grant', label: '保底中心', icon: '🛡️', module: 'lottery', type: 'page' },
   // 合并页：原「API Key」+「免费模型库」两个 tab 合成一个（左栏平台、右栏密钥与模型）
   { id: 'keys-models', label: '密钥与模型', icon: '🔑', module: 'ai-config', type: 'page' },
@@ -89,8 +94,8 @@ export const tabs = [
   { id: 'aiWebSearchLog', label: '联网搜索日志', icon: '🔍', module: 'logs' },
   { id: 'apiKeyAuditLogs', label: 'Key审计日志', icon: '📜', module: 'logs' },
   { id: 'labUsageRecords', label: '实验室用量', icon: '🧪', module: 'logs' },
-  { id: 'userFollows', label: '关注关系', icon: '👥', module: 'logs' },
-  { id: 'userImpressions', label: '访客记录', icon: '👁️', module: 'logs' },
+  // 'userFollows'（关注关系）/ 'userImpressions'（访客记录）已按 §13.9 主动下线（2026-11-14）。
+  // 表保留、入口删除：删表不可回滚，删入口随时能加回来。
   { id: 'lotterySchedulerLogs', label: '抽奖调度', icon: '⚙️', module: 'logs' },
   { id: 'adminAuditLogs', label: '审计日志', icon: '🧾', module: 'logs' },
   { id: 'userDataExportJobs', label: '用户数据导出', icon: '📤', module: 'logs' },
@@ -169,12 +174,9 @@ export const tabModules = [
       'postReward',
       'coreMemories',
       'bohCreatorShows',
-      'birthdayEvents',
-      'birthdayWishes',
       'campaigns',
       'campaignEntries',
       'campaignRewards',
-      'posterRequests',
     ],
     // 资讯就地编辑（2026-11-10）：后台直接渲染前台资讯页，点标题/摘要/封面即改
     subPages: ['news-editor'],
@@ -258,9 +260,13 @@ export const tabModules = [
       'lotteryFulfillments',
       'lotteryEntries',
       'lotteryAuditLogs',
+      'lotteryJoinAttempts',
+      'lotteryDrawLogs',
+      'lotteryFailureStats',
+      'lotteryNotificationJobs',
       'pity-grant',
     ],
-    description: '抽奖配置、代报名、履约与通知、报名明细、运行审计和保底中心',
+    description: '抽奖配置、代报名、履约与通知、报名明细、运行审计、抽奖诊断和保底中心',
   },
   {
     id: 'ai-config',
@@ -291,13 +297,11 @@ export const tabModules = [
       'aiWebSearchLog',
       'apiKeyAuditLogs',
       'labUsageRecords',
-      'userFollows',
-      'userImpressions',
       'lotterySchedulerLogs',
       'userDataExportJobs',
       'adminAuditLogs',
     ],
-    description: 'AI搜索、Key审计、实验室、关注、访客与抽奖调度日志',
+    description: 'AI搜索、Key审计、实验室与抽奖调度日志',
   },
   {
     id: 'system',
@@ -327,7 +331,6 @@ export const TABS_ACTIONS = {
   anniversaryClaims: ['view'],
   gifts: ['view', 'create', 'edit', 'delete'],
   addresses: ['view', 'create', 'edit', 'delete'],
-  posterRequests: ['view', 'edit'],
   shopOrders: ['view', 'edit'],
   forum: ['view', 'create', 'edit', 'delete'],
   ads: ['view', 'create', 'edit', 'delete'],
@@ -341,8 +344,6 @@ export const TABS_ACTIONS = {
   coreMemories: ['view', 'create', 'edit', 'delete'],
   photoAlbums: ['view', 'edit', 'delete'],
   bohCreatorShows: ['view', 'create', 'edit', 'delete'],
-  birthdayEvents: ['view', 'create', 'edit', 'delete'],
-  birthdayWishes: ['view', 'edit'],
   campaigns: ['view', 'create', 'edit', 'delete'],
   // 报名/投稿明细开放删除：DB 侧 activity_entries_delete 政策本就含管理员分支
   // （删自己或管理员），此前只是 UI 没接——表现为报名记录只能改状态、无法清理。

@@ -102,7 +102,6 @@ export const TAB_WRITABLE_FIELDS = {
     'is_default',
     'updated_at',
   ],
-  posterRequests: ['user_id', 'status', 'updated_at'],
   forum: [
     'content',
     'author_id',
@@ -218,21 +217,6 @@ export const TAB_WRITABLE_FIELDS = {
     'card_layout',
   ],
   shopOrders: ['status', 'updated_at'],
-  birthdayEvents: [
-    // target_user_id 是 NOT NULL；表单里是 required 的 user-picker，
-    // 漏进 allowList 会让新增在 insert 时直接 400。
-    'target_user_id',
-    'title',
-    'subtitle',
-    'hero_quote',
-    'page_copy',
-    'celebration_date',
-    'is_active',
-    'sort_order',
-    'updated_at',
-  ],
-  // ⚠️ birthday_wishes 表没有 updated_at 列，写入会 400
-  birthdayWishes: ['status', 'is_featured'],
   // photo_albums 的 status/shared_to_community 是管理端审核位；漏了这张表会让
   // 「编辑」抽屉的保存载荷被 pickWritableFields 过滤成 {}（点保存什么都不发生）。
   photoAlbums: ['title', 'subtitle', 'cover_url', 'status', 'shared_to_community'],
@@ -438,12 +422,6 @@ export const ORDER_CONTACT_TYPE_OPTIONS = [
 ];
 
 // 生日祝福状态
-export const BIRTHDAY_WISH_STATUS_OPTIONS = [
-  { value: 'pending', label: '待审核（pending）' },
-  { value: 'approved', label: '已通过（approved）' },
-  { value: 'rejected', label: '已拒绝（rejected）' },
-];
-
 // 论坛帖子标签
 // 单一真源：论坛标签以 Forum 的 FORUM_TAG_OPTIONS 为准（server/activity/daily/question）。
 // 这里曾维护过一份 share/question/discussion/guide/news 的副本，与 DB CHECK 和论坛端

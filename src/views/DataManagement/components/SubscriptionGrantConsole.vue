@@ -2,7 +2,6 @@
   <section class="subscription-grant-page">
     <header class="quota-config-hero">
       <div>
-        <span class="quota-kicker">Subscription Grant</span>
         <h2>订阅发放</h2>
         <p>
           统一给全部用户批量添加订阅，或指定部分用户添加，可设置订阅层级、订阅周期与时间。不扣减用户积分。
@@ -812,13 +811,6 @@ onMounted(() => {
   align-items: center;
   gap: 20px;
   padding: 22px;
-}
-.quota-kicker {
-  color: var(--muted-foreground);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
 }
 .quota-config-hero h2 {
   margin: 4px 0 0;

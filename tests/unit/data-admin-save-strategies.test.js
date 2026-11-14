@@ -21,16 +21,8 @@ describe('data admin save strategies（DB 约束对齐）', () => {
     });
   });
 
-  it('birthdayEvents：target_user_id 必须随载荷提交（NOT NULL）', async () => {
-    const payload = await SAVE_STRATEGIES.birthdayEvents({
-      editingItem: {
-        target_user_id: 'user-1',
-        title: '生日快乐',
-        celebration_date: '2026-10-17',
-      },
-    });
-    expect(payload.target_user_id).toBe('user-1');
-  });
+  // 'birthdayEvents' 用例已随生日后台退场删除（2026-11-12）：
+  // 生日两页签 + /admin/birthday 已下线（表仍保留），SAVE_STRATEGIES.birthdayEvents 同步移除。
 
   // 'blockWallItems' 三个用例已随方块墙退场删除（2026-10-19）：
   // 管理面板 tab 与 SAVE_STRATEGIES.blockWallItems 均已移除。

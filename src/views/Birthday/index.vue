@@ -56,26 +56,24 @@
         </div>
       </section>
 
-      <section v-else class="hero-section">
+      <section v-else-if="hasCelebration" class="hero-section">
         <div class="hero-gradient"></div>
         <div class="hero-content">
           <div class="hero-badge">
             <PartyPopper :size="14" stroke-width="2.5" />
-            <span v-if="isEventActive && isToday">今日限定 · 生日会已开启</span>
-            <span v-else-if="isEventActive">生日活动进行中</span>
+            <span v-if="isToday">今日限定 · 生日会已开启</span>
             <span v-else>生日倒计时</span>
           </div>
 
           <h1 class="hero-title">
-            <span class="title-line">{{ targetUsername }}，</span>
-            <span class="title-line gradient-text">{{ event.title || '生日快乐' }}</span>
+            <span class="title-line">{{ nameLine }}，</span>
+            <span class="title-line gradient-text">生日快乐</span>
           </h1>
 
-          <p class="hero-subtitle">{{ event.subtitle || heroSubtitle }}</p>
-          <p v-if="event.hero_quote" class="hero-quote">「{{ event.hero_quote }}」</p>
+          <p class="hero-subtitle">{{ heroSubtitle }}</p>
 
           <div class="hero-meta">
-            <div v-if="isEventActive && isToday" class="meta-pill">
+            <div v-if="isToday" class="meta-pill">
               <Cake :size="16" stroke-width="2" />
               <span>{{ displayDate }} · 今日限定会场</span>
             </div>
@@ -104,9 +102,18 @@
         </div>
       </section>
 
-      <section ref="candleSection" class="candle-section">
+      <!-- 页面内容由 profiles 的生日合成。一个生日都没填时如实显示空态，
+           不灌假内容（原先这里会硬编码「生日快乐 / Make A Wish」给所有人看）。 -->
+      <section v-else class="birthday-empty">
+        <Cake :size="34" stroke-width="1.5" />
+        <h2>还没有人填写生日</h2>
+        <p>在「我的空间」补上生日，这里就会自动出现属于寿星的生日页。</p>
+        <router-link class="birthday-empty-link" to="/user-space">去填写生日</router-link>
+      </section>
+
+      <section v-if="hasCelebration" ref="candleSection" class="candle-section">
         <div class="section-label-row">
-          <span class="section-badge">{{ event.page_copy?.candleTitle || 'Make A Wish' }}</span>
+          <span class="section-badge">Make A Wish</span>
           <h2>点亮蜡烛</h2>
         </div>
         <div class="candle-layout">
@@ -126,12 +133,9 @@
           </div>
           <div class="wish-card">
             <span class="wish-eyebrow">Birthday Note</span>
-            <h3>{{ targetUsername }}，生日快乐 🎂</h3>
+            <h3>{{ nameLine }}，生日快乐 🎂</h3>
             <p>
-              {{
-                event.hero_quote ||
-                '这一页只在属于你的日子里变得热闹。愿你新的一岁继续有朋友、有地图、有夜晚冒险，也有许多刚刚好的好运。'
-              }}
+              这一页只在属于你的日子里变得热闹。愿你新的一岁继续有朋友、有地图、有夜晚冒险，也有许多刚刚好的好运。
             </p>
             <div class="wish-metrics">
               <div>
@@ -151,13 +155,11 @@
         </div>
       </section>
 
-      <section ref="flipSection" class="flip-section">
+      <section v-if="hasCelebration" ref="flipSection" class="flip-section">
         <div class="section-label-row">
-          <span class="section-badge">{{ event.page_copy?.messagesTitle || '祝福留言' }}</span>
+          <span class="section-badge">祝福留言</span>
           <h2>翻看祝福</h2>
-          <p class="section-desc">
-            {{ event.page_copy?.messagesDesc || '每一张卡片都是一份心意。' }}
-          </p>
+          <p class="section-desc">每一张卡片都是一份心意。</p>
         </div>
 
         <div v-if="approvedWishes.length === 0" class="flip-empty">
@@ -201,7 +203,10 @@
                         <span class="flip-author">{{ wish.author_name }}</span>
                         <button
                           class="flip-like"
-                          :class="{ liked: likedWishes.has(wish.id), 'is-pulsing': pulsingLikeId === wish.id }"
+                          :class="{
+                            liked: likedWishes.has(wish.id),
+                            'is-pulsing': pulsingLikeId === wish.id,
+                          }"
                           @click.stop="toggleLike(wish)"
                         >
                           <Heart
@@ -236,14 +241,20 @@
         </div>
       </section>
 
-      <section ref="writeSection" class="write-section">
+      <section v-if="hasCelebration" ref="writeSection" class="write-section">
         <div class="section-label-row">
           <span class="section-badge">Write A Wish</span>
           <h2>写下祝福</h2>
-          <p class="section-desc">你的祝福会经过审核后展示在页面上。</p>
+          <p class="section-desc">登录后即可送上祝福，提交后会立刻展示在页面上。</p>
         </div>
 
-        <div class="write-card">
+        <div v-if="!isLoggedIn" class="write-login">
+          <PenLine :size="26" stroke-width="1.6" />
+          <p>祝福需要留在名字下面，所以要先登录。</p>
+          <router-link class="write-submit" :to="{ path: '/login' }">去登录</router-link>
+        </div>
+
+        <div v-else class="write-card">
           <div class="write-avatar" v-if="visitorName">
             {{ visitorName.slice(0, 1).toUpperCase() }}
           </div>
@@ -266,17 +277,13 @@
             <Send :size="18" stroke-width="2.2" />
             <span>{{ isSubmitting ? '发送中...' : '发送祝福' }}</span>
           </button>
-          <div v-if="submitSuccess" class="write-success">
-            祝福已发送，审核通过后将展示在页面上 ✨
-          </div>
+          <div v-if="submitSuccess" class="write-success">祝福已发送，已经出现在上面了 ✨</div>
         </div>
       </section>
 
-      <section class="memories-section">
+      <section v-if="hasCelebration" class="memories-section">
         <div class="section-label-row">
-          <span class="section-badge">{{
-            event.page_copy?.memoriesTitle || 'Memory Gallery'
-          }}</span>
+          <span class="section-badge">Memory Gallery</span>
           <h2>回忆相册</h2>
         </div>
         <div class="memory-grid">
@@ -298,10 +305,10 @@
         </div>
       </section>
 
-      <section class="gift-section">
+      <section v-if="hasCelebration" class="gift-section">
         <div class="section-label-row">
           <span class="section-badge">Birthday Gift</span>
-          <h2>{{ event.page_copy?.giftTitle || '生日礼品卡' }}</h2>
+          <h2>生日礼品卡</h2>
           <p class="section-desc">为今天保留一张可以分享的纪念卡。</p>
         </div>
         <div class="gift-card">
@@ -311,7 +318,7 @@
             <Gift :size="22" stroke-width="2" />
           </div>
           <div class="gift-card-code">
-            <strong>{{ event.page_copy?.giftCode || 'BOH-2026-BIRTHDAY' }}</strong>
+            <strong>{{ giftCode }}</strong>
             <canvas
               ref="scratchCanvas"
               class="scratch-canvas"
@@ -324,7 +331,7 @@
           <div class="gift-card-bottom">
             <div>
               <span>MEMBER</span>
-              <strong>{{ targetUsername }}</strong>
+              <strong>{{ nameLine }}</strong>
             </div>
             <div>
               <span>DATE</span>
@@ -353,7 +360,9 @@
       </div>
     </transition>
 
-    <div class="poster-render-root" aria-hidden="true">
+    <!-- 分享海报是离屏渲染源（html2canvas 抓取），没有寿星时不应存在：
+         否则 DOM 里仍躺着一份「愿你新的一岁」的假文案。 -->
+    <div v-if="hasCelebration" class="poster-render-root" aria-hidden="true">
       <div ref="posterRef" class="share-poster">
         <img :src="getImageUrl('2025-10-shengri.webp')" alt="" loading="lazy" />
         <div class="poster-overlay"></div>
@@ -364,11 +373,11 @@
           </div>
           <div class="poster-main">
             <span>HAPPY BIRTHDAY</span>
-            <h2>{{ targetUsername }}</h2>
+            <h2>{{ nameLine }}</h2>
             <p>{{ posterBlessing }}</p>
           </div>
           <div class="poster-bottom">
-            <span>{{ targetUsername }}</span>
+            <span>{{ nameLine }}</span>
             <strong>{{ displayDate }}</strong>
           </div>
         </div>
@@ -391,7 +400,7 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onMounted, reactive, ref } from 'vue';
+import { computed, nextTick, onMounted, ref } from 'vue';
 import confetti from 'canvas-confetti';
 import html2canvas from 'html2canvas';
 import {
@@ -410,11 +419,15 @@ import {
   WandSparkles,
   X,
 } from 'lucide-vue-next';
-import { supabase } from '@/utils/supabase-client.js';
 import { useAuthStore } from '@/stores/auth';
 import { storeToRefs } from 'pinia';
 import { getImageUrl } from '@/utils/asset-helper.js';
-import { isBirthdayToday } from '@/utils/birthday.js';
+import { getNextCelebration } from '@/utils/birthday.js';
+import {
+  fetchBirthdayProfiles,
+  fetchBirthdayWishes,
+  submitBirthdayWish,
+} from '@/utils/api/birthday-api.js';
 
 const authStore = useAuthStore();
 const { userInfo } = storeToRefs(authStore);
@@ -438,17 +451,10 @@ const submitSuccess = ref(false);
 const currentIndex = ref(0);
 const likedWishes = ref(new Set());
 
-const event = reactive({
-  title: '生日快乐',
-  subtitle: '',
-  hero_quote: '',
-  page_copy: {},
-});
-
 const wishes = ref([]);
-const targetUsername = ref('朋友');
-const isEventActive = ref(false);
-const celebrationDate = ref('');
+/** 所有填了生日的用户（含 birth_month / birth_day 原始 text 值） */
+const profiles = ref([]);
+/** 是否取到了至少一场生日；false 时页面不进业务区，也不伪造内容 */
 const isLoading = ref(true);
 
 let scratchContext = null;
@@ -495,63 +501,6 @@ const memories = [
   },
 ];
 
-const mockWishes = [
-  {
-    id: 'm1',
-    author_name: 'Ryyik',
-    content: '牛儿生日快乐！新的一岁继续在方块之家留下更闪亮的故事。',
-    status: 'approved',
-    is_featured: true,
-    created_at: '2026-07-01T08:00:00Z',
-    likes: 12,
-  },
-  {
-    id: 'm2',
-    author_name: 'Eleven',
-    content: '生日快乐，愿你每天都有刚刚好的好运和不会掉线的快乐。',
-    status: 'approved',
-    is_featured: true,
-    created_at: '2026-07-01T09:00:00Z',
-    likes: 8,
-  },
-  {
-    id: 'm3',
-    author_name: 'End',
-    content: '李小姐生日快乐，愿这一年顺利、自由、开心。',
-    status: 'approved',
-    is_featured: false,
-    created_at: '2026-07-01T10:00:00Z',
-    likes: 6,
-  },
-  {
-    id: 'm4',
-    author_name: '小牛',
-    content: '牟，生日快乐。愿新的一岁继续高高兴兴地向前跑。',
-    status: 'approved',
-    is_featured: false,
-    created_at: '2026-07-01T11:00:00Z',
-    likes: 4,
-  },
-  {
-    id: 'm5',
-    author_name: '橙子',
-    content: '祝你天天开心，生日快乐啦 🎉',
-    status: 'approved',
-    is_featured: false,
-    created_at: '2026-07-01T12:00:00Z',
-    likes: 3,
-  },
-  {
-    id: 'm6',
-    author_name: 'LF',
-    content: '继续开开心心地活下去吧，超搞笑级的生日快乐！',
-    status: 'approved',
-    is_featured: true,
-    created_at: '2026-07-01T13:00:00Z',
-    likes: 7,
-  },
-];
-
 const approvedWishes = computed(() => wishes.value.filter((w) => w.status === 'approved'));
 
 const flipCards = computed(() =>
@@ -562,23 +511,70 @@ const flipCards = computed(() =>
   }),
 );
 
-const isToday = computed(() => isBirthdayToday(userInfo.value.birthMonth, userInfo.value.birthDay));
-const displayDate = computed(() => {
-  if (!celebrationDate.value) return '--';
-  const d = new Date(celebrationDate.value);
-  return `${d.getMonth() + 1}/${d.getDate()}`;
+const isLoggedIn = computed(() => Boolean(userInfo.value?.id));
+
+/**
+ * 所有填了生日的用户 + 他们各自的下一场生日，按「离今天最近」排序。
+ * 封禁账号不上页（与首页生日墙 get_recent_birthday_profiles 同口径）。
+ */
+const celebrating = computed(() =>
+  profiles.value
+    .filter((profile) => !profile.is_banned)
+    .map((profile) => {
+      const next = getNextCelebration(profile.birth_month, profile.birth_day);
+      if (!next) return null;
+      return {
+        id: profile.id,
+        username: profile.username || '朋友',
+        avatarUrl: profile.avatar_url || '',
+        next,
+      };
+    })
+    .filter(Boolean)
+    .sort(
+      (a, b) =>
+        a.next.daysUntil - b.next.daysUntil || a.username.localeCompare(b.username, 'zh-Hans-CN'),
+    ),
+);
+
+/** 最近一场生日的主角（同一天有多位寿星时取排序第一位做代表） */
+const primaryCelebrant = computed(() => celebrating.value[0] || null);
+
+/** 同一场生日的全部寿星 */
+const sameDayCelebrants = computed(() => {
+  const primary = primaryCelebrant.value;
+  if (!primary) return [];
+  return celebrating.value.filter((item) => item.next.date === primary.next.date);
 });
 
-const daysUntil = computed(() => {
-  if (!celebrationDate.value) return '--';
-  const now = new Date();
-  const target = new Date(celebrationDate.value);
-  const diff = Math.ceil((target - now) / (1000 * 60 * 60 * 24));
-  return diff > 0 ? diff : 0;
+const hasCelebration = computed(() => sameDayCelebrants.value.length > 0);
+const targetIds = computed(() => sameDayCelebrants.value.map((item) => item.id));
+const celebration = computed(() => primaryCelebrant.value?.next || null);
+const celebrationDate = computed(() => celebration.value?.date || '');
+const daysUntil = computed(() => celebration.value?.daysUntil ?? 0);
+const isToday = computed(() => celebration.value?.isToday === true);
+
+/** 'YYYY-MM-DD' 直接切片，别过 Date —— 时区会把 1/1 变成 12/31 */
+const displayDate = computed(() => {
+  const date = celebrationDate.value;
+  if (!date) return '--';
+  return `${Number(date.slice(5, 7))}/${Number(date.slice(8, 10))}`;
+});
+
+const nameLine = computed(() => {
+  const names = sameDayCelebrants.value.map((item) => item.username).filter(Boolean);
+  if (names.length === 0) return '朋友';
+  if (names.length <= 2) return names.join('、');
+  return `${names.slice(0, 2).join('、')} 等 ${names.length} 位`;
+});
+
+const giftCode = computed(() => {
+  const year = celebrationDate.value.slice(0, 4) || String(new Date().getFullYear());
+  return `BOH-${year}-BIRTHDAY`;
 });
 
 const heroSubtitle = computed(() => {
-  if (isEventActive.value && isToday.value) return '今天，整个会场都为你亮起来。';
+  if (isToday.value) return '今天，整个会场都为你亮起来。';
   return '写下你的祝福，点亮这个特别的日子。';
 });
 
@@ -683,22 +679,26 @@ const toggleLike = (wish) => {
 
 const submitWish = async () => {
   if (!canSubmit.value || isSubmitting.value) return;
+  if (!isLoggedIn.value) {
+    showToastMessage('登录后才能提交祝福');
+    return;
+  }
   isSubmitting.value = true;
   submitSuccess.value = false;
 
   try {
-    const { error } = await supabase.from('birthday_wishes').insert({
-      event_id: event.id,
-      author_name: visitorName.value.trim(),
-      author_id: userInfo.value?.id || null,
-      content: visitorMessage.value.trim(),
-      status: 'pending',
-      likes: 0,
+    await submitBirthdayWish({
+      targetUserId: primaryCelebrant.value?.id,
+      celebrationDate: celebrationDate.value,
+      authorId: userInfo.value?.id,
+      authorName: visitorName.value,
+      content: visitorMessage.value,
     });
-    if (error) throw error;
     submitSuccess.value = true;
     visitorMessage.value = '';
-    showToastMessage('祝福已发送，等待审核 ✨');
+    await loadWishes();
+    currentIndex.value = 0;
+    showToastMessage('祝福已送达 ✨');
   } catch {
     showToastMessage('发送失败，请稍后重试');
   } finally {
@@ -706,72 +706,26 @@ const submitWish = async () => {
   }
 };
 
-const fetchEvent = async () => {
+/** 取当前这一场（同一天可能多位寿星）已展示的祝福 */
+const loadWishes = async () => {
+  if (!hasCelebration.value) {
+    wishes.value = [];
+    return;
+  }
   try {
-    const { data, error } = await supabase
-      .from('birthday_events')
-      .select('*')
-      .eq('is_active', true)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single();
-    if (error && error.code !== 'PGRST116') throw error;
-    if (data) {
-      Object.assign(event, data);
-      event.id = data.id;
-      celebrationDate.value = data.celebration_date || '';
-      isEventActive.value = data.is_active || false;
-      if (data.target_user_id) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('username')
-          .eq('id', data.target_user_id)
-          .single();
-        if (profile?.username) targetUsername.value = profile.username;
-      }
-    }
+    wishes.value = await fetchBirthdayWishes({
+      targetUserIds: targetIds.value,
+      celebrationDate: celebrationDate.value,
+    });
   } catch {
-    loadMockData();
+    wishes.value = [];
   }
 };
 
-const fetchWishes = async () => {
-  if (!event.id) return;
-  try {
-    const { data, error } = await supabase
-      .from('birthday_wishes')
-      .select('*')
-      .eq('event_id', event.id)
-      .order('created_at', { ascending: false });
-    if (error) throw error;
-    if (data && data.length > 0) wishes.value = data;
-  } catch {
-    loadMockWishes();
-  }
-};
-
-const loadMockData = () => {
-  event.title = '生日快乐';
-  event.subtitle = '今天是最特别的一天';
-  event.hero_quote = '愿你新的一岁，快乐且自由。';
-  event.page_copy = {
-    candleTitle: 'Make A Wish',
-    candleDesc: '点击蜡烛，许个愿吧',
-    messagesTitle: '祝福留言',
-    messagesDesc: '写下你的生日祝福',
-    memoriesTitle: '回忆相册',
-    giftTitle: '生日礼品卡',
-    giftCode: 'BOH-2026-BIRTHDAY',
-  };
-  event.id = 'mock-event-1';
-  celebrationDate.value = new Date().toISOString().split('T')[0];
-  isEventActive.value = true;
-  targetUsername.value = userInfo.value?.username?.trim() || '朋友';
-  loadMockWishes();
-};
-
-const loadMockWishes = () => {
-  wishes.value = mockWishes;
+/** 页面内容 = profiles 里填了生日的用户，不再依赖任何手工配置 */
+const loadCelebration = async () => {
+  profiles.value = await fetchBirthdayProfiles();
+  await loadWishes();
 };
 
 const initScratchCard = () => {
@@ -860,11 +814,14 @@ const closePosterModal = () => {
 
 onMounted(async () => {
   try {
-    await fetchEvent();
-    await fetchWishes();
+    await loadCelebration();
     visitorName.value = userInfo.value?.username || '';
     nextTick(initScratchCard);
     if (isToday.value) setTimeout(() => burstConfetti({ y: 0.4 }), 500);
+  } catch {
+    // 生日表读不到（离线 / 权限变更）时退回空态，不伪造寿星
+    profiles.value = [];
+    wishes.value = [];
   } finally {
     isLoading.value = false;
   }
@@ -877,6 +834,31 @@ onMounted(async () => {
 
 <style scoped>
 /* 加载骨架屏 — 仅覆盖 fetchEvent / fetchWishes 阶段，不依赖主样式表 */
+/* 没有生日活动时的空态。不写死颜色，跟随正文继承，浅色/暗色都不会突兀 */
+.birthday-empty {
+  max-width: 520px;
+  margin: 16vh auto 0;
+  padding: 32px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+}
+
+.birthday-empty h2 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.birthday-empty p {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.6;
+  opacity: 0.62;
+}
+
 .birthday-skeleton {
   max-width: 880px;
   margin: 0 auto;

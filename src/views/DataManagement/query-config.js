@@ -28,7 +28,6 @@ export const STATUS_FILTER_FIELDS = {
   points: 'role',
   subscriptions: 'status',
   gifts: 'gift_status',
-  posterRequests: 'status',
   forum: 'status',
   ads: 'status',
   reportedPosts: 'status',
@@ -52,11 +51,9 @@ export const STATUS_FILTER_FIELDS = {
   moderationLogs: 'target_type',
   forumPostReports: 'status',
   forumPostImages: 'moderation_status',
-  birthdayEvents: 'is_active',
   campaigns: 'stage',
   campaignEntries: 'status',
   campaignRewards: 'status',
-  birthdayWishes: 'status',
   bohCreatorShows: 'creator_platform',
   aiWebSearchLog: 'status',
   postReward: 'status',
@@ -68,7 +65,6 @@ export const DATE_FILTER_FIELDS = {
   points: 'join_date',
   subscriptions: 'expires_at',
   gifts: 'created_at',
-  posterRequests: 'created_at',
   forum: 'created_at',
   ads: 'created_at',
   reportedPosts: 'updated_at',
@@ -102,13 +98,9 @@ export const DATE_FILTER_FIELDS = {
   aiWebSearchLog: 'created_at',
   anniversaryClaims: 'created_at',
   bohCreatorShows: 'created_at',
-  birthdayEvents: 'celebration_date',
   campaigns: 'start_at',
   campaignEntries: 'created_at',
   campaignRewards: 'created_at',
-  birthdayWishes: 'created_at',
-  userFollows: 'created_at',
-  userImpressions: 'created_at',
   labUsageRecords: 'created_at',
   userDataExportJobs: 'requested_at',
 };
@@ -162,18 +154,6 @@ export const TAB_SELECT_COLUMNS = {
     is_default,
     created_at,
     updated_at,
-    profile:user_id(username)
-  `,
-  posterRequests: `
-    id,
-    campaign_code,
-    user_id,
-    recipient,
-    phone,
-    address,
-    material_fee,
-    status,
-    created_at,
     profile:user_id(username)
   `,
   forum: `
@@ -574,54 +554,6 @@ export const TAB_SELECT_COLUMNS = {
     created_at
   `,
 
-  // ========== 生日活动 ==========
-  birthdayEvents: `
-    id,
-    target_user_id,
-    target:target_user_id(username),
-    title,
-    subtitle,
-    hero_quote,
-    page_copy,
-    celebration_date,
-    is_active,
-    sort_order,
-    created_at
-  `,
-
-  // ========== 生日祝福 ==========
-  birthdayWishes: `
-    id,
-    event_id,
-    author_id,
-    author_name,
-    content,
-    status,
-    is_featured,
-    likes,
-    created_at
-  `,
-
-  // ========== 用户关注关系 ==========
-  userFollows: `
-    id,
-    follower_id,
-    following_id,
-    created_at,
-    follower:follower_id(username),
-    following:following_id(username)
-  `,
-
-  // ========== 用户访客记录 ==========
-  userImpressions: `
-    id,
-    author_id,
-    target_id,
-    created_at,
-    author:author_id(username),
-    target:target_id(username)
-  `,
-
   // ========== 实验室使用记录 ==========
   labUsageRecords: `
     id,
@@ -669,7 +601,6 @@ export const TAB_DEFAULT_SORT = {
   points: { column: 'points', ascending: false },
   subscriptions: { column: 'expires_at', ascending: false },
   gifts: { column: 'created_at', ascending: false },
-  posterRequests: { column: 'created_at', ascending: false },
   forum: { column: 'created_at', ascending: false },
   ads: { column: 'sort_order', ascending: true },
   reportedPosts: { column: 'updated_at', ascending: false },
@@ -714,13 +645,9 @@ export const TAB_DEFAULT_SORT = {
   aiWebSearchLog: { column: 'created_at', ascending: false },
   anniversaryClaims: { column: 'created_at', ascending: false },
   bohCreatorShows: { column: 'created_at', ascending: false },
-  birthdayEvents: { column: 'celebration_date', ascending: false },
   campaigns: { column: 'created_at', ascending: false },
   campaignEntries: { column: 'created_at', ascending: false },
   campaignRewards: { column: 'created_at', ascending: false },
-  birthdayWishes: { column: 'created_at', ascending: false },
-  userFollows: { column: 'created_at', ascending: false },
-  userImpressions: { column: 'created_at', ascending: false },
   labUsageRecords: { column: 'created_at', ascending: false },
   userDataExportJobs: { column: 'requested_at', ascending: false },
 };
@@ -737,7 +664,6 @@ export const TAB_SORT_COLUMNS = {
     'points_cost',
   ]),
   gifts: new Set(['created_at', 'completed_at', 'gift_status', 'gift_price']),
-  posterRequests: new Set(['created_at', 'status', 'recipient']),
   forum: new Set(['created_at', 'status', 'author_username']),
   ads: new Set(['sort_order', 'status', 'placement', 'created_at']),
   reportedPosts: new Set(['updated_at', 'created_at', 'status', 'author_username']),
@@ -817,7 +743,6 @@ export const TAB_SORT_COLUMNS = {
   aiWebSearchLog: new Set(['created_at', 'status', 'tier']),
   anniversaryClaims: new Set(['created_at', 'expires_at']),
   bohCreatorShows: new Set(['created_at', 'creator_platform']),
-  birthdayEvents: new Set(['celebration_date', 'is_active', 'sort_order']),
   campaigns: new Set(['slug', 'title', 'stage', 'start_at', 'end_at', 'created_at']),
   campaignEntries: new Set(['created_at', 'kind', 'status', 'campaign_id', 'user_id']),
   campaignRewards: new Set([
@@ -828,9 +753,6 @@ export const TAB_SORT_COLUMNS = {
     'campaign_id',
     'user_id',
   ]),
-  birthdayWishes: new Set(['created_at', 'status', 'is_featured']),
-  userFollows: new Set(['created_at']),
-  userImpressions: new Set(['created_at']),
   labUsageRecords: new Set(['created_at', 'flow_type']),
   userDataExportJobs: new Set([
     'requested_at',
@@ -867,13 +789,6 @@ export const TAB_SEARCH_FIELDS = {
     { column: 'gift_no', type: 'text' },
     { column: 'gift_content', type: 'text' },
     { column: 'gift_status', type: 'text' },
-  ],
-  posterRequests: [
-    { column: 'id', type: 'uuid' },
-    { column: 'user_id', type: 'uuid' },
-    { column: 'recipient', type: 'text' },
-    { column: 'phone', type: 'text' },
-    { column: 'status', type: 'text' },
   ],
   forum: [
     { column: 'id', type: 'uuid' },
@@ -1130,11 +1045,6 @@ export const TAB_SEARCH_FIELDS = {
     { column: 'title', type: 'text' },
     { column: 'creator_platform', type: 'text' },
   ],
-  birthdayEvents: [
-    { column: 'id', type: 'uuid' },
-    { column: 'title', type: 'text' },
-    { column: 'target_user_id', type: 'uuid' },
-  ],
   campaigns: [
     { column: 'id', type: 'uuid' },
     { column: 'slug', type: 'text' },
@@ -1149,23 +1059,6 @@ export const TAB_SEARCH_FIELDS = {
     { column: 'id', type: 'uuid' },
     { column: 'campaign_id', type: 'uuid' },
     { column: 'user_id', type: 'uuid' },
-  ],
-  birthdayWishes: [
-    { column: 'id', type: 'uuid' },
-    { column: 'author_name', type: 'text' },
-    { column: 'content', type: 'text' },
-    { column: 'status', type: 'text' },
-  ],
-  userFollows: [
-    // 主键是 bigint（2026-11-11 核对线上 information_schema 修正，原写 uuid）
-    { column: 'id', type: 'number' },
-    { column: 'follower_id', type: 'uuid' },
-    { column: 'following_id', type: 'uuid' },
-  ],
-  userImpressions: [
-    { column: 'id', type: 'uuid' },
-    { column: 'author_id', type: 'uuid' },
-    { column: 'target_id', type: 'uuid' },
   ],
   labUsageRecords: [
     { column: 'id', type: 'uuid' },

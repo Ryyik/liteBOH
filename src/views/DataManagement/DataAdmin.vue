@@ -28,11 +28,13 @@
       <main class="admin-main">
         <!-- 顶栏搜索已并入表格工具栏（plans/042 A1）：一个关键词 + 一个范围开关，
              不再让「顶部一个框、筛选面板里又一个框」各持一份关键词。
-             顶栏这个框在概览/页面型 tab 上从来没能展示结果，属于无效控件。 -->
+             顶栏这个框在概览/页面型 tab 上从来没能展示结果，属于无效控件。
+             2026-11-12：eyebrow（Users / Lottery …）与下方标题是同一件事，
+             双行标题只让顶栏变高；「新增」与工具栏那颗完全重复（条件一致），
+             这里一并去掉 —— 新增留在表格工具栏，离数据更近。 -->
         <AdminHeader
-          :can-create="canCreateCurrentTab && !isModerationTab"
+          :can-create="false"
           :can-toggle-sidebar="isMobileView"
-          :eyebrow="currentAdminPageMeta.eyebrow"
           :is-refreshing="isRefreshing"
           :is-sidebar-open="sidebarToggleOpen"
           :notification-count="moderationPendingCount"
@@ -79,6 +81,7 @@
             v-if="activeAdminSection === 'overview'"
             :active-diagnostics="activeDiagnostics"
             :active-filter-summary="activeFilterSummary"
+            :has-active-filters="hasActiveFilters"
             :current-tab="currentTab"
             :current-tab-label="currentTabLabel"
             :is-loading="isLoading"
@@ -219,9 +222,7 @@
                       ref="searchInputRef"
                       v-model="searchQuery"
                       type="text"
-                      :placeholder="
-                        isGlobalSearchScope ? '搜索全部表：用户 / 商品 / 帖子...' : '搜索当前表...'
-                      "
+                      :placeholder="isGlobalSearchScope ? '搜索全部表…' : '搜索本表…'"
                       :aria-label="isGlobalSearchScope ? '搜索全部表' : '搜索当前表'"
                       aria-autocomplete="list"
                       :aria-expanded="showSearchSuggestions"
@@ -400,9 +401,18 @@
                     </div>
                   </div>
                 </div>
-                <button class="filter-toggle" type="button" @click="showFilterBar = !showFilterBar">
+                <button
+                  class="filter-toggle"
+                  type="button"
+                  :class="{ 'is-open': showFilterBar, 'has-filters': activeFilterChips.length }"
+                  :aria-expanded="showFilterBar"
+                  @click="showFilterBar = !showFilterBar"
+                >
                   <Filter :size="16" />
                   筛选
+                  <span v-if="activeFilterChips.length" class="filter-toggle-count">{{
+                    activeFilterChips.length
+                  }}</span>
                 </button>
 
                 <!-- 当前生效条件（plans/042 A4）：常驻可单条删除，不必展开筛选面板 -->
@@ -414,9 +424,13 @@
                   @clear="clearAllFilters"
                 />
 
-                <!-- 状态分布 chips：常驻在筛选行（plans/027 4.1.5，不再独立占一行） -->
-                <section v-if="statusBreakdownForCurrentTab.length" class="collection-overview">
-                  <span class="collection-overview-label">状态分布</span>
+                <!-- 分布 chips：常驻筛选行内联（2026-11-12）。
+                     原来它 width:100% + order:5 独占第二行 —— 为了 4 个 chip 多花
+                     38px 的首屏高度（第一行数据从 275 → 237）。标签也不再写死
+                     「状态分布」：users/points 分的是 role、news/products 分的是
+                     category，写「状态」会让人以为自己看错了列。 -->
+                <section v-if="hasStatusBreakdown" class="collection-overview">
+                  <span class="collection-overview-label">{{ statusBreakdownLabel }}</span>
                   <div class="collection-chips">
                     <button
                       v-for="chip in statusBreakdownForCurrentTab"
@@ -425,13 +439,18 @@
                       class="collection-chip"
                       :class="[`tone-${chip.tone}`, { 'is-active': chip.active }]"
                       :aria-pressed="chip.active"
+                      :title="chip.title || chip.label"
                       @click="applyCollectionStatusFilter(chip.value)"
                     >
                       <span class="collection-chip-label">{{ chip.label }}</span>
                       <span class="collection-chip-count">{{ chip.count }}</span>
                     </button>
                   </div>
-                  <span class="collection-overview-hint">{{ statusOverviewHint }}</span>
+                  <!-- 「当前筛选 N 条」与「全部 N」是同一个数字，只在有未归类状态时
+                       才补一句（否则这行右侧永远是重复信息）。 -->
+                  <span v-if="statusResidualCount" class="collection-overview-hint">
+                    另有 {{ statusResidualCount }} 条未归类
+                  </span>
                 </section>
 
                 <!-- 低频操作收进 ⋯（plans/042 A2）：列配置与命令面板都不是每屏必用，
@@ -1025,14 +1044,12 @@
                     </div>
                     <div class="mobile-card-body">
                       <div
-                        v-for="col in mobileVisibleColumns"
+                        v-for="col in mobileCardFields(item)"
                         :key="col.key"
                         class="mobile-card-field"
                       >
                         <span class="mobile-card-label">{{ col.label }}</span>
-                        <span class="mobile-card-value">{{
-                          formatCellValue(item[col.key], col.maxLength)
-                        }}</span>
+                        <span class="mobile-card-value">{{ formatCardFieldValue(item, col) }}</span>
                       </div>
                     </div>
                     <div class="mobile-card-actions">
@@ -1040,7 +1057,11 @@
                         v-for="act in getRowActionModel(item).primary"
                         :key="act.id"
                         type="button"
-                        :class="['review-btn', act.tone]"
+                        :class="[
+                          'review-btn',
+                          act.tone,
+                          { 'is-quiet': !isModerationTab && !isLotteryOpsTab },
+                        ]"
                         :disabled="act.disabled"
                         :title="act.title"
                         @click="act.run"
@@ -1617,7 +1638,7 @@
                                   col.key === 'is_banned' || col.key === 'is_muted'
                                     ? item[col.key] === true
                                       ? 'badge-danger'
-                                      : 'badge-muted'
+                                      : 'badge-plain'
                                     : `badge-${getBadgeType(item[col.key])}`
                                 "
                                 :tabindex="isInlineEditable(col, item) ? 0 : -1"
@@ -1627,11 +1648,14 @@
                                 @keydown.enter.prevent="quickEditCell(item, col)"
                                 @keydown.space.prevent="quickEditCell(item, col)"
                               >
+                                <!-- 布尔列（封禁/禁言）：为假时渲染「—」而不套灰胶囊。
+                                     20 行连着的「否」灰胶囊是纯噪音，且和真值一样重；
+                                     为真时保留红色实心 —— 那才是要一眼看到的。 -->
                                 {{
                                   col.key === 'is_banned' || col.key === 'is_muted'
                                     ? item[col.key] === true
                                       ? '是'
-                                      : '否'
+                                      : '—'
                                     : item[col.key] || '-'
                                 }}
                               </span>
@@ -1639,6 +1663,7 @@
                                 v-if="isCellEditable(col, item) && !isInlineEditing(item, col)"
                                 type="button"
                                 class="cell-edit-trigger"
+                                tabindex="-1"
                                 :aria-label="`编辑 ${col.label}`"
                                 title="编辑"
                                 @click="quickEditCell(item, col)"
@@ -1671,6 +1696,7 @@
                                 v-if="isCellEditable(col, item) && !isInlineEditing(item, col)"
                                 type="button"
                                 class="cell-edit-trigger"
+                                tabindex="-1"
                                 :aria-label="`编辑 ${col.label}`"
                                 title="编辑"
                                 @click="quickEditCell(item, col)"
@@ -1693,6 +1719,7 @@
                                 v-if="isCellEditable(col, item) && !isInlineEditing(item, col)"
                                 type="button"
                                 class="cell-edit-trigger"
+                                tabindex="-1"
                                 :aria-label="`编辑 ${col.label}`"
                                 title="编辑"
                                 @click="quickEditCell(item, col)"
@@ -1715,6 +1742,7 @@
                                 v-if="isCellEditable(col, item) && !isInlineEditing(item, col)"
                                 type="button"
                                 class="cell-edit-trigger"
+                                tabindex="-1"
                                 :aria-label="`编辑 ${col.label}`"
                                 title="编辑"
                                 @click="quickEditCell(item, col)"
@@ -1742,6 +1770,7 @@
                                 v-if="isCellEditable(col, item) && !isInlineEditing(item, col)"
                                 type="button"
                                 class="cell-edit-trigger"
+                                tabindex="-1"
                                 :aria-label="`编辑 ${col.label}`"
                                 title="编辑"
                                 @click="quickEditCell(item, col)"
@@ -1786,6 +1815,7 @@
                                 v-if="isCellEditable(col, item) && !isInlineEditing(item, col)"
                                 type="button"
                                 class="cell-edit-trigger"
+                                tabindex="-1"
                                 :aria-label="`编辑 ${col.label}`"
                                 title="编辑"
                                 @click="quickEditCell(item, col)"
@@ -1800,7 +1830,11 @@
                                 v-for="act in getRowTableActions(item).primary"
                                 :key="act.id"
                                 type="button"
-                                :class="['review-btn', act.tone]"
+                                :class="[
+                                  'review-btn',
+                                  act.tone,
+                                  { 'is-quiet': !isModerationTab && !isLotteryOpsTab },
+                                ]"
                                 :disabled="act.disabled"
                                 :title="act.title"
                                 @click="act.run"
@@ -3037,7 +3071,16 @@ const stats = reactive({
 //（immediate watcher 在 setup 期即求值，声明在后会触发 TDZ，见上方“当前表配置”）。
 const visibleCurrentColumns = computed(() => {
   const configured = columnSettings.value[currentTab.value];
-  if (!configured || !Array.isArray(configured.visibleKeys)) return currentColumns.value;
+  if (!configured || !Array.isArray(configured.visibleKeys)) {
+    /**
+     * 没有本地列配置时用「配置里的默认可见集」（2026-11-12）：
+     * `defaultVisible: false` 的列不进列表 —— 主要是 UUID 主键和几张表里
+     * 常年在列表里显示「—」的字段（users 的收货三件套、points 的封禁/禁言）。
+     * 它们仍在 `currentColumns` 里，所以「列配置」面板能随时勾回来，
+     * 「恢复默认」回到这套精选集，而不是回到「30 列全开」。
+     */
+    return currentColumns.value.filter((col) => col.defaultVisible !== false);
+  }
   const visibleKeys = new Set(configured.visibleKeys);
   const orderedKeys = Array.isArray(configured.orderKeys)
     ? configured.orderKeys
@@ -3051,9 +3094,50 @@ const visibleCurrentColumns = computed(() => {
   );
   return [...orderedColumns, ...missingColumns];
 });
-const mobileVisibleColumns = computed(() => {
-  return visibleCurrentColumns.value.slice(0, 4);
+/**
+ * 移动端卡片字段（2026-11-12）：
+ * 1) 最多 3 个 —— 原来 4 个字段的卡片 250px 高，20 条要滚 5000px；
+ * 2) 去掉「卡片标题已经显示过的那一列」—— users 卡片标题是用户名，
+ *    字段区第一行又是「用户名 lin_xiaoyu」，同一屏说两遍。
+ */
+const MOBILE_CARD_FIELD_LIMIT = 3;
+const CARD_TITLE_KEY_ORDER = ['title', 'name', 'username', 'email', 'id'];
+/** 卡片标题已经承担的那一列（users=用户名 / 帖子=标题），字段区不再重复 */
+const cardTitleKey = computed(() => {
+  const columns = visibleCurrentColumns.value;
+  return CARD_TITLE_KEY_ORDER.find((key) => columns.some((col) => col.key === key)) || '';
 });
+const mobileVisibleColumns = computed(() =>
+  visibleCurrentColumns.value.filter((col) => col.key !== cardTitleKey.value),
+);
+
+/**
+ * 移动端卡片字段的显示值。
+ *
+ * 原来直接复用 formatCellValue ⇒ 布尔列在中文界面里显示成 `false`（2026-11-12 实拍），
+ * 日期列显示 ISO 串。这里按列类型收敛：布尔是/—、日期 zh-CN、其余走通用截断。
+ */
+const formatCardFieldValue = (item, col) => {
+  const raw = item?.[col?.key];
+  if (col?.key === 'is_banned' || col?.key === 'is_muted') return raw === true ? '是' : '—';
+  if (col?.type === 'date' || col?.type === 'datetime') return formatDate(raw);
+  if (typeof raw === 'boolean') return raw ? '是' : '否';
+  return formatCellValue(raw, col?.maxLength);
+};
+
+/**
+ * 每条记录实际要显示的字段：先剔掉「这条记录本来就没有值」的列，再取前 3 个。
+ * 固定取前 3 列的后果是：20 个用户里 18 个的卡片都有一行「封禁 —」，
+ * 真正有用的「积分」永远排不进来。全空时退回原顺序（至少还能看到列名）。
+ */
+const mobileCardFields = (item) => {
+  const rows = mobileVisibleColumns.value.map((col) => ({
+    col,
+    value: formatCardFieldValue(item, col),
+  }));
+  const filled = rows.filter((row) => row.value !== '—' && row.value !== '-');
+  return (filled.length ? filled : rows).slice(0, MOBILE_CARD_FIELD_LIMIT).map((row) => row.col);
+};
 const getCardTitle = (item) => {
   return item.title || item.name || item.username || item.email || item.id || '记录';
 };
@@ -3198,9 +3282,17 @@ const isPlaceholderAdminSection = computed(() =>
 // 变更日志/最近访问/固定 Tab 相关的 computeds 由 createChangeLogCenter 工厂提供 (见 switchTab 之后)
 // 当前先声明占位引用, 避免模板渲染时找不到变量
 // (createChangeLogCenter 调用后将重新赋值)
-const lastRefreshLabel = computed(() =>
-  lastRefreshedAt.value ? `刷新于 ${formatDateTime(lastRefreshedAt.value)}` : '尚未刷新',
-);
+/**
+ * 「最后刷新」卡片的**大字**只用时分。
+ * 原来整句「刷新于 2026/11/12 13:48」塞进 .g-metric（2.4rem 大字）⇒ 折成三行，
+ * 把四张卡的等高线撑破，视觉上像一块糊掉的文字块。日期属于次要信息，进 detail。
+ */
+const lastRefreshClock = computed(() => {
+  if (!lastRefreshedAt.value) return '—';
+  const date = new Date(lastRefreshedAt.value);
+  if (Number.isNaN(date.getTime())) return '—';
+  return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+});
 
 // 收集结果类 tab: 管理员查看用户提交的收集表数据 (当前为海报申请, 后续可扩展自建收集表)
 const COLLECTION_RESULT_TABS = new Set(['posterRequests']);
@@ -3331,7 +3423,10 @@ const statusBreakdownForCurrentTab = computed(() => {
     },
     ...kb.columns.map((col) => ({
       value: col.value,
-      label: col.label,
+      // chips 去掉「（user）」这种原始枚举后缀：值域下拉里留着它有帮助，
+      // 但 4 个胶囊各多 7 个字符 ⇒ 1440 下第四个直接被挤出可视区。
+      label: String(col.label || '').replace(/\s*[（(][^）)]*[）)]\s*$/, '') || String(col.value),
+      title: col.label,
       count: counts.get(col.value) || 0,
       tone: col.tone,
       // 用 String 比较：下拉里的布尔状态（is_active=false）与 chips 的字符串键
@@ -3341,6 +3436,31 @@ const statusBreakdownForCurrentTab = computed(() => {
     })),
   ];
 });
+
+/**
+ * 分布条标签：按「真正参与分布的那一列」取名（角色分布 / 分类分布 / 类型分布…）。
+ * 写死「状态分布」是在说谎：users / points 分的是 role，news / products 分的是
+ * category，pointsTransactions 分的是 reason —— 标签和行为对不上，比没有标签更糟。
+ */
+const statusBreakdownLabel = computed(() => {
+  const key = kanbanViewConfig.value?.statusKey || '';
+  const field = [...(currentFields.value || []), ...(currentColumns.value || [])].find(
+    (item) => item.key === key,
+  );
+  const label = String(field?.label || '').trim();
+  return label ? `${label}分布` : '分布';
+});
+
+/**
+ * 分布条是否值得占位：有值域 **且** 真的有条目。
+ * 空表时 4 个胶囊全是 0（「全部 0 / 普通用户 0 / 管理员 0 / 版主 0」），
+ * 既不能筛出东西，也和下方「暂无数据」自相矛盾。
+ */
+const hasStatusBreakdown = computed(
+  () =>
+    statusBreakdownForCurrentTab.value.length > 0 &&
+    statusBreakdownForCurrentTab.value[0].count > 0,
+);
 
 /**
  * 状态单一口径（plans/042 A3）：chips 的值域来自配置声明，**且筛的就是同一个列**时，
@@ -3376,12 +3496,8 @@ const statusResidualCount = computed(() => {
   return Math.max(0, (Number(counts.total) || 0) - known);
 });
 
-const statusOverviewHint = computed(() => {
-  const base = `当前筛选 ${totalRecordCount.value} 条`;
-  return statusResidualCount.value
-    ? `${base} · 另有 ${statusResidualCount.value} 条未归类状态`
-    : base;
-});
+// 「当前筛选 N 条」已从 chips 行移除（2026-11-12）：它和「全部 N」是同一个数字。
+// 未归类状态的提示改由模板直接读 statusResidualCount。
 
 const diagnosticIssueCount = computed(() => {
   const schedulerFailed = ['failed', 'partial_failure'].includes(
@@ -3751,19 +3867,32 @@ const activeDiagnostics = computed(() => [
   },
 ]);
 
+/**
+ * 「最近更新」列表（2026-11-12 重写）。
+ *
+ * 原来四张表无条件各出一条，标题写死「论坛帖子 已有更新 / 暂无本页数据」，
+ * 于是运营打开概览先看到四行「暂无本页数据 · 0 条记录」—— 零信息的占位。
+ * 现在：只保留真有数据的表，按条数排，标题就是表名，右侧放最近一条的时间。
+ * 一张表都没有时返回空数组，组件里的「暂无最近活动」才有意义。
+ */
 const recentActivityItems = computed(() => {
   const sourceTabs = ['forum', 'news', 'activities', 'products'];
-  return sourceTabs.map((tabId) => {
-    const meta = tabs.find((tab) => tab.id === tabId) || {};
-    const rows = dataStore[tabId] || [];
-    const latest = rows[0] || {};
-    const timestamp = latest.updated_at || latest.created_at || latest.date || '';
-    return {
-      id: tabId,
-      title: `${meta.label || tabId} ${rows.length ? '已有更新' : '暂无本页数据'}`,
-      meta: timestamp ? formatDateTime(timestamp) : `${getTabCount(tabId)} 条记录`,
-    };
-  });
+  return sourceTabs
+    .map((tabId) => {
+      const meta = tabs.find((tab) => tab.id === tabId) || {};
+      const rows = dataStore[tabId] || [];
+      const latest = rows[0] || {};
+      const timestamp = latest.updated_at || latest.created_at || latest.date || '';
+      return {
+        id: tabId,
+        title: meta.label || tabId,
+        meta: `${Number(getTabCount(tabId)) || rows.length || 0} 条记录`,
+        timestamp: timestamp ? formatDateTime(timestamp) : '',
+        count: Number(getTabCount(tabId)) || rows.length || 0,
+      };
+    })
+    .filter((item) => item.count > 0)
+    .sort((a, b) => b.count - a.count);
 });
 
 // handleModuleClick / handleAdminNavClick / getTabsByGroup / handleOverviewTabClick /
@@ -3847,10 +3976,12 @@ const liveStatusCards = computed(() => [
   {
     id: 'refresh',
     label: '最后刷新',
-    value: lastRefreshLabel.value || '刚刚',
+    value: lastRefreshClock.value,
     status: 'info',
     icon: RefreshCw,
-    detail: `${secondsUntilRefresh.value}s 后自动刷新`,
+    detail: lastRefreshedAt.value
+      ? `${secondsUntilRefresh.value}s 后自动刷新`
+      : '尚未刷新 · 首屏加载后自动更新',
   },
 ]);
 // 分页
@@ -4761,7 +4892,6 @@ const fetchStats = async () => {
       query.eq('status', 'active').gt('expires_at', nowIso),
     ),
     gifts: fetchCount('user_gifts'),
-    posterRequests: fetchCount('poster_requests'),
     forum: fetchCount('posts'),
     reportedPosts: fetchCount('posts', (query) => query.eq('status', 'limited')),
     reviewPosts: fetchCount('posts', (query) => query.ilike('status', 'rejected')),
@@ -5425,10 +5555,7 @@ const fetchTabData = async (tabId = currentTab.value, options = {}) => {
       'anniversaryClaims',
       'forumPostReports',
       'moderationLogs',
-      'birthdayEvents',
       'notifications',
-      'userFollows',
-      'userImpressions',
       'photoAlbums',
     ].includes(tabId);
     if (needsFlatten) {
@@ -8979,7 +9106,9 @@ onUnmounted(() => {
   align-items: center;
   gap: calc(var(--spacing) * 6);
   border-bottom: 1px solid var(--border);
-  margin-bottom: calc(var(--spacing) * 4);
+  /* 2026-11-12：原本 margin-bottom 15px —— 标签条自己已有 border-bottom 当分隔线，
+     这 15px 是纯粹的空洞（工具栏被推低一整行距）。直接归零。 */
+  margin-bottom: 0;
   padding: 0 calc(var(--spacing) * 1);
   flex: 0 0 auto;
   overflow-x: auto;
@@ -8992,13 +9121,15 @@ onUnmounted(() => {
 }
 .g-module-tab {
   position: relative;
-  padding: calc(var(--spacing) * 2) calc(var(--spacing) * 1);
+  /* 42 → 36：这是全页最不该占高度的一条（它的信息量 = 一个词） */
+  padding: 8px calc(var(--spacing) * 1);
   border: none;
   background: transparent;
   color: var(--muted-foreground);
   font: inherit;
-  font-size: 0.84rem;
+  font-size: 0.82rem;
   font-weight: 500;
+  line-height: 1.2;
   cursor: pointer;
   white-space: nowrap;
   transition: color 0.2s ease;

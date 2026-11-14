@@ -17,7 +17,7 @@ export const normalizeBirthday = (month, day) => {
 
   return {
     month: safeMonth,
-    day: safeDay
+    day: safeDay,
   };
 };
 
@@ -26,6 +26,64 @@ export const isBirthdayToday = (month, day, now = new Date()) => {
   if (!birthday || !(now instanceof Date) || Number.isNaN(now.getTime())) return false;
 
   return birthday.month === now.getMonth() + 1 && birthday.day === now.getDate();
+};
+
+const SHANGHAI_OFFSET_MS = 8 * 60 * 60 * 1000;
+const DAY_MS = 24 * 60 * 60 * 1000;
+const pad2 = (value) => String(value).padStart(2, '0');
+const isLeapYear = (year) => year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+
+/**
+ * 北京时间的「今天」（UTC+8，中国无夏令时，固定偏移即可）。
+ *
+ * 为什么不直接 new Date().getMonth()：生日页和生日邮件必须同一口径，
+ * 而邮件侧用的是 `(now() at time zone 'Asia/Shanghai')::date`。
+ * 用本地时区算的话，海外访问者/UTC 凌晨会差一天，出现「明明今天生日却显示倒计时 364 天」。
+ */
+export const getShanghaiDate = (now = new Date()) => {
+  const ms = now instanceof Date ? now.getTime() : NaN;
+  if (Number.isNaN(ms)) return null;
+  const shifted = new Date(ms + SHANGHAI_OFFSET_MS);
+  return {
+    year: shifted.getUTCFullYear(),
+    month: shifted.getUTCMonth() + 1,
+    day: shifted.getUTCDate(),
+  };
+};
+
+/**
+ * 下一次生日（含今天），按北京时间算。
+ *
+ * 2/29 出生的人在平年落到 2/28 —— 与 `boh_enqueue_birthday_mails()` 同口径，
+ * 否则闰日出生的人四年才被点亮三次。
+ *
+ * @returns {{ year:number, month:number, day:number, date:string, daysUntil:number, isToday:boolean } | null}
+ */
+export const getNextCelebration = (month, day, now = new Date()) => {
+  const birthday = normalizeBirthday(month, day);
+  const today = getShanghaiDate(now);
+  if (!birthday || !today) return null;
+
+  const toDayMs = (d) => Date.UTC(d.year, d.month - 1, d.day);
+  const resolveInYear = (year) => ({
+    year,
+    month: birthday.month,
+    // 平年的 2/29 落到 2/28
+    day: birthday.month === 2 && birthday.day === 29 && !isLeapYear(year) ? 28 : birthday.day,
+  });
+
+  const todayMs = toDayMs(today);
+  let candidate = resolveInYear(today.year);
+  if (toDayMs(candidate) < todayMs) candidate = resolveInYear(today.year + 1);
+
+  const daysUntil = Math.round((toDayMs(candidate) - todayMs) / DAY_MS);
+
+  return {
+    ...candidate,
+    date: `${candidate.year}-${pad2(candidate.month)}-${pad2(candidate.day)}`,
+    daysUntil,
+    isToday: daysUntil === 0,
+  };
 };
 
 export const getNextBirthdayDistance = (month, day, now = new Date()) => {
@@ -46,6 +104,6 @@ export const getNextBirthdayDistance = (month, day, now = new Date()) => {
   return {
     ...birthday,
     daysUntil,
-    nextDate
+    nextDate,
   };
 };

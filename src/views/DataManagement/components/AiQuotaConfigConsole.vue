@@ -2,7 +2,6 @@
   <section class="quota-config-page">
     <header class="quota-config-hero">
       <div>
-        <span class="quota-kicker">AI Usage controls</span>
         <h2>AI 额度与计费</h2>
         <p>统一控制模型消耗倍率、每日 Token 和 Web Searching 次数。</p>
       </div>
@@ -360,13 +359,6 @@ onMounted(loadConfig);
   align-items: center;
   gap: 20px;
   padding: 22px;
-}
-.quota-kicker {
-  color: var(--muted-foreground);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
 }
 h2,
 h3,

@@ -694,38 +694,6 @@ export const SAVE_STRATEGIES = {
     });
   },
 
-  birthdayEvents: async ({ editingItem }) => {
-    const normalizedTitle = String(editingItem.title || '').trim();
-    if (!normalizedTitle) throw new Error('标题不能为空');
-    const normalizedDate = toDateInputValue(editingItem.celebration_date);
-    if (!normalizedDate) throw new Error('庆祝日期不能为空');
-
-    return pickWritableFields('birthdayEvents', {
-      // target_user_id 是 NOT NULL；表单里是 required 的 user-picker
-      target_user_id: editingItem.target_user_id || null,
-      title: normalizedTitle,
-      subtitle: String(editingItem.subtitle || '').trim(),
-      hero_quote: String(editingItem.hero_quote || '').trim(),
-      page_copy: editingItem.page_copy || {},
-      celebration_date: normalizedDate,
-      is_active: editingItem.is_active === true || editingItem.is_active === 'true',
-      sort_order: Number(editingItem.sort_order || 0),
-      updated_at: new Date().toISOString(),
-    });
-  },
-
-  birthdayWishes: async ({ editingItem }) => {
-    const normalizedStatus = String(editingItem.status || 'pending').trim();
-    if (!['pending', 'approved', 'rejected'].includes(normalizedStatus))
-      throw new Error('祝福状态无效');
-
-    return pickWritableFields('birthdayWishes', {
-      status: normalizedStatus,
-      is_featured: editingItem.is_featured === true || editingItem.is_featured === 'true',
-      updated_at: new Date().toISOString(),
-    });
-  },
-
   // 'blockWallItems' 保存策略已随方块墙退场删除（2026-10-19，表 drop 见 2026101904 迁移）
 
   bohCreatorShows: async ({ editingItem }) => {
@@ -902,21 +870,6 @@ export const SAVE_STRATEGIES = {
       detail,
       tag,
       is_default: normalizedIsDefault,
-      updated_at: new Date().toISOString(),
-    });
-  },
-
-  posterRequests: async ({ editingItem }) => {
-    const normalizedUserId = String(editingItem.user_id || '').trim();
-    if (!normalizedUserId) throw new Error('请先选择用户');
-
-    const normalizedStatus = String(editingItem.status || 'pending').trim() || 'pending';
-    const allowedStatuses = new Set(['pending', 'processing', 'shipped', 'completed']);
-    if (!allowedStatuses.has(normalizedStatus)) throw new Error('海报申请状态无效');
-
-    return pickWritableFields('posterRequests', {
-      user_id: normalizedUserId,
-      status: normalizedStatus,
       updated_at: new Date().toISOString(),
     });
   },

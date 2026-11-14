@@ -29,8 +29,11 @@ describe('data admin density overhaul', () => {
 
   it('truncates UUID id columns', () => {
     const tables = read('src/views/DataManagement/config/tables.js');
-    expect(tables).toContain("label: 'ID', maxLength: 12");
-    expect(tables).not.toContain("label: 'ID', maxLength: 24");
+    // 用正则而不是固定字符串：列对象上除了 maxLength 还会挂 defaultVisible /
+    // copyable 等属性，2026-11-12 加 defaultVisible 就把 toContain 打断了。
+    // 断言的是「ID 列一律 12 字截断」，跟属性顺序无关。
+    expect(tables).toMatch(/label: 'ID',[^}]*maxLength: 12/);
+    expect(tables).not.toMatch(/label: 'ID',[^}]*maxLength: (?!12\b)\d+/);
   });
 });
 

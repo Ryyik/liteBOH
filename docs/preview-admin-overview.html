@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>管理台概览 · 静态预览</title>
+<style>
+  :root {
+    --bg: #f5f5f7;
+    --card: #ffffff;
+    --line: rgba(0, 0, 0, 0.09);
+    --text: #1d1d1f;
+    --muted: #6e6e73;
+    --accent: #ff453a;
+    --warn: #b25000;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 14px/1.5 "DM Sans", ui-sans-serif, system-ui, -apple-system, "PingFang SC", sans-serif;
+  }
+  .shell { display: flex; min-height: 100vh; }
+  .side {
+    width: 176px; flex: 0 0 176px; padding: 18px 12px;
+    display: flex; flex-direction: column; gap: 18px;
+    border-right: 1px solid var(--line); background: var(--bg);
+  }
+  .brand { display: flex; align-items: center; gap: 8px; padding: 0 6px; font-size: 13px; font-weight: 600; }
+  .brand i { width: 9px; height: 9px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 3px rgba(255,69,58,.14); }
+  .nav { display: flex; flex-direction: column; gap: 2px; }
+  .nav a {
+    padding: 7px 10px; border-radius: 9px; color: inherit;
+    text-decoration: none; font-size: 13px; opacity: .72;
+  }
+  .nav a:hover { background: #ececf0; opacity: 1; }
+  .nav a.on { background: var(--card); border: 1px solid var(--line); opacity: 1; font-weight: 600; }
+  .foot { margin-top: auto; padding: 10px; border-top: 1px solid var(--line); font-size: 12px; color: var(--muted); }
+  .main { flex: 1; min-width: 0; max-width: 920px; margin: 0 auto; padding: 40px 20px 72px; }
+  .eyebrow { margin: 0 0 6px; font-size: 12px; color: var(--muted); }
+  h1 { margin: 0 0 18px; font-size: 26px; font-weight: 600; letter-spacing: -.02em; }
+  .cmd {
+    position: relative; display: flex; align-items: center; gap: 10px;
+    height: 54px; padding: 0 16px; background: var(--card);
+    border: 1px solid var(--line); border-radius: 14px;
+    box-shadow: 0 1px 2px rgba(0,0,0,.03);
+    transition: border-color .16s, box-shadow .16s;
+  }
+  .cmd:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(255,69,58,.12); }
+  .cmd.on { border-color: var(--accent); }
+  .cmd svg { opacity: .45; flex: 0 0 auto; }
+  .cmd input {
+    flex: 1; min-width: 0; height: 100%; border: 0; outline: none;
+    background: transparent; color: inherit; font: inherit; font-size: 14px;
+  }
+  kbd {
+    font: 11px/1 ui-monospace, monospace; padding: 3px 6px;
+    border: 1px solid var(--line); border-radius: 6px; color: var(--muted);
+  }
+  .results {
+    position: absolute; z-index: 20; top: calc(100% + 8px); left: 0; right: 0;
+    padding: 6px; background: var(--card); border: 1px solid var(--line);
+    border-radius: 14px; box-shadow: 0 16px 40px -12px rgba(0,0,0,.22); display: none;
+  }
+  .results.open { display: block; }
+  .results p.h { margin: 4px 8px 6px; font-size: 11px; color: var(--muted); }
+  .row {
+    display: flex; align-items: center; gap: 10px; width: 100%;
+    padding: 8px 10px; border: 0; border-radius: 9px; background: transparent;
+    color: inherit; font: inherit; font-size: 13px; text-align: left; cursor: pointer;
+  }
+  .row:hover, .row.cursor { background: #f2f2f7; }
+  .row b { font-weight: 600; }
+  .row span.m { flex: 1; min-width: 0; font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tag { font-size: 11px; padding: 1px 6px; border-radius: 999px; background: rgba(255,159,10,.14); color: var(--warn); }
+  .cards { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 12px; margin: 22px 0 28px; }
+  .card {
+    display: flex; flex-direction: column; gap: 8px; padding: 15px 16px 16px;
+    background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+    box-shadow: 0 1px 2px rgba(0,0,0,.03);
+    transition: transform .16s, box-shadow .16s, border-color .16s;
+  }
+  .card:hover { transform: translateY(-2px); border-color: rgba(0,0,0,.14); box-shadow: 0 10px 28px -16px rgba(0,0,0,.28); }
+  .card small { font-size: 12px; color: var(--muted); }
+  .card strong { font-size: 27px; font-weight: 600; line-height: 1.05; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+  .card.zero strong { opacity: .35; }
+  .inbox { background: var(--card); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 1px 2px rgba(0,0,0,.03); overflow: hidden; }
+  .inbox header { display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+  .inbox header h2 { margin: 0; font-size: 14px; font-weight: 600; }
+  .badge { min-width: 18px; padding: 1px 6px; border-radius: 999px; background: rgba(255,69,58,.12); color: #d70015; font-size: 11px; text-align: center; }
+  .inbox header a { margin-left: auto; font-size: 12px; color: var(--muted); text-decoration: none; }
+  ul { margin: 0; padding: 0; list-style: none; }
+  li {
+    display: flex; align-items: center; gap: 10px; min-height: 52px;
+    padding: 8px 14px; border-bottom: 1px solid var(--line);
+    transition: background-color .14s;
+  }
+  li:hover { background: #fafafc; }
+  li:last-child { border-bottom: 0; }
+  .dot { width: 5px; height: 5px; border-radius: 50%; background: #c7c7cc; flex: 0 0 auto; }
+  .dot.d { background: var(--accent); }
+  .dot.w { background: #ff9f0a; }
+  .type { flex: 0 0 44px; font-size: 11px; color: var(--muted); }
+  .title { flex: 1; min-width: 0; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  time { font-size: 11px; color: var(--muted); }
+  .act {
+    padding: 4px 11px; border: 1px solid var(--line); border-radius: 7px;
+    background: transparent; color: inherit; font: inherit; font-size: 12px; cursor: pointer;
+    transition: border-color .14s, background-color .14s;
+  }
+  .act:hover { border-color: rgba(0,0,0,.18); background: var(--card); }
+  .tip { margin: 18px 0 0; font-size: 12px; color: var(--muted); }
+  .tip code { padding: 1px 5px; border-radius: 4px; background: #ececf0; font-size: 11px; }
+  .toast {
+    position: fixed; left: 50%; bottom: 28px; transform: translate(-50%, 12px);
+    padding: 9px 16px; border-radius: 999px; background: #1d1d1f; color: #fff;
+    font-size: 12px; opacity: 0; pointer-events: none; transition: all .2s ease;
+  }
+  .toast.on { opacity: 1; transform: translate(-50%, 0); }
+  .params {
+    display: flex; flex-direction: column; gap: 12px;
+    padding: 12px 14px 14px;
+    background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+    box-shadow: 0 1px 2px rgba(0,0,0,.03);
+  }
+  .chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 9px; border-radius: 9px; font-size: 13px; }
+  .act-chip { background: rgba(255,69,58,.1); color: #c4000f; font-weight: 600; }
+  .chip button { width: 16px; height: 16px; padding: 0; border: 0; border-radius: 50%; background: rgba(0,0,0,.08); color: inherit; cursor: pointer; line-height: 1; }
+  .phead { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .hint { flex: 1; min-width: 120px; font-size: 12px; color: var(--muted); }
+  .hint.err { color: var(--warn); }
+  .hint:empty { display: none; }
+  .ptoggle {
+    display: inline-flex; align-items: center; gap: 5px; height: 32px; padding: 0 11px;
+    border: 0; border-radius: 999px; background: #f2f2f7;
+    color: inherit; font: inherit; font-size: 12px; cursor: pointer;
+  }
+  .ptoggle:hover { background: #eaeaef; }
+  .ptoggle small { font-size: 11px; color: var(--muted); }
+  .ptoggle svg { transition: transform .18s; }
+  .ptoggle[aria-expanded="true"] svg { transform: rotate(180deg); }
+  .prow { display: grid; grid-template-columns: repeat(auto-fit, minmax(152px,1fr)); gap: 12px 14px; align-items: start; }
+  .more { padding: 12px; border-radius: 11px; background: #f2f2f7; }
+  .field { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+  .field > span { font-size: 11px; color: var(--muted); }
+  .field > span i { font-style: normal; color: #d92b1f; margin-left: 2px; }
+  .field.wide { grid-column: span 2; }
+  .field small { font-size: 11px; line-height: 1.45; color: var(--muted); opacity: .8; }
+  .pin {
+    width: 100%; height: 34px; padding: 0 10px; border: 1px solid var(--line); border-radius: 9px;
+    background: var(--card); color: inherit; font: inherit; font-size: 13px; outline: none;
+    transition: border-color .14s, box-shadow .14s;
+  }
+  .pin:hover { border-color: rgba(0,0,0,.16); }
+  textarea.pin { height: auto; padding: 8px 10px; line-height: 1.55; resize: vertical; }
+  select.pin { cursor: pointer; }
+  .pin::placeholder { color: inherit; opacity: .38; }
+  .pin:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(255,69,58,.12); }
+  .pin.miss { border-color: rgba(217,43,31,.42); }
+  .ro {
+    display: flex; align-items: center; height: 34px; padding: 0 10px;
+    border: 1px dashed var(--line); border-radius: 9px; font-size: 13px; color: var(--muted);
+    background: var(--card);
+  }
+  .switch {
+    display: inline-flex; align-items: center; gap: 7px; height: 34px; padding: 0 10px;
+    border: 1px solid var(--line); border-radius: 9px; background: var(--card);
+    color: inherit; font: inherit; font-size: 12px; cursor: pointer;
+  }
+  .switch:hover { border-color: rgba(0,0,0,.16); }
+  .switch i { position: relative; width: 24px; height: 13px; border-radius: 999px; background: rgba(128,128,128,.35); transition: background .18s; }
+  .switch i::after { content: ''; position: absolute; top: 1.5px; left: 1.5px; width: 10px; height: 10px; border-radius: 50%; background: #fff; transition: transform .18s; }
+  .switch em { font-style: normal; font-size: 11px; color: var(--muted); }
+  .switch.on i { background: var(--accent); }
+  .switch.on i::after { transform: translateX(11px); }
+  .run {
+    height: 34px; padding: 0 16px; border: 0; border-radius: 9px;
+    background: var(--accent); color: #fff; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+    box-shadow: 0 2px 10px -3px rgba(255,69,58,.5);
+  }
+  .run:hover:not(:disabled) { filter: brightness(.95); }
+  .run:disabled { opacity: .4; box-shadow: none; cursor: default; }
+  .ghost {
+    height: 34px; padding: 0 13px; border: 1px solid var(--line); border-radius: 9px;
+    background: transparent; color: inherit; font: inherit; font-size: 13px; cursor: pointer;
+  }
+  .ghost:hover { background: #f2f2f7; }
+  .preview { margin-top: 12px; padding: 16px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 1px 2px rgba(0,0,0,.03); }
+  .ph { margin: 0 0 12px; font-size: 12px; color: var(--muted); }
+  .psec { padding: 11px 13px; border-radius: 10px; background: #f2f2f7; }
+  .psec + .psec { margin-top: 8px; }
+  .psub { margin: 0 0 8px; font-size: 11px; font-weight: 600; letter-spacing: .04em; color: var(--muted); }
+  .pgrid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 8px 16px; }
+  .pgrid div { display: flex; gap: 8px; font-size: 13px; min-width: 0; }
+  .pgrid dt { flex: 0 0 auto; min-width: 76px; white-space: nowrap; color: var(--muted); }
+  .pgrid dd { margin: 0; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .checks { margin: 12px 0 0; padding: 0 0 0 18px; font-size: 12px; line-height: 1.7; color: var(--muted); }
+  /* 全局 li 是待处理行的样式，这里必须收回来，否则体检提示会被撑成 52px 一条 */
+  .checks li {
+    display: list-item; min-height: 0; padding: 0; border: 0; background: none;
+    list-style: disc; font-size: 12px; color: inherit;
+  }
+  .checks li.warn { color: var(--warn); }
+  .checks li + li { margin-top: 3px; }
+  .pactions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+  .done { display: flex; align-items: center; gap: 10px; margin-top: 12px; padding: 12px 16px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 1px 2px rgba(0,0,0,.03); font-size: 13px; }
+  .done span { flex: 1; min-width: 0; }
+  .params[hidden], .preview[hidden], .done[hidden], .prow[hidden], .field[hidden] { display: none !important; }
+  @media (max-width: 620px) {
+    .field.wide { grid-column: auto; }
+    /* 竖屏两列会把值截成「机械键…」，预览改成单列 */
+    .pgrid { grid-template-columns: minmax(0, 1fr); }
+    .hint { order: 3; flex-basis: 100%; }
+  }
+  @media (max-width: 860px) {
+    .side { display: none; }
+    .main { padding: 28px 16px 56px; }
+    .cards { grid-template-columns: repeat(2, minmax(0,1fr)); }
+    .field.wide { grid-column: auto; }
+    h1 { font-size: 22px; }
+    time { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+  <aside class="side">
+    <div class="brand"><i></i>BOH 控制台</div>
+    <nav class="nav">
+      <a href="#" class="on">概览</a>
+      <a href="#">用户 · 积分</a>
+      <a href="#">订单 · 退款</a>
+      <a href="#">内容审核</a>
+      <a href="#">抽奖 · 活动</a>
+      <a href="#">生日 · 邮件</a>
+    </nav>
+    <div class="foot">完整面板 →</div>
+  </aside>
+
+  <main class="main">
+    <p class="eyebrow">概览</p>
+    <h1>今天，做点什么？</h1>
+
+    <div class="cmd" id="cmd">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+      <input id="cmdInput" type="text" autocomplete="off" spellcheck="false"
+             placeholder="搜索功能、用户、订单，或输入 @ 执行动作" aria-label="搜索功能，或输入 @ 执行动作" />
+      <kbd id="kbd">⌘K</kbd>
+
+      <div class="results" id="results">
+        <p class="h">动作 · ↵ 打开</p>
+        <button class="row cursor" data-to="抽奖列表（新建）" data-params="lottery">
+          <b>@抽奖</b><span class="m">新建一场抽奖</span><span class="tag">跳转</span>
+        </button>
+        <button class="row" data-to="活动平台（新建）">
+          <b>@活动</b><span class="m">新建活动与报名</span>
+        </button>
+        <button class="row" data-to="待开奖抽奖">
+          <b>@开奖</b><span class="m">处理到期抽奖</span><span class="tag">目标页确认</span>
+        </button>
+        <button class="row" data-to="待发货订单">
+          <b>@发货</b><span class="m">打开待发货订单</span>
+        </button>
+        <button class="row" data-to="积分发放">
+          <b>@发积分</b><span class="m">给用户补积分</span><span class="tag">目标页确认</span>
+        </button>
+        <button class="row" data-to="用户列表">
+          <b>@封禁</b><span class="m">处理违规账号</span><span class="tag">目标页确认</span>
+        </button>
+      </div>
+    </div>
+
+    <form class="params" id="params" hidden>
+      <div class="phead">
+        <span class="chip act-chip">@抽奖 <button type="button" id="exitBtn" aria-label="退出">×</button></span>
+        <span class="hint" id="hint">填好必填项即可预览，不会直接写入</span>
+        <button class="ptoggle" type="button" id="moreBtn" aria-expanded="false">
+          更多设置 <small id="moreCount"></small>
+          <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 3.5 5 6.8l3.5-3.3" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <button class="run" id="previewBtn" type="button" disabled>预览</button>
+      </div>
+
+      <div class="prow">
+        <label class="field">
+          <span>奖品<i>*</i></span>
+          <input class="pin req" id="pPrize" placeholder="BOH 纪念礼盒" />
+        </label>
+        <label class="field">
+          <span>开奖时间<i>*</i></span>
+          <input class="pin" id="pDraw" type="datetime-local" aria-label="开奖时间" />
+        </label>
+        <label class="field">
+          <span>报名上限</span>
+          <input class="pin" id="pMax" type="number" min="1" placeholder="留空不限" />
+          <small>不填即不限人数</small>
+        </label>
+        <label class="field">
+          <span>报名截止</span>
+          <input class="pin" id="pDeadline" type="datetime-local" aria-label="报名截止" />
+          <small>留空则报名到开奖前</small>
+        </label>
+      </div>
+
+      <div class="prow more" id="moreRow" hidden>
+        <label class="field">
+          <span>抽奖标题</span>
+          <input class="pin" id="pTitle" placeholder="留空自动生成" />
+        </label>
+        <label class="field">
+          <span>保底规则</span>
+          <select class="pin" id="pPity">
+            <option value="none">不计入失败</option>
+            <option value="count_only">仅计入失败</option>
+            <option value="eligible">计入并兑现（2 人）</option>
+          </select>
+        </label>
+        <label class="field" id="pityWrap" hidden>
+          <span>保底礼</span>
+          <input class="pin" id="pPityReward" placeholder="BOH 基础礼盒" />
+          <small>仅 1 位达到保底且未获普通奖的用户获得</small>
+        </label>
+        <div class="field">
+          <span>中奖人数</span>
+          <span class="ro" id="pWinRo">1 人</span>
+          <small>由保底规则自动决定，不能手改</small>
+        </div>
+        <label class="field wide">
+          <span>奖品说明</span>
+          <textarea class="pin" id="pPrizeDesc" rows="2" placeholder="规格、数量、发放方式"></textarea>
+        </label>
+        <label class="field wide">
+          <span>封面链接</span>
+          <input class="pin" id="pCover" placeholder="https://…（也可建完在详情页上传）" />
+        </label>
+        <label class="field">
+          <span>社区抽奖页展示</span>
+          <button class="switch on" type="button" id="pCommunity" role="switch" aria-checked="true"><i></i><em>开</em></button>
+        </label>
+        <label class="field">
+          <span>首页轮播展示</span>
+          <button class="switch" type="button" id="pHome" role="switch" aria-checked="false"><i></i><em>关</em></button>
+          <small>默认关闭，改成报名中才会出现</small>
+        </label>
+        <label class="field">
+          <span>账号年龄校验</span>
+          <button class="switch on" type="button" id="pAge" role="switch" aria-checked="true"><i></i><em>开</em></button>
+          <small>启用后仅满足账号年龄要求的用户可报名</small>
+        </label>
+      </div>
+    </form>
+
+    <div class="preview" id="preview" hidden>
+      <p class="ph">将要创建 · 草稿</p>
+      <div id="previewBody"></div>
+      <ul class="checks" id="previewChecks"></ul>
+      <div class="pactions">
+        <button class="ghost" type="button" id="backBtn">返回修改</button>
+        <button class="run" type="button" id="confirmBtn">确认创建</button>
+      </div>
+    </div>
+
+    <div class="done" id="done" hidden>
+      <span id="doneText"></span>
+      <button class="ghost" type="button">去查看</button>
+      <button class="ghost" type="button" id="againBtn">再来一个</button>
+    </div>
+
+    <section class="cards">
+      <div class="card"><small>待发货</small><strong>7</strong></div>
+      <div class="card"><small>待处理举报</small><strong>3</strong></div>
+      <div class="card"><small>待开奖</small><strong>2</strong></div>
+      <div class="card"><small>7 日新增</small><strong>23</strong></div>
+    </section>
+
+    <section class="inbox">
+      <header>
+        <h2>待处理</h2><span class="badge">6</span><a href="#">全部 →</a>
+      </header>
+      <ul>
+        <li><span class="dot d"></span><span class="type">交易</span><span class="title">订单 A1832 已付款待发货</span><time>2 天前</time><button class="act">去发货</button></li>
+        <li><span class="dot d"></span><span class="type">内容</span><span class="title">帖子举报待处理：广告引流</span><time>28 分钟前</time><button class="act">去处理</button></li>
+        <li><span class="dot d"></span><span class="type">活动</span><span class="title">抽奖「9 周年」已到开奖时间</span><time>2 小时前</time><button class="act">去开奖</button></li>
+        <li><span class="dot w"></span><span class="type">交易</span><span class="title">订单 A1840 已付款待发货</span><time>12 分钟前</time><button class="act">去发货</button></li>
+        <li><span class="dot w"></span><span class="type">内容</span><span class="title">帖子举报待处理：重复灌水</span><time>3 小时前</time><button class="act">去处理</button></li>
+      </ul>
+    </section>
+
+    <p class="tip">输入 <code>@</code> 只能执行动作；不带 <code>@</code> 的输入只用于查找功能与记录。</p>
+  </main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  const input = document.getElementById('cmdInput');
+  const results = document.getElementById('results');
+  const cmd = document.getElementById('cmd');
+  const kbd = document.getElementById('kbd');
+  const toast = document.getElementById('toast');
+  const params = document.getElementById('params');
+  const preview = document.getElementById('preview');
+  const done = document.getElementById('done');
+  const hint = document.getElementById('hint');
+  const previewBtn = document.getElementById('previewBtn');
+  const fields = {
+    prize: document.getElementById('pPrize'),
+    draw: document.getElementById('pDraw'),
+    max: document.getElementById('pMax'),
+    deadline: document.getElementById('pDeadline'),
+    title: document.getElementById('pTitle'),
+    pity: document.getElementById('pPity'),
+    pityReward: document.getElementById('pPityReward'),
+    prizeDesc: document.getElementById('pPrizeDesc'),
+    cover: document.getElementById('pCover'),
+  };
+  const switches = { community: true, home: false, age: true };
+  const switchEls = {
+    community: document.getElementById('pCommunity'),
+    home: document.getElementById('pHome'),
+    age: document.getElementById('pAge'),
+  };
+  const winRo = document.getElementById('pWinRo');
+  const pityWrap = document.getElementById('pityWrap');
+  const moreRow = document.getElementById('moreRow');
+  const moreBtn = document.getElementById('moreBtn');
+  const moreCount = document.getElementById('moreCount');
+  const previewBody = document.getElementById('previewBody');
+  const previewChecks = document.getElementById('previewChecks');
+  let timer = null;
+  // 用户没碰过任何字段时先不喊「还缺」，一进来满屏红边很劝退
+  let touched = false;
+
+  const showToast = (text) => {
+    toast.textContent = text;
+    toast.classList.add('on');
+    clearTimeout(timer);
+    timer = setTimeout(() => toast.classList.remove('on'), 1900);
+  };
+
+  const sync = () => {
+    const value = input.value.trimStart();
+    const isAction = /^[@＠]/.test(value);
+    results.classList.toggle('open', isAction);
+    cmd.classList.toggle('on', isAction);
+    kbd.style.display = input.value ? 'none' : '';
+  };
+
+  // 中奖人数不是自由输入：兑现保底必须 2 人，其余必须 1 人（与保存策略一致）
+  const winnerCount = () => (fields.pity.value === 'eligible' ? 2 : 1);
+
+  const validate = () => {
+    const missing = [];
+    if (!fields.prize.value.trim()) missing.push('奖品');
+    if (!fields.draw.value) missing.push('开奖时间');
+
+    let error = '';
+    if (fields.draw.value && new Date(fields.draw.value).getTime() <= Date.now()) {
+      error = '开奖时间已经过去，保存后会立刻开奖';
+    } else if (
+      fields.deadline.value &&
+      fields.draw.value &&
+      new Date(fields.deadline.value) > new Date(fields.draw.value)
+    ) {
+      error = '报名截止不能晚于开奖时间';
+    } else if (fields.max.value && Number(fields.max.value) < winnerCount()) {
+      error = '中奖人数不能大于报名上限';
+    } else if (fields.pity.value === 'eligible' && !fields.pityReward.value.trim()) {
+      error = '选了「兑现保底」就必须填保底礼';
+    } else if (fields.cover.value.trim() && !/^https?:\/\//i.test(fields.cover.value.trim())) {
+      error = '封面链接必须以 http(s):// 开头';
+    }
+
+    hint.textContent = !touched
+      ? '填好必填项即可预览，不会直接写入'
+      : missing.length
+        ? '还缺：' + missing.join('、')
+        : error || '填好必填项即可预览，不会直接写入';
+    hint.classList.toggle('err', touched && missing.length === 0 && Boolean(error));
+    previewBtn.disabled = missing.length > 0 || Boolean(error);
+
+    fields.prize.classList.toggle('miss', touched && !fields.prize.value.trim());
+    fields.draw.classList.toggle('miss', touched && !fields.draw.value);
+    pityWrap.hidden = fields.pity.value !== 'eligible';
+    winRo.textContent = winnerCount() + ' 人';
+
+    const optional = [fields.title, fields.pityReward, fields.prizeDesc, fields.cover];
+    const left = optional.filter((el) => !el.value.trim() && !el.closest('[hidden]')).length;
+    moreCount.textContent = moreRow.hidden && left > 0 ? `还有 ${left} 项可选` : '';
+  };
+
+  const enterParams = () => {
+    input.value = '';
+    sync();
+    results.classList.remove('open');
+    cmd.hidden = true;
+    params.hidden = false;
+    done.hidden = true;
+    preview.hidden = true;
+    moreRow.hidden = true;
+    moreBtn.setAttribute('aria-expanded', 'false');
+    touched = false;
+    validate();
+    fields.prize.focus();
+  };
+
+  const exitParams = () => {
+    params.hidden = true;
+    preview.hidden = true;
+    cmd.hidden = false;
+    input.value = '';
+    sync();
+    input.focus();
+  };
+
+  const titleOf = () =>
+    fields.title.value.trim() || (fields.prize.value.trim() || '未命名') + ' 抽奖';
+
+  const dt = (value) => (value ? value.replace('T', ' ') : '');
+
+  // 预览分三段：写什么 / 中奖规则 / 会出现在哪 —— 光一个「份数」根本不够看
+  const sections = () => {
+    const pityText = fields.pity.options[fields.pity.selectedIndex].textContent;
+    return [
+      [
+        '基本信息',
+        [
+          ['标题', titleOf()],
+          ['奖品', fields.prize.value.trim() || '未填'],
+          ['开奖时间', dt(fields.draw.value) || '未填'],
+          ['报名截止', dt(fields.deadline.value) || '开奖前均可报名'],
+        ],
+      ],
+      [
+        '中奖规则',
+        [
+          ['中奖人数', winnerCount() + ' 人'],
+          ['保底', pityText],
+          ...(fields.pity.value === 'eligible'
+            ? [['保底礼', fields.pityReward.value.trim() || '未填']]
+            : []),
+          ['报名上限', fields.max.value || '不限'],
+          ['账号年龄校验', switches.age ? '启用' : '不启用'],
+        ],
+      ],
+      [
+        '前台影响',
+        [
+          ['社区抽奖页', switches.community ? '展示' : '不展示'],
+          ['首页轮播', switches.home ? '展示' : '不展示'],
+          ['状态', '草稿（开报名前不会出现）'],
+        ],
+      ],
+    ];
+  };
+
+  const checks = () => {
+    const list = [];
+    if (!fields.max.value) list.push(['info', '报名人数不限，开奖时按实际报名名单抽取']);
+    if (switches.home) list.push(['warn', '草稿状态下首页不会出现，改成「报名中」后会推到首页轮播']);
+    if (!fields.cover.value.trim()) list.push(['info', '没有封面，前台会用占位图；可以建完再去详情页上传']);
+    return list;
+  };
+
+  const openPreview = () => {
+    if (previewBtn.disabled) return;
+    previewBody.innerHTML = sections()
+      .map(
+        ([title, rows]) =>
+          `<div class="psec"><p class="psub">${title}</p><dl class="pgrid">${rows
+            .map(([key, value]) => `<div><dt>${key}</dt><dd>${value}</dd></div>`)
+            .join('')}</dl></div>`,
+      )
+      .join('');
+    const list = checks();
+    previewChecks.innerHTML = list
+      .map(([tone, text]) => `<li class="${tone}">${text}</li>`)
+      .join('');
+    previewChecks.hidden = list.length === 0;
+    preview.hidden = false;
+  };
+
+  Object.values(fields).forEach((el) => {
+    el.addEventListener('input', validate);
+    el.addEventListener('change', validate);
+    el.addEventListener('blur', () => {
+      touched = true;
+      validate();
+    });
+    el.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' && el.tagName !== 'TEXTAREA') {
+        event.preventDefault();
+        openPreview();
+      }
+    });
+  });
+
+  Object.keys(switchEls).forEach((key) => {
+    const el = switchEls[key];
+    el.addEventListener('click', () => {
+      switches[key] = !switches[key];
+      el.classList.toggle('on', switches[key]);
+      el.setAttribute('aria-checked', String(switches[key]));
+      el.querySelector('em').textContent = switches[key] ? '开' : '关';
+      validate();
+    });
+  });
+
+  moreBtn.addEventListener('click', () => {
+    moreRow.hidden = !moreRow.hidden;
+    moreBtn.setAttribute('aria-expanded', String(!moreRow.hidden));
+    validate();
+  });
+
+  previewBtn.addEventListener('click', openPreview);
+  document.getElementById('backBtn').addEventListener('click', () => {
+    preview.hidden = true;
+  });
+  document.getElementById('exitBtn').addEventListener('click', exitParams);
+  document.getElementById('againBtn').addEventListener('click', exitParams);
+  document.getElementById('confirmBtn').addEventListener('click', () => {
+    doneText.textContent = '已创建「' + titleOf() + '」，状态为草稿';
+    preview.hidden = true;
+    params.hidden = true;
+    done.hidden = false;
+    showToast('已写入 lotteries（预览为假数据）');
+  });
+
+  input.addEventListener('input', sync);
+  input.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      input.value = '';
+      sync();
+      return;
+    }
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      const value = input.value.trim();
+      if (/^[@＠].*(抽奖|摇奖|cj)/i.test(value)) {
+        enterParams();
+      } else if (value) {
+        showToast('示例只接线了 @抽奖，其他动作为跳转');
+      }
+    }
+  });
+
+  document.querySelectorAll('.row').forEach((row) => {
+    row.addEventListener('click', () => {
+      if (row.dataset.params === 'lottery') {
+        enterParams();
+        return;
+      }
+      showToast('将跳转：' + row.dataset.to + '（只跳转，不写库）');
+      results.classList.remove('open');
+    });
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+      event.preventDefault();
+      if (cmd.hidden) exitParams();
+      input.focus();
+    }
+  });
+</script>
+</body>
+</html>

@@ -99,9 +99,30 @@ export const createNavigationCenter = ({
     return tab?.label || tabId;
   };
 
-  // 当 section 切换时同步 module，但避免 'data' section 覆盖已选数据模块
+  /**
+   * 由「当前表」反查它属于哪个模块（tabs 里每个 tab 都声明了 module）。
+   * 单一真源：模块 tab 条、顶栏标题、侧栏高亮三处都读 activeModule，
+   * 只要这三处跟 currentTab 不一致，就会出现「内容在抽奖、标题写用户管理」（见下方 sync）。
+   */
+  const resolveModuleForTab = (tabId) => tabs.find((tab) => tab.id === tabId)?.module || '';
+
+  /**
+   * 当 section 切换时同步 module。
+   *
+   * 2026-11-12 修：原来 section === 'data' 时只做「已选模块就保留，否则回 users」，
+   * 于是深链 / 刷新到 `?section=data&tab=lotteries` 时 activeModule 停在 users ——
+   * 侧栏高亮「用户」、顶栏标题「用户管理」、模块 tab 条全是用户模块的子表，
+   * 而内容区渲染的却是抽奖看板。**当前表才是唯一真源**，section 只决定大类。
+   */
   const syncModuleFromSection = (section) => {
-    if (section === 'data' && DATA_SECTION_MODULES.has(activeModule.value)) {
+    if (section === 'data') {
+      const fromTab = resolveModuleForTab(currentTabRef.value);
+      if (fromTab && fromTab !== activeModule.value) {
+        activeModule.value = fromTab;
+        return;
+      }
+      if (fromTab || DATA_SECTION_MODULES.has(activeModule.value)) return;
+      activeModule.value = 'users';
       return;
     }
     const mod = SECTION_TO_MODULE_MAP[section] || 'overview';

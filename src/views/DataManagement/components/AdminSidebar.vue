@@ -48,7 +48,7 @@
     </div>
 
     <!-- Navigation (grouped by section) -->
-    <nav class="g-sidebar-nav" aria-label="管理导航">
+    <nav ref="navEl" class="g-sidebar-nav" aria-label="管理导航">
       <!-- 功能命中排在最前：搜到功能名的人要的是「打开那一页」，不是「进某个模块再翻」 -->
       <div v-if="functionMatches.length" class="g-sidebar-group">
         <span class="g-sidebar-group-label">功能</span>
@@ -122,6 +122,7 @@
         type="button"
         class="g-icon-btn is-sm"
         title="新增记录"
+        aria-label="新增记录"
         @click="$emit('create-record')"
       >
         <Plus :size="14" />
@@ -130,15 +131,23 @@
         type="button"
         class="g-icon-btn is-sm"
         title="刷新数据"
+        aria-label="刷新数据"
         @click="$emit('refresh-data')"
       >
         <RefreshCw :size="14" />
       </button>
-      <span class="g-sidebar-quick-label">快捷操作</span>
     </div>
 
     <!-- Footer -->
     <div class="g-sidebar-foot">
+      <router-link
+        class="g-sidebar-overview-link"
+        to="/admin/overview"
+        title="打开快捷概览（@ 动作 / 今日待办 / 收件箱）"
+      >
+        <Zap :size="12" aria-hidden="true" />
+        快捷概览
+      </router-link>
       <span class="g-sidebar-dot" aria-hidden="true" />
       <span>BOH 数据管理 · v2.5</span>
     </div>
@@ -146,8 +155,8 @@
 </template>
 
 <script setup>
-import { computed, ref, watch } from 'vue';
-import { Lock, Plus, RefreshCw, Search as SearchIcon } from 'lucide-vue-next';
+import { computed, nextTick, onMounted, ref, watch } from 'vue';
+import { Lock, Plus, RefreshCw, Search as SearchIcon, Zap } from 'lucide-vue-next';
 import { SIDEBAR_SECTION_LABELS } from '../config/rbac.js';
 import { searchAdminFunctions } from '../config/function-index.js';
 
@@ -202,6 +211,24 @@ const emit = defineEmits([
 const localSearchQuery = ref(props.searchQuery || '');
 /** 键盘选中项（只作用于「功能」那一组） */
 const activeFnIndex = ref(-1);
+
+/**
+ * 侧栏 17 个模块一屏放不下，而「我在哪」只能靠高亮回答。
+ * 从深链 / ⌘K 跳进靠后的模块（抽奖、AI 配置、日志…）时，高亮项在可视区外 ——
+ * 用户看到的是「一个都没选中」。这里在挂载和模块变化后把它滚进视野。
+ */
+const navEl = ref(null);
+const scrollActiveIntoView = () => {
+  const el = navEl.value?.querySelector('.g-nav-btn.is-active');
+  if (el && typeof el.scrollIntoView === 'function') {
+    el.scrollIntoView({ block: 'nearest' });
+  }
+};
+onMounted(() => nextTick(scrollActiveIntoView));
+watch(
+  () => props.activeModule,
+  () => nextTick(scrollActiveIntoView),
+);
 
 watch(
   () => props.searchQuery,
@@ -617,14 +644,6 @@ const goHome = () => {
   border-top: 1px solid var(--sidebar-border);
   flex: 0 0 auto;
 }
-.g-sidebar-quick-label {
-  font-size: 0.66rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--muted-foreground);
-  font-weight: 600;
-  margin-left: auto;
-}
 
 /* Footer */
 .g-sidebar-foot {
@@ -634,6 +653,29 @@ const goHome = () => {
   font-size: 0.7rem;
   color: var(--muted-foreground);
   flex: 0 0 auto;
+}
+/* 快捷概览入口：把独立概览页（/admin/overview）接回侧栏。
+   在此之前它只有路由定义、没有任何链接，只能手敲 URL —— 等于「做了但打不开」。
+   margin-left:auto 把它推到右侧，不与左侧状态点抢位；窄屏下允许收缩。 */
+.g-sidebar-overview-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  padding: 2px 6px;
+  border-radius: 999px;
+  color: var(--muted-foreground);
+  text-decoration: none;
+  font-size: 0.68rem;
+  line-height: 1.4;
+  transition:
+    background 0.16s ease,
+    color 0.16s ease;
+}
+.g-sidebar-overview-link:hover,
+.g-sidebar-overview-link:focus-visible {
+  background: color-mix(in srgb, var(--foreground) 8%, transparent);
+  color: var(--foreground);
 }
 .g-sidebar-dot {
   width: 6px;

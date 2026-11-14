@@ -27,9 +27,7 @@ import {
   NEWS_CATEGORY_OPTIONS,
   ORDER_STATUS_OPTIONS,
   ORDER_CONTACT_TYPE_OPTIONS,
-  BIRTHDAY_WISH_STATUS_OPTIONS,
   FORUM_POST_TAG_OPTIONS,
-  BOOLEAN_DISPLAY_OPTIONS,
   POST_REWARD_STATUS_OPTIONS,
 } from './fields.js';
 import { parseActivityDate } from '../../../utils/activity-date';
@@ -65,17 +63,33 @@ export const dataConfig = {
   users: {
     table: 'profiles',
     columns: [
-      { key: 'id', label: 'ID', maxLength: 12, copyable: true },
+      { key: 'id', label: 'ID', defaultVisible: false, maxLength: 12, copyable: true },
       { key: 'username', label: '用户名' },
       { key: 'email', label: '邮箱', copyable: true },
       // 收货三件套：周边商城结算页写回 profiles 的默认收货信息（RPC 补列）。
       // 2026-11-01 周边改版后这三列是「资料即收货信息」流程的存储端，管理员可直接修正。
-      { key: 'shipping_recipient', label: '收件人', maxLength: 10 },
-      { key: 'shipping_phone', label: '联系电话', maxLength: 18, copyable: true },
-      { key: 'shipping_address', label: '收货地址', maxLength: 24, copyable: true },
+      // 2026-11-12：列表默认隐藏 —— 绝大多数账号这三列是「—」，
+      // 却各占一份宽度把「积分/注册时间」挤到右侧；要看/改走详情或列配置勾回来。
+      { key: 'shipping_recipient', label: '收件人', maxLength: 10, defaultVisible: false },
+      {
+        key: 'shipping_phone',
+        label: '联系电话',
+        maxLength: 18,
+        copyable: true,
+        defaultVisible: false,
+      },
+      {
+        key: 'shipping_address',
+        label: '收货地址',
+        maxLength: 24,
+        copyable: true,
+        defaultVisible: false,
+      },
       { key: 'role', label: '角色', type: 'badge' },
       { key: 'is_banned', label: '封禁', type: 'badge' },
-      { key: 'is_muted', label: '禁言', type: 'badge' },
+      // 禁言默认隐藏：与「封禁」同为 是/否 两列并排，扫读时几乎分不清哪个是哪个，
+      // 而真正要处理时是从详情里点开关。两项都有值时详情页仍然一眼可见。
+      { key: 'is_muted', label: '禁言', type: 'badge', defaultVisible: false },
       { key: 'points', label: '积分', type: 'number' },
       { key: 'join_date', label: '注册时间', type: 'date' },
     ],
@@ -261,11 +275,13 @@ export const dataConfig = {
   points: {
     table: 'profiles',
     columns: [
-      { key: 'id', label: 'ID', maxLength: 12, copyable: true },
+      { key: 'id', label: 'ID', defaultVisible: false, maxLength: 12, copyable: true },
       { key: 'username', label: '用户名' },
-      { key: 'role', label: '角色', type: 'badge' },
-      { key: 'is_banned', label: '封禁', type: 'badge' },
-      { key: 'is_muted', label: '禁言', type: 'badge' },
+      // 积分页是「查一下这个人多少分、改一下」的页面：角色/封禁/禁言三列在这里
+      // 与本次任务无关，默认隐藏（列配置可勾回）。
+      { key: 'role', label: '角色', type: 'badge', defaultVisible: false },
+      { key: 'is_banned', label: '封禁', type: 'badge', defaultVisible: false },
+      { key: 'is_muted', label: '禁言', type: 'badge', defaultVisible: false },
       { key: 'points', label: '当前积分', type: 'number' },
       { key: 'experience', label: '经验值', type: 'number' },
       { key: 'join_date', label: '加群时间', type: 'date' },
@@ -289,11 +305,12 @@ export const dataConfig = {
   subscriptions: {
     table: 'user_subscriptions',
     columns: [
-      { key: 'id', label: 'ID', maxLength: 12, copyable: true },
+      { key: 'id', label: 'ID', defaultVisible: false, maxLength: 12, copyable: true },
       { key: 'username', label: '用户名' },
       { key: 'email', label: '邮箱', maxLength: 22, copyable: true },
       { key: 'plan_name', label: '订阅内容' },
-      { key: 'plan_code', label: '方案代码', maxLength: 16 },
+      // 方案代码（basic_monthly 之类）与「订阅内容」表达同一件事，默认隐藏
+      { key: 'plan_code', label: '方案代码', maxLength: 16, defaultVisible: false },
       { key: 'billing_cycle', label: '周期', type: 'badge' },
       { key: 'status', label: '状态', type: 'badge' },
       { key: 'started_at', label: '订阅时间', type: 'datetime' },
@@ -555,75 +572,10 @@ export const dataConfig = {
       ],
     },
   },
-  posterRequests: {
-    table: 'poster_requests',
-    columns: [
-      { key: 'username', label: '用户名' },
-      { key: 'recipient', label: '收件人' },
-      { key: 'phone', label: '联系电话' },
-      { key: 'address', label: '收货地址', maxLength: 28 },
-      { key: 'material_fee', label: '物料费', type: 'price' },
-      { key: 'status', label: '状态', type: 'badge' },
-      { key: 'created_at', label: '申请时间', type: 'datetime' },
-    ],
-    fields: [
-      { key: 'id', label: '申请ID', type: 'text', disabled: true, group: 'detail', copyable: true },
-      { key: 'user_id', label: '用户', type: 'user-picker', required: true, group: 'user' },
-      { key: 'username', label: '用户名', type: 'text', disabled: true, group: 'user' },
-      { key: 'recipient', label: '收件人', type: 'text', disabled: true, group: 'detail' },
-      { key: 'phone', label: '联系电话', type: 'text', disabled: true, group: 'detail' },
-      { key: 'address', label: '收货地址', type: 'textarea', disabled: true, group: 'detail' },
-      {
-        key: 'material_fee',
-        label: '物料费 (RMB)',
-        type: 'number',
-        disabled: true,
-        min: 0,
-        group: 'detail',
-      },
-      { key: 'campaign_code', label: '活动代号', type: 'text', disabled: true, group: 'detail' },
-      {
-        key: 'status',
-        label: '申请状态',
-        type: 'select',
-        options: [
-          { value: 'pending', label: '已收到申请' },
-          { value: 'processing', label: '处理中' },
-          { value: 'shipped', label: '已寄出' },
-          { value: 'completed', label: '已送达' },
-        ],
-        group: 'time',
-      },
-      { key: 'created_at', label: '申请时间', type: 'datetime', disabled: true, group: 'time' },
-    ],
-    cardView: {
-      placeholderIcon: '🖼️',
-      titleKey: 'recipient',
-      subtitleKey: 'username',
-      subtitleLabel: '用户',
-      statusKey: 'status',
-      statusMeta: {
-        pending: { label: '已收到', tone: 'muted' },
-        processing: { label: '处理中', tone: 'info' },
-        shipped: { label: '已寄出', tone: 'warning' },
-        completed: { label: '已送达', tone: 'success' },
-      },
-      stats: [
-        { label: '物料费', key: 'material_fee', format: 'price' },
-        { label: '活动代号', key: 'campaign_code' },
-      ],
-      meta: [
-        { label: '收件人', key: 'recipient' },
-        { label: '联系电话', key: 'phone' },
-        { label: '收货地址', key: 'address' },
-        { label: '申请时间', key: 'created_at', format: 'datetime' },
-      ],
-    },
-  },
   forum: {
     table: 'posts',
     columns: [
-      { key: 'id', label: 'ID', copyable: true },
+      { key: 'id', label: 'ID', defaultVisible: false, copyable: true },
       { key: 'title', label: '标题', maxLength: 30 },
       { key: 'author_username', label: '作者' },
       { key: 'tag', label: '标签', type: 'badge' },
@@ -891,7 +843,7 @@ export const dataConfig = {
   reviewPosts: {
     table: 'posts',
     columns: [
-      { key: 'id', label: 'ID', copyable: true },
+      { key: 'id', label: 'ID', defaultVisible: false, copyable: true },
       { key: 'author_username', label: '作者' },
       { key: 'content', label: '内容', maxLength: 48 },
       { key: 'status', label: '状态', type: 'badge' },
@@ -910,7 +862,7 @@ export const dataConfig = {
   reportedPosts: {
     table: 'posts',
     columns: [
-      { key: 'id', label: 'ID', maxLength: 12, copyable: true },
+      { key: 'id', label: 'ID', defaultVisible: false, maxLength: 12, copyable: true },
       { key: 'title', label: '标题', maxLength: 28 },
       { key: 'author_username', label: '作者' },
       { key: 'active_report_count', label: '举报数', type: 'number' },
@@ -933,7 +885,7 @@ export const dataConfig = {
   reviewComments: {
     table: 'comments',
     columns: [
-      { key: 'id', label: 'ID', copyable: true },
+      { key: 'id', label: 'ID', defaultVisible: false, copyable: true },
       { key: 'post_id', label: '帖子ID', maxLength: 24 },
       { key: 'author_username', label: '作者' },
       { key: 'content', label: '内容', maxLength: 48 },
@@ -953,7 +905,7 @@ export const dataConfig = {
   coreMemories: {
     table: 'boh_ai_core_memories',
     columns: [
-      { key: 'id', label: 'ID', maxLength: 12, copyable: true },
+      { key: 'id', label: 'ID', defaultVisible: false, maxLength: 12, copyable: true },
       { key: 'title', label: '标题', maxLength: 32 },
       /* 内容列上移到标题后 + 多行预览（2026-10-16 用户口径「没办法一下看到内容」）：
          3 行截断显示正文、悬停 title 看全文，铅笔直达抽屉的内容字段。 */
@@ -1063,7 +1015,7 @@ export const dataConfig = {
   aiMemories: {
     table: 'boh_ai_shared_memories',
     columns: [
-      { key: 'id', label: 'ID', maxLength: 12, copyable: true },
+      { key: 'id', label: 'ID', defaultVisible: false, maxLength: 12, copyable: true },
       /* 内容前置（同 coreMemories 2026-10-16 口径）：3 行截断预览，悬停看全文 */
       { key: 'content', label: '内容', multiline: true, clampLines: 3, maxLength: 120 },
       { key: 'owner_username', label: '所属用户' },
@@ -1126,7 +1078,7 @@ export const dataConfig = {
   forumMemories: {
     table: 'boh_ai_forum_memories',
     columns: [
-      { key: 'id', label: 'ID', maxLength: 12, copyable: true },
+      { key: 'id', label: 'ID', defaultVisible: false, maxLength: 12, copyable: true },
       { key: 'fact', label: '事实卡', multiline: true, clampLines: 3, maxLength: 120 },
       { key: 'source_post_title', label: '来源帖子', maxLength: 20 },
       { key: 'source_post_author', label: '发帖人' },
@@ -1789,7 +1741,7 @@ export const dataConfig = {
   news: {
     table: 'news',
     columns: [
-      { key: 'id', label: 'ID', copyable: true },
+      { key: 'id', label: 'ID', defaultVisible: false, copyable: true },
       { key: 'title', label: '标题', maxLength: 25 },
       { key: 'category', label: '分类', type: 'badge' },
       { key: 'author', label: '作者' },
@@ -1879,7 +1831,7 @@ export const dataConfig = {
   activities: {
     table: 'activities',
     columns: [
-      { key: 'id', label: 'ID', copyable: true },
+      { key: 'id', label: 'ID', defaultVisible: false, copyable: true },
       { key: 'title', label: '标题', maxLength: 25 },
       // date 是 varchar(50)，历史数据三种格式混录。这里刻意不挂 type: 'date'，
       // 原样显示存储值，管理员一眼能看出哪条是 2025/10（缺「日」）哪条是 2026-08-10。
@@ -2049,7 +2001,7 @@ export const dataConfig = {
   products: {
     table: 'products',
     columns: [
-      { key: 'id', label: 'ID', copyable: true },
+      { key: 'id', label: 'ID', defaultVisible: false, copyable: true },
       { key: 'image', label: '图片', type: 'image' },
       { key: 'title', label: '商品名称', maxLength: 25 },
       { key: 'category', label: '分类', type: 'badge' },
@@ -2058,8 +2010,9 @@ export const dataConfig = {
       { key: 'rmb_price', label: 'RMB定价', type: 'price' },
       { key: 'stock', label: '库存', type: 'number' },
       { key: 'is_active', label: '商城展示', type: 'badge' },
-      { key: 'is_purchasable', label: '允许购买', type: 'badge' },
-      { key: 'sort_order', label: '排序', type: 'number' },
+      // 2026-11-12：允许购买 / 排序 是「配一次就不动」的开关，列表里只增噪。
+      { key: 'is_purchasable', label: '允许购买', type: 'badge', defaultVisible: false },
+      { key: 'sort_order', label: '排序', type: 'number', defaultVisible: false },
       {
         label: '形态',
         key: 'card_layout',
@@ -2183,6 +2136,9 @@ export const dataConfig = {
         true: { label: '上架', tone: 'success' },
         false: { label: '隐藏', tone: 'muted' },
       },
+      /* 2026-11-12：7 项 → 4 项。可购/排序/形态是「配一次就不动」的开关，
+         它们把每张卡撑到 330px，一屏只能看 3 个商品；留下的四项
+         （支付方式/积分/RMB/库存）才是扫一眼要判断的。 */
       stats: [
         {
           label: '支付',
@@ -2192,13 +2148,6 @@ export const dataConfig = {
         { label: '积分', key: 'points_cost' },
         { label: 'RMB', key: 'rmb_price', format: 'price' },
         { label: '库存', key: 'stock' },
-        { label: '可购', key: 'is_purchasable', values: { true: '允许', false: '禁止' } },
-        { label: '排序', key: 'sort_order' },
-        {
-          label: '形态',
-          key: 'card_layout',
-          values: { small: '小卡', banner: '横幅', large: '大图' },
-        },
       ],
     },
   },
@@ -2206,7 +2155,7 @@ export const dataConfig = {
   shopOrders: {
     table: 'shop_points_orders',
     columns: [
-      { key: 'id', label: 'ID', maxLength: 12, copyable: true },
+      { key: 'id', label: 'ID', defaultVisible: false, maxLength: 12, copyable: true },
       { key: 'order_no', label: '订单号', maxLength: 20 },
       { key: 'username', label: '用户名' },
       { key: 'contact_type', label: '联系方式', type: 'badge' },
@@ -2292,7 +2241,7 @@ export const dataConfig = {
   pointsTransactions: {
     table: 'points_transactions',
     columns: [
-      { key: 'id', label: 'ID', maxLength: 12, copyable: true },
+      { key: 'id', label: 'ID', defaultVisible: false, maxLength: 12, copyable: true },
       { key: 'username', label: '用户名' },
       { key: 'amount', label: '变动', type: 'number' },
       { key: 'balance_after', label: '变动后余额', type: 'number' },
@@ -2335,7 +2284,7 @@ export const dataConfig = {
   notifications: {
     table: 'notifications',
     columns: [
-      { key: 'id', label: 'ID', maxLength: 12, copyable: true },
+      { key: 'id', label: 'ID', defaultVisible: false, maxLength: 12, copyable: true },
       { key: 'recipient_name', label: '接收人' },
       { key: 'sender_name', label: '发送人' },
       { key: 'type', label: '类型', type: 'badge' },
@@ -2383,7 +2332,7 @@ export const dataConfig = {
   moderationLogs: {
     table: 'moderation_logs',
     columns: [
-      { key: 'id', label: 'ID', maxLength: 12, copyable: true },
+      { key: 'id', label: 'ID', defaultVisible: false, maxLength: 12, copyable: true },
       { key: 'target_type', label: '目标类型', type: 'badge' },
       { key: 'target_id', label: '目标ID', maxLength: 24 },
       { key: 'ai_result', label: 'AI结果', maxLength: 20 },
@@ -2397,7 +2346,7 @@ export const dataConfig = {
   forumPostReports: {
     table: 'forum_post_reports',
     columns: [
-      { key: 'id', label: 'ID', maxLength: 12, copyable: true },
+      { key: 'id', label: 'ID', defaultVisible: false, maxLength: 12, copyable: true },
       { key: 'post_id', label: '帖子ID', maxLength: 24 },
       { key: 'reporter_name', label: '举报人' },
       { key: 'reason', label: '原因', type: 'badge' },
@@ -2433,7 +2382,7 @@ export const dataConfig = {
   forumWeeklyCheckins: {
     table: 'forum_weekly_checkins',
     columns: [
-      { key: 'id', label: 'ID', maxLength: 12, copyable: true },
+      { key: 'id', label: 'ID', defaultVisible: false, maxLength: 12, copyable: true },
       { key: 'username', label: '用户名' },
       { key: 'week_start_date', label: '周起始', type: 'date' },
       { key: 'signed_at', label: '签到时间', type: 'datetime' },
@@ -2445,7 +2394,7 @@ export const dataConfig = {
   forumPostImages: {
     table: 'forum_post_images',
     columns: [
-      { key: 'id', label: 'ID', maxLength: 12, copyable: true },
+      { key: 'id', label: 'ID', defaultVisible: false, maxLength: 12, copyable: true },
       { key: 'post_id', label: '帖子ID', maxLength: 24 },
       { key: 'username', label: '上传者' },
       { key: 'url', label: '图片', type: 'image' },
@@ -2485,7 +2434,7 @@ export const dataConfig = {
   photoAlbums: {
     table: 'photo_albums',
     columns: [
-      { key: 'id', label: 'ID', maxLength: 12, copyable: true },
+      { key: 'id', label: 'ID', defaultVisible: false, maxLength: 12, copyable: true },
       { key: 'username', label: '作者' },
       { key: 'title', label: '标题', maxLength: 20 },
       { key: 'subtitle', label: '副标题', maxLength: 16 },
@@ -2572,7 +2521,7 @@ export const dataConfig = {
   apiKeyAuditLogs: {
     table: 'api_key_vault_audit_logs',
     columns: [
-      { key: 'id', label: 'ID', maxLength: 12, copyable: true },
+      { key: 'id', label: 'ID', defaultVisible: false, maxLength: 12, copyable: true },
       { key: 'action', label: '操作', type: 'badge' },
       { key: 'provider', label: '供应商' },
       { key: 'purpose', label: '用途' },
@@ -2585,7 +2534,7 @@ export const dataConfig = {
   aiWebSearchLog: {
     table: 'ai_web_search_log',
     columns: [
-      { key: 'id', label: 'ID', maxLength: 12, copyable: true },
+      { key: 'id', label: 'ID', defaultVisible: false, maxLength: 12, copyable: true },
       { key: 'user_id', label: '用户ID', maxLength: 24 },
       { key: 'tier', label: '档位', type: 'badge' },
       { key: 'status', label: '状态', type: 'badge' },
@@ -2598,7 +2547,7 @@ export const dataConfig = {
   anniversaryClaims: {
     table: 'anniversary_subscription_claims',
     columns: [
-      { key: 'id', label: 'ID', maxLength: 12, copyable: true },
+      { key: 'id', label: 'ID', defaultVisible: false, maxLength: 12, copyable: true },
       { key: 'username', label: '用户名' },
       { key: 'granted_plan_code', label: '方案' },
       { key: 'started_at', label: '开始时间', type: 'datetime' },
@@ -2780,7 +2729,7 @@ export const dataConfig = {
   bohCreatorShows: {
     table: 'boh_creator_shows',
     columns: [
-      { key: 'id', label: 'ID', maxLength: 12, copyable: true },
+      { key: 'id', label: 'ID', defaultVisible: false, maxLength: 12, copyable: true },
       { key: 'author_username', label: '作者' },
       { key: 'creator_platform', label: '平台', type: 'badge' },
       { key: 'title', label: '标题', maxLength: 24 },
@@ -2860,152 +2809,13 @@ export const dataConfig = {
       ],
     },
   },
-  // ========== 生日活动 ==========
-  birthdayEvents: {
-    table: 'birthday_events',
-    columns: [
-      { key: 'id', label: 'ID', maxLength: 12, copyable: true },
-      { key: 'title', label: '标题', maxLength: 20 },
-      { key: 'target_name', label: '寿星' },
-      { key: 'celebration_date', label: '庆祝日期', type: 'date' },
-      { key: 'is_active', label: '状态', type: 'badge' },
-      { key: 'sort_order', label: '排序', type: 'number' },
-      { key: 'created_at', label: '创建时间', type: 'datetime' },
-    ],
-    fields: [
-      { key: 'id', label: 'ID', type: 'text', disabled: true, group: 'basic', copyable: true },
-      {
-        key: 'target_user_id',
-        label: '寿星用户ID',
-        type: 'user-picker',
-        required: true,
-        group: 'basic',
-      },
-      { key: 'title', label: '标题', type: 'text', required: true, group: 'basic' },
-      { key: 'subtitle', label: '副标题', type: 'text', group: 'basic' },
-      { key: 'hero_quote', label: '英雄区引言', type: 'textarea', rows: 2, group: 'content' },
-      { key: 'page_copy', label: '页面文案', type: 'json', group: 'content' },
-      { key: 'celebration_date', label: '庆祝日期', type: 'date', required: true, group: 'time' },
-      {
-        key: 'is_active',
-        label: '启用',
-        type: 'select',
-        options: BOOLEAN_DISPLAY_OPTIONS,
-        group: 'time',
-      },
-      { key: 'sort_order', label: '排序', type: 'number', min: 0, group: 'time' },
-    ],
-    cardView: {
-      placeholderIcon: '🎂',
-      titleKey: 'title',
-      subtitleKey: 'target_username',
-      subtitleLabel: '寿星',
-      statusKey: 'is_active',
-      statusMeta: {
-        true: { label: '进行中', tone: 'success' },
-        false: { label: '已结束', tone: 'muted' },
-      },
-      stats: [
-        { label: '庆祝日期', key: 'celebration_date', format: 'date' },
-        { label: '排序', key: 'sort_order' },
-      ],
-      meta: [
-        { label: '副标题', key: 'subtitle' },
-        { label: '引言', key: 'hero_quote' },
-        { label: '创建时间', key: 'created_at', format: 'datetime' },
-      ],
-    },
-  },
-  // ========== 生日祝福 ==========
-  birthdayWishes: {
-    table: 'birthday_wishes',
-    columns: [
-      { key: 'id', label: 'ID', maxLength: 12, copyable: true },
-      { key: 'author_name', label: '作者' },
-      { key: 'content', label: '内容', maxLength: 36 },
-      { key: 'status', label: '状态', type: 'badge' },
-      { key: 'is_featured', label: '精选', type: 'badge' },
-      { key: 'likes', label: '点赞', type: 'number' },
-      { key: 'created_at', label: '创建时间', type: 'datetime' },
-    ],
-    fields: [
-      { key: 'id', label: 'ID', type: 'text', disabled: true, group: 'basic', copyable: true },
-      { key: 'event_id', label: '活动ID', type: 'text', disabled: true, group: 'basic' },
-      { key: 'author_name', label: '作者', type: 'text', disabled: true, group: 'basic' },
-      { key: 'author_id', label: '作者ID', type: 'text', disabled: true, group: 'basic' },
-      {
-        key: 'content',
-        label: '内容',
-        type: 'textarea',
-        rows: 4,
-        disabled: true,
-        group: 'content',
-      },
-      {
-        key: 'status',
-        label: '状态',
-        type: 'select',
-        options: BIRTHDAY_WISH_STATUS_OPTIONS,
-        group: 'moderation',
-      },
-      {
-        key: 'is_featured',
-        label: '精选',
-        type: 'select',
-        options: BOOLEAN_DISPLAY_OPTIONS,
-        group: 'moderation',
-      },
-    ],
-    cardView: {
-      placeholderIcon: '💌',
-      titleKey: 'author_name',
-      titleLabel: '作者',
-      subtitleKey: 'status',
-      subtitleType: 'badge',
-      statusKey: 'status',
-      statusMeta: {
-        pending: { label: '待审核', tone: 'warning' },
-        approved: { label: '已通过', tone: 'success' },
-        rejected: { label: '已拒绝', tone: 'error' },
-      },
-      stats: [
-        { label: '精选', key: 'is_featured', values: { true: '⭐ 精选', false: '普通' } },
-        { label: '点赞', key: 'likes' },
-      ],
-      meta: [
-        { label: '祝福内容', key: 'content' },
-        { label: '活动ID', key: 'event_id', copyable: true },
-        { label: '创建时间', key: 'created_at', format: 'datetime' },
-      ],
-    },
-  },
   // ========== 用户关注关系 ==========
-  userFollows: {
-    table: 'user_follows',
-    columns: [
-      { key: 'id', label: 'ID', maxLength: 12, copyable: true },
-      { key: 'follower_name', label: '关注者' },
-      { key: 'following_name', label: '被关注者' },
-      { key: 'created_at', label: '关注时间', type: 'datetime' },
-    ],
-    fields: [],
-  },
   // ========== 用户访客记录 ==========
-  userImpressions: {
-    table: 'user_impressions',
-    columns: [
-      { key: 'id', label: 'ID', maxLength: 12, copyable: true },
-      { key: 'author_name', label: '访客' },
-      { key: 'target_name', label: '被访者' },
-      { key: 'created_at', label: '时间', type: 'datetime' },
-    ],
-    fields: [],
-  },
   // ========== 实验室使用记录 ==========
   labUsageRecords: {
     table: 'lab_usage_records',
     columns: [
-      { key: 'id', label: 'ID', maxLength: 12, copyable: true },
+      { key: 'id', label: 'ID', defaultVisible: false, maxLength: 12, copyable: true },
       { key: 'username', label: '用户名' },
       { key: 'device_id', label: '设备ID', maxLength: 20 },
       { key: 'flow_type', label: '流程类型', type: 'badge' },

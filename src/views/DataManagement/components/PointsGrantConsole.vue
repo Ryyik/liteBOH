@@ -2,7 +2,6 @@
   <section class="points-grant-page">
     <header class="quota-config-hero">
       <div>
-        <span class="quota-kicker">Points Grant</span>
         <h2>积分发放</h2>
         <p>
           统一给全部用户批量发放积分，或指定部分用户发放，可填写备注（会同步展示在用户的「积分明细」中）。
@@ -79,7 +78,12 @@
         <div class="grant-submit-row">
           <span class="grant-summary">
             将发放 <strong>{{ amountText }}</strong> 积分给
-            <strong>{{ mode === 'all' ? '全部' : selectedUsers.length }} 位用户</strong>
+            <!-- 原来写成「给 {{ mode === 'all' ? '全部' : N }} 位用户」⇒ 渲染成
+                 「给 全部 位用户」，中文不通。两种范围分开写。 -->
+            <template v-if="mode === 'all'">全部非管理员用户</template>
+            <template v-else
+              ><strong>{{ selectedUsers.length }}</strong> 位指定用户</template
+            >
             <template v-if="remark">，备注「{{ remark }}」</template>
           </span>
           <button
@@ -346,13 +350,6 @@ onMounted(() => {
   align-items: center;
   gap: 20px;
   padding: 22px;
-}
-.quota-kicker {
-  color: var(--muted-foreground);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
 }
 .quota-config-hero h2 {
   margin: 4px 0 0;

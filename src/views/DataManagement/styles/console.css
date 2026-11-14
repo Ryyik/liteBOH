@@ -691,13 +691,14 @@
 
 /* ==================== Toolbar Restructure ==================== */
 /* plans/027 C 批：toolbar-primary 已并入 toolbar-secondary（模板同删），
-   现在只有一条工具栏：左 = 搜索/筛选/列配置/⋯，右 = 新增/导出（.toolbar-actions），
-   chips 独占第二行。目标行高 48px（按钮 36 + 上下 6px）。 */
+   现在只有一条工具栏：左 = 搜索/筛选/分布 chips，右 = 新增/导出。
+   2026-11-12：chips 从「独占第二行」改为同行内联（见下方 collection-overview），
+   整条工具栏收成单行 46px。 */
 .toolbar-secondary {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 20px;
+  padding: 5px 16px;
   border-bottom: 1px solid var(--border);
   background: transparent;
   flex-wrap: wrap;
@@ -711,15 +712,86 @@
   flex: 0 0 auto;
 }
 
-/* 状态 chips 常驻筛选行（plans/027 4.1.5）：去除独立区块的外框 */
+/* 分布 chips 与搜索/筛选同一行（2026-11-12）。
+   原来 width:100% + order:5 独占第二行：4 个 chip 换来 38px 首屏高度，
+   而那一行右侧本来是空的。现在给它剩余空间 + 横向滚动：既不换行，
+   也不会把「新增/导出」挤下去。 */
 .toolbar-secondary .collection-overview {
   margin: 0;
-  padding: 0;
+  padding: 0 0 0 10px;
+  /* 左侧一条细线把「搜索/筛选」和「分布」分成两组：
+     没有它时 12px 灰字紧贴筛选按钮，看着像按钮的文字被截断了 */
   border: 0;
+  border-left: 1px solid var(--border);
   background: transparent;
-  /* chips 独占第二行：避免和工具按钮挤一行导致 1280 下换行 */
-  width: 100%;
-  order: 5;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+  /* basis 必须是 0：auto 会按 max-content(≈920px) 参与换行计算，
+     1440 下也会把 chips 顶到第二行 */
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.toolbar-secondary .collection-overview .collection-chips {
+  min-width: 0;
+  /* 同上：chips 自身也要能收缩，否则 label + chips 会在这个容器内部换行 */
+  flex: 1 1 0;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.toolbar-secondary .collection-overview .collection-chips::-webkit-scrollbar {
+  display: none;
+}
+
+/* chip 不能被压缩：容器现在会收缩（flex:1 1 0），默认 flex-shrink:1 会把
+   「普通用户 (user)」压成两行 —— 实测每个 chip 48px 高，把工具栏顶到 59px。 */
+.toolbar-secondary .collection-overview .collection-chip {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.toolbar-secondary .collection-overview-label,
+.toolbar-secondary .collection-overview-hint {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+/* 1280 以下（含 1024 横屏平板）内容区只剩 ~770px：把「角色分布」这四个字
+   让给 chips，至少能多露出一整个胶囊。分布的含义由 chip 本身表达，标签只是补充。 */
+@media (max-width: 1280px) {
+  .toolbar-secondary .collection-overview-label {
+    display: none;
+  }
+}
+
+/* 筛选按钮：开启态用主色描边（与「分布 chip 选中」区分：那是实心），
+   有生效条件时右上角挂一个计数 —— 「我筛了什么」不该只写在展开面板里。 */
+.filter-toggle.is-open {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.filter-toggle {
+  position: relative;
+}
+
+.filter-toggle-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
 }
 
 .filter-toggle {
@@ -1841,6 +1913,41 @@
   opacity: 1;
 }
 
+/* 非审核页的行内主操作（封禁 / 推进 / 开奖…）用「安静的实心字」：
+   原来每行一颗红/绿实心胶囊，一屏二十颗，把表格读成红绿灯。
+   危险色只在文字上保留，悬停才浮出底色 —— 点击目标不变，视觉重量降一档。
+   审核 / 抽奖履约这两类页面例外：通过/拒绝、推进是页面核心动作，保持实心。 */
+.action-btns .review-btn.is-quiet,
+.mobile-card-actions .review-btn.is-quiet {
+  background: transparent;
+  border-color: transparent;
+  color: var(--muted-foreground);
+}
+
+.action-btns .review-btn.is-quiet.reject,
+.mobile-card-actions .review-btn.is-quiet.reject {
+  color: color-mix(in srgb, var(--danger) 78%, var(--muted-foreground));
+}
+
+.action-btns .review-btn.is-quiet.approve,
+.mobile-card-actions .review-btn.is-quiet.approve {
+  color: color-mix(in srgb, var(--success) 82%, var(--muted-foreground));
+}
+
+.action-btns .review-btn.is-quiet:hover,
+.mobile-card-actions .review-btn.is-quiet:hover {
+  background: var(--muted);
+  border-color: color-mix(in srgb, currentColor 35%, transparent);
+  color: var(--foreground);
+}
+
+/* 布尔 badge 为假时的「—」：不套灰胶囊（见 DataAdmin 模板注释） */
+.cell-badge.badge-plain {
+  background: transparent;
+  padding: 0 2px;
+  color: color-mix(in srgb, var(--foreground) 26%, transparent);
+}
+
 /* ==================== 分页 ==================== */
 .dm-pagination,
 .pagination {
@@ -1941,7 +2048,8 @@
 .loading-state,
 .empty-state {
   text-align: center;
-  padding: 60px 20px;
+  /* 60 → 40：空态不是主内容，别让一块「无数据」把首屏占满 */
+  padding: 40px 20px;
 }
 
 .spinner {
