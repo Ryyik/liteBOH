@@ -39,8 +39,12 @@ const measurePrecache = async () => {
   await cdp.send('Network.enable');
   const reqs = new Map();
   const finished = [];
+  /* ⚠️ 时间基准必须与「load 时刻」同源。CDP 的 timestamp 是 epoch 秒，
+     页面 performance.now() 是文档相对时间 —— 直接比较会得出「load 之后下了
+     982KB」这种荒谬读数（S0 第一版就这么错过一次）。这里统一用 Node 侧 Date.now()。 */
+  const navStart = Date.now();
   cdp.on('Network.requestWillBeSent', (e) => {
-    reqs.set(e.requestId, { url: e.request.url, type: e.type, ts: e.timestamp });
+    reqs.set(e.requestId, { url: e.request.url, type: e.type, ts: Date.now() - navStart });
   });
   cdp.on('Network.loadingFinished', (e) => {
     const r = reqs.get(e.requestId);
@@ -48,12 +52,12 @@ const measurePrecache = async () => {
     finished.push({
       url: r.url,
       type: r.type,
-      start: Math.round(r.ts * 1000),
+      start: r.ts,
       bytes: e.encodedDataLength || 0,
     });
   });
   await page.goto(`${BASE}/`, { waitUntil: 'load' });
-  const loadAt = await page.evaluate(() => Math.round(performance.now()));
+  const loadAt = Date.now() - navStart;
   await page.waitForTimeout(6000);
   const after = finished.filter((f) => f.start > loadAt + 200);
   const swReg = await page.evaluate(async () => {
@@ -265,8 +269,15 @@ let contentAt = null;
 try {
   await page.waitForFunction(
     () => {
-      const el = document.querySelector('.user-space-page');
-      return el && (el.innerText || '').trim().length > 200;
+      /* 判据不能用「.user-space-page 文本 > N 字」：壳内只有当前档的 tab-page 有高度，
+         而空态/私密档（如 posts 对空主页只有 45 字）会让判据永远不成立 —— 上一版
+         这里返回 -1，看着像「内容一直没出来」。改成「有任意一档 tab-page 撑开且有内容」。 */
+      const root = document.querySelector('.user-space-page');
+      if (!root) return false;
+      const pane = [...root.querySelectorAll('.tab-page')].find(
+        (el) => el.getBoundingClientRect().height > 300,
+      );
+      return Boolean(pane && (pane.innerText || '').trim().length > 20);
     },
     { timeout: 45000 },
   );
@@ -329,7 +340,9 @@ const measureSwitch = async (name, action, sel) => {
       const el = document.querySelector(s);
       if (!el) return false;
       const r = el.getBoundingClientRect();
-      return r.height > 80 && (el.innerText || '').trim().length > 60;
+      /* >20 而不是 >60：图库空态、消息 minimal 档的文本量都很少，卡 60 会让
+         「可见」恒为 -1（上一版图库/消息两席就是这么假阴的）。 */
+      return r.height > 80 && (el.innerText || '').trim().length > 20;
     }, sel);
     if (good) {
       visible = Date.now() - t0;
@@ -376,8 +389,34 @@ for (const label of ['内容', '图库', '周边', '我']) {
   console.log(JSON.stringify(r));
 }
 
+/* ── S3d 已缓存状态下「一次切页」到底发了什么 ──────────────────────
+   第二轮读数里每席恒定 3 个请求 / ~25KB，看着像业务轮询，其实是浏览器
+   在软导航后重取 favicon（type=Other，不是 Image —— 所以与侧栏那枚
+   `<img src="/favicon.png">` 无关）。把 URL 打出来，避免下次又误判。 */
+console.log('\n[S3d] 已缓存状态下 我→内容→我 的全部请求');
+const s3dMark = done.length;
+await clickText('内容', '.nav-item');
+await page.waitForTimeout(1200);
+await clickText('我', '.nav-item');
+await page.waitForTimeout(1400);
+for (const r of done.slice(s3dMark)) {
+  console.log(
+    `  ${r.bytes ? `${(r.bytes / 1024).toFixed(1)}KB` : '—'}  ${r.type.padEnd(9)} ${(r.url.split('/').pop() || '').slice(0, 52)}`,
+  );
+}
+
 /* ── S4 滚动流畅度 ──────────────────────────────────────────────── */
-console.log('\n[S4] 滚动流畅度（帖子流，30 步）');
+console.log('\n[S4] 滚动流畅度（论坛流，30 步）');
+/* 必须先切到「内容」：'我'页的空态只有 45 字、没有图片，在上面滚动永远是 17ms 假绿。
+   论坛流才有真实卡片 + 图片解码。 */
+await clickText('内容', '.nav-item');
+await page
+  .waitForFunction(
+    () => [...document.querySelectorAll('.image-post-thumb, .post-card')].length >= 2,
+    { timeout: 20000 },
+  )
+  .catch(() => {});
+await page.waitForTimeout(600);
 await page.evaluate(async () => {
   const el = document.scrollingElement;
   window.__frames = [];
