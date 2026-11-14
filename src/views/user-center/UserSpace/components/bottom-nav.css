@@ -1131,6 +1131,7 @@
   }
 
   .bottom-nav-glass::before,
+  .bottom-nav-glass,
   .bottom-nav-island,
   .bottom-nav-island *,
   .nav-items,
@@ -1145,10 +1146,10 @@
   }
 
   /* 收起/展开是「同一条物体的形变」，不属于装饰动画 —— 但 reduce 下不能保留
-     280ms 的宽度滑动（位移类一律砍）。宽度改为瞬时，只留交叉淡入的 120ms 反馈。 */
-  .bottom-nav-glass {
-    transition-duration: 0.12s !important;
-  }
+     280ms 的宽度滑动（位移类一律砍）。宽度改为瞬时，只留交叉淡入的 120ms 反馈。
+     ⚠️ `.bottom-nav-glass` 直接并进上面那组（原来单开一个块只写一条 transition-duration，
+     与组内取值完全相同）；2026-11-14 check:important-budget 基线 4 条，多出的正是这一条。
+     `.is-entering` 的特异性高一级，上面 1130 行那条淡入动画仍生效。 */
 }
 
 /* reduce 降级：纯 opacity 淡入（bottom-nav.css 非scoped，keyframes 名保持全局唯一前缀） */

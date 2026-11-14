@@ -16,7 +16,7 @@
  * 表很小（2026-11-12：33 位成员），精确 count 的成本可忽略；成员数上到十万级时
  * 要改成物化统计，别在这里硬扛。
  */
-import { supabase } from '@/utils/supabase-client.js';
+import { countProfiles } from '@/utils/api/bohai-retrieval-api.js';
 
 const DAY_MS = 86400000;
 
@@ -26,13 +26,6 @@ const toDateKey = (date) => {
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
-};
-
-const countProfiles = async (build = (query) => query) => {
-  const query = build(supabase.from('profiles').select('id', { count: 'exact', head: true }));
-  const { count, error } = await query;
-  if (error) throw error;
-  return Number(count || 0);
 };
 
 /**
@@ -46,8 +39,8 @@ export const getMembersStatsContext = async () => {
 
   const [total, weekNew, todayNew] = await Promise.all([
     countProfiles(),
-    countProfiles((query) => query.gte('join_date', weekAgoKey)),
-    countProfiles((query) => query.eq('join_date', todayKey)),
+    countProfiles({ fromDate: weekAgoKey }),
+    countProfiles({ onDate: todayKey }),
   ]);
 
   const lines = [

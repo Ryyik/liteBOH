@@ -15,7 +15,7 @@
  * ③ 不拉 `image` / `specifications` / `card_layout`：对「有什么周边、多少钱、还有货吗」
  *    这类问题没有信息量，只会吃预算。
  */
-import { supabase } from '@/utils/supabase-client.js';
+import { fetchActiveProducts } from '@/utils/api/bohai-retrieval-api.js';
 import { normalizePromptLine } from '../utils/text/normalize.js';
 
 const MAX_PRODUCTS = 8;
@@ -90,17 +90,7 @@ const scoreProductRow = (row, queryText) => {
  * @returns {Promise<{context: string, total: number, labels: string[]}>}
  */
 export const getProductsContext = async (queryText = '') => {
-  const { data, error } = await supabase
-    .from('products')
-    .select(
-      'id, category, title, description, stock, points_cost, rmb_price, payment_mode, is_purchasable, is_active, sort_order',
-    )
-    // ⚠️ 见文件头 ①：RLS 实际允许读全部商品，这道过滤是**唯一**的下架隔离。
-    .eq('is_active', true)
-    .order('sort_order', { ascending: true })
-    .limit(FETCH_LIMIT);
-
-  if (error) throw error;
+  const data = await fetchActiveProducts({ limit: FETCH_LIMIT });
 
   const rows = Array.isArray(data) ? data.filter((row) => clamp(row?.title, 80)) : [];
   if (rows.length === 0) {

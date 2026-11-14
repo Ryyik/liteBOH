@@ -14,7 +14,7 @@
  *
  * 数据量参考（2026-11-12 线上）：17 条，最新 2026-11-05。
  */
-import { supabase } from '@/utils/supabase-client.js';
+import { fetchNewsRows } from '@/utils/api/bohai-retrieval-api.js';
 import { normalizePromptLine } from '../utils/text/normalize.js';
 
 /** 单次最多展示几条（再多只是烧 token） */
@@ -57,13 +57,7 @@ const scoreNewsRow = (row, queryText) => {
  * @returns {Promise<{context: string, total: number, labels: string[], latestAt: string}>}
  */
 export const getNewsContext = async (queryText = '') => {
-  const { data, error } = await supabase
-    .from('news')
-    .select('id, category, title, excerpt, date, author')
-    .order('date', { ascending: false })
-    .limit(FETCH_LIMIT);
-
-  if (error) throw error;
+  const data = await fetchNewsRows({ limit: FETCH_LIMIT });
 
   const rows = Array.isArray(data) ? data.filter((row) => clamp(row?.title, 80)) : [];
   if (rows.length === 0) {
