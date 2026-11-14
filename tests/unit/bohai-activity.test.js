@@ -4,6 +4,7 @@ import {
   BOH_ACTIVITY_SURFACE,
   canExpandActivity,
   formatCommunityActivityLine,
+  isReasoningVisible,
   pickCommunityPostTitle,
   resolveActivityLine,
   resolveBohActivityStage,
@@ -135,6 +136,18 @@ describe('BOH 活动行：唯一真源', () => {
     expect(canExpandActivity('thinking', { hasReasoning: true })).toBe(true);
     expect(canExpandActivity('thinking', { hasReasoning: false })).toBe(false);
     expect(canExpandActivity('answering', { hasReasoning: true })).toBe(false);
+  });
+
+  it('⭐ 推理原文：默认折叠，且只在「正在思考」阶段可展开（2026-11-12 两条口径）', () => {
+    // 口径①（报障原话）：「回答完成后思考过程还会留在下面」⇒ 回答开始/结束时一律不可见，
+    //   哪怕用户点开过也不行。
+    // 口径②（同日追加）：「默认折叠思考过程」⇒ 连思考中也不默认展开，必须点开。
+    expect(isReasoningVisible({ stage: 'thinking' })).toBe(false);
+    expect(isReasoningVisible({ stage: 'thinking', expanded: true })).toBe(true);
+    for (const stage of ['web-searching', 'web-results', 'community', 'answering', '']) {
+      expect(isReasoningVisible({ stage, expanded: true }), stage).toBe(false);
+    }
+    expect(isReasoningVisible()).toBe(false);
   });
 
   it('挑「正在读取的那一篇」：取最新、去空白、无标题的略过', () => {

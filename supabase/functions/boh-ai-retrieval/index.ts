@@ -319,6 +319,21 @@ const isRequestAdmin = async (client: ReturnType<typeof createServiceClient>, us
   return String(data?.role || '').trim() === 'admin';
 };
 
+/** 审计里的操作人名（拿不到就空串，不阻断）。 */
+const getRequestActorLabel = async (
+  client: ReturnType<typeof createServiceClient>,
+  userId: string,
+) => {
+  if (!userId) return '';
+  const { data, error } = await client
+    .from('profiles')
+    .select('username')
+    .eq('id', userId)
+    .maybeSingle();
+  if (error) return '';
+  return String(data?.username || '').trim();
+};
+
 const getAllowedSyncSourceTypes = (
   sourceTypes: SourceType[],
   {
@@ -783,6 +798,394 @@ const buildKnowledgeBaseChunkContent = (chunk: KnowledgeBaseImportChunk) => {
       .join('\n'),
     MAX_IMPORT_CHUNK_CHARS,
   );
+};
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * 管理员知识库单条变更（2026-11-12 新增）
+ *
+ * 背景：此前只有 `import_knowledge_base`（整库导入 + 按位置重排切片）与 `sync`（补索引），
+ * **改一条 / 删一条都不存在**。于是「跟 AI 说一句把这个说法改掉」这件事根本没有落地通道。
+ *
+ * 三条硬约束（改之前先读完）：
+ *   ① **只允许 admin**，且 EF 内校验（不信前端）—— `isRequestAdmin` 查 profiles.role。
+ *   ② **不做物理删除**。`archive_chunk` 只置 `status='archived'`：检索侧本来就按 status 过滤，
+ *      而且知识库是「说错一句话会误导很久」的数据，可回滚比省一行记录重要得多。
+ *   ③ **每次写一条审计**。注意 `log_admin_action` RPC 依赖 `auth.uid()`，
+ *      service_role 调用时为 NULL ⇒ 函数直接 return、**静默不写**。
+ *      所以这里直接 insert `admin_audit_logs`（带真实 actor），不要图省事去调那个 RPC。
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+const KNOWNLEDGE_WRITABLE_SOURCE_TYPES = new Set([
+  'core_memory',
+  'knowledge_base',
+  'forum_memory',
+  'site_news',
+  'site_activity',
+  'shared_memory',
+]);
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+interface KnowledgeWriteActor {
+  userId?: string;
+  label?: string;
+}
+
+/** 审计写失败**不阻断**业务（与 `logAdminAction` 同口径），但要回传让人知道没留痕。 */
+const writeKnowledgeAudit = async (
+  client: ReturnType<typeof createServiceClient>,
+  {
+    actor = {},
+    action,
+    resourceId,
+    diff = null,
+    meta = null,
+  }: {
+    actor?: KnowledgeWriteActor;
+    action: 'create' | 'update' | 'delete';
+    resourceId: string;
+    diff?: Record<string, unknown> | null;
+    meta?: Record<string, unknown> | null;
+  },
+) => {
+  try {
+    const { error } = await client.from('admin_audit_logs').insert({
+      actor_id: actor.userId || null,
+      actor_label: toText(actor.label, 80) || '',
+      action,
+      resource_table: 'boh_ai_knowledge_chunks',
+      resource_id: resourceId,
+      diff,
+      meta,
+    });
+    if (error) {
+      console.error('[boh-ai-retrieval] 知识库变更审计写入失败', error.message);
+      return false;
+    }
+    return true;
+  } catch (syncError) {
+    console.error('[boh-ai-retrieval] 知识库变更审计写入异常', syncError);
+    return false;
+  }
+};
+
+/**
+ * 新增或改写**一条** chunk（按 id 定位；无 id 则新增）。
+ * 改内容时必须重算 embedding —— 否则语义检索还按旧向量召回，表现为「改了但搜不到新说法」。
+ */
+const upsertKnowledgeChunk = async (
+  client: ReturnType<typeof createServiceClient>,
+  body: Record<string, unknown>,
+  { actor = {}, isAdmin = false }: { actor?: KnowledgeWriteActor; isAdmin?: boolean } = {},
+) => {
+  if (!isAdmin) {
+    return { ok: false, status: 403, message: 'Not allowed to modify knowledge chunks' };
+  }
+
+  const chunkId = toText(body.id || body.chunkId, 80);
+  const content = toText(body.content, 20000);
+  if (!content) {
+    return { ok: false, status: 400, message: 'Missing content' };
+  }
+
+  let existing: Record<string, unknown> | null = null;
+  if (chunkId) {
+    if (!UUID_PATTERN.test(chunkId)) {
+      return { ok: false, status: 400, message: 'Invalid chunk id' };
+    }
+    const { data, error } = await client
+      .from('boh_ai_knowledge_chunks')
+      .select(
+        'id, source_type, source_id, owner_user_id, visibility, chunk_index, title, content, metadata, entity_ids, status',
+      )
+      .eq('id', chunkId)
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) {
+      return { ok: false, status: 404, message: 'Chunk not found' };
+    }
+    existing = data as Record<string, unknown>;
+  }
+
+  const sourceType =
+    toText(body.sourceType || body.source_type, 40) || toText(existing?.source_type, 40);
+  const sourceId = toText(body.sourceId || body.source_id, 80) || toText(existing?.source_id, 80);
+  if (!sourceType || !sourceId) {
+    return { ok: false, status: 400, message: 'Missing sourceType/sourceId for a new chunk' };
+  }
+  if (!KNOWNLEDGE_WRITABLE_SOURCE_TYPES.has(sourceType)) {
+    return { ok: false, status: 400, message: `Source type is not writable: ${sourceType}` };
+  }
+  if (!UUID_PATTERN.test(sourceId)) {
+    return { ok: false, status: 400, message: 'sourceId must be a uuid' };
+  }
+
+  const title = toText(body.title, 160) || toText(existing?.title, 160) || '';
+  // embedding 用「标题 + 正文」：与 import 路径的 buildKnowledgeBaseChunkContent 同口径，
+  // 只喂正文会让「标题里才出现的关键词」搜不到。
+  const embeddingText = [title, content].filter(Boolean).join('\n');
+  const [embedding] = await callEmbedding([embeddingText]);
+  if (!Array.isArray(embedding)) {
+    throw new Error('Embedding API did not return a vector for the chunk');
+  }
+  const contentHash = await sha256Hex(`${sourceType}:${sourceId}:${content}`);
+
+  const row: Record<string, unknown> = {
+    source_type: sourceType,
+    source_id: sourceId,
+    visibility:
+      String(existing?.visibility || body.visibility || 'public') === 'private'
+        ? 'private'
+        : 'public',
+    owner_user_id: existing?.owner_user_id ?? null,
+    chunk_index: existing
+      ? Number(existing.chunk_index || 0)
+      : clampInt(body.chunkIndex, 0, 0, 1_000_000),
+    title,
+    content,
+    content_hash: contentHash,
+    // 合并而非覆盖：原有 metadata 里有别名 / 人物 id / 来源链接等，丢了会让检索退化。
+    // 两个入参都过 `normalizeMetadata`（它对非对象一律返回 {}），不需要额外的类型判断。
+    metadata: {
+      ...normalizeMetadata(existing?.metadata),
+      ...normalizeMetadata(body.metadata),
+      editedAt: new Date().toISOString(),
+      editedByAi: true,
+    },
+    entity_ids: Array.isArray(existing?.entity_ids) ? existing.entity_ids : [],
+    embedding_model: EMBEDDING_MODEL_ID,
+    embedding,
+    status: 'active',
+    updated_at: new Date().toISOString(),
+  };
+
+  const write = chunkId
+    ? await client
+        .from('boh_ai_knowledge_chunks')
+        .update(row)
+        .eq('id', chunkId)
+        .select('id')
+        .single()
+    : await client.from('boh_ai_knowledge_chunks').insert(row).select('id').single();
+  if (write.error) throw write.error;
+
+  const writtenId = String(write.data?.id || chunkId || '');
+  const auditOk = await writeKnowledgeAudit(client, {
+    actor,
+    action: chunkId ? 'update' : 'create',
+    resourceId: writtenId,
+    diff: {
+      before: existing
+        ? { title: toText(existing.title, 160), content: toText(existing.content, 600) }
+        : null,
+      after: { title, content: toText(content, 600) },
+    },
+    meta: { via: 'bohai-knowledge-debug', sourceType, sourceId },
+  });
+
+  return { ok: true, data: { id: writtenId, mode: chunkId ? 'update' : 'insert', audit: auditOk } };
+};
+
+/**
+ * 软删一条 chunk（`status='archived'`）。**不做物理删除**，理由见本节文件头 ②。
+ * 检索侧 `match_boh_ai_knowledge_chunks` 只取 active，所以归档即「对用户不可见」。
+ */
+const archiveKnowledgeChunk = async (
+  client: ReturnType<typeof createServiceClient>,
+  body: Record<string, unknown>,
+  { actor = {}, isAdmin = false }: { actor?: KnowledgeWriteActor; isAdmin?: boolean } = {},
+) => {
+  if (!isAdmin) {
+    return { ok: false, status: 403, message: 'Not allowed to modify knowledge chunks' };
+  }
+  const chunkId = toText(body.id || body.chunkId, 80);
+  if (!chunkId || !UUID_PATTERN.test(chunkId)) {
+    return { ok: false, status: 400, message: 'Invalid chunk id' };
+  }
+
+  const { data, error } = await client
+    .from('boh_ai_knowledge_chunks')
+    .select('id, source_type, source_id, title, content, status')
+    .eq('id', chunkId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) {
+    return { ok: false, status: 404, message: 'Chunk not found' };
+  }
+
+  const { error: updateError } = await client
+    .from('boh_ai_knowledge_chunks')
+    .update({ status: 'archived', updated_at: new Date().toISOString() })
+    .eq('id', chunkId);
+  if (updateError) throw updateError;
+
+  const auditOk = await writeKnowledgeAudit(client, {
+    actor,
+    action: 'delete',
+    resourceId: chunkId,
+    diff: {
+      before: { title: toText(data.title, 160), content: toText(data.content, 600) },
+      after: null,
+    },
+    meta: {
+      via: 'bohai-knowledge-debug',
+      mode: 'archive',
+      previousStatus: toText(data.status, 20) || 'active',
+    },
+  });
+
+  return { ok: true, data: { id: chunkId, status: 'archived', audit: auditOk } };
+};
+
+/** `find` 文本上限：够覆盖「一句话 / 一个段落」，又不至于让一次替换变成整段重写。 */
+const MAX_EDIT_FIND_CHARS = 4000;
+/** 替换后正文上限：与 `upsert_chunk` 的 `toText(content, 20000)` 同口径。 */
+const MAX_EDIT_CONTENT_CHARS = 20000;
+
+const countOccurrences = (haystack: string, needle: string) => {
+  if (!needle) return 0;
+  return haystack.split(needle).length - 1;
+};
+
+/**
+ * 局部改写一条 chunk：把 `find` 换成 `replace`（`replace` 传空串＝删掉这一段）。
+ *
+ * 为什么不直接用 `upsert_chunk` 整段覆盖：管理员的真实诉求多是「改掉一个数字」「删掉一句话」，
+ * 而一条 chunk 常有几百字。让模型把整段重吐一遍既贵、又会有复述漂移
+ * （LLM 抄写长文本时顺手改字是已知问题），改动面还**无法校验**；
+ * 锚定一段短子串做替换，改动范围是确定的，能让人一眼看出「只动了这几个字」。
+ *
+ * 四条校验（全在服务端做，别指望前端）：
+ *   ① `find` 必须**恰好命中 1 次** —— 0 次说明内容记的不是这样（可能已被改过），让调用方重读；
+ *      ≥2 次是歧义替换（数据事故的经典来源），确实要全改必须显式传 `allowMultiple: true`；
+ *   ② `find` 必须是非空字符串，`replace` 必须是字符串（空串合法＝删除）；
+ *   ③ 替换后正文不能为空白 —— 想整条下架请走 `archive_chunk`，
+ *      否则会留下一条空切片，检索侧照样召回；
+ *   ④ 换完必须重算 embedding（与 `upsertKnowledgeChunk` 同口径：标题 + 正文），
+ *      否则语义检索仍按旧向量召回，表现为「改了但搜不到新说法」。
+ */
+const editKnowledgeChunk = async (
+  client: ReturnType<typeof createServiceClient>,
+  body: Record<string, unknown>,
+  { actor = {}, isAdmin = false }: { actor?: KnowledgeWriteActor; isAdmin?: boolean } = {},
+) => {
+  if (!isAdmin) {
+    return { ok: false, status: 403, message: 'Not allowed to modify knowledge chunks' };
+  }
+
+  const chunkId = toText(body.id || body.chunkId, 80);
+  if (!chunkId || !UUID_PATTERN.test(chunkId)) {
+    return { ok: false, status: 400, message: 'Invalid chunk id' };
+  }
+
+  // 类型严格判定：`find: 0` / `find: null` 一律当缺参，不做隐式转换
+  if (typeof body.find !== 'string' || typeof body.replace !== 'string') {
+    return { ok: false, status: 400, message: 'find and replace must be strings' };
+  }
+  const find = body.find;
+  const replace = body.replace;
+  if (!find) {
+    return { ok: false, status: 400, message: 'Missing find text' };
+  }
+  if (find.length > MAX_EDIT_FIND_CHARS) {
+    return {
+      ok: false,
+      status: 400,
+      message: `find text is too long (max ${MAX_EDIT_FIND_CHARS} chars)`,
+    };
+  }
+
+  const { data, error } = await client
+    .from('boh_ai_knowledge_chunks')
+    .select('id, source_type, source_id, title, content, metadata, status')
+    .eq('id', chunkId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) {
+    return { ok: false, status: 404, message: 'Chunk not found' };
+  }
+  if (toText(data.status, 20) === 'archived') {
+    return { ok: false, status: 409, message: 'Chunk is archived; restore it before editing' };
+  }
+
+  const before = String(data.content || '');
+  const occurrences = countOccurrences(before, find);
+  if (occurrences === 0) {
+    return { ok: false, status: 400, message: 'find text not found in chunk content' };
+  }
+  const allowMultiple = body.allowMultiple === true || body.all === true;
+  if (occurrences > 1 && !allowMultiple) {
+    return {
+      ok: false,
+      status: 400,
+      message: `find text is ambiguous (${occurrences} matches); narrow it or pass allowMultiple`,
+    };
+  }
+
+  // 用 split/join 而不是 String.replace：replace 会把 `$&` / `$1` 当特殊序列，
+  // 知识正文里出现 `$` 完全正常（价格、变量名），那会造成静默错改。
+  const content = before.split(find).join(replace);
+  if (!content.trim()) {
+    return {
+      ok: false,
+      status: 400,
+      message: 'Result content is empty; use archive_chunk instead',
+    };
+  }
+  if (content.length > MAX_EDIT_CONTENT_CHARS) {
+    return {
+      ok: false,
+      status: 400,
+      message: `Result content is too long (max ${MAX_EDIT_CONTENT_CHARS} chars)`,
+    };
+  }
+
+  const title = toText(data.title, 160) || '';
+  const [embedding] = await callEmbedding([[title, content].filter(Boolean).join('\n')]);
+  if (!Array.isArray(embedding)) {
+    throw new Error('Embedding API did not return a vector for the chunk');
+  }
+  const sourceType = toText(data.source_type, 40);
+  const sourceId = toText(data.source_id, 80);
+  const contentHash = await sha256Hex(`${sourceType}:${sourceId}:${content}`);
+
+  const { error: updateError } = await client
+    .from('boh_ai_knowledge_chunks')
+    .update({
+      content,
+      content_hash: contentHash,
+      embedding_model: EMBEDDING_MODEL_ID,
+      embedding,
+      // 合并而非覆盖：metadata 里有别名 / 人物 id / 来源链接，丢了检索会退化
+      metadata: {
+        ...normalizeMetadata(data.metadata),
+        editedAt: new Date().toISOString(),
+        editedByAi: true,
+        editMode: 'find_replace',
+      },
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', chunkId);
+  if (updateError) throw updateError;
+
+  const auditOk = await writeKnowledgeAudit(client, {
+    actor,
+    action: 'update',
+    resourceId: chunkId,
+    diff: {
+      before: { title, content: toText(before, 600) },
+      after: { title, content: toText(content, 600) },
+    },
+    meta: {
+      via: 'bohai-knowledge-debug',
+      mode: 'find_replace',
+      find: toText(find, 200),
+      replace: toText(replace, 200),
+      occurrences,
+    },
+  });
+
+  return { ok: true, data: { id: chunkId, mode: 'edit', occurrences, audit: auditOk } };
 };
 
 const importKnowledgeBase = async (
@@ -1830,6 +2233,26 @@ Deno.serve(async (request) => {
     const userId = await getRequestUserId(client, request);
     const requestHasSyncSecret = hasSyncSecret(request);
     const requestIsAdmin = await isRequestAdmin(client, userId);
+
+    if (action === 'upsert_chunk' || action === 'archive_chunk' || action === 'edit_chunk') {
+      // 管理员知识库单条变更（2026-11-12）。⚠️ `isAdmin` 由 EF 自己查库判定，
+      // 前端 localStorage / store 里的 isAdmin 一概不信（那只是 UI 开关）。
+      const actor = { userId, label: await getRequestActorLabel(client, userId) };
+      const writeArgs = { actor, isAdmin: requestIsAdmin };
+      const writeResult =
+        action === 'upsert_chunk'
+          ? await upsertKnowledgeChunk(client, body as Record<string, unknown>, writeArgs)
+          : action === 'archive_chunk'
+            ? await archiveKnowledgeChunk(client, body as Record<string, unknown>, writeArgs)
+            : await editKnowledgeChunk(client, body as Record<string, unknown>, writeArgs);
+      return jsonResponse(
+        writeResult.ok
+          ? { ok: true, data: writeResult.data }
+          : { ok: false, message: writeResult.message },
+        writeResult.status,
+        origin,
+      );
+    }
 
     if (action === 'import_knowledge_base') {
       const result = await importKnowledgeBase(client, body as Record<string, unknown>, {

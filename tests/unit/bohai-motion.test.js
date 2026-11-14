@@ -131,8 +131,8 @@ describe('两条硬约束（改这四处时别踩）', () => {
     }
   });
 
-  it('⭐ 关键帧不变量：BOHAI 仍是 6 处（新增动画请用 transition）', () => {
-    // 现行 6 处（2026-10-25 按实况对齐；此前断言写 3 却实测 4，长期是红的）：
+  it('⭐ 关键帧不变量：BOHAI 仍是 7 处（新增动画请用 transition）', () => {
+    // 现行 7 处（2026-10-25 按实况对齐；此前断言写 3 却实测 4，长期是红的）：
     //   1. boh-spin              boh-work.css    工作台步骤点的无限旋转（唯一用 transition 表达不了的一类）
     //   2. boh-search-shimmer    boh-stream.css  「网页搜索 / 正在思考」的流光
     //   3. boh-activity-swap-in  boh-stream.css  动作行换字的一次性淡入（2026-10-19，见下方注释为何不用 Transition）
@@ -141,17 +141,18 @@ describe('两条硬约束（改这四处时别踩）', () => {
     //   6. boh-msg-actions-in    boh-stream.css  生成结束后的操作栏一次性入场（2026-11-04 硬切审计
     //                                              P1-9；与 #3/#4 同类：挂载即播的一次性淡入，
     //                                              transition 无从触发，挂 <Transition> 反而多一层包裹）
+    //   7. boh-debug-rainbow-spin debug-rainbow.css 调试模式边缘彩光的旋转（2026-11-12）
     // 变更史：`boh-search-fade`（网页标题轮换）已于 2026-10-19 被 `boh-activity-swap-in` 取代
     //        （08ad8476 删 1 增 2，净 +1 ⇒ 3 → 4）；2026-10-25 加边界光束 ⇒ 4 → 5；
-    //        2026-11-04 加操作栏入场 ⇒ 5 → 6。
-    //        ⚠️ 第 5 条同样过不了「能不能用 transition」那一问 —— 旋转角度要**无限循环**，
-    //        transition 没有 `infinite`，只能走关键帧。它是**条件性**的（只在 `is-active` 时 running），
-    //        不是常驻循环，这一点与第 1、2 条不同。
+    //        2026-11-04 加操作栏入场 ⇒ 5 → 6；2026-11-12 加调试彩光 ⇒ 6 → 7。
+    //        ⚠️ 第 5、7 条同样过不了「能不能用 transition」那一问 —— 旋转角度要**无限循环**，
+    //        transition 没有 `infinite`，只能走关键帧。两者都是**条件性**的（第 5 条只在
+    //        `is-active` 时 running，第 7 条只在调试模式 class 存在时挂载），不是常驻循环。
     // ⚠️ 数的是**声明处**，所以「删一个就得改这个数字」；新增关键帧前先问能不能用 transition。
     const total = walk(BOHAI).reduce(
       (sum, file) => sum + (read(file).match(/@keyframes\s/g) || []).length,
       0,
     );
-    expect(total).toBe(6);
+    expect(total).toBe(7);
   });
 });

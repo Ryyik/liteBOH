@@ -1,7 +1,7 @@
 import { formatPromptDateTime } from '../utils/format/display.js';
 import { getPostTitleAndBody } from '../utils/format/post.js';
 import { scoreChunk } from '../utils/retrieval/scoring.js';
-import { extractQueryKeywords } from '../utils/text/keywords.js';
+import { extractQueryKeywords, QUERY_STOPWORDS } from '../utils/text/keywords.js';
 import { normalizePromptLine, truncateText, normalizeText } from '../utils/text/normalize.js';
 import { FORUM_MAX_POSTS } from './chat-engine-config.js';
 
@@ -42,6 +42,57 @@ export const getForumSortModeFromQuery = (queryText = '') => {
   const normalized = normalizeText(queryText);
   if (/(热帖|热门|最热|最多赞|点赞最多|评论最多|火)/.test(normalized)) return 'hottest';
   return 'latest';
+};
+
+/**
+ * 这个问题是否**真的**在问「最新的帖子」。
+ *
+ * ⚠️ 不要用 `getForumSortModeFromQuery(q) === 'latest'` 当判据（2026-11-12 定位）：
+ * 那个函数对**任何**问题都返回 `latest`（`ALLOWED_SORT_MODE` 只有 latest / hottest，
+ * 没有「相关性」这一档），于是每个问题都被当成「总结最新帖子」，进而：
+ *   ① 注入「必须严格按 [F1]..[Fn] 顺序总结」的硬约束 —— 问「End 是谁」也被命令去总结帖子；
+ *   ② `allowBroadFallback` 恒为 true —— 2026-10-08 那次「宁缺毋滥」收紧形同死代码。
+ */
+export const isForumLatestQuery = (queryText = '') => {
+  const normalized = normalizeText(queryText);
+  return /(最新|最近|近期|今天|刚刚|刚才|本周|本月|这几天|这两天|近几天|新帖|新鲜事|近况|动态|发了什么|发了啥)/.test(
+    normalized,
+  );
+};
+
+/**
+ * 选中的帖子里有没有**任意一条**真的命中查询关键词。
+ *
+ * 用途：非「最新」类提问的相关性地板 —— 一条都没命中就整块不注入。
+ * 论坛没有向量检索，只能靠字面命中；字面全不中时，注入的必然是「最近 5 条随便什么帖子」，
+ * 模型会把它当检索结果用（2026-10-08 注释里的风险，2026-11-12 实测复现）。
+ */
+export const forumQueryHasAnyHit = (posts, queryText = '') => {
+  const keywords = extractQueryKeywords(queryText);
+  if (keywords.length === 0) return false;
+
+  // 英文关键词必须按**词边界**判命中：`end` 不能靠 `weekend` / `friend` / `send` 蒙过去
+  // （2026-11-12 实测：问「End 是谁」时，正是这种子串命中把一条 8 月的「活动」帖放进了上下文）。
+  // 中文关键词仍用包含判断 —— 中文没有词边界，而关键词已由停用表过滤过问法词。
+  // ⚠️ 关键词字符集被 `extractQueryKeywords` 限制在 `[a-z0-9_/-]`，无需转义正则。
+  const hit = (text, keyword) => {
+    if (!/^[a-z0-9_/-]+$/i.test(keyword)) {
+      return text.toLowerCase().includes(keyword.toLowerCase());
+    }
+    return new RegExp(`(?:^|[^a-z0-9])${keyword}(?:$|[^a-z0-9])`, 'i').test(text);
+  };
+
+  return (Array.isArray(posts) ? posts : []).some((post) => {
+    const parsed = getPostTitleAndBody(post);
+    const merged = [
+      parsed.title,
+      parsed.body,
+      post?.author_username,
+      post?.tagLabel,
+      post?.tag,
+    ].join('\n');
+    return keywords.some((keyword) => hit(merged, keyword));
+  });
 };
 
 export const isLatestForumSummaryQuery = (queryText = '') => {
@@ -285,6 +336,7 @@ export const detectForumSummaryPolarityConflicts = (sourceText = '', summaryText
 export const buildForumSearchQueries = (queryText = '') => {
   const raw = normalizePromptLine(queryText, 120);
   const keywords = extractQueryKeywords(raw)
+    .filter((keyword) => !QUERY_STOPWORDS.has(keyword))
     .filter(
       (keyword) =>
         ![

@@ -9,7 +9,12 @@
       <span class="boh-ring" aria-hidden="true">
         <i v-for="n in 8" :key="n" :style="{ '--a': `${(n - 1) * 45}deg`, '--i': n - 1 }"></i>
       </span>
-      <span class="boh-load-title">{{ loadingTitle }}</span>
+      <!-- 动作文案：按 key 重挂 + 一次性 keyframes 做「淡出上浮 → 淡入」的**变换过程**
+           （2026-11-12 用户口径：岛里的动作要轮换着显示，不要硬切来回跳）。
+           ⚠️ 真源仍是 `activityStage`（boh-activity.js），这里只加过渡与驻留节流。 -->
+      <span :key="`${shownTitle}:${titleKey}`" class="boh-load-title is-swap-in">{{
+        shownTitle
+      }}</span>
     </div>
 
     <!-- ② 回复态：问题（大字）+ 正文 + 来源
@@ -74,10 +79,12 @@
 
     <!-- ③ 结果胶囊：只有「本轮真的有东西可看」时出现
          （参考图 2 的 Show Results —— 独立一枚、不占满宽）。
-         ⚠️ 不能只判 `!showLoading`：空闲态也满足，会在输入框上方凭空多一枚按钮。 -->
+         ⚠️ 不能只判 `!showLoading`：空闲态也满足，会在输入框上方凭空多一枚按钮。
+         ⚠️ 2026-11-12：回答面若是一条失败提示（如速率限制），不挂「查看完整回答」——
+            那句提示本身不是可展开的回答，点去全页只会看到同一句话。 -->
     <div v-if="hasAnswer && !showLoading" class="boh-answer-foot">
       <button v-if="streaming" type="button" class="boh-foot-stop" @click="stop">停止生成</button>
-      <button v-else type="button" class="boh-result-pill" @click="goFullPage">
+      <button v-else-if="!isErrorReply" type="button" class="boh-result-pill" @click="goFullPage">
         <span class="boh-result-icon" aria-hidden="true">
           <ArrowUpRight :size="13" :stroke-width="2.2" />
         </span>
@@ -117,6 +124,7 @@ import {
   resolveBohActivityStage,
 } from '@/views/BOHAI/BOHAI/components/boh-activity.js';
 import { renderMarkdown } from '@/views/BOHAI/BOHAI/components/boh-markdown.js';
+import { isGenerationErrorText } from '@/views/BOHAI/utils/chatErrorMessages.js';
 import { logger } from '@/utils/logger.js';
 import { toSafeExternalHref } from '@/utils/external-link.js';
 import { useBohIsland } from '@/composables/useBohIsland.js';
@@ -224,6 +232,12 @@ const hasAnswer = computed(
 );
 
 /**
+ * 这一轮的回答面其实是**一条失败提示**（速率限制 / 额度 / 超时…）。
+ * 用于不挂「查看完整回答」——失败提示不是可展开的回答（2026-11-12）。
+ */
+const isErrorReply = computed(() => isGenerationErrorText(answerText.value));
+
+/**
  * 阶段 → 进行时文案。⚠️ **语义真源仍是 boh-activity.js 的 stage**，这里只做时态改写：
  * 那边给全页活动行的是「网页搜索」「正在思考」这类短标签，岛里这颗胶囊是
  * Siri 式的整句状态（「Searching events 2/5」），直接用标签会读成名词短语。
@@ -240,6 +254,60 @@ const LOAD_TITLES = {
 const loadingTitle = computed(
   () => LOAD_TITLES[activityStage.value] || activityLine.value || '正在思考…',
 );
+
+/* ---------------- 动作文案的「变换过程」：驻留窗口 + 交叉淡入（2026-11-12 用户口径） ----
+   用户原话：「动作显示是轮换的（正在搜索社区 → 正在思考），不需要来回切，
+   **需要有一个变换的过程**」。
+
+   两件事，缺一不可：
+   ① **变换过程** = `:key` 重挂 + 一次性 keyframes（`.is-swap-in`）：淡出上浮 → 淡入。
+      不用 `<Transition>`：同一 tick 内连续换 key 会把离场节点留成孤儿（全页活动行
+      实测过这条坑，别换回去）。
+   ② **不来回切** = 每个动作至少驻留 `TITLE_DWELL_MS` 才允许被下一个替换。
+      检索阶段 `communitySearchActive` 会抖（连接器逐个 settled），没有驻留窗口时
+      文案会在「社区 ⇄ 思考」之间高频闪，看起来像坏了。
+   ⚠️ 这是**交互节奏**（JS 计时器），不是 CSS 时长；`tokens.css` 那条「CSS 里不许写
+      字面时长」的纪律管不到这里（同 `BohChatStream` 的 `WEB_TITLE_DWELL_MS` 先例）。 */
+const TITLE_DWELL_MS = 640;
+
+const shownTitle = ref(String(loadingTitle.value || ''));
+const titleKey = ref(0);
+let titleShownAt = Date.now();
+let titleTimer = 0;
+
+const commitTitle = (text) => {
+  const next = String(text || '');
+  if (!next || next === shownTitle.value) return;
+  clearTimeout(titleTimer);
+  shownTitle.value = next;
+  titleKey.value += 1;
+  titleShownAt = Date.now();
+};
+
+watch(loadingTitle, (next) => {
+  // 加载态不在场时不算「动作切换」：此时 loadingTitle 会退回兜底文案，
+  // 把它当一次切换会让下一轮的驻留时钟起点错位（新一轮由下面的 showLoading 重置）。
+  if (!showLoading.value) return;
+  const text = String(next || '');
+  if (!text || text === shownTitle.value) return;
+  clearTimeout(titleTimer);
+  const wait = Math.max(0, TITLE_DWELL_MS - (Date.now() - titleShownAt));
+  if (wait === 0) {
+    commitTitle(text);
+    return;
+  }
+  // 到期时再读一次**最新**值：这一拍里可能又变过，不要排队把中间态挨个补播
+  titleTimer = setTimeout(() => commitTitle(loadingTitle.value), wait);
+});
+
+/* 新一轮（加载态重新出现）从当前动作直接起播，不继承上一轮剩下的驻留时钟 */
+watch(showLoading, (loading) => {
+  if (!loading) return;
+  clearTimeout(titleTimer);
+  shownTitle.value = String(loadingTitle.value || '');
+  titleKey.value += 1;
+  titleShownAt = Date.now();
+});
 
 /* ---------------- 站内页面命中：用一句对话回复代替搜索列表 ---------------- */
 
@@ -510,6 +578,7 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   queuedSeed = '';
+  clearTimeout(titleTimer);
   if (focusTimer) {
     clearTimeout(focusTimer);
     focusTimer = null;
@@ -684,6 +753,36 @@ onBeforeUnmount(() => {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+}
+
+/* 动作切换的「变换过程」（2026-11-12）：按 key 重挂 + 一次性 keyframes。
+   起止都由本动画独占（`both` 在这里是刻意的），所以连续换动作只是重放，
+   不会留下中间态 —— 与全页活动行 `boh-activity-swap-in` 同一套手法、同一观感。 */
+.boh-load-title.is-swap-in {
+  animation: bohIslandTitleSwap 260ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes bohIslandTitleSwap {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* 降级：系统「减少动态效果」与站内开关都不播这条动画（文字仍会换，只是瞬切） */
+@media (prefers-reduced-motion: reduce) {
+  .boh-load-title.is-swap-in {
+    animation: none;
+  }
+}
+
+.reduce-motion .boh-load-title.is-swap-in {
+  animation: none;
 }
 
 .boh-load-step {

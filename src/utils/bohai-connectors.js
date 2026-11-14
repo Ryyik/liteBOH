@@ -23,6 +23,12 @@ export const BOHAI_CONNECTOR_IDS = {
   webSearch: 'webSearch',
   // 2026-10-04 新增：站内活动 / 抽奖 / 演出（公开数据，不要求登录）
   siteActivities: 'siteActivities',
+  // 2026-11-12 新增：站内新闻 / 公告（公开，直查 `news` 表）
+  siteNews: 'siteNews',
+  // 2026-11-12 新增：商城在售商品（公开，但必须由连接器自己过滤 is_active）
+  shopProducts: 'shopProducts',
+  // 2026-11-12 新增：成员聚合数字（只给总数/新增，绝不给明细）
+  members: 'members',
 };
 
 // 2026-10-04 收敛：删除 saveCloud / quickNote（写 Cloud+）、saveBothMemories（两处同存）、

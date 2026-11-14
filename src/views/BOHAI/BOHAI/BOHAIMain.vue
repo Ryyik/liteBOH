@@ -10,6 +10,7 @@
       'sidebar-open': isSidebarOpen,
       'work-open': workPanelOpen,
       'reduce-motion': !globalAiPreferences.animationsEnabled,
+      'knowledge-debug-mode': isKnowledgeDebugMode,
     }"
     :data-ui-style="currentUiStyle"
     :data-theme="resolvedAiTheme"
@@ -260,6 +261,7 @@ const {
   resolvedAiTheme,
   currentSiteTheme,
   globalAiPreferences,
+  isKnowledgeDebugMode,
   railUnreadCount,
   userSpaceNavItems,
   handleRailNavClick,
@@ -392,7 +394,5 @@ defineExpose(exposedApi);
      各区域组件的基座与断点在各自的 scoped CSS 里 —— 理由见 layout.css 文件头纪律 2。 -->
 <style scoped src="./styles/layout.css"></style>
 
-<!-- 横屏左栏页面级规则（body.page-aichat 段）：必须非 scoped —— body 前缀的选择器
-     会被 scoped 属性选择器作废。与 UserSpaceMain / ProfileMain / Home 引入同一份文件，
-     断点与栏宽档位只在那一个文件里定义。 -->
-<style src="@/views/user-center/UserSpace/styles/landscape-rail.css"></style>
+<!-- 页面级样式（`landscape-rail.css` 横屏左栏、`debug-rainbow.css` 调试彩光）由入口
+     `index.vue` 引入：两者都是 body 前缀 / 全屏 fixed，且本文件有 400 行薄壳阈值。 -->

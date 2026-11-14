@@ -1,0 +1,210 @@
+/**
+ * debug-rainbow.css — 知识库调试模式的「全屏彩虹光」状态标识（2026-11-12 定稿 11-13）
+ *
+ * 用户口径（第二轮是关键修正）：
+ *   · 「调试模式整个屏幕四边边缘都有彩虹光」；
+ *   · 先做成均匀的 `conic` 整环 → 被否：「是彩虹光效类似于输入框的那种」；
+ *   · 再修正：「我要你和输入框一样的感觉」。
+ *
+ * 所以本文件**结构照抄** `components/styles/boh-beam.css`（BohBeam = 输入框生成在途的边界光束）：
+ *
+ *   ① 基础轮廓：输入框自带 1px 边框，光带扫不到的位置照样看得见框（见文件下半段注释）。
+ *   ② 描边层（`::after`）：九个彩色椭圆沿四条边分布 + 一圈**旋转的窗口蒙版**。
+ *      任一时刻只有一段边框是亮的，光带绕边游走 —— 这正是「输入框那种」观感的来源。
+ *      ⚠️ 别把这一层换成 `conic-gradient(九色)` 整环：那是均匀彩虹，不是光带在跑（已被用户否过）。
+ *   ③ 外发光层（`::before`）：BohBeam 的 `__bloom` 同款 —— 白色行进高光 + 环蒙版 + blur。
+ *      全屏没有「框外」，所以它落在边框内侧，就是光带边上那层柔光。
+ *
+ * 与 BohBeam 的差异**只剩几何参数**（观感比例已按 11-13 修正对齐）：
+ *   · 环宽 1px → 2px（1px 在整屏尺度上会被当成屏幕接缝）。
+ *   · 色斑尺寸 px → vw/vh，但**按「占边长比例」取值**，不是等比放大。这是关键：
+ *     BohBeam 在 880px 输入框上，上边三个色斑合计占 46% 边长；
+ *     若直接沿用 30vw/20vw/22vw，上边合计 922px = 顶边 72% ⇒ 顶边整条都在发彩光，
+ *     退化成「彩色灯带」。所以统一收缩到 BohBeam 的比例（≈0.63 倍）。
+ *   · 一圈从 `--boh-dur-bob`(1.8s) 放慢到 3 倍 —— 光带横跨 1280px 时同速会像频闪。
+ *   · 色值/高光 **零裸色值**，全部复用 `tokens.css` 的 `--boh-beam-c1..c9` / `--boh-beam-hi-*`。
+ *
+ * ⚠️ 「和输入框一样」的正确含义是**同一套机制 + 同一套占边比例**，不是同一串像素值：
+ *    把 BohBeam 原样（1px 环 + px 色斑）铺满 1280×800，屏幕上只剩右上角一点橙
+ *    （色斑绝对尺寸是按 880px 输入框定的，到整屏就被裁没了）。这条已实测，别重试。
+ *
+ * ⚠️ 这是 `tokens.css` 里记的「彩色例外」的第二处（原例外：BohBeam 只在生成在途出现）。
+ *    它同样只允许出现在「非正常状态」（调试态），静态正常界面里不得出现。
+ *
+ * ⚠️ `pointer-events: none` 是硬要求 —— 这层盖满全屏，漏了会吞掉整页点击
+ *    （「调试态下点不动任何东西」是最难排查的一类事故）。
+ *
+ * 挂载点：`.bohai-page` 上的 `knowledge-debug-mode` class（`BOHAIMain` 由 useBohShell 解构
+ * `isKnowledgeDebugMode` 后绑定，= 权限 ∧ 偏好），样式由页面入口 `index.vue` 引入。
+ */
+
+/* 基础轮廓（**不能省**）：输入框自带 `1px` 边框，光带扫不到的位置照样看得见框。
+   全屏版如果没有这一层，大片边界就是纯黑 —— 观感会从「一圈暗色边框上有光流过」
+   退化成「几条孤立的亮线」，这正是前两版不像输入框的根本原因。
+   用 currentColor 混低透明度：暗色主题下是浅描边、浅色主题下是深描边，两种主题都读得出来。 */
+.bohai-page.knowledge-debug-mode {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 20%, transparent);
+}
+
+/* 兜底：mask 不可用时至少给一圈单色彩边（c1，仍是同一份色值 token） */
+.bohai-page.knowledge-debug-mode::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  /* 盖在页面浮层（设置面板 / 下拉岛）之上：它是「当前模式」的提示，被面板挡住就失去意义。
+     只占边缘几像素且不接收事件，不影响任何交互。 */
+  z-index: 2147482000;
+  pointer-events: none;
+  box-shadow: inset 0 0 0 2px var(--boh-beam-c1);
+}
+
+@supports ((-webkit-mask-composite: xor) or (mask-composite: exclude)) {
+  /* ── 描边层：2px 环 + 九个色斑 + 旋转窗口（BohBeam 同构，占边比例对齐） ── */
+  .bohai-page.knowledge-debug-mode::after {
+    box-shadow: none;
+    /* 1px 在整屏尺度上会被当成屏幕接缝（实测：BohBeam 原样 1px 环铺满全屏只剩右上角一点橙），
+       2px 是「看得出是一道光」的下限。 */
+    padding: 2px;
+    /* ⚠️ 这里可以叠**高光** conic，但**绝不能**再叠「窗口」conic —— 第 1 版就是窗口叠窗口，
+       乘法叠加 ⇒ 整圈几乎全黑，截图只剩角落一点残光。窗口只应出现在 mask 里。
+
+       色斑几何按视口比例（vw/vh）放大，落点**压在框边上**（0% / 100%）：
+       位置一旦离开边（如 4%），2px 环就只截到椭圆的透明过渡区，颜色会被摊薄成灰白。
+
+       ⚠️ 尺寸是「**占边长的比例**对齐 BohBeam」，不是等比放大（2026-11-13 修正）：
+       上一版取 30vw/20vw/22vw，上边三个色斑合计 922px = 顶边 72%，
+       而 BohBeam 在 880px 输入框上只占 46% ⇒ 全屏看过去是「顶边整条都在发彩光」，
+       成了彩色灯带，跟输入框「一小段光在跑」是两种观感。现在统一按 ≈0.63 倍收缩。 */
+    background:
+      /* 第一层就是 BohBeam 描边层的那道「行进高光」：随角度转的一小段亮带。
+         上一版把它整个挪到了 blur 的 `::before` 里，导致描边层只剩色斑、少了锐利亮点 ——
+         这是「看起来比输入框糊」的直接原因。停靠点照抄 boh-beam.css（54%→78%）。 */
+      conic-gradient(
+        from var(--boh-beam-angle),
+        transparent 0%,
+        transparent 54%,
+        var(--boh-beam-hi-a) 57%,
+        var(--boh-beam-hi-b) 60%,
+        var(--boh-beam-hi-c) 63%,
+        var(--boh-beam-hi-p) 66%,
+        var(--boh-beam-hi-c) 69%,
+        var(--boh-beam-hi-b) 72%,
+        var(--boh-beam-hi-a) 75%,
+        transparent 78%,
+        transparent 100%
+      ),
+      radial-gradient(ellipse 19vw 10vh at 28% 0%, var(--boh-beam-c1), transparent),
+      radial-gradient(ellipse 12vw 8vh at 6% 0%, var(--boh-beam-c2), transparent),
+      radial-gradient(ellipse 6vw 19vh at 0% 62%, var(--boh-beam-c3), transparent),
+      radial-gradient(ellipse 4vw 13vh at 0% 62%, var(--boh-beam-c4), transparent),
+      radial-gradient(ellipse 22vw 9vh at 72% 100%, var(--boh-beam-c5), transparent),
+      radial-gradient(ellipse 14vw 8vh at 50% 100%, var(--boh-beam-c6), transparent),
+      radial-gradient(ellipse 14vw 9vh at 90% 0%, var(--boh-beam-c7), transparent),
+      radial-gradient(ellipse 4.5vw 16vh at 100% 26%, var(--boh-beam-c8), transparent),
+      radial-gradient(ellipse 7vw 19vh at 100% 26%, var(--boh-beam-c9), transparent);
+    -webkit-mask:
+      conic-gradient(
+        from var(--boh-beam-angle),
+        transparent 0%,
+        transparent 30%,
+        rgba(255, 255, 255, 0.1) 36%,
+        rgba(255, 255, 255, 0.35) 44%,
+        #fff 52%,
+        #fff 80%,
+        rgba(255, 255, 255, 0.35) 86%,
+        rgba(255, 255, 255, 0.1) 92%,
+        transparent 95%,
+        transparent 100%
+      ),
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+    -webkit-mask-composite: source-in, xor;
+    mask:
+      conic-gradient(
+        from var(--boh-beam-angle),
+        transparent 0%,
+        transparent 30%,
+        rgba(255, 255, 255, 0.1) 36%,
+        rgba(255, 255, 255, 0.35) 44%,
+        #fff 52%,
+        #fff 80%,
+        rgba(255, 255, 255, 0.35) 86%,
+        rgba(255, 255, 255, 0.1) 92%,
+        transparent 95%,
+        transparent 100%
+      ),
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+    mask-composite: intersect, exclude;
+    /* 上一版靠 `brightness(1.12) saturate(1.35)` 补浓度，是把「粗 + 长」的代价用加亮盖过去，
+       结果整圈像彩色灯带。现在色斑比例已经对齐 BohBeam，补偿一起收回（只留一点饱和度）。
+
+       亮度改走 BohBeam 同款的主题令牌 `--boh-beam-stroke-o`（浅 0.9 / 暗 0.48），
+       而不是写死一个值 —— 写死会在浅色白底上淡到看不见（实测）。全屏面积比输入框大，
+       所以乘 1.5 倍取等效观感（浅色会顶到 1，与 BohBeam 的 0.9 基本一致）。 */
+    filter: saturate(1.15);
+    opacity: calc(var(--boh-beam-stroke-o) * 1.5);
+    animation: boh-debug-rainbow-spin calc(var(--boh-dur-bob) * 3) linear infinite;
+  }
+
+  /* ── 外发光层：BohBeam 的 `.boh-beam__bloom` 同款（白色行进高光 + blur） ──
+     全屏没有「框外」，所以它向内溢出，视觉上就是光带边上的那一层柔光。 */
+  .bohai-page.knowledge-debug-mode::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: 2147481999;
+    pointer-events: none;
+    padding: 2px;
+    background:       conic-gradient(
+        from var(--boh-beam-angle),
+        transparent 0%,
+        transparent 58%,
+        var(--boh-beam-hi-a) 62%,
+        var(--boh-beam-hi-b) 65%,
+        var(--boh-beam-hi-c) 67%,
+        var(--boh-beam-hi-p) 70%,
+        var(--boh-beam-hi-p) 70.5%,
+        var(--boh-beam-hi-c) 71.5%,
+        var(--boh-beam-hi-b) 73%,
+        var(--boh-beam-hi-a) 75%,
+        transparent 82%
+      );
+    -webkit-mask:
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask:
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+    mask-composite: exclude;
+    filter: blur(10px) brightness(1.2) saturate(1.1);
+    opacity: 0.55;
+    animation: boh-debug-rainbow-spin calc(var(--boh-dur-bob) * 3) linear infinite;
+  }
+}
+
+/* 动画关闭：页面级 `reduce-motion`（按 preferences.animationsEnabled）与系统级
+   prefers-reduced-motion 都要停 —— 光带静止在某一帧，标识仍在。 */
+.bohai-page.reduce-motion.knowledge-debug-mode::before,
+.bohai-page.reduce-motion.knowledge-debug-mode::after {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bohai-page.knowledge-debug-mode::before,
+  .bohai-page.knowledge-debug-mode::after {
+    animation: none;
+  }
+}
+
+/* 旋转只能靠关键帧：transition 表达不了无限循环（同 `boh-beam-spin` 的理由）。
+   变量名带 `debug-` 前缀，避免与 BohBeam 的那条同名冲突。 */
+@keyframes boh-debug-rainbow-spin {
+  from {
+    --boh-beam-angle: 0deg;
+  }
+  to {
+    --boh-beam-angle: 360deg;
+  }
+}

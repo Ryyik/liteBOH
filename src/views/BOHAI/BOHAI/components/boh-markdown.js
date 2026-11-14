@@ -21,6 +21,9 @@ import python from 'highlight.js/lib/languages/python';
 import 'highlight.js/styles/github.css';
 import DOMPurify from '@/utils/dompurify.js';
 import { AI_ANSWER_IMAGE_ORIGINS } from '@/utils/image-origins.js';
+// 裸图片 URL → markdown 图片（2026-11-12 用户口径「如果有配图直接输出在对话流里」）。
+// 纯函数单独成文件，理由与白名单判定见 `boh-image-embed.js` 头部。
+import { autoEmbedImageUrls } from './boh-image-embed.js';
 
 const HIGHLIGHT_LANGUAGE_SUBSET = [
   'javascript',
@@ -117,7 +120,9 @@ export const renderMarkdown = (content) => {
   const source = typeof content === 'string' ? content : JSON.stringify(content);
   const cached = markdownRenderCache.get(source);
   if (cached) return cached;
-  const parsed = marked.parse(source);
+  // 先让裸图片 URL 变成图片（白名单域名才转），再交给 marked —— 顺序不能反：
+  // 反了就得对 HTML 做正则手术，那是把安全问题（白名单）挪到了更脆的一层。
+  const parsed = marked.parse(autoEmbedImageUrls(source));
   const parsedHtml = typeof parsed === 'string' ? parsed : String(parsed || '');
   const sanitized = DOMPurify.sanitize(parsedHtml, MARKDOWN_SANITIZE_OPTIONS);
   markdownRenderCache.set(source, sanitized);

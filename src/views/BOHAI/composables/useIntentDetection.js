@@ -11,8 +11,11 @@ import { hasEntityAlias } from '@/utils/boh-entity-resolver.js';
 import { normalizeActionDecisionText } from '@/utils/bohai-action-draft-intent.js';
 // normalizeActionDecisionText 仍被 isTreeholeCreateConfirm / isSharedMemorySaveConfirm 使用
 import {
+  MEMBER_STATS_TRIGGER_KEYWORDS,
   SHARED_MEMORY_TRIGGER_KEYWORDS,
+  SHOP_PRODUCT_TRIGGER_KEYWORDS,
   SITE_ACTIVITY_TRIGGER_KEYWORDS,
+  SITE_NEWS_TRIGGER_KEYWORDS,
 } from './chat-engine-config.js';
 
 // ─── 社群意图 ────────────────────────────────────────────────────────────────
@@ -115,8 +118,53 @@ export const shouldUseSiteActivities = (text) => {
   return containsAnyKeyword(normalized, SITE_ACTIVITY_TRIGGER_KEYWORDS);
 };
 
-// ─── 树洞意图 ────────────────────────────────────────────────────────────────
+// ─── 站内新闻 / 商城意图（2026-11-12）───────────────────────────────────────
 
+/**
+ * shouldUseSiteNews — 命中新闻类关键词即读取站内新闻 / 公告。
+ * 与活动同口径：公开数据（不要求登录），站点操作类问题（「新闻页在哪里」）走 siteGuide。
+ * @param {string} text
+ */
+export const shouldUseSiteNews = (text) => {
+  if (!text || typeof text !== 'string') return false;
+  const normalized = normalizeText(text);
+  if (!normalized) return false;
+  if (isOperationQuestion(normalized)) return false;
+  return containsAnyKeyword(normalized, SITE_NEWS_TRIGGER_KEYWORDS);
+};
+
+/**
+ * shouldUseShopProducts — 命中商品类关键词即读取商城在售目录。
+ *
+ * ⚠️ 只返回**上架**商品（`is_active = true`），且只给公开字段。线上 `products` 表有
+ * 一条 `products_select_all`（using true）的宽松策略 ⇒ 未上架商品对所有人可读，
+ * 所以「过滤」必须由本连接器自己保证，不能指望 RLS。
+ * @param {string} text
+ */
+export const shouldUseShopProducts = (text) => {
+  if (!text || typeof text !== 'string') return false;
+  const normalized = normalizeText(text);
+  if (!normalized) return false;
+  if (isOperationQuestion(normalized)) return false;
+  return containsAnyKeyword(normalized, SHOP_PRODUCT_TRIGGER_KEYWORDS);
+};
+
+/**
+ * shouldUseMembersStats — 命中「成员规模」类问法时读取聚合数字（只 count，不给明细）。
+ *
+ * ⚠️ 触发词刻意不含「多少人」这种泛词：「这个帖子里有多少人回复」该走论坛连接器，
+ * 被这里抢走会答成「全站 33 位成员」，是很明显的答非所问。
+ * @param {string} text
+ */
+export const shouldUseMembersStats = (text) => {
+  if (!text || typeof text !== 'string') return false;
+  const normalized = normalizeText(text);
+  if (!normalized) return false;
+  if (isOperationQuestion(normalized)) return false;
+  return containsAnyKeyword(normalized, MEMBER_STATS_TRIGGER_KEYWORDS);
+};
+
+// ─── 树洞意图 ────────────────────────────────────────────────────────────────
 export const isTreeholeReflectionQuestion = (text) => {
   // 参数验证：确保text是有效的字符串
   if (!text || typeof text !== 'string') {

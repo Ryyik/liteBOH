@@ -29,6 +29,14 @@ export const OPERATION_MAX_STEPS = 6;
 export const SITE_GUIDE_MAX_CHUNKS = 3;
 export const MEMORY_MAX_CHUNKS = 4;
 /**
+ * 向量召回的**候选池**大小（≠ 最终注入条数 `MEMORY_MAX_CHUNKS`）。
+ *
+ * 8 太窄：重排常把「语义相近但答案错」的块排在前面，正确答案连候选都进不来
+ * （2026-11-12 实测：「2019 年方块之家发生了什么」，真正的命中没进 top-8）。
+ * 上限受 EF `match_boh_ai_knowledge_chunks` 的 `least(coalesce(p_match_count,8), 40)` 约束。
+ */
+export const MEMORY_CANDIDATE_COUNT = 16;
+/**
  * 官方记忆上下文的重排地板（2026-10-17 准确度实测）：`minSimilarity 0.1` 是宽召回 ——
  * 负样本（「今天天气怎么样」「帮我写首诗」）仍会以 sim 0.34-0.46 带回噪声块，
  * 但 bge-reranker 把它们正确归零（0.000-0.004），真实命中最低 0.195。
@@ -94,6 +102,71 @@ export const SITE_ACTIVITY_TRIGGER_KEYWORDS = [
   '表演',
   '公演',
   '作品展',
+];
+
+/**
+ * 站内新闻 / 公告触发词（2026-11-12 新增，对应 `BOHAI_CONNECTOR_IDS.siteNews`）。
+ *
+ * ⚠️ 刻意**不收**「活动」—— 活动有独立连接器（`activities`），两边都收会让同一轮
+ * 重复取证、白烧 token。同理不收「抽奖」「开奖」。
+ */
+export const SITE_NEWS_TRIGGER_KEYWORDS = [
+  '新闻',
+  '公告',
+  '资讯',
+  '官方消息',
+  '官方通知',
+  '更新日志',
+  '版本更新',
+  '更新说明',
+  '发布说明',
+  '新功能',
+  '最近有什么消息',
+];
+
+/**
+ * 商城 / 周边触发词（2026-11-12 新增，对应 `BOHAI_CONNECTOR_IDS.shopProducts`）。
+ *
+ * ⚠️ 不收单独的「积分」—— 「我有多少积分」是用户私域问题（`userPrivate`），不是商品目录；
+ * 只收「积分兑换」这种明确指向商品的动作词。
+ */
+export const SHOP_PRODUCT_TRIGGER_KEYWORDS = [
+  '周边',
+  '商品',
+  '商城',
+  '积分兑换',
+  '兑换',
+  '上架',
+  '补货',
+  '缺货',
+  '多少钱',
+  '售价',
+  '运费',
+  '有什么卖',
+  '纪念品',
+  '纪念册',
+];
+
+/**
+ * 成员聚合统计触发词（2026-11-12 新增，对应 `BOHAI_CONNECTOR_IDS.members`）。
+ *
+ * ⚠️ 刻意**不收**「多少人」这种泛词 —— 它会和「这个帖子里有多少人回复」撞车，
+ * 而那个问题该走论坛连接器。只收明确指向「成员规模」的组合词。
+ */
+export const MEMBER_STATS_TRIGGER_KEYWORDS = [
+  '成员数',
+  '成员总数',
+  '会员数',
+  '会员总数',
+  '用户数',
+  '用户总数',
+  '注册用户',
+  '注册人数',
+  '新增成员',
+  '新增用户',
+  '多少位成员',
+  '多少位用户',
+  '站点有多少人',
 ];
 
 export const MEMORY_CAPTURE_SETTING_KEY = 'boh_ai_memory_capture_enabled_v1';

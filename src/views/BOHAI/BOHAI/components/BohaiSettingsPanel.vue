@@ -1020,6 +1020,54 @@
                   </div>
                 </div>
               </section>
+
+              <!-- ── 调试 · 知识库（仅管理员）─────────────────────────────
+                   2026-11-12：打开后，本轮向量检索的**原始结果**（chunk id / source_id /
+                   similarity / rerank / metadata / 未截断正文）会追加进 prompt，
+                   于是可以直接问 AI「这条知识出自哪个切片、分数多少、为什么没被用上」。
+                   ⚠️ 分区与条目都带 `adminOnly`，过滤必须发生在**搜索之前**（见 visibleNavGroups）——
+                   只过滤搜索分支的话，`navQuery` 为空时会把调试分区原样露给普通用户。
+                   ⚠️ 这里的开关只管「给模型看什么」，不放宽任何数据读取权限。 -->
+              <section v-if="isAdmin" class="ai-settings-section" data-section="debug">
+                <div class="ai-settings-group-title">调试</div>
+                <div class="ai-settings-card">
+                  <div class="ai-settings-list">
+                    <div
+                      class="ai-settings-row clickable"
+                      role="switch"
+                      tabindex="0"
+                      :aria-checked="isKnowledgeDebugEnabled"
+                      @click="setKnowledgeDebugEnabled(!isKnowledgeDebugEnabled)"
+                      @keydown.enter.prevent="setKnowledgeDebugEnabled(!isKnowledgeDebugEnabled)"
+                      @keydown.space.prevent="setKnowledgeDebugEnabled(!isKnowledgeDebugEnabled)"
+                    >
+                      <div class="ai-settings-label-stack">
+                        <span class="ai-settings-label">知识库调试模式</span>
+                        <span class="ai-settings-desc">
+                          回答时附带检索原文、chunk id 与真实分数，可直接向 AI 追问细节
+                        </span>
+                      </div>
+                      <div class="ai-settings-row-right">
+                        <span
+                          :class="['ai-settings-switch', { enabled: isKnowledgeDebugEnabled }]"
+                        ></span>
+                      </div>
+                    </div>
+                    <div class="ai-settings-row">
+                      <div class="ai-settings-label-stack">
+                        <span class="ai-settings-label">当前状态</span>
+                        <span class="ai-settings-desc">
+                          {{
+                            isKnowledgeDebugEnabled
+                              ? '已开启：从下一轮回答起生效，仅本设备'
+                              : '已关闭：证据块按默认压缩方式给出'
+                          }}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </section>
             </div>
           </div>
         </section>
@@ -1034,6 +1082,7 @@ import { useRouter } from 'vue-router';
 import {
   ArrowLeft,
   BrainCircuit,
+  Bug,
   Check,
   Command,
   Cpu,
@@ -1067,6 +1116,11 @@ import {
   TIER_DISPLAY_LABELS as TIER_LABELS,
 } from '@/utils/subscription-benefits.js';
 import { formatModeRateLabel, formatModeRateTitle } from '@/views/BOHAI/utils/mode-rate-label.js';
+import { useBohaiDebugMode } from '@/views/BOHAI/composables/useBohaiDebugMode.js';
+import {
+  filterNavGroupsByKeyword,
+  filterNavGroupsByPermission,
+} from '@/views/BOHAI/utils/settings-nav.js';
 import { useAuthStore } from '@/stores/auth';
 
 /**
@@ -1122,6 +1176,14 @@ const emit = defineEmits([
 const router = useRouter();
 const authStore = useAuthStore();
 const isLoggedIn = computed(() => authStore.isLoggedIn);
+
+/* 管理员专属设置（2026-11-12）：
+   · `isAdmin` 是**唯一**准入判据（authStore.isAdmin），别在模板里写第二份判断；
+   · 调试开关的真源在 useBohaiDebugMode —— 它把「偏好（localStorage）」与
+     「权限（isAdmin）」取交集，所以手动改存储值开不起来。 */
+const isAdmin = computed(() => Boolean(authStore.isAdmin));
+const { isEnabled: isKnowledgeDebugEnabled, setEnabled: setKnowledgeDebugEnabled } =
+  useBohaiDebugMode();
 
 /* ── 左侧导航：分区单一真源 ──────────────────────────────────────
    一个分区 = 一个 `data-section="<id>"` 的右侧分区。导航顺序即滚动顺序。
@@ -1187,9 +1249,32 @@ const NAV_GROUPS = [
       },
     ],
   },
+  /* ⚠️ 管理员专属分组：`adminOnly` 必须由 `visibleNavGroups` 统一过滤，
+     不要在模板里另写 v-if（那样搜索分支会漏 —— 见 filteredNavGroups 的注释）。 */
+  {
+    id: 'debug',
+    label: '调试',
+    adminOnly: true,
+    items: [
+      {
+        id: 'debug',
+        label: '知识库调试',
+        icon: Bug,
+        adminOnly: true,
+        keywords: '调试 知识库 切片 chunk source_id 相似度 similarity rerank 检索 召回 排查 管理员',
+      },
+    ],
+  },
 ];
 
-const SECTION_LIST = NAV_GROUPS.flatMap((group) => group.items);
+/* 权限过滤发生在**所有**消费点之前（分区列表、搜索、activeSectionLabel 都基于它）。
+   规则真源在 utils/settings-nav.js —— 那里也记着「只在搜索分支过滤」这个坑。
+   ⚠️ 不要改回内联：内联时它测不到（见 tests/unit/bohai-settings-nav.test.js）。 */
+const visibleNavGroups = computed(() =>
+  filterNavGroupsByPermission(NAV_GROUPS, { isAdmin: isAdmin.value }),
+);
+
+const SECTION_LIST = computed(() => visibleNavGroups.value.flatMap((group) => group.items));
 
 const navQuery = ref('');
 const activeSection = ref('chat');
@@ -1227,19 +1312,12 @@ onMounted(() => {
   window.addEventListener('resize', updateNavFade, { passive: true });
 });
 
-const filteredNavGroups = computed(() => {
-  const keyword = navQuery.value.trim().toLowerCase();
-  if (!keyword) return NAV_GROUPS;
-  return NAV_GROUPS.map((group) => ({
-    ...group,
-    items: group.items.filter((item) =>
-      `${item.label} ${item.keywords}`.toLowerCase().includes(keyword),
-    ),
-  })).filter((group) => group.items.length > 0);
-});
+const filteredNavGroups = computed(() =>
+  filterNavGroupsByKeyword(visibleNavGroups.value, navQuery.value),
+);
 
 const activeSectionLabel = computed(
-  () => SECTION_LIST.find((item) => item.id === activeSection.value)?.label || '设置',
+  () => SECTION_LIST.value.find((item) => item.id === activeSection.value)?.label || '设置',
 );
 
 const sectionEl = (id) => bodyRef.value?.querySelector(`[data-section="${id}"]`) || null;
@@ -1261,8 +1339,9 @@ const onBodyScroll = () => {
     const body = bodyRef.value;
     if (!body) return;
     const line = body.scrollTop + 28;
-    let current = SECTION_LIST[0]?.id || 'chat';
-    SECTION_LIST.forEach((item) => {
+    const sections = SECTION_LIST.value;
+    let current = sections[0]?.id || 'chat';
+    sections.forEach((item) => {
       const el = sectionEl(item.id);
       if (el && el.offsetTop <= line) current = item.id;
     });

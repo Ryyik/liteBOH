@@ -309,6 +309,11 @@ export const resolveKnowledgeRoutingPlanCore = ({
     userPrivate: false,
     // 2026-10-04：站内活动 / 抽奖 / 演出（公开数据）
     activities: false,
+    // 2026-11-12：站内新闻 / 公告、商城在售商品（公开数据，直查表）
+    news: false,
+    products: false,
+    // 2026-11-12：成员聚合数字（只 count，不给明细）
+    members: false,
     ...basePlan,
   };
 
@@ -320,6 +325,10 @@ export const resolveKnowledgeRoutingPlanCore = ({
     plan.forum = false;
     // 「活动页面在哪里」这类操作问题只要站点手册，不要去读活动数据
     plan.activities = false;
+    // 同理：操作问题不读新闻/商品目录（「商城入口在哪」不该去查商品列表）
+    plan.news = false;
+    plan.products = false;
+    plan.members = false;
     reasons.push('操作问题 -> 优先读取站点操作知识库');
     if (plan.userPrivate) {
       reasons.push('操作中包含账号诉求 -> 同步读取当前登录用户数据');

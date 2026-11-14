@@ -254,6 +254,15 @@ describe('BOH AI motion system', () => {
     // 社区这一行的文案单源在 boh-activity.js（旧字面量不许再出现在视图里）
     expect(stream).toContain("from './boh-activity.js'");
     expect(stream).toContain('formatCommunityActivityLine(communityPostTitle.value)');
+    // 2026-11-12：推理原文的可见性也必须走单源（`isReasoningVisible`）——
+    // 旧写法 `activityStage === 'thinking' || reasoningOpen.has(idx)` 会让「点过」的行
+    // 在回答开始后继续挂着（用户报障「回答完成后思考过程还会留在下面」）。
+    // 同日第二条口径「默认折叠思考过程」把集合语义定为**展开**（默认空 = 折叠），
+    // 阶段闸门仍在 `isReasoningVisible` 里（thinking ∧ 展开）——所以名字回到 reasoningOpen，
+    // 但旧 bug 不会回来：它靠的是阶段判定，不是集合名。
+    expect(stream).toContain('isReasoningVisible(');
+    expect(stream).toContain('reasoningOpen');
+    expect(stream).not.toContain('reasoningClosed');
     expect(stream).not.toContain('正在读取近日帖子');
     expect(streamCss).toContain('@keyframes boh-search-shimmer');
     expect(streamCss).not.toContain('boh-search-pill');
@@ -329,6 +338,16 @@ describe('BOH AI motion system', () => {
     expect(shell).toContain('isPlanExperienceActive.value && planTodoItems.value.length > 0');
     expect(shell).toContain('制定.{0,12}计划');
     expect(main).toContain(':plan-card="planCard"');
+  });
+
+  it('速率限制走专用文案：不许再把上游 JSON 当「详情」甩给用户', () => {
+    const engine = squeezeSource(readFileSync(enginePath, 'utf8'));
+    // 2026-11-12 用户报障：岛里直接显示了
+    // `详情：{"error":{"code":"1302","message":"您的账户已达到速率限制…"}}`
+    expect(engine).toContain('classifyChatError(error)');
+    expect(engine).toContain('CHAT_ERROR_MESSAGES.rateLimited()');
+    expect(engine).toContain('sanitizeErrorDetail(error)');
+    expect(engine).not.toContain('safeErrorDetail(error)');
   });
 
   it('does not append retrieval success counts to visible action notes', () => {

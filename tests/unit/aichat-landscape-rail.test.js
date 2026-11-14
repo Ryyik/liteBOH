@@ -7,6 +7,10 @@ const root = resolve(import.meta.dirname, '../..');
 const read = (rel) => readFileSync(resolve(root, rel), 'utf8');
 
 const BOHAI_MAIN = 'src/views/BOHAI/BOHAI/BOHAIMain.vue';
+// 2026-11-12：页面级样式（landscape-rail.css / debug-rainbow.css）的引入点从 BOHAIMain
+// 下移到页面入口 index.vue —— 壳有 400 行薄壳阈值，而这两份都是 body 前缀 / 全屏 fixed 的
+// 页面级规则，放入口语义更准。守卫随之下移，断言的仍是「按页引入、不是全局样式」。
+const BOHAI_INDEX = 'src/views/BOHAI/BOHAI/index.vue';
 // plans/025 v2 · Step 7：左栏 handler 与 navItems 导入搬进
 // `composables/useBohShell.js` ⇒ 代码侧断言改指新文件；组件挂载条件与
 // landscape-rail.css 引入（模板/style 区）仍读 BOHAIMain。
@@ -55,9 +59,12 @@ describe('BOH AI 整页横屏左栏（2026-10-03，防「切到 AI 左栏就没�
   });
 
   it('引入页面级 landscape-rail.css（按页引入，不是全局样式）', () => {
-    expect(read(BOHAI_MAIN)).toContain(
+    // 引入点在页面入口 index.vue（2026-11-12 从 BOHAIMain 下移，见文件头常量注释）；
+    // 「按页引入、不进 main.js」这条口径不变。
+    expect(read(BOHAI_INDEX)).toContain(
       '<style src="@/views/user-center/UserSpace/styles/landscape-rail.css"></style>',
     );
+    expect(read('src/main.js')).not.toContain('landscape-rail.css');
     // 三处消费方共用同一份文件；断点与栏宽档位只在那一个文件里定义
     for (const consumer of [
       'src/views/user-center/UserSpace/UserSpaceMain.vue',

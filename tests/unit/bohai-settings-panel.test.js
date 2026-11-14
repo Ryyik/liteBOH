@@ -368,9 +368,11 @@ describe('useChatEngine.js 引用 chatErrorMessages 验证', () => {
     // 源码守卫断言必须格式宽容：prettier 会把 import 展开成多行并补尾逗号，
     // 逐字断言会因此假红（本文件 2026-09-28 被咬过一次）。两边都要过同一个归一函数。
     const content = squeezeSource(readChatEngine());
+    // 2026-11-12：加上错误归类（classifyChatError / CHAT_ERROR_KINDS）与详情清洗
+    // （sanitizeErrorDetail ⇄ 旧的 safeErrorDetail），速率限制不再把上游 JSON 当详情甩给用户。
     expect(content).toContain(
       squeezeSource(
-        "import { isAbortError, CHAT_ERROR_MESSAGES, getAbortMessage, safeErrorDetail } from '../utils/chatErrorMessages.js'",
+        "import { isAbortError, CHAT_ERROR_KINDS, CHAT_ERROR_MESSAGES, classifyChatError, getAbortMessage, sanitizeErrorDetail } from '../utils/chatErrorMessages.js'",
       ),
     );
   });

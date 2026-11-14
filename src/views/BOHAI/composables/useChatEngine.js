@@ -64,10 +64,13 @@ import { summarizeThinkingSubject } from './useIntentDetection.js';
 import { logger } from '@/utils/logger.js';
 import {
   isAbortError,
+  CHAT_ERROR_KINDS,
   CHAT_ERROR_MESSAGES,
+  classifyChatError,
   getAbortMessage,
-  safeErrorDetail,
+  sanitizeErrorDetail,
 } from '../utils/chatErrorMessages.js';
+import { buildKnowledgePatchPromptAppendix } from '../utils/retrieval/knowledge-patch.js';
 import {
   BASE_SYSTEM_PROMPT,
   MAX_CONTEXT_MESSAGES,
@@ -491,6 +494,7 @@ export function useChatEngine() {
   const {
     buildKnowledgeContextBlock,
     getVectorKnowledgeChunks,
+    isKnowledgeDebugEnabled,
     buildVectorKnowledgeContext,
     getMemoryContext,
     getSharedMemoriesCached,
@@ -1687,6 +1691,10 @@ export function useChatEngine() {
         psychStateBlock,
         psychRulesBlock,
         stylePromptAppendix,
+        // 变更单协议只在管理员调试态注入（普通用户看到会以为「说一句就能改库」）
+        knowledgePatchAppendix: isKnowledgeDebugEnabled.value
+          ? buildKnowledgePatchPromptAppendix()
+          : '',
       });
       // 访谈态单独一份生成参数（提温 + 略提 frequency_penalty），不共用 pro 的冷参数
       const generationProfile = getGenerationProfile(activeModeId, {
@@ -2022,8 +2030,15 @@ export function useChatEngine() {
           }),
         );
       } else {
-        logger.error('boh-ai', 'Generation error', error);
-        updateContent(CHAT_ERROR_MESSAGES.generationFailed(safeErrorDetail(error)));
+        // 2026-11-12 用户口径：出错要给「能看懂 + 知道不花钱」的话，不要把上游 JSON 甩给用户。
+        // 归类只决定文案 —— 失败请求本来就不会计费（EF 在非 ok 的流上 release 预扣）。
+        const kind = classifyChatError(error);
+        logger.error('boh-ai', 'Generation error', { kind, error });
+        if (kind === CHAT_ERROR_KINDS.RATE_LIMIT) {
+          updateContent(CHAT_ERROR_MESSAGES.rateLimited());
+        } else {
+          updateContent(CHAT_ERROR_MESSAGES.generationFailed(sanitizeErrorDetail(error)));
+        }
       }
 
       if (targetSession) {

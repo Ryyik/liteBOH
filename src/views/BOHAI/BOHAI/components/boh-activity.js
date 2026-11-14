@@ -158,3 +158,25 @@ export const canExpandActivity = (stage, { webPageCount = 0, hasReasoning = fals
   if (surface === 'reason') return Boolean(hasReasoning);
   return false;
 };
+
+/**
+ * 推理原文（活动行的展开面）**此刻是否可见**。
+ *
+ * 两条用户口径按时间叠加，改之前都要满足：
+ *   ① 2026-11-12：「回答完成后思考过程还会留在下面」⇒ **不许留**。
+ *   ② 2026-11-12（同日追加）：「默认折叠思考过程」⇒ 连思考中也不默认展开，要**点开**才看。
+ *
+ * 现实过的三种写法，别走回头路：
+ *   · `stage === 'thinking' || 点过这一行`：点过之后正文永久挂在新回答下面，
+ *     活动行一退场就没有入口再关掉它 —— 就是 ① 报障的成因。
+ *   · `stage === 'thinking'`（默认展开）：① 解决了，但思考中的推理正文动辄几十行，
+ *     每次都把输入框顶下去 ⇒ ② 的口径。
+ *   · **现在**：`thinking` 阶段 **且** 用户主动展开。两个条件都必要 ——
+ *     只认 `expanded` 会让它在回答开始后继续挂着（回到 ①），
+ *     只认 `stage` 就是默认展开（回到 ② 之前）。
+ *
+ * @param {{ stage?: string, expanded?: boolean }} state
+ * @returns {boolean}
+ */
+export const isReasoningVisible = ({ stage = '', expanded = false } = {}) =>
+  stage === 'thinking' && Boolean(expanded);

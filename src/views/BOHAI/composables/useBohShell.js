@@ -29,6 +29,7 @@ import { storeToRefs } from 'pinia';
 import { clearMarkdownCache } from '../BOHAI/components/boh-markdown.js';
 import { sourcePrefix } from '../BOHAI/components/boh-sources.js';
 import { captureCurrentPageContext } from '../utils/page-context.js';
+import { useBohaiDebugMode } from './useBohaiDebugMode.js';
 /* 斜杠命令的唯一真源（2026-10-08）：定义 + 解析 + 菜单构造全在这个纯函数模块里。
    ⚠️ 不要再在壳里写 `startsWith('/')` —— 规则散两处正是本次「点发送键把 /cloud
    当普通文本发给模型」的根因。 */
@@ -41,6 +42,7 @@ import {
   slashMenuQuery,
 } from '../BOHAI/bohai-slash-commands.js';
 import { logger } from '@/utils/logger.js';
+import { isGenerationErrorText } from '../utils/chatErrorMessages.js';
 import { getAiQuotaStatus } from '@/utils/api/api-key-runtime-api.js';
 import { showIsland } from '@/composables/useIsland.js';
 import { resolveAiQuotaDisplay } from '@/utils/ai-quota-display.js';
@@ -69,6 +71,10 @@ export function useBohShell(props, emit) {
   const router = useRouter();
 
   const { preferences: globalAiPreferences } = useGlobalAiPreferences();
+  /* 知识库调试模式的生效态（权限 ∧ 偏好）。壳只用它给根容器挂边缘彩虹光（见
+     BOHAIMain 的 `knowledge-debug-mode` class 与 styles/debug-rainbow.css）；
+     真正影响 prompt 的注入点在 useChatEngine / useKnowledgeRetrieval，别往壳里搬。 */
+  const { isEnabled: isKnowledgeDebugMode } = useBohaiDebugMode();
   const isStandalone = computed(() => !props.embedded && !props.overlayMode);
 
   /* ---------- 横屏左栏（2026-10-03） ----------
@@ -1263,11 +1269,8 @@ export function useBohShell(props, emit) {
     if (isLoading.value || agentClusterState?.isRunning) return { id: 'running', label: '执行中' };
 
     const assistantText = String(latestAssistantPlanMessage.value?.content || '').trim();
-    const failed =
-      Boolean(rateLimitMessage.value) ||
-      /^(?:服务暂时繁忙|请求失败|发生错误|连接失败|无法连接|API Key 管理服务异常)/u.test(
-        assistantText,
-      );
+    // 失败判定走文案模块的单源（新增失败文案不会再静默失配成「已完成」）
+    const failed = Boolean(rateLimitMessage.value) || isGenerationErrorText(assistantText);
     if (failed) return { id: 'failed', label: '需要处理' };
     if (assistantText) return { id: 'completed', label: '已完成' };
     return { id: 'pending', label: '待开始' };
@@ -2351,6 +2354,7 @@ export function useBohShell(props, emit) {
     resolvedAiTheme,
     currentSiteTheme,
     globalAiPreferences,
+    isKnowledgeDebugMode,
     railUnreadCount,
     userSpaceNavItems,
     handleRailNavClick,

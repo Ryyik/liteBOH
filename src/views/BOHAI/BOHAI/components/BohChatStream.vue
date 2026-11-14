@@ -43,15 +43,15 @@
           :class="msg.role === 'user' ? 'is-user' : 'is-ai'"
           :data-message-index="idx"
         >
-        <!-- ── 用户：气泡（右下角单独 4px，DESIGN §2.3） ── -->
-        <div v-if="msg.role === 'user'" class="boh-bubble">{{ msg.content }}</div>
+          <!-- ── 用户：气泡（右下角单独 4px，DESIGN §2.3） ── -->
+          <div v-if="msg.role === 'user'" class="boh-bubble">{{ msg.content }}</div>
 
-        <!-- ── AI：正文 + 工具行 + 来源 chip ──
+          <!-- ── AI：正文 + 工具行 + 来源 chip ──
              2026-10-08 用户口径：「对话流中不再出现 BOHAI」—— 原来每条 AI 回复头顶有
              一行「[logo] BOH AI + 删除键」，现整行去掉，回复直接以正文开头（纯文字流）。
              删除键并入底部操作行（与复制/赞同同排），语义更贴切：它本来就是消息操作。 -->
-        <template v-else>
-          <!-- ── 活动行（2026-10-19 用户口径「始终只显示一个动作」）────────────────
+          <template v-else>
+            <!-- ── 活动行（2026-10-19 用户口径「始终只显示一个动作」）────────────────
                「正在思考 / 连接社区记忆 / 联网搜索」原来是**三块各自挂载、各自卸下**的节点，
                观感就是同一组流光在两行之间闪。现在合并成**一条**行：此刻展示哪个动作
                由 `boh-activity.js` 的唯一真源算出（`activityStage`），模板里没有第二处判断。
@@ -60,340 +60,353 @@
                · 展开面随阶段走：网页搜索/网页检索 → 网页清单；正在思考 → 推理原文；
                  社区读取 → 无可展开内容（于是不出箭头，点了不会没反应）；
                · ⚠️ 不用 aria-live：网页标题 2.4s 一换会刷屏读屏。阶段名由 `aria-label` 给。 -->
-          <div
-            v-if="activityStage && activityStage !== 'answering'"
-            class="boh-search-status"
-            :data-activity="activityStage"
-            role="group"
-            :aria-label="activityAriaLabel"
-          >
-            <div class="boh-search-row is-web">
-              <span class="boh-search-ico-slot">
-                <component
-                  :is="activityIcon"
-                  :key="`ico:${activityStage}`"
-                  :size="13"
-                  class="boh-search-ico is-swap-in"
-                  aria-hidden="true"
-                />
-              </span>
-              <!-- ⚠️ 这里**只能用同一个标签**（button），不可展开时用 `disabled` 表达。
+            <div
+              v-if="activityStage && activityStage !== 'answering'"
+              class="boh-search-status"
+              :data-activity="activityStage"
+              role="group"
+              :aria-label="activityAriaLabel"
+            >
+              <div class="boh-search-row is-web">
+                <span class="boh-search-ico-slot">
+                  <component
+                    :is="activityIcon"
+                    :key="`ico:${activityStage}`"
+                    :size="13"
+                    class="boh-search-ico is-swap-in"
+                    aria-hidden="true"
+                  />
+                </span>
+                <!-- ⚠️ 这里**只能用同一个标签**（button），不可展开时用 `disabled` 表达。
                    别写 `v-if="活动可展开"` + `v-else` 的 button/span 双分支：分支切换会把
                    `<Transition>` 整个换掉，正在离场的那一帧变成孤儿节点（实测停在
                    `leave-active leave-to`、文本永久挡住新文案）。 -->
-              <button
-                type="button"
-                class="boh-search-head"
-                :class="{ 'is-static': !activityExpandable }"
-                :disabled="!activityExpandable"
-                :aria-expanded="activityExpandable ? activityExpanded : undefined"
-                :aria-controls="activityExpandable ? activityPanelId : undefined"
-                :title="activityTitleTip"
-                @click="toggleActivity"
-              >
-                <!-- 切换动画用「按 key 重挂 + 一次性 keyframes」而不是 <Transition>：
+                <button
+                  type="button"
+                  class="boh-search-head"
+                  :class="{ 'is-static': !activityExpandable }"
+                  :disabled="!activityExpandable"
+                  :aria-expanded="activityExpandable ? activityExpanded : undefined"
+                  :aria-controls="activityExpandable ? activityPanelId : undefined"
+                  :title="activityTitleTip"
+                  @click="toggleActivity"
+                >
+                  <!-- 切换动画用「按 key 重挂 + 一次性 keyframes」而不是 <Transition>：
                      Vue 的 Transition 在 `mode="out-in"` 下遇到**同一 tick 内连续换 key**
                      （搜索在途 → 结果到位 → 首 token 这几个状态可能连拍）会把离开中的节点留成
                      孤儿（实测停在 `leave-active leave-to`、文本永久挡住新文案）。
                      一次性 keyframes 自带收尾（`animation-fill-mode: both` 之外不留中间态），
                      即使连续重挂也只是重放，不会留下残影。 -->
-                <!-- 两层：外层只负责「进场」(opacity/transform)，内层只负责「流光」
+                  <!-- 两层：外层只负责「进场」(opacity/transform)，内层只负责「流光」
                      (background-clip: text)。两者都要写 `animation`，同一元素上会互相覆盖。 -->
-                <span :key="activityLineKey" class="boh-search-line is-swap-in">
-                  <span class="boh-search-text" :class="{ 'is-shimmer': activityShimmer }">{{
-                    activityLine
-                  }}</span>
-                </span>
-                <ChevronDown
-                  v-if="activityExpandable"
-                  :size="14"
-                  class="boh-search-chevron"
-                  :class="{ 'is-open': activityExpanded }"
-                  aria-hidden="true"
-                />
-              </button>
+                  <span :key="activityLineKey" class="boh-search-line is-swap-in">
+                    <span class="boh-search-text" :class="{ 'is-shimmer': activityShimmer }">{{
+                      activityLine
+                    }}</span>
+                  </span>
+                  <ChevronDown
+                    v-if="activityExpandable"
+                    :size="14"
+                    class="boh-search-chevron"
+                    :class="{ 'is-open': activityExpanded }"
+                    aria-hidden="true"
+                  />
+                </button>
 
-              <!-- 展开面：网页清单（纯文本行，无框无底；可点出原文） -->
-              <ul
-                v-if="activitySurface === 'web'"
-                v-show="activityExpanded"
-                :id="activityPanelId"
-                class="boh-search-pages"
-              >
-                <li
-                  v-for="(page, pageIndex) in webSearchResults"
-                  :key="page.url || `page-${pageIndex}`"
+                <!-- 展开面：网页清单（纯文本行，无框无底；可点出原文） -->
+                <ul
+                  v-if="activitySurface === 'web'"
+                  v-show="activityExpanded"
+                  :id="activityPanelId"
+                  class="boh-search-pages"
                 >
-                  <span class="boh-search-page-idx" aria-hidden="true">{{ pageIndex + 1 }}</span>
-                  <a
-                    v-if="page.url"
-                    :href="page.url"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    :title="page.title"
-                    >{{ page.title || hostOf(page.url) }}</a
+                  <li
+                    v-for="(page, pageIndex) in webSearchResults"
+                    :key="page.url || `page-${pageIndex}`"
                   >
-                  <span v-else class="boh-search-page-title">{{ page.title }}</span>
-                  <em v-if="hostOf(page.url)" aria-hidden="true">{{ hostOf(page.url) }}</em>
-                </li>
-              </ul>
+                    <span class="boh-search-page-idx" aria-hidden="true">{{ pageIndex + 1 }}</span>
+                    <a
+                      v-if="page.url"
+                      :href="page.url"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      :title="page.title"
+                      >{{ page.title || hostOf(page.url) }}</a
+                    >
+                    <span v-else class="boh-search-page-title">{{ page.title }}</span>
+                    <em v-if="hostOf(page.url)" aria-hidden="true">{{ hostOf(page.url) }}</em>
+                  </li>
+                </ul>
+              </div>
             </div>
-          </div>
 
-          <div v-if="actionNotes(msg).length" class="boh-action-notes">
-            <p v-for="note in actionNotes(msg)" :key="note">{{ note }}</p>
-          </div>
+            <div v-if="actionNotes(msg).length" class="boh-action-notes">
+              <p v-for="note in actionNotes(msg)" :key="note">{{ note }}</p>
+            </div>
 
-          <!-- 任务 / 计划面板（壳计算好模型，这里只渲染） -->
-          <section
-            v-if="planCard && planCard.visible && idx === lastAssistantIndex"
-            class="boh-plan"
-            :class="`is-${planCard.statusId}`"
-            aria-label="任务执行状态"
-          >
-            <div class="boh-plan-head">
-              <span class="boh-plan-state" aria-hidden="true">
-                <LoaderCircle v-if="planCard.statusId === 'running'" :size="17" />
-                <CheckCircle2 v-else-if="planCard.statusId === 'completed'" :size="17" />
-                <AlertCircle v-else-if="planCard.statusId === 'failed'" :size="17" />
-                <Square v-else-if="planCard.statusId === 'cancelled'" :size="14" />
-                <Circle v-else :size="16" />
-              </span>
-              <div class="boh-plan-heading">
-                <div class="boh-plan-title-row">
-                  <strong>{{ planCard.title }}</strong>
-                  <span class="boh-plan-status-label">{{ planCard.statusLabel }}</span>
+            <!-- 任务 / 计划面板（壳计算好模型，这里只渲染） -->
+            <section
+              v-if="planCard && planCard.visible && idx === lastAssistantIndex"
+              class="boh-plan"
+              :class="`is-${planCard.statusId}`"
+              aria-label="任务执行状态"
+            >
+              <div class="boh-plan-head">
+                <span class="boh-plan-state" aria-hidden="true">
+                  <LoaderCircle v-if="planCard.statusId === 'running'" :size="17" />
+                  <CheckCircle2 v-else-if="planCard.statusId === 'completed'" :size="17" />
+                  <AlertCircle v-else-if="planCard.statusId === 'failed'" :size="17" />
+                  <Square v-else-if="planCard.statusId === 'cancelled'" :size="14" />
+                  <Circle v-else :size="16" />
+                </span>
+                <div class="boh-plan-heading">
+                  <div class="boh-plan-title-row">
+                    <strong>{{ planCard.title }}</strong>
+                    <span class="boh-plan-status-label">{{ planCard.statusLabel }}</span>
+                  </div>
+                  <span>{{ planCard.subtitle }}</span>
                 </div>
-                <span>{{ planCard.subtitle }}</span>
+                <button
+                  type="button"
+                  class="boh-plan-toggle"
+                  :aria-expanded="planCard.expanded"
+                  :title="planCard.expanded ? '收起任务步骤' : '展开任务步骤'"
+                  @click="emit('toggle-plan')"
+                >
+                  <ChevronDown :size="16" aria-hidden="true" />
+                </button>
               </div>
-              <button
-                type="button"
-                class="boh-plan-toggle"
-                :aria-expanded="planCard.expanded"
-                :title="planCard.expanded ? '收起任务步骤' : '展开任务步骤'"
-                @click="emit('toggle-plan')"
-              >
-                <ChevronDown :size="16" aria-hidden="true" />
-              </button>
-            </div>
-            <div
-              class="boh-plan-progress"
-              role="progressbar"
-              aria-label="任务进度"
-              aria-valuemin="0"
-              aria-valuemax="100"
-              :aria-valuenow="planCard.progress"
-            >
-              <span :style="{ width: `${planCard.progress}%` }"></span>
-            </div>
-            <div class="boh-plan-meta">
-              <span>{{ planCard.summary }}</span>
-              <span v-if="planCard.elapsed">{{ planCard.elapsed }}</span>
-            </div>
-            <!-- 2026-11-04 硬切审计 P1-9：v-show(display) 无法过渡，改 is-expanded 类 +
-                 grid-rows 0fr→1fr 高度过渡（CSS 真源 boh-stream.css .boh-plan-list） -->
-            <div class="boh-plan-list" :class="{ 'is-expanded': planCard.expanded }">
-              <div class="boh-plan-list-clip">
               <div
-                v-for="todo in planCard.items"
-                :key="todo.id"
-                class="boh-plan-item"
-                :class="`is-${todo.state}`"
+                class="boh-plan-progress"
+                role="progressbar"
+                aria-label="任务进度"
+                aria-valuemin="0"
+                aria-valuemax="100"
+                :aria-valuenow="planCard.progress"
               >
-                <span class="boh-plan-check">
-                  <CheckCircle2 v-if="todo.state === 'done'" :size="16" />
-                  <LoaderCircle v-else-if="todo.state === 'active'" :size="16" />
-                  <AlertCircle v-else-if="todo.state === 'failed'" :size="16" />
-                  <Square v-else-if="todo.state === 'cancelled'" :size="13" />
-                  <Circle v-else :size="16" />
-                </span>
-                <span class="boh-plan-copy">
-                  <strong>{{ todo.title }}</strong>
-                  <span>{{ todo.detail }}</span>
-                </span>
+                <span :style="{ width: `${planCard.progress}%` }"></span>
               </div>
+              <div class="boh-plan-meta">
+                <span>{{ planCard.summary }}</span>
+                <span v-if="planCard.elapsed">{{ planCard.elapsed }}</span>
               </div>
-            </div>
+              <!-- 2026-11-04 硬切审计 P1-9：v-show(display) 无法过渡，改 is-expanded 类 +
+                 grid-rows 0fr→1fr 高度过渡（CSS 真源 boh-stream.css .boh-plan-list） -->
+              <div class="boh-plan-list" :class="{ 'is-expanded': planCard.expanded }">
+                <div class="boh-plan-list-clip">
+                  <div
+                    v-for="todo in planCard.items"
+                    :key="todo.id"
+                    class="boh-plan-item"
+                    :class="`is-${todo.state}`"
+                  >
+                    <span class="boh-plan-check">
+                      <CheckCircle2 v-if="todo.state === 'done'" :size="16" />
+                      <LoaderCircle v-else-if="todo.state === 'active'" :size="16" />
+                      <AlertCircle v-else-if="todo.state === 'failed'" :size="16" />
+                      <Square v-else-if="todo.state === 'cancelled'" :size="13" />
+                      <Circle v-else :size="16" />
+                    </span>
+                    <span class="boh-plan-copy">
+                      <strong>{{ todo.title }}</strong>
+                      <span>{{ todo.detail }}</span>
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <div
+                v-if="planCard.statusId === 'running' || planCard.statusId === 'failed'"
+                class="boh-plan-actions"
+              >
+                <button
+                  v-if="planCard.statusId === 'running'"
+                  type="button"
+                  @click="emit('stop-plan')"
+                >
+                  <Square :size="13" />停止任务
+                </button>
+                <button v-else type="button" @click="emit('retry-plan')">
+                  <RotateCcw :size="14" />重新尝试
+                </button>
+              </div>
+            </section>
+
             <div
-              v-if="planCard.statusId === 'running' || planCard.statusId === 'failed'"
-              class="boh-plan-actions"
+              class="boh-ai-body"
+              v-html="renderMarkdown(stripAiQuestion(displayContentOf(msg)))"
+            ></div>
+
+            <!-- 知识库变更单（2026-11-12，仅管理员调试态会出现）：
+               模型不能直接写库，只能产出 <knowledge_patch> 提议；这里渲染成卡片，
+               **必须由人点「应用」才会调 EF**。正文已由 displayContentOf 剥掉原始 JSON。 -->
+            <BohKnowledgePatchCard
+              v-if="patchesOf(msg).length > 0"
+              :patches="patchesOf(msg)"
+              :message-index="idx"
+            />
+
+            <div
+              v-if="traceSources(msg).some((source) => source.ok)"
+              class="boh-chips"
+              aria-label="本次回答来源"
             >
-              <button
-                v-if="planCard.statusId === 'running'"
-                type="button"
-                @click="emit('stop-plan')"
+              <span
+                v-for="source in traceSources(msg)
+                  .filter((item) => item.ok)
+                  .slice(0, 4)"
+                :key="source.connectorId || source.label"
+                class="boh-chip"
+                :title="source.evidenceRefs?.join(' ') || ''"
               >
-                <Square :size="13" />停止任务
-              </button>
-              <button v-else type="button" @click="emit('retry-plan')">
-                <RotateCcw :size="14" />重新尝试
-              </button>
+                <i>{{ prefixOf(source) }}</i
+                >{{ source.label || source.source
+                }}<template v-if="source.total"> ×{{ source.total }}</template>
+              </span>
             </div>
-          </section>
 
-          <div class="boh-ai-body" v-html="renderMarkdown(stripAiQuestion(msg.content))"></div>
-
-          <div
-            v-if="traceSources(msg).some((source) => source.ok)"
-            class="boh-chips"
-            aria-label="本次回答来源"
-          >
-            <span
-              v-for="source in traceSources(msg)
-                .filter((item) => item.ok)
-                .slice(0, 4)"
-              :key="source.connectorId || source.label"
-              class="boh-chip"
-              :title="source.evidenceRefs?.join(' ') || ''"
-            >
-              <i>{{ prefixOf(source) }}</i
-              >{{ source.label || source.source
-              }}<template v-if="source.total"> ×{{ source.total }}</template>
-            </span>
-          </div>
-
-          <div v-if="inlineQuestion && inlineQuestion.messageIndex === idx" class="boh-inline-q">
-            <div class="boh-inline-q-title">{{ inlineQuestion.question }}</div>
-            <div class="boh-inline-q-options">
-              <button
-                v-for="(option, optionIndex) in inlineQuestion.options"
-                :key="optionIndex"
-                type="button"
-                class="boh-inline-q-option"
-                :class="{ 'is-selected': inlineAnswer === option }"
-                @click="emit('inline-select', option)"
-              >
-                <span class="boh-inline-q-icon">
-                  <CheckCircle2 v-if="inlineAnswer === option" :size="16" />
-                  <Circle v-else :size="16" />
-                </span>
-                <span class="boh-inline-q-text">{{ option }}</span>
-              </button>
+            <div v-if="inlineQuestion && inlineQuestion.messageIndex === idx" class="boh-inline-q">
+              <div class="boh-inline-q-title">{{ inlineQuestion.question }}</div>
+              <div class="boh-inline-q-options">
+                <button
+                  v-for="(option, optionIndex) in inlineQuestion.options"
+                  :key="optionIndex"
+                  type="button"
+                  class="boh-inline-q-option"
+                  :class="{ 'is-selected': inlineAnswer === option }"
+                  @click="emit('inline-select', option)"
+                >
+                  <span class="boh-inline-q-icon">
+                    <CheckCircle2 v-if="inlineAnswer === option" :size="16" />
+                    <Circle v-else :size="16" />
+                  </span>
+                  <span class="boh-inline-q-text">{{ option }}</span>
+                </button>
+              </div>
+              <div class="boh-inline-q-custom">
+                <div class="boh-inline-q-divider"><span>或者自己填写</span></div>
+                <textarea
+                  class="boh-inline-q-input"
+                  :value="inlineAnswer"
+                  placeholder="输入你的回答..."
+                  rows="2"
+                  :disabled="isLoading"
+                  @input="emit('update:inlineAnswer', $event.target.value)"
+                  @keydown.enter="emit('inline-enter', $event)"
+                ></textarea>
+              </div>
+              <div class="boh-inline-q-actions">
+                <button
+                  type="button"
+                  class="boh-inline-q-submit"
+                  :disabled="!inlineAnswer.trim() || isLoading"
+                  @click="emit('inline-submit')"
+                >
+                  发送回答
+                </button>
+              </div>
             </div>
-            <div class="boh-inline-q-custom">
-              <div class="boh-inline-q-divider"><span>或者自己填写</span></div>
-              <textarea
-                class="boh-inline-q-input"
-                :value="inlineAnswer"
-                placeholder="输入你的回答..."
-                rows="2"
-                :disabled="isLoading"
-                @input="emit('update:inlineAnswer', $event.target.value)"
-                @keydown.enter="emit('inline-enter', $event)"
-              ></textarea>
-            </div>
-            <div class="boh-inline-q-actions">
-              <button
-                type="button"
-                class="boh-inline-q-submit"
-                :disabled="!inlineAnswer.trim() || isLoading"
-                @click="emit('inline-submit')"
-              >
-                发送回答
-              </button>
-            </div>
-          </div>
 
-          <!-- 推理过程（2026-10-10 用户口径「纯文本、默认收起、点击展开推理原文」）
+            <!-- 推理过程（2026-10-10 用户口径「纯文本、默认收起、点击展开推理原文」）
                2026-10-19 合并：思考中的「正在思考」**不再单独成行** —— 它就是活动行
                在 `thinking` 阶段的样子（阶段由 `boh-activity.js` 算），这里的推理块
                退化为那条行下的**展开面**（与网页清单同一套 `is-head` 按钮/面板模式）。
-               · 生成结束后「思考过程」仍常驻可展开（`hasReasoning`）；
-               · 活动行处于网页/社区阶段时，展开面让位（一次只展开一个，不会有两条清单）。
-               ⚠️ 正文用 v-show（不是 v-if）—— v-if 会重建节点，滚动位置与探针读取都会抖。 -->
-          <div
-            v-if="showReasoningPanel(idx, msg)"
-            class="boh-reason is-panel"
-            :class="{ 'is-live': activityStage === 'thinking' }"
-            :id="reasoningPanelId(idx)"
-          >
+               · ⚠️ 2026-11-12 两条口径叠加：①「回答完成后思考过程还会留在下面」⇒ 不许留；
+                 ②「默认折叠思考过程」⇒ 思考中也要点开才看。
+                 所以可见性判据是 **`thinking` 阶段 ∧ 用户主动展开**
+                 （`isReasoningVisible`，唯一真源在 boh-activity.js）：
+                 回答一开始流式、或整轮结束，它就退场；没点开时始终是折叠态。
+               · 活动行处于网页/社区阶段时，展开面同样让位（一次只展开一个清单）。
+               ⚠️ 正文仍用 v-show（不是 v-if）—— v-if 会重建节点，滚动位置与探针读取都会抖。 -->
             <div
-              v-show="activityStage === 'thinking' || reasoningOpen.has(idx)"
-              class="boh-reason-body"
+              v-if="showReasoningPanel(idx, msg)"
+              class="boh-reason is-panel"
+              :class="{ 'is-live': activityStage === 'thinking' }"
+              :id="reasoningPanelId(idx)"
             >
-              {{ reasoningOf(msg) }}
+              <div v-show="reasoningVisible(idx)" class="boh-reason-body">
+                {{ reasoningOf(msg) }}
+              </div>
+            </div>
+          </template>
+
+          <!-- ── 回复操作 ── -->
+          <div
+            v-if="msg.role === 'assistant' && !isGenerationBusy(idx)"
+            class="boh-msg-actions"
+            aria-label="回复操作"
+          >
+            <button
+              type="button"
+              class="boh-msg-action"
+              title="复制"
+              @click="emit('copy-message', msg.content)"
+            >
+              <Copy :size="15" aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              class="boh-msg-action"
+              title="赞同"
+              :class="{ 'is-active': feedback[idx] === 'up' }"
+              @click="emit('feedback', idx, 'up')"
+            >
+              <ThumbsUp :size="15" aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              class="boh-msg-action"
+              title="不赞同"
+              :class="{ 'is-active': feedback[idx] === 'down' }"
+              @click="emit('feedback', idx, 'down')"
+            >
+              <ThumbsDown :size="15" aria-hidden="true" />
+            </button>
+            <button
+              v-if="showDetails"
+              type="button"
+              class="boh-msg-action"
+              title="更多"
+              :class="{ 'is-active': detailsOpen.has(idx) }"
+              @click="emit('toggle-details', idx)"
+            >
+              <MoreHorizontal :size="16" aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              class="boh-msg-action is-danger"
+              title="删除此消息"
+              aria-label="删除此消息"
+              @click="emit('delete-message', idx)"
+            >
+              <Trash2 :size="15" aria-hidden="true" />
+            </button>
+          </div>
+
+          <div v-if="detailsOpen.has(idx)" class="boh-meta">
+            <div v-if="trace(msg)" class="boh-meta-sec">
+              <strong>检索观察</strong>
+              <p>{{ traceSummary(msg) }}</p>
+              <div v-if="traceSources(msg).length" class="boh-meta-chips">
+                <span
+                  v-for="source in traceSources(msg)"
+                  :key="source.connectorId || source.label"
+                  class="boh-meta-chip"
+                  :class="{ 'is-failed': !source.ok }"
+                >
+                  {{ source.label || source.source }} ·
+                  {{ source.ok ? `${source.total || 0}条` : '失败' }}
+                </span>
+              </div>
+            </div>
+            <div v-if="actionAudit(msg)" class="boh-meta-sec">
+              <strong>动作审计</strong>
+              <p>{{ formatActionAudit(actionAudit(msg)) }}</p>
+            </div>
+            <div v-if="!trace(msg) && !actionAudit(msg)" class="boh-meta-sec">
+              <p>这条回复没有可展示的检索或动作记录。</p>
             </div>
           </div>
-        </template>
-
-        <!-- ── 回复操作 ── -->
-        <div
-          v-if="msg.role === 'assistant' && !isGenerationBusy(idx)"
-          class="boh-msg-actions"
-          aria-label="回复操作"
-        >
-          <button
-            type="button"
-            class="boh-msg-action"
-            title="复制"
-            @click="emit('copy-message', msg.content)"
-          >
-            <Copy :size="15" aria-hidden="true" />
-          </button>
-          <button
-            type="button"
-            class="boh-msg-action"
-            title="赞同"
-            :class="{ 'is-active': feedback[idx] === 'up' }"
-            @click="emit('feedback', idx, 'up')"
-          >
-            <ThumbsUp :size="15" aria-hidden="true" />
-          </button>
-          <button
-            type="button"
-            class="boh-msg-action"
-            title="不赞同"
-            :class="{ 'is-active': feedback[idx] === 'down' }"
-            @click="emit('feedback', idx, 'down')"
-          >
-            <ThumbsDown :size="15" aria-hidden="true" />
-          </button>
-          <button
-            v-if="showDetails"
-            type="button"
-            class="boh-msg-action"
-            title="更多"
-            :class="{ 'is-active': detailsOpen.has(idx) }"
-            @click="emit('toggle-details', idx)"
-          >
-            <MoreHorizontal :size="16" aria-hidden="true" />
-          </button>
-          <button
-            type="button"
-            class="boh-msg-action is-danger"
-            title="删除此消息"
-            aria-label="删除此消息"
-            @click="emit('delete-message', idx)"
-          >
-            <Trash2 :size="15" aria-hidden="true" />
-          </button>
         </div>
-
-        <div v-if="detailsOpen.has(idx)" class="boh-meta">
-          <div v-if="trace(msg)" class="boh-meta-sec">
-            <strong>检索观察</strong>
-            <p>{{ traceSummary(msg) }}</p>
-            <div v-if="traceSources(msg).length" class="boh-meta-chips">
-              <span
-                v-for="source in traceSources(msg)"
-                :key="source.connectorId || source.label"
-                class="boh-meta-chip"
-                :class="{ 'is-failed': !source.ok }"
-              >
-                {{ source.label || source.source }} ·
-                {{ source.ok ? `${source.total || 0}条` : '失败' }}
-              </span>
-            </div>
-          </div>
-          <div v-if="actionAudit(msg)" class="boh-meta-sec">
-            <strong>动作审计</strong>
-            <p>{{ formatActionAudit(actionAudit(msg)) }}</p>
-          </div>
-          <div v-if="!trace(msg) && !actionAudit(msg)" class="boh-meta-sec">
-            <p>这条回复没有可展示的检索或动作记录。</p>
-          </div>
-        </div>
-      </div>
       </TransitionGroup>
     </div>
 
@@ -434,11 +447,17 @@ import {
 } from 'lucide-vue-next';
 import BohEmptyState from './BohEmptyState.vue';
 import { renderMarkdown } from './boh-markdown.js';
+import BohKnowledgePatchCard from './BohKnowledgePatchCard.vue';
+import {
+  hasKnowledgePatchBlock,
+  parseKnowledgePatchBlocks,
+} from '../../utils/retrieval/knowledge-patch.js';
 import { sourcePrefix } from './boh-sources.js';
 import {
   BOH_ACTIVITY_SURFACE,
   canExpandActivity,
   formatCommunityActivityLine,
+  isReasoningVisible,
   resolveActivityLine,
   resolveBohActivityStage,
 } from './boh-activity.js';
@@ -533,6 +552,15 @@ const lastAssistantIndex = computed(() => {
    2026-10-19 起两者共用同一条活动行，所以「同一时刻只能展开一个」。 */
 const webSearchExpanded = ref(false);
 const webSearchRotateIndex = ref(0);
+/**
+ * 推理原文被**用户主动展开**的消息下标集合。
+ *
+ * ⚠️ 2026-11-12 两次口径叠加后的最终形态：
+ *    ① 「回答完成后思考过程还会留在下面」⇒ 可见性不能由「点过」单独决定；
+ *    ② 「默认折叠思考过程」⇒ 思考中也不再默认展开，必须点开。
+ *    所以这里存的是**展开**（默认空 = 全部折叠），且只在 `thinking` 阶段生效
+ *    （判据在 `isReasoningVisible`）。一轮结束清空，避免下标复用后串到下一条消息。
+ */
 const reasoningOpen = ref(new Set());
 const reasoningPanelId = (index) => `boh-reason-${index}`;
 const toggleReasoning = (index) => {
@@ -609,11 +637,19 @@ const activityStage = computed(() => {
 /** 展开面归属：'web'（网页清单）/ 'reason'（推理原文）/ ''（不可展开） */
 const activitySurface = computed(() => BOH_ACTIVITY_SURFACE[activityStage.value] || '');
 
+/**
+ * 推理原文此刻是否可见 —— 唯一判据在 `isReasoningVisible`（阶段 ∧ 用户展开）。
+ * 默认折叠：思考中也要点开才看；回答一开始流式（`answering`）/ 整轮结束（stage 为 ''）
+ * 则无论是否点开都**不再可见**，不会压在新回答下面（2026-11-12 两条口径）。
+ */
+const reasoningVisible = (index) =>
+  isReasoningVisible({ stage: activityStage.value, expanded: reasoningOpen.value.has(index) });
+
 /** 当前展开的网页清单 / 推理原文 —— 一次只允许一个展开面（网页与推理共用这条行）。 */
 const activityExpanded = computed(() =>
   activitySurface.value === 'web'
     ? webSearchExpanded.value
-    : reasoningOpen.value.has(lastAssistantIndex.value),
+    : reasoningVisible(lastAssistantIndex.value),
 );
 
 const activityPanelId = computed(() =>
@@ -688,6 +724,15 @@ const activityExpandable = computed(() =>
       `getThinkingReasoning` → useChatEngine 的 `updateReasoning`）。
    ⚠️ 推理正文用 **`v-show`** 不用 `v-if` —— v-if 会重建节点，滚动位置与探针读取都会抖。 */
 const reasoningOf = (message) => String(message?.reasoning || '');
+
+/* 一轮结束就把「展开」状态清空：它是本轮临时态，不该跨轮影响下一条消息的可展开性。
+   （下标复用时尤其重要 —— 新消息恰好落在同一个 idx 上会被莫名其妙地展开。） */
+watch(
+  () => props.isLoading,
+  (loading) => {
+    if (!loading && reasoningOpen.value.size) reasoningOpen.value = new Set();
+  },
+);
 
 /** 底下的推理面板：有推理内容才挂（生成结束后仍常驻可展开）；活动行在思考阶段时展开。 */
 const showReasoningPanel = (index, message) =>
@@ -788,6 +833,25 @@ const stripAiQuestion = (content) => {
   if (markerIndex === -1) return content;
   return content.slice(0, markerIndex).trimEnd();
 };
+
+/* ── 知识库变更单解析（2026-11-12）─────────────────────────────────────────
+   两个渲染入口（正文 / 卡片）都要用同一份解析结果，所以按「消息对象 + 内容」缓存：
+   `msg` 是 reactive 代理，用 WeakMap 不会泄漏；流式期间 content 变化时 source 不匹配会自动重解析。
+   ⚠️ 解析只影响**展示**：真正写库在 BohKnowledgePatchCard 的「应用」按钮里，
+      并且要管理员点过确认 —— 任何「解析到就自动执行」都是错的（见 knowledge-patch.js 文件头）。 */
+const patchCache = new WeakMap();
+const patchInfoOf = (message) => {
+  const content = String(message?.content || '');
+  if (!content || !hasKnowledgePatchBlock(content)) return null;
+  const cached = patchCache.get(message);
+  if (cached && cached.source === content) return cached;
+  const info = { source: content, ...parseKnowledgePatchBlocks(content) };
+  patchCache.set(message, info);
+  return info;
+};
+const patchesOf = (message) => patchInfoOf(message)?.patches || [];
+const displayContentOf = (message) =>
+  patchInfoOf(message)?.cleanText ?? String(message?.content || '');
 </script>
 
 <style scoped src="./styles/boh-stream.css"></style>

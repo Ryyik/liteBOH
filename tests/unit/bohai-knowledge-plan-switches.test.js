@@ -97,9 +97,18 @@ describe('记忆上下文 · 重排地板（filterChunksByRerankFloor）', () =>
     expect(filterChunksByRerankFloor(undefined)).toEqual([]);
   });
 
-  it('接线守卫：getMemoryContext 确实在注入前过滤', () => {
+  it('接线守卫：getMemoryContext 先过滤再注入（2026-11-12 起空召回不再无脑返回）', () => {
     const retrieval = read('src/views/BOHAI/composables/useKnowledgeRetrieval.js');
-    expect(retrieval).toMatch(/filterChunksByRerankFloor\(chunks\)/);
-    expect(retrieval).toMatch(/relevantChunks\.length === 0\) return ''/);
+    // 2026-11-12：地板前插了一层「字面精确词重排」（年份 / 型号 / 英文专名），
+    // 所以入参从 `chunks` 变成 `rankChunksByExactTerms(candidates, queryText)`。
+    // 口径不变：**注入前必须过滤**，且注入的必须是过滤后那批。
+    expect(retrieval).toMatch(
+      /filterChunksByRerankFloor\(\s*rankChunksByExactTerms\(candidates, queryText\)\s*\)/,
+    );
+    // 注入进上下文的必须是**过滤后**的那批（不是宽召回原文）
+    expect(retrieval).toMatch(/buildVectorKnowledgeContext\(\s*'[^']*',\s*relevantChunks/);
+    // 口径变更：管理员调试态下要能看到「空召回」本身，所以不允许再直接 return ''
+    // （这条与 bohai-knowledge-debug.test.js 的第三条接线断言互为双保险）
+    expect(retrieval).not.toMatch(/relevantChunks\.length === 0\)\s*return\s*''\s*;/);
   });
 });
