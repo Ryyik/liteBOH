@@ -19,6 +19,9 @@
 | 6 | 单席首访成本（多次采样区间） | 消息 227–341 KiB / 17–21 请求；周边 105–218 KiB / 15–19 请求，可见 672–1310 ms | 单席首访 | P2 |
 | 7 | 论坛流滚动偶发长帧 | 171–214 帧里 **1–2 帧 >50 ms，最差 374–378 ms** | 首帧图片解码 | P2 |
 
+> **落地状态**：上表 7 项里的 P0×2 / P1×3 与「nsfw 不得进入口闭包」的门禁**已于同日全部执行**，
+> 前后实测、闭包核验与代价见 §8。
+
 **已经做得对的三件事**（不要"优化"它们）：
 - `nsfw-weights`（2477 KiB gzip / 2.4 MB raw）不在首屏闭包、不进预缓存、只经动态 `import()` —— 现状正确，**建议补一条"它不得进入入口静态闭包"的门禁**。
 - 路由级 CSS 已收窄：**保留 2 个壳样式、122 个转运行时 `CacheFirst`**（注意：122 是「移出预缓存的条数」，不是 CSS 文件总数——总数 124）。
@@ -139,6 +142,7 @@ LCP 候选序列：`骨架 1184 → 内容块 4804 → 图片 7580`。注意 4.8
 **建议**（按推荐排序）：
 1. **`/ai-chat` 从空闲预取里删掉**，只留 `/user-space`（底栏席位、高频）。AI 的三处入口
    （灵动岛 / 右缘滑动 / 全局搜索）都在用户真要用时才加载，没必要预取。
+   → **已按此条落地（2026-11-14）**，代价（首次唤岛 +152.9 KiB）见 §8.3。
 2. 保留但**推迟到首屏稳定之后**（`load` + LCP 稳定 + `requestIdleCallback(timeout: 8000)`），
    并在 `navigator.connection.saveData` / `effectiveType` 为 2g/3g 时跳过。
 3. 只在 hover / focus 到 AI 入口时预取（`useRoutePrefetch` 已有 hover 通道）。
@@ -179,6 +183,11 @@ LCP 候选序列：`骨架 1184 → 内容块 4804 → 图片 7580`。注意 4.8
    `mask-icon` 走 SVG；`apple-touch-icon` 保持 180 单独一条。
 2. 侧栏那枚 `<img>` 换成已打包的 `@/assets/images/favicon.webp`（少一次 8.2 KiB PNG，且不额外请求）。
 
+> **已落地（2026-11-14）**：第 1 条按「一条 32×32 + 一条 apple-touch」执行（`mask-icon` 直接删掉 ——
+> 它只认 SVG，挂 PNG 等于声明了一个 Safari 永远用不上的图标）；第 2 条换成新出的
+> `brand-mark-64.webp`（872 B，小于内联阈值 ⇒ 零请求，比复用 1024px 的 `favicon.webp` 更省）。
+> 实测一次切页：`favicon.png ×3 / 24.9 KiB` → `favicon-32.png ×1 / 3.0 KiB`。
+
 ### 4.2 单席首访成本（多次采样，取区间）
 
 | 席 | 可见 | 请求 | 字节 | 拉起的 chunk |
@@ -206,6 +215,8 @@ LCP 候选序列：`骨架 1184 → 内容块 4804 → 图片 7580`。注意 4.8
 ---
 
 ## 5. 优化建议（带落点与样式安全影响）
+
+> 本表已全部落地，实测与取舍见 §8；其中 P1-3 的「−150~200 KiB」**估高了**（实测只有图标的 34.3 KiB 可移）。
 
 ### P0
 
@@ -278,6 +289,102 @@ LCP 候选序列：`骨架 1184 → 内容块 4804 → 图片 7580`。注意 4.8
 3. `measureSwitch` 文本阈值 60 → 20（图库空态/消息 minimal 档文本少，恒 −1）。
 4. S4 原在「我」页空态上滚（永远 17 ms 假绿）→ 先切「内容」再滚。
 5. 新增 S3d：打印已缓存状态下一次切页的全部请求（URL + 类型），让 favicon 这类归因可复核。
+
+---
+
+## 8. 落地记录（同日执行 + 前后实测）
+
+§5 的 P0×2 / P1×3 / P2 门禁已全部落地。下面是**做了什么**与**新旧产物对照实测**。
+
+### 8.1 改了哪些地方
+
+| 项 | 落点 | 做法 |
+|---|---|---|
+| P0-1 | `src/composables/useRoutePrefetch.js` | `IDLE_PREFETCH_PATHS` 只留 `/user-space`；注释写清为什么不许加回 `/ai-chat`（含量级） |
+| P0-2 | `src/views/Forum/ForumMain.vue` | `isEager = index < 1` → `index < 2`：首屏前 2 张卡片的首图走 `loading=eager` + `fetchpriority=high`，不再等 IntersectionObserver 回调 |
+| P1-1a | `src/utils/image-compression.js` | 顶层 `import ... ?url` → 函数内 `await import(...)`（`loadCompressionWorkerLibUrl`）；解析失败时**不开 worker**（否则退回库默认的 jsdelivr，正是当年「上传永久卡死」的成因） |
+| P1-1b | **新增** `src/utils/moderation-cloud-state.js` | 把云端审核的冷却状态/失败预算/在飞波次从 `image-moderation-pipeline.js` 抽出，文本审核改 import 它 ⇒ 切断 `content-moderation → pipeline → forum-image-moderation` 这条静态边。状态仍是同一个 ESM 单例，判定语义不变 |
+| P1-1c | `src/views/Forum/composables/useForumImageModerationPreload.js` | 预载守卫只用两个**判定**却静态 import 整条管线 ⇒ ForumMain 的静态图把 pipeline + forum-image-moderation 一起带上。把 `getForcedLayer` / `shouldSkipLocalModel` 也挪进状态模块，守卫改 import 它（单测 mock 落点同步改） |
+| P1-2 | `index.html` / `UserSpaceSideRail.vue` / **新增** `public/favicon-32.png` | 5 条 icon 声明 → 1 条 32×32（2.7 KiB）+ 1 条 apple-touch；删掉「指向 PNG 的 mask-icon」与等价的 `shortcut icon`；左栏品牌位改用打包的 64px webp（872 B，内联进 chunk，零请求） |
+| P1-3 | `vite.config.js` | `includeManifestIcons: false`：4 张 manifest 图标移出预缓存；补一条 `/icons/` CacheFirst 运行时规则接住 |
+| P2 | **新增** `scripts/check-first-paint-closure.mjs` | 4 条源码级断言（见 8.4），已挂 `verify:fast` / `verify:serial` / `build:ci`，并在 `gate-fixtures.mjs` 配了可自证的违规样本 |
+
+### 8.2 前后对照（同一台机器、同样限速 1.6 Mbps / RTT 150 / CPU 4×、SW blocked、各 3 轮取中位）
+
+| 页面 | 指标 | 旧产物 | 新产物 | 差 |
+|---|---|---|---|---|
+| `/` | LCP | 8.89 s | **7.72 s** | **−1.17 s** |
+| `/` | FCP | 1.19 s | 1.19 s | — |
+| `/` | 传输 / 请求 | 1027.0 KiB / 158 | **719.5 KiB / 145** | −307.5 KiB / −13 |
+| `/user-space?tab=community` | LCP | 9.10 s | **7.64 s** | **−1.46 s** |
+| `/user-space?tab=community` | 传输 / 请求 | 979.6 KiB / 145 | **659.2 KiB / 130** | −320.4 KiB / −15 |
+
+（同一天跑了两轮，第一轮是 `/` 9.63→7.86 / 1026.7→727.0、`/user-space` 8.46→8.19 / 979.6→667.0。
+LCP 的机器间波动约 ±0.8 s，**字节与请求数两轮几乎一致**（−300±10 KiB / −13±2 请求），
+所以量级以字节为准，LCP 只作方向证据。）
+
+单跑 `probe-perf-first-paint` 的 S5（首页冷启动，同口径）LCP 由 8.98 s → **8.06 s**，命中元素仍是
+`img.image-post-thumb`（说明 P0-2 没有把 LCP 元素换掉，只是让它更早开始下载）。
+
+**预缓存**：24 条 / 891.1 KiB raw → **20 条 / 856.8 KiB raw**（−34.3 KiB，全部来自 4 张 manifest 图标）。
+⚠️ §5 里 P1-3 写的「−150~200 KiB」**估高了**：预缓存里除图标外全是入口静态依赖（`supabase-vendor`
+217.3、`ui-components` 172.4、`vue-vendor` 114.7、两张壳 CSS 152.8），一个都不能动。实测可移的只有图标那 34.3 KiB。
+
+**favicon**：S3d 实测一次切页由 `favicon.png ×3 / 24.9 KiB` 降到 `favicon-32.png ×1 / 3.0 KiB`
+（两次切页合计 6.0 KiB）。剩下那 1 次是浏览器软导航后重取站点图标，属于浏览器行为；它已经小到不值得再对抗。
+
+### 8.3 闭包核验（产物级，非估算）
+
+从新产物按 `__vite__mapDeps` + 静态 import 边重算 `/user-space` 的依赖闭包：
+
+- **已不在闭包里**：`image-compression-vendor`（19.5）、`image-moderation-pipeline`、
+  `forum-image-moderation`、`nsfw-weights`、`cropper-vendor`、`markdown-vendor`、`useChatEngine`。
+- **仍在闭包里（应该在）**：`content-moderation` 4.4、`unified-content-moderation` 1.5、
+  `moderation-cloud-state` 1.0、`image-compression` 2.1（都是「文本审核 / 头像」链路本身要用的部分）。
+- **残留（已处理，留档说明）**：`forum-image-moderation` 2.7 + `image-moderation-pipeline` 4.7
+  原本会随**论坛流挂载**被拉一次（7.4 KiB），来源是
+  `views/Forum/composables/useForumImageModerationPreload.js` 对 pipeline 的**静态** import
+  （它只要 `isCloudModerationCoolingDown` / `shouldSkipLocalModel` 两个判定）。
+  把这两个判定也挪进 `moderation-cloud-state.js` 后，实测论坛流**不再拉这两个 chunk**，
+  它们只在真正审核一张图时经动态 import 到达。
+
+**换来的代价（明确记录）**：去掉 `/ai-chat` 空闲预取后，**首次**唤出灵动岛要多下
+`BohIslandAnswer` 8.2 + `useChatEngine` 115.5 + `markdown-vendor` 29.2 = **152.9 KiB gzip**（一次性，之后走缓存）。
+桌面导航 hover 到 AI 入口仍会走 `prefetchRoute` 通道预热；只有「手机首次下拉」会实打实多等这 153 KiB。
+这是本次唯一一个「把成本从所有人身上挪到真正用的人身上」的取舍，需要时可在 hover/手势起点补一条定向预取。
+
+### 8.4 新门禁 `check:first-paint-closure`（4 条）
+
+| 规则 | 守什么 | 反证（已自证会红） |
+|---|---|---|
+| A | `content-moderation.js` 不得静态 import 图片审核管线 | 改回 `./image-moderation-pipeline.js` ⇒ 红 |
+| B | `image-compression.js` 不得顶层静态 import `browser-image-compression`（含 `?url`） | 加回顶层 `?url` import ⇒ 红 |
+| C | 空闲预取清单只允许 `/user-space` | 加回 `/ai-chat` ⇒ 红 |
+| D | `src/` 内不得静态 import `nsfwjs` / `nsfw-weights` / `@tensorflow/*` | 新建静态 import 的探针文件 ⇒ 红 |
+
+四条都由 `scripts/lib/gate-fixtures.mjs` 的 fixture 注入验证（`check:gates-self-test` 已跑通）。
+
+> 写这条门禁时踩到一个值得记的坑：第一版用 `import\s+[^;\n]*?from` 匹配静态 import，
+> **多行 import 跨不过换行**（本仓库的 import 几乎全是多行），注入违规却不报错 —— 规则 A 假绿。
+> 现在统一走 `staticImportSpecifiers()`（`[^;]*?` 允许换行），并由 fixture 把这类假绿钉死。
+
+### 8.5 顺带暴露的一件事：首屏字节棘轮本来就是红的
+
+`check:first-paint-budget`（build 之后的产物门禁）读数：
+
+| 产物 | 首屏合计 | 判定 |
+|---|---|---|
+| HEAD + 底栏改造（本次改动前） | 252.0 KB | ❌ 上限 251.6（基线 249.6 + 容差 2.0）**已经超 2.4** |
+| 本次改动后 | 253.0 KB | ❌ 超 3.4 |
+
+也就是说**这条棘轮在我动手之前就红了**，本次只自付 **+1.0 KiB**（`ui-components` 57.3→58.3）。
+归因说明：新增的 `moderation-cloud-state` 本身是独立 chunk（1.3 KiB），**不在壳里**；
+`ui-components` 那 +1.0 是拆掉 `?url` 静态边之后的 chunk 重组，不是新增依赖。
+换回来的是：论坛流不再拉 pipeline（7.4 KiB）、压缩库 19.5 KiB 离开 eager 路径。
+
+⚠️ **本次没有 `--update` 基线**：按仓库纪律，基线必须在**干净工作区**上重写，而这个工作区有
+100+ 个并行会话的在途文件 —— 此时 update 会把它们的增长一起写进基线（错误归因）。
+需要在干净检出上单独做一次 rebaseline，并在 commit message 里写明理由。
 
 ---
 

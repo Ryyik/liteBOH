@@ -1,7 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // 只 mock 冷却判定与移动端门控，避免把整条审核管线（含 supabase 客户端）拖进来
-vi.mock('@/utils/image-moderation-pipeline.js', () => ({
+// 2026-11-14：被守卫 import 的模块从 image-moderation-pipeline.js 换成了
+// moderation-cloud-state.js（前者会把图片审核管线拖进 ForumMain 的静态图）。
+// mock 落点必须跟着换 —— 否则 mock 不生效、composable 拿到真实实现，四条断言会假绿。
+vi.mock('@/utils/moderation-cloud-state.js', () => ({
   isCloudModerationCoolingDown: vi.fn(),
   shouldSkipLocalModel: vi.fn(),
 }));
@@ -9,7 +12,7 @@ vi.mock('@/utils/image-moderation-pipeline.js', () => ({
 import {
   isCloudModerationCoolingDown,
   shouldSkipLocalModel,
-} from '@/utils/image-moderation-pipeline.js';
+} from '@/utils/moderation-cloud-state.js';
 import { useForumImageModerationPreload } from '@/views/Forum/composables/useForumImageModerationPreload.js';
 
 // =====================================================================

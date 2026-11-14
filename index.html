@@ -27,30 +27,24 @@
     <meta name="apple-mobile-web-app-title" content="BOH">
     <meta name="theme-color" content="#79a947">
 
-    <!-- Favicon设置 -->
-    <link
-      rel="icon"
-      type="image/png"
-      sizes="32x32"
-      href="/favicon.png"
-    />
-    <link
-      rel="icon"
-      type="image/png"
-      sizes="16x16"
-      href="/favicon.png"
-    />
+    <!--
+      Favicon（2026-11-14 收敛，见 docs/2026-11-14-首屏与userspace性能勘察.md §4.1）
+      原来是 5 条 icon 声明、其中 4 条指向同一个 1024×1024 / 8.2 KiB 的 /favicon.png。
+      后果有两个：
+        · 每条声明都是一次**独立的取图机会** —— 实测每次底栏切页浏览器会重取 3 次
+          favicon.png（24.9 KiB + 3 个 RTT），而页面内容一个字节都没变；
+        · 8.2 KiB 的 1024px 大图被当 16/32px 用，纯浪费。
+      现在：一条 32×32（2.7 KiB）通用图标 + 一条 iOS 主屏图标。
+        · mask-icon 删掉：它只认 **SVG**，指向 PNG 等于声明了一个 Safari 永远用不上的固定标签图标；
+        · shortcut icon 删掉：它和 rel="icon" 完全等价，只是重复声明。
+      ⚠️ /favicon.png 本体保留（generate-app-icons.mjs 以它为源生成 PWA 图标），别再挂到链路里。
+    -->
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
     <!--
       iOS 主屏图标必须用不透明方图：favicon.png 是透明底，iOS 会把它压在黑色背景上，
       苹果周围一圈会变黑。icon-180.png 是带白底、已按安全区缩好的版本。
     -->
-    <link
-      rel="apple-touch-icon"
-      sizes="180x180"
-      href="/icons/icon-180.png"
-    />
-    <link rel="mask-icon" href="/favicon.png" color="#42b983" />
-    <link rel="shortcut icon" href="/favicon.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-180.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover" />
     <title>Block of Home</title>
 

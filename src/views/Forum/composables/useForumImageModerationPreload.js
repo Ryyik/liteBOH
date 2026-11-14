@@ -1,7 +1,12 @@
+/* 2026-11-14：改 import 薄状态模块（原来 import image-moderation-pipeline）。
+   这里只用两个「判定」，却因为一个静态 import 把整条图片审核管线（含
+   forum-image-moderation → nsfw 兜底链）拖进了 ForumMain 的静态图 ——
+   实测论坛流挂载时白下 7.4 KiB（性能勘察 §8.3）。两个判定已搬到
+   moderation-cloud-state.js，语义完全一致（同一份实现，pipeline 仍 re-export）。 */
 import {
   isCloudModerationCoolingDown,
   shouldSkipLocalModel,
-} from '@/utils/image-moderation-pipeline.js';
+} from '@/utils/moderation-cloud-state.js';
 
 export const useForumImageModerationPreload = (preloadForumImageModeration) => {
   let preloadTimer = null;

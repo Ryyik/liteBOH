@@ -158,7 +158,13 @@ describe('Cloud+ 上传前压缩：与论坛同一条管线（2026-10-19）', ()
     expect(code).toContain('exportasyncfunctiongetImageCompressionPlan(');
     expect(code).toContain('exportasyncfunctioncompressImageFileToUploadLimit(');
     // worker 必须显式同源 libURL（jsdelivr 在大陆网络挂起 → 压缩 Promise 永不 settle）
-    expect(code).toContain('libURL:useWebWorker?compressionWorkerLibUrl:undefined');
+    // 2026-11-14：地址来源从「顶层 ?url 静态 import」改成「函数内按需 import」——那条静态边
+    // 会把 19.5 KiB 的压缩库拖进首屏闭包（性能勘察 §5 P1-1）。要守的契约没变：
+    //   ① libURL **必须显式传**（否则库退回 CDN）；② 地址来自**同源打包副本**。
+    expect(code).toContain('libURL:useWebWorker?workerLibUrl||undefined:undefined');
+    expect(code).toContain(
+      "import('browser-image-compression/dist/browser-image-compression.js?url')",
+    );
   });
 });
 

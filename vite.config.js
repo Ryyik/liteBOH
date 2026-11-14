@@ -338,6 +338,18 @@ export default defineConfig({
       injectRegister: false,
       // Service Worker 文件名（确保生成到 dist 根目录）
       filename: 'sw.js',
+      /* PWA manifest 里的图标不再进 SW 预缓存（2026-11-14，性能勘察 §5 P1-3）。
+       *
+       * 默认行为是把 manifest.icons 列出的 public 文件也塞进 precache —— 实测 4 张图标
+       * （3 张 512 + 1 张 192）共 36.2 KiB：icon-512 12.1 + maskable 11.5 +
+       * monochrome 6.4 + icon-192 6.2。它们**只在系统「添加到主屏 / 安装」时才被读取**，
+       * 跟首屏渲染一点关系都没有，却在 SW 安装阶段和首屏那张 LCP 图抢同一条带宽。
+       *
+       * 代价（明确接受）：离线状态下点「安装」会因为取不到图标而失败。安装动作本身
+       * 发生在有网的页面上，这个组合基本不成立。
+       * 图标没进预缓存 → 由下面 runtimeCaching 的 /icons/ CacheFirst 兜着，
+       * 装过一次之后同样本地化。 */
+      includeManifestIcons: false,
       // 启用开发环境 SW（用于调试，生产环境自动禁用）
       devOptions: {
         enabled: false, // 开发环境禁用 SW，避免干扰调试
@@ -427,6 +439,19 @@ export default defineConfig({
         importScripts: ['push-sw.js'],
         // 运行时缓存策略
         runtimeCaching: [
+          {
+            /* PWA 图标的归宿（2026-11-14）。它们被 `includeManifestIcons: false`
+               移出了预缓存，必须在运行时有一条规则接住 —— 装过一次之后就本地化，
+               不再每次「添加到主屏」都重下 36 KiB。
+               ⚠️ 只匹配 public/icons/（应用图标目录）；头像框等 public 下的其他图不落这里。 */
+            urlPattern: /\/icons\/[^/]+\.(?:png|svg|jpe?g|webp)$/i,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'app-icons',
+              expiration: { maxEntries: 20, maxAgeSeconds: 60 * 60 * 24 * 90 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
           {
             // P0-1：路由 CSS 的兜底。壳样式进了预缓存，其余约 100 个路由 CSS 被
             // manifestTransforms 移出了预缓存 —— 它们必须在这里有归宿，否则弱网/离线

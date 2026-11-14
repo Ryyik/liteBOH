@@ -1,10 +1,15 @@
 import { SILICON_CLOUD_CHAT_URL } from './bohai-constants.js';
 import { callVaultSiliconChat } from './api/api-key-runtime-api.js';
+/* 2026-11-14：改 import 轻量状态模块（原来 import image-moderation-pipeline）。
+   文本审核与图片审核共享同一个云端出口，所以共享这份冷却状态 —— 但**只需要状态**，
+   不需要图片管线本体。改前这条静态边把「发帖才用」的整条图片审核链
+   （pipeline → forum-image-moderation → nsfwjs 兜底）拖进了首屏入口闭包。
+   语义零变化：状态仍是同一个 ESM 单例，两个模块读到的是同一份内存。 */
 import {
   isCloudModerationCoolingDown,
   markCloudModerationSuccess,
   markCloudModerationUnreachable,
-} from './image-moderation-pipeline.js';
+} from './moderation-cloud-state.js';
 
 const DEFAULT_SCENE = 'default';
 // 文字审核专用模式：vault 端按 bohai_model_configs 的 moderation-text 行裁决模型/上游。
@@ -505,7 +510,7 @@ async function callAIModerationWithRetry(content, scene, timeoutMs, options = {}
 }
 
 // 云端不可达的 source 集合：vault 层失败（未配置模式/限流/上游故障/超时/解析失败）。
-// 这些场景与图片审核共享同一个云端出口，冷却状态也共享（image-moderation-pipeline.js）。
+// 这些场景与图片审核共享同一个云端出口，冷却状态也共享（moderation-cloud-state.js）。
 function isCloudUnreachableSource(source = '') {
   return source === 'no_api_key' || source === 'fallback_parse' || source === 'fallback_error';
 }

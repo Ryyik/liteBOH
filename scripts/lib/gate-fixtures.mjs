@@ -221,6 +221,16 @@ export const FIXTURES = [
       ),
   },
   {
+    gate: 'check:first-paint-closure',
+    why: '空闲预取 / 静态 import 把重量级依赖塞回首屏闭包（/ai-chat 曾让每个首次访客多下 225.8 KiB、LCP +1.21 s）',
+    prepare: () =>
+      editFile(
+        'src/composables/useRoutePrefetch.js',
+        (s) => s.replace(/(const IDLE_PREFETCH_PATHS = \['\/user-space')\]/, "$1, '/ai-chat']"),
+        "IDLE_PREFETCH_PATHS 加回 '/ai-chat'",
+      ),
+  },
+  {
     gate: 'check:bohai-params',
     why: 'BOH AI 生成参数只许在真源表里出现（generation-params.js / chat-engine-config.js），内联字面量会让调参改一处漏一处',
     prepare: () =>

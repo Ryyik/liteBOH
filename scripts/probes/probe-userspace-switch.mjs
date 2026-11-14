@@ -48,7 +48,9 @@ try {
   await ctx.addInitScript(() => {
     try {
       localStorage.setItem('boh-theme', 'light');
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   });
   const page = await ctx.newPage();
   browser2.page = page;
@@ -57,14 +59,16 @@ try {
   // "expects exactly one child" —— 这是加过渡动画时最容易踩的坑，必须能看见
   const consoleMessages = [];
   page.on('console', (m) => {
-    if (m.type() === 'warning' || m.type() === 'error') consoleMessages.push(m.text().slice(0, 200));
+    if (m.type() === 'warning' || m.type() === 'error')
+      consoleMessages.push(m.text().slice(0, 200));
   });
 
   if (SLOW) {
     const cdp = await ctx.newCDPSession(page);
     await cdp.send('Network.enable');
     await cdp.send('Network.emulateNetworkConditions', {
-      offline: false, latency: 150,
+      offline: false,
+      latency: 150,
       downloadThroughput: (1.2 * 1024 * 1024) / 8,
       uploadThroughput: (600 * 1024) / 8,
     });
@@ -77,7 +81,9 @@ try {
       new PerformanceObserver((list) => {
         for (const e of list.getEntries()) window.__longTasks.push(Math.round(e.duration));
       }).observe({ entryTypes: ['longtask'] });
-    } catch { /* 不支持则跳过 */ }
+    } catch {
+      /* 不支持则跳过 */
+    }
   });
 
   const baselineResources = async () =>
@@ -85,8 +91,10 @@ try {
 
   // 记录切换期间发起的请求 URL —— 「每次切换 4~15 个请求」到底是哪些，是本次优化的靶子。
   let requestLog = [];
-  // ⚠️ 过滤要连图片一起排掉：左栏品牌位用的是 `/favicon.png`（不在 /static/ 下），
+  // ⚠️ 过滤要连图片一起排掉：左栏品牌位曾经用 `/favicon.png`（public/ 下，不在 /static/ 里），
   //    只排除 `/static/` 会把它算成「数据请求」，让人误以为切换在取数。
+  //    2026-11-14 起品牌位改成内联 webp、站点图标收敛成单条 32×32（见性能勘察 §8），
+  //    但这条按扩展名过滤的规则仍然保留 —— 它挡的是「任何静态资源被当成数据请求」。
   page.on('request', (req) => {
     const url = req.url();
     if (/\/static\//.test(url)) return;
@@ -120,15 +128,21 @@ try {
     },
     { containers: TAB_CONTAINER_SELECTORS, itemSel: TAB_ITEM_SELECTOR },
   );
-  console.log(`[us-switch] 页面就绪：shell=${recon.shell}；容器命中 ${JSON.stringify(recon.counts)}`);
-  console.log(`[us-switch] 采用容器：${recon.host || '(无)'}；分区值：${recon.tabs.join(', ') || '(取不到)'}`);
+  console.log(
+    `[us-switch] 页面就绪：shell=${recon.shell}；容器命中 ${JSON.stringify(recon.counts)}`,
+  );
+  console.log(
+    `[us-switch] 采用容器：${recon.host || '(无)'}；分区值：${recon.tabs.join(', ') || '(取不到)'}`,
+  );
   if (!recon.shell) {
     console.log(`[us-switch] 未渲染 user-space-page；首屏文本：「${recon.text}」`);
   }
 
   const tabs = recon.tabs.filter((id) => !CROSS_MODULE_TAB_IDS.has(id));
   if (recon.tabs.length !== tabs.length) {
-    console.log(`[us-switch] 跳过跨模块导航项：${recon.tabs.filter((id) => CROSS_MODULE_TAB_IDS.has(id)).join(', ')}（点击会离开 UserSpace，无法测量本页分区切换）`);
+    console.log(
+      `[us-switch] 跳过跨模块导航项：${recon.tabs.filter((id) => CROSS_MODULE_TAB_IDS.has(id)).join(', ')}（点击会离开 UserSpace，无法测量本页分区切换）`,
+    );
   }
   if (tabs.length < 2) {
     console.log('[us-switch] 可切换分区不足 2 个，无法测量切换——请检查登录态或选择器');
@@ -205,7 +219,9 @@ try {
     }
 
     result.longTasks = await page.evaluate(() => window.__longTasks || []);
-    result.consoleWarnings = consoleMessages.filter((m) => /warn|Transition|fragment|multiple root/i.test(m));
+    result.consoleWarnings = consoleMessages.filter((m) =>
+      /warn|Transition|fragment|multiple root/i.test(m),
+    );
 
     // ---- 身份测试：离开再回来后，逐层比对节点是否还是同一个 ----
     // 用途是**定位重建发生在哪一层**：
@@ -232,49 +248,61 @@ try {
         return PANEL_SEL[tab];
       };
       const probe = () =>
-        page.evaluate((sels) => {
-          const out = {};
-          for (const [layer, sel] of sels) {
-            const el = sel ? document.querySelector(sel) : null;
-            out[layer] = { sel, present: !!el };
-          }
-          return out;
-        }, LAYERS.map(([l]) => [l, selFor(l)]));
-  
-      const click = (t) => page.evaluate((sel) => document.querySelector(sel)?.click(), tabSelector(t));
+        page.evaluate(
+          (sels) => {
+            const out = {};
+            for (const [layer, sel] of sels) {
+              const el = sel ? document.querySelector(sel) : null;
+              out[layer] = { sel, present: !!el };
+            }
+            return out;
+          },
+          LAYERS.map(([l]) => [l, selFor(l)]),
+        );
+
+      const click = (t) =>
+        page.evaluate((sel) => document.querySelector(sel)?.click(), tabSelector(t));
       const other = tabs.find((t) => t !== tab);
 
       await click(tab);
       await page.waitForTimeout(700);
       // 把三个层级的节点引用存进页面全局，稍后比对
-      const captured = await page.evaluate((sels) => {
-        window.__probeNodes = window.__probeNodes || {};
-        const out = {};
-        for (const [layer, sel] of sels) {
-          const el = sel ? document.querySelector(sel) : null;
-          window.__probeNodes[`${layer}`] = el;
-          out[layer] = el ? `${el.tagName}.${String(el.className).split(' ').slice(0, 2).join('.')}` : null;
-        }
-        return out;
-      }, LAYERS.map(([l]) => [l, selFor(l)]));
+      const captured = await page.evaluate(
+        (sels) => {
+          window.__probeNodes = window.__probeNodes || {};
+          const out = {};
+          for (const [layer, sel] of sels) {
+            const el = sel ? document.querySelector(sel) : null;
+            window.__probeNodes[`${layer}`] = el;
+            out[layer] = el
+              ? `${el.tagName}.${String(el.className).split(' ').slice(0, 2).join('.')}`
+              : null;
+          }
+          return out;
+        },
+        LAYERS.map(([l]) => [l, selFor(l)]),
+      );
 
       await click(other);
       await page.waitForTimeout(700);
       await click(tab);
       await page.waitForTimeout(900);
 
-      const compared = await page.evaluate((sels) => {
-        const out = {};
-        for (const [layer, sel] of sels) {
-          const el = sel ? document.querySelector(sel) : null;
-          const prev = window.__probeNodes?.[layer] || null;
-          out[layer] = {
-            present: !!el,
-            same: !!el && el === prev,
-          };
-        }
-        return out;
-      }, LAYERS.map(([l]) => [l, selFor(l)]));
+      const compared = await page.evaluate(
+        (sels) => {
+          const out = {};
+          for (const [layer, sel] of sels) {
+            const el = sel ? document.querySelector(sel) : null;
+            const prev = window.__probeNodes?.[layer] || null;
+            out[layer] = {
+              present: !!el,
+              same: !!el && el === prev,
+            };
+          }
+          return out;
+        },
+        LAYERS.map(([l]) => [l, selFor(l)]),
+      );
 
       return { tab, captured, compared };
     };
@@ -312,7 +340,9 @@ try {
     const max = Math.max(...returns.map((s) => s.clickToActiveMs));
     console.log(`  「切回来」平均 ${avg}ms / 最慢 ${max}ms（共 ${returns.length} 次）`);
   }
-  console.log(`\n长任务：${result.longTasks.length} 个${result.longTasks.length ? ' → ' + result.longTasks.slice(0, 10).join('ms, ') + 'ms' : ''}`);
+  console.log(
+    `\n长任务：${result.longTasks.length} 个${result.longTasks.length ? ' → ' + result.longTasks.slice(0, 10).join('ms, ') + 'ms' : ''}`,
+  );
 
   await page.screenshot({ path: `${OUT}/us-switch-final.png` });
   await ctx.close();

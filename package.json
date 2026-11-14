@@ -61,6 +61,7 @@
     "audit:css:duplication": "node scripts/audit-css.mjs --duplication",
     "audit:css:orphans": "node scripts/audit-css.mjs --orphans",
     "check:first-paint": "node scripts/check-first-paint.mjs",
+    "check:first-paint-closure": "node scripts/check-first-paint-closure.mjs",
     "check:async-component-fallback": "node scripts/check-async-component-fallback.mjs",
     "check:async-component-fallback:update": "node scripts/check-async-component-fallback.mjs --update",
     "check:bohai-params": "node scripts/check-bohai-generation-params.mjs",
@@ -92,7 +93,7 @@
     "probe:composer-session-gate": "node scripts/probes/probe-composer-session-gate.mjs",
     "test": "vitest run",
     "verify": "node scripts/verify.mjs",
-    "verify:fast": "npm run check:views && npm run check:structure && npm run check:first-paint && npm run check:root-clean && npm run check:untracked-imports && npm run check:shell-grep && npm run check:doc-truth",
+    "verify:fast": "npm run check:views && npm run check:structure && npm run check:first-paint && npm run check:first-paint-closure && npm run check:root-clean && npm run check:untracked-imports && npm run check:shell-grep && npm run check:doc-truth",
     "verify:full": "npm run verify && npm run build:ci",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
@@ -113,12 +114,12 @@
     "mail:verify": "node scripts/mail-keepalive-ops.mjs --verify",
     "mail:health": "node scripts/mail-keepalive-ops.mjs --health",
     "mail:watchdog": "node scripts/mail-keepalive-ops.mjs --watchdog",
-    "build:ci": "npm run check:views && npm run check:structure && npm run check:auth-validation && npm run security:anon-check && npm run type-check && npm run check:liquid-glass && npm run check:important-budget && npm run check:layering && npm run check:dark-tokens:strict && npm run check:first-paint && npm run check:async-component-fallback && npm run compress-images && npm run nsfw:assets && vite build && npm run check:shell-precache && bash scripts/check-bundle-size.sh && npm run check:first-paint-budget",
+    "build:ci": "npm run check:views && npm run check:structure && npm run check:auth-validation && npm run security:anon-check && npm run type-check && npm run check:liquid-glass && npm run check:important-budget && npm run check:layering && npm run check:dark-tokens:strict && npm run check:first-paint && npm run check:first-paint-closure && npm run check:async-component-fallback && npm run compress-images && npm run nsfw:assets && vite build && npm run check:shell-precache && bash scripts/check-bundle-size.sh && npm run check:first-paint-budget",
     "security:setup": "node scripts/cloudflare-setup.mjs",
     "security:setup:no-secret": "node scripts/cloudflare-setup.mjs --no-secret",
     "audit:coupling": "node scripts/audit-coupling.mjs",
     "compare:builds": "node scripts/compare-builds.mjs",
-    "verify:serial": "npm run check:views && npm run check:structure && npm run check:auth-validation && npm run check:liquid-glass && npm run check:important-budget && npm run check:layering && npm run check:dark-tokens:strict && npm run check:first-paint && npm run check:async-component-fallback && npm run check:bohai-params && npm run check:root-clean && npm run check:untracked-imports && npm run check:shell-grep && npm run check:doc-truth && npm run lint && npm run type-check && npm run test && npm run check:ratchets"
+    "verify:serial": "npm run check:views && npm run check:structure && npm run check:auth-validation && npm run check:liquid-glass && npm run check:important-budget && npm run check:layering && npm run check:dark-tokens:strict && npm run check:first-paint && npm run check:first-paint-closure && npm run check:async-component-fallback && npm run check:bohai-params && npm run check:root-clean && npm run check:untracked-imports && npm run check:shell-grep && npm run check:doc-truth && npm run lint && npm run type-check && npm run test && npm run check:ratchets"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.116.0",

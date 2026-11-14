@@ -392,7 +392,10 @@ for (const label of ['内容', '图库', '周边', '我']) {
 /* ── S3d 已缓存状态下「一次切页」到底发了什么 ──────────────────────
    第二轮读数里每席恒定 3 个请求 / ~25KB，看着像业务轮询，其实是浏览器
    在软导航后重取 favicon（type=Other，不是 Image —— 所以与侧栏那枚
-   `<img src="/favicon.png">` 无关）。把 URL 打出来，避免下次又误判。 */
+   `<img src="/favicon.png">` 无关）。把 URL 打出来，避免下次又误判。
+   ⚠️ 2026-11-14 收敛后（index.html 只剩 1 条 32×32、品牌位改内联 webp），这里读到的
+   是 `favicon-32.png ×1 / 3.0 KiB`；若又看到同一切页刷出多条 favicon 请求，
+   说明 icon 声明被加回去了 —— 那是回归，不是噪声。 */
 console.log('\n[S3d] 已缓存状态下 我→内容→我 的全部请求');
 const s3dMark = done.length;
 await clickText('内容', '.nav-item');

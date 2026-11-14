@@ -8,7 +8,7 @@
     <div class="userspace-rail-brand">
       <img
         class="userspace-rail-brand-mark"
-        src="/favicon.png"
+        :src="brandMarkUrl"
         alt=""
         width="26"
         height="26"
@@ -168,6 +168,11 @@
 // 可见性由 side-rail.css 的媒体查询决定（默认 display:none），不新增任何状态或请求
 import { House, LogOut, Moon, PenLine, Sun, Wallet } from 'lucide-vue-next';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+/* 品牌位那枚 26px 图标：改用打包进产物的 64px webp（872 B，小于 4096 的内联阈值
+   ⇒ 直接内联进本 chunk，**零额外请求**），不再指向 public/favicon.png
+   （8.2 KiB 的 1024px 大图；它在 index.html 里曾同时被 4 条 icon 声明引用，
+   浏览器软导航时会反复重取，见性能勘察 §4.1）。2026-11-14。 */
+import brandMarkUrl from '@/assets/images/brand-mark-64.webp';
 
 /**
  * 便捷区：**全站一份，发布 / 资产**（2026-10-26 用户纠偏后收敛）。

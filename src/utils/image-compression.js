@@ -2,13 +2,39 @@ import {
   CLOUD_UPLOAD_MAX_DIMENSION,
   CLOUD_UPLOAD_MAX_IMAGE_SIZE_BYTES,
   CLOUD_UPLOAD_MAX_PIXELS,
-  readBrowserImageDimensions
+  readBrowserImageDimensions,
 } from './cloud-upload-guard.js';
-// worker 内 importScripts 用的库副本（UMD）。不传 libURL 时库默认从
-// https://cdn.jsdelivr.net/npm/browser-image-compression@2.0.2/... 拉取——
-// 该 CDN 在大陆网络下常见黑洞式挂起（不报错、不返回），worker Promise 永不
-// settle，上传按钮会永久卡在「上传中」且无错误提示。改为同源打包副本。
-import compressionWorkerLibUrl from 'browser-image-compression/dist/browser-image-compression.js?url';
+/* 压缩库的 UMD 副本地址（worker 内 importScripts 用）。不传 libURL 时库默认从
+ * https://cdn.jsdelivr.net/npm/browser-image-compression@2.0.2/... 拉取 ——
+ * 该 CDN 在大陆网络下常见黑洞式挂起（不报错、不返回），worker Promise 永不 settle，
+ * 上传按钮会永久卡在「上传中」且无错误提示。改为同源打包副本。
+ *
+ * ⚠️ 2026-11-14：改成**动态** import（原来是顶层 `?url` 静态 import）。
+ *   `?url` 虽然只要一个字符串，但 Rollup 会把它和 `browser-image-compression`
+ *   包成同一个 `image-compression-vendor` chunk，并给出一条**静态** import 边 ——
+ *   于是「只有发帖才用」的 19.5 KiB gzip 压缩库被拖进首屏入口闭包
+ *   （性能勘察 §5 P1）。本文件本身是静态引入的（avatar-storage → 这里），
+ *   所以这条边必须自己断掉。
+ *   代价：第一次真正压缩时多一次小 chunk 往返（此时本来就在等用户选图/上传，
+ *   且 compressImageFileToUploadLimit 已经 await 了库本身）。
+ */
+let compressionWorkerLibUrlPromise = null;
+
+function loadCompressionWorkerLibUrl() {
+  if (!compressionWorkerLibUrlPromise) {
+    compressionWorkerLibUrlPromise = withTimeout(
+      import('browser-image-compression/dist/browser-image-compression.js?url').then(
+        (module) => module.default || module,
+      ),
+      LIB_IMPORT_TIMEOUT_MS,
+      '图片压缩 worker 库地址解析超时',
+    ).catch((error) => {
+      compressionWorkerLibUrlPromise = null;
+      throw error;
+    });
+  }
+  return compressionWorkerLibUrlPromise;
+}
 
 const COMPRESSIBLE_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const DEFAULT_TARGET_SIZE_MB = 9.6;
@@ -31,7 +57,7 @@ function withTimeout(promise, timeoutMs, message) {
       (error) => {
         clearTimeout(timer);
         reject(error);
-      }
+      },
     );
   });
 }
@@ -47,7 +73,9 @@ export function formatImageMegapixels(width = 0, height = 0) {
 }
 
 function normalizeMimeType(value = '') {
-  const mimeType = String(value || '').trim().toLowerCase();
+  const mimeType = String(value || '')
+    .trim()
+    .toLowerCase();
   return mimeType === 'image/jpg' ? 'image/jpeg' : mimeType;
 }
 
@@ -69,34 +97,43 @@ export async function getImageCompressionPlan(file, options = {}) {
   const maxDimension = Number(options.maxDimension || CLOUD_UPLOAD_MAX_DIMENSION);
   const maxPixels = Number(options.maxPixels || CLOUD_UPLOAD_MAX_PIXELS);
   const optimizeForUpload = options.optimizeForUpload === true;
-  const optimizedTargetSizeMB = Number(options.optimizedTargetSizeMB || DEFAULT_OPTIMIZED_TARGET_SIZE_MB);
-  const optimizedMaxDimension = Number(options.optimizedMaxDimension || DEFAULT_OPTIMIZED_MAX_DIMENSION);
+  const optimizedTargetSizeMB = Number(
+    options.optimizedTargetSizeMB || DEFAULT_OPTIMIZED_TARGET_SIZE_MB,
+  );
+  const optimizedMaxDimension = Number(
+    options.optimizedMaxDimension || DEFAULT_OPTIMIZED_MAX_DIMENSION,
+  );
   const mimeType = normalizeMimeType(file?.type);
   const originalSizeBytes = Number(file?.size || 0);
   const dimensions = await readBrowserImageDimensions(file).catch(() => null);
   const reasons = [];
 
   if (originalSizeBytes > maxSizeBytes) {
-    reasons.push(`文件 ${formatImageFileSize(originalSizeBytes)}，超过 ${formatImageFileSize(maxSizeBytes)}`);
+    reasons.push(
+      `文件 ${formatImageFileSize(originalSizeBytes)}，超过 ${formatImageFileSize(maxSizeBytes)}`,
+    );
   }
   if (dimensions?.width > maxDimension || dimensions?.height > maxDimension) {
     reasons.push(`边长 ${dimensions.width}x${dimensions.height}，超过 ${maxDimension}px`);
   }
   if (dimensions?.width && dimensions?.height && dimensions.width * dimensions.height > maxPixels) {
-    reasons.push(`分辨率 ${formatImageMegapixels(dimensions.width, dimensions.height)}，超过 ${formatImageMegapixels(maxPixels, 1)}`);
+    reasons.push(
+      `分辨率 ${formatImageMegapixels(dimensions.width, dimensions.height)}，超过 ${formatImageMegapixels(maxPixels, 1)}`,
+    );
   }
 
   const requiresCompression = reasons.length > 0;
   const canOptimizeLossyImage = mimeType === 'image/jpeg' || mimeType === 'image/webp';
-  const shouldOptimize = optimizeForUpload
-    && canOptimizeLossyImage
-    && (
-      originalSizeBytes > optimizedTargetSizeMB * 1024 * 1024
-      || Number(dimensions?.width || 0) > optimizedMaxDimension
-      || Number(dimensions?.height || 0) > optimizedMaxDimension
-    );
+  const shouldOptimize =
+    optimizeForUpload &&
+    canOptimizeLossyImage &&
+    (originalSizeBytes > optimizedTargetSizeMB * 1024 * 1024 ||
+      Number(dimensions?.width || 0) > optimizedMaxDimension ||
+      Number(dimensions?.height || 0) > optimizedMaxDimension);
   const shouldCompress = requiresCompression || shouldOptimize;
-  const targetSizeMB = shouldOptimize ? optimizedTargetSizeMB : Number(options.targetSizeMB || DEFAULT_TARGET_SIZE_MB);
+  const targetSizeMB = shouldOptimize
+    ? optimizedTargetSizeMB
+    : Number(options.targetSizeMB || DEFAULT_TARGET_SIZE_MB);
   const requiredMaxSide = resolveTargetMaxSide(dimensions, { maxDimension, maxPixels });
 
   return {
@@ -114,7 +151,7 @@ export async function getImageCompressionPlan(file, options = {}) {
     targetSizeMB,
     maxWidthOrHeight: shouldOptimize
       ? Math.min(requiredMaxSide, optimizedMaxDimension)
-      : requiredMaxSide
+      : requiredMaxSide,
   };
 }
 
@@ -125,7 +162,7 @@ async function loadImageCompression() {
     imageCompressionLoader = withTimeout(
       import('browser-image-compression').then((module) => module.default || module),
       LIB_IMPORT_TIMEOUT_MS,
-      '图片压缩库加载超时'
+      '图片压缩库加载超时',
     ).catch((error) => {
       imageCompressionLoader = null;
       throw error;
@@ -138,20 +175,32 @@ function normalizeCompressedFile(file, compressedBlob) {
   const baseName = String(file?.name || 'compressed-image').replace(/\.[a-z0-9]+$/i, '');
   if (compressedBlob instanceof File) {
     if (compressedBlob.type === 'image/webp' && !/\.webp$/i.test(compressedBlob.name || '')) {
-      return new File([compressedBlob], `${baseName}.webp`, { type: 'image/webp', lastModified: Date.now() });
+      return new File([compressedBlob], `${baseName}.webp`, {
+        type: 'image/webp',
+        lastModified: Date.now(),
+      });
     }
     return compressedBlob;
   }
   const type = compressedBlob?.type || file.type || 'image/jpeg';
-  const ext = type === 'image/webp' ? '.webp' : (type === 'image/png' ? '.png' : '.jpg');
+  const ext = type === 'image/webp' ? '.webp' : type === 'image/png' ? '.png' : '.jpg';
   return new File([compressedBlob], `${baseName}${ext}`, {
     type,
-    lastModified: Date.now()
+    lastModified: Date.now(),
   });
 }
 
 export async function compressImageFileToUploadLimit(file, plan = {}, options = {}) {
   const imageCompression = await loadImageCompression();
+  /* worker 副本地址是按需解析的（见 loadCompressionWorkerLibUrl）。解析失败就**别开 worker**：
+     开着 worker 又不传 libURL 会退回库默认的 jsdelivr CDN —— 那正是当年「上传永久卡死」的成因，
+     此时宁可直接走主线程压缩（慢但确定能完成）。 */
+  let workerLibUrl = null;
+  try {
+    workerLibUrl = await loadCompressionWorkerLibUrl();
+  } catch {
+    workerLibUrl = null;
+  }
   // A1 首击率调优：按原始体积分桶定首轮质量，绝大多数图 1~2 次编码即收敛到目标体积，
   // 迭代上限 8→4。此前固定 0.85 起步，大图要 4~6 次重编码，单张压缩耗时 -30~50%。
   const rawSizeMB = Number(file?.size || 0) / (1024 * 1024);
@@ -160,7 +209,9 @@ export async function compressImageFileToUploadLimit(file, plan = {}, options = 
   // 展示端 Cloudinary 走 f_auto 自动格式，源图格式无关紧要（动图 GIF 已在入口处被拒绝）
   const buildOptions = (useWebWorker) => ({
     maxSizeMB: Number(options.targetSizeMB || plan.targetSizeMB || DEFAULT_TARGET_SIZE_MB),
-    maxWidthOrHeight: Number(options.maxWidthOrHeight || plan.maxWidthOrHeight || CLOUD_UPLOAD_MAX_DIMENSION),
+    maxWidthOrHeight: Number(
+      options.maxWidthOrHeight || plan.maxWidthOrHeight || CLOUD_UPLOAD_MAX_DIMENSION,
+    ),
     useWebWorker,
     initialQuality: Number(options.initialQuality || bucketedInitialQuality),
     maxIteration: Number(options.maxIteration || 4),
@@ -169,15 +220,20 @@ export async function compressImageFileToUploadLimit(file, plan = {}, options = 
     signal: options.signal,
     // worker 模式必须显式指定同源 libURL，否则库默认 importScripts jsdelivr CDN
     //（大陆网络下挂起 → 压缩 Promise 永不 settle → 上传永久卡死）
-    libURL: useWebWorker ? compressionWorkerLibUrl : undefined
+    libURL: useWebWorker ? workerLibUrl || undefined : undefined,
   });
 
   let compressedBlob;
+  if (!workerLibUrl) {
+    // 地址没解析出来：直接走主线程（见上面的取舍说明，绝不让库去拉 jsdelivr）
+    compressedBlob = await imageCompression(file, buildOptions(false));
+    return normalizeCompressedFile(file, compressedBlob);
+  }
   try {
     compressedBlob = await withTimeout(
       imageCompression(file, buildOptions(true)),
       WORKER_COMPRESSION_TIMEOUT_MS,
-      '图片压缩超时（Web Worker 无响应）'
+      '图片压缩超时（Web Worker 无响应）',
     );
   } catch (error) {
     // 降级：worker 路径挂起/失败时改用主线程压缩一次。UI 会短暂阻塞，但优于永久卡死；

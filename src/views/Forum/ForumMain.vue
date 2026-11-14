@@ -1884,10 +1884,20 @@ const observeForumLazyImage = (el) => {
 
 const prepareForumPostForDisplay = (post, index = 0) => {
   const preparedPost = { ...post };
-  const isEager = index < 1;
+  /* 首屏前 2 张卡片的首图走 eager + fetchpriority=high（2026-11-14，性能勘察 §5 P0）。
+   *
+   * 为什么不是 1：列表数据回来时已经过了 6–8 s，那时真正落进视口的往往**不是第 1 帖**
+   * （首帖可能是纯文字 / 官方新闻卡），LCP 元素实测就是 `img.image-post-thumb`，
+   * 但它走的是 IO 懒加载通道 —— 要等 IO 回调才把 data-lazy-src 写进 src，
+   * 等于把 LCP 的下载起点又推后一帧 + 一次调度。
+   * 为什么不是 3：eager 会抢带宽，1.6 Mbps 下每多一张就多摊一份，收益迅速转负。
+   *
+   * CLS 不靠 width/height 属性兜：`.image-post-thumb-shell` 有 width + aspect-ratio（4/3，
+   * 单图 16/9），图片没到时盒子已经定尺，所以这里的尺寸属性只作次要提示。 */
+  const isEager = index < 2;
   // 全量图列表（单一来源）：列表 RPC 最多只回 4 张（SQL limit 4），横向图片条
   // 直接渲染它；滚近末尾/打开大图时经 ensureForumPostFullImages 按需补全剩余张数。
-  // eager 仅首帖首图，首屏外开销仍由 LQIP+lazy 承担。
+  // eager 只给首屏前 2 帖的首图（见上），首屏外开销仍由 LQIP+lazy 承担。
   const allImages = getPostImages(preparedPost).map((image, imageIndex) => ({
     ...image,
     eager: isEager && imageIndex === 0,
@@ -1916,7 +1926,7 @@ const prepareForumPostForDisplay = (post, index = 0) => {
   // hiddenImageCount = 尚未拉进 allImages 的张数（列表截断所致）；横条末尾"+N 张"占位卡用它
   preparedPost.hiddenImageCount = Math.max(0, imageCount - allImages.length);
   preparedPost.hasMultipleImages = imageCount > 1;
-  preparedPost.imageLoading = index < 1 ? 'eager' : 'lazy';
+  preparedPost.imageLoading = isEager ? 'eager' : 'lazy';
   return preparedPost;
 };
 
