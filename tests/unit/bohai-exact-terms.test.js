@@ -98,8 +98,10 @@ describe('接线守卫（纯函数测试看不见「有没有真的接上」）'
 
   it('补召回的触发条件必须收紧为「一个精确词都没命中」', () => {
     // 若写成无条件补召回，每个含英文词的提问都会多打一次 EF（延迟白给）
+    // ⚠️ 正则必须容忍换行：prettier 会把 `if (a && b)` 拆成 `if (` / `a &&` / `b` / `)` 四行，
+    //    原来那版单行正则因此在 2026-11-14 假红（代码语义一直是对的）。
     expect(retrieval).toMatch(
-      /exactTerms\.length > 0 && !chunks\.some\(\(chunk\) => chunkMatchesExactTerms\(chunk, exactTerms\)\)/,
+      /exactTerms\.length > 0 &&\s*!chunks\.some\(\(chunk\) => chunkMatchesExactTerms\(chunk, exactTerms\)\)/,
     );
   });
 

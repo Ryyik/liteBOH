@@ -2,12 +2,6 @@ import type { RouteRecordRaw } from 'vue-router';
 
 export const adminRoutes: RouteRecordRaw[] = [
   {
-    // 裸 `/admin` 此前没有落点（输进去就是 404）。落到概览页：它是控制台的
-    // 「今天做点什么」入口，也是唯一带 @ 动作与待处理收件箱的页面。
-    path: '/admin',
-    redirect: '/admin/overview',
-  },
-  {
     // 管理台概览（2026-11-12）：`@` 动作 + 状态卡 + 待处理收件箱。
     // 方案见 docs/2026-11-12-管理台概览页-@动作方案.md。
     // ⚠️ 路径刻意不带 `-console` 后缀：admin-console-wiring.test.js 会把所有

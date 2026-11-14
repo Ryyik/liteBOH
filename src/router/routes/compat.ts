@@ -14,12 +14,13 @@ import { resolveForumSection } from '../../config/forum-sections';
  *   · 改动本文件的验收：单测 tests/unit/compat-routes.test.js（折叠覆盖 + 落点对照）
  *     + 全量 verify。
  *
- * 现行清单（21 条 = 2 参数化 + 19 直条）：
+ * 现行清单（22 条 = 2 参数化 + 20 直条）：
  *   · 旧用户中心 /user-center/*（引入 ≤2026-06）：12 条折叠为 2 条（见下方分节）
  *   · 旧用户空间深链（引入 2026-09-30，tab 语义迁移）：8 条
  *   · Beta 6 退场（引入 2026-09-27）：/forum、/activities(×3)、/block-wall、/tutorial
  *   · 实验室退场（引入 2026-10-19）：/lab → BOHAI Work
  *   · 礼物中心退场（引入 2026-11-02）：/user-space/gifts → 购物袋「订单」/ 商城「地址」
+ *   · 管理台补漏（引入 2026-11-14）：/admin → /admin/overview（裸路径原先 404）
  *
  * 变更史：
  *   2026-11-02 新增 1 条：/user-space/gifts（礼物中心整页废弃）→ 礼物与历史礼物并入
@@ -224,6 +225,13 @@ export const compatRoutes: RouteRecordRaw[] = [
     path: '/lotteries',
     name: 'CommunityLotteries',
     redirect: (to: any) => ({ path: '/shop', query: { ...to.query, tab: 'lottery' } }),
+  },
+  {
+    // 裸 `/admin` 此前没有落点（输进去直接 404）。落到概览页：它是控制台的
+    // 「今天做点什么」入口，也是唯一带 @ 动作与待处理收件箱的页面。
+    // 引入 2026-11-14 · 不是 IA 改造、是补漏；概览页成形后即可长期保留。
+    path: '/admin',
+    redirect: '/admin/overview',
   },
   {
     // 礼物中心退场兼容（2026-11-02）：老页 `/user-space/gifts` 的三个分段全部有了新家 ——

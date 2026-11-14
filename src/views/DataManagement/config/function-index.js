@@ -77,8 +77,9 @@ export const TAB_ALIASES = {
   aiWebSearchLog: ['联网', 'websearch', '搜索日志'],
   apiKeyAuditLogs: ['key 审计'],
   labUsageRecords: ['实验室用量'],
-  userFollows: ['关注', '粉丝'],
-  userImpressions: ['访客', '浏览记录'],
+  // userFollows（关注/粉丝）/ userImpressions（访客/浏览记录）已按 §13.9 下线（2026-11-14）：
+  // 页签没了还留着别名，搜索会命中一条点进去是空的死词。
+  labUsageRecords: ['实验室'],
   lotterySchedulerLogs: ['定时任务', 'cron', '调度'],
   adminAuditLogs: ['操作审计', '审计'],
   userDataExportJobs: ['数据导出', '导出任务'],
