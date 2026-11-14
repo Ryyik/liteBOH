@@ -66,6 +66,7 @@ import HomeCatMascot from '@/components/HomeCatMascot.vue';
 import {
   getPosts,
   getComments,
+  getCommentPreviewsForPosts,
   createComment,
   toggleLike,
   createQuoteRepost,
@@ -87,7 +88,10 @@ import { showIsland } from '@/composables/useIsland.js';
 import { getCloudinaryTransformedUrl } from '@/utils/cloudinary-client.js';
 // 发帖图压缩库按需加载：image-compression vendor（≈40KB gz）不进论坛首屏闭包
 //（报告 §9.1；动态 import 的 chunk 在首次选图时才拉取）
-import { loadOfficialDirectory } from '@/utils/api/forum/official-directory.js';
+import {
+  loadOfficialDirectory,
+  warmOfficialDirectory,
+} from '@/utils/api/forum/official-directory.js';
 import {
   clearForumReturnState,
   getForumReturnKeyFromQuery,
@@ -1964,12 +1968,17 @@ const hydrateOfficialPostKinds = async (posts = []) => {
     for (const row of data || []) metadata.set(row.id, row);
   }
   // 目录（news/activities）只被「缺类型或缺封面」的帖子消费；5min memo 见 official-directory.js
+  // 目录（news/activities）只被「缺类型」或「官方卡缺封面」的帖子消费。
+  // ⚠️ 旧判据把「任何缺封面的帖子」都算成需要目录 —— 实测 66/162 帖是纯文字帖无封面，
+  // 于是几乎每次进 feed 都要拉两张表。普通帖的封面缺失与目录无关（目录只提供官方配图）。
   const needsDirectory = safePosts.some((post) => {
     if (!post) return false;
     const meta = metadata.get(post.id);
-    const kindUnresolved = !post.post_kind && !meta?.post_kind;
-    const coverUnresolved = !post.cover_image_url && !meta?.cover_image_url;
-    return kindUnresolved || coverUnresolved;
+    const kind = post.post_kind || meta?.post_kind || '';
+    const cover = post.cover_image_url || meta?.cover_image_url || '';
+    // 类型未定：目录的 titleIndex 仍要参与 deriveForumPostKind 的派生，必须拉
+    if (!kind) return true;
+    return !cover && (kind === 'news' || kind === 'activity');
   });
   const { newsByTitle, activityByTitle } = needsDirectory
     ? await loadOfficialDirectory()
@@ -2301,6 +2310,12 @@ const fetchForumData = async (isLoadMore = false, { background = false } = {}) =
 
   try {
     let dataResult;
+    /* 官方目录并行预热（2026-11-14）：必须在 getPosts 之前发。
+       原来目录是在 `await hydrateOfficialPostKinds(...)` 里**串在 posts 之后**拉的，
+       实测首帖时刻 1:1 跟着它走（定向延迟 1500ms → 首帖 +1484ms）。
+       预热后两笔落在同一波，关键路径少一整段（实测 ≈576ms 桌面 / ≈1.3s 4G 档）。
+       load-more 不预热：目录 memo 5 分钟，翻页时早就暖了。 */
+    if (!isLoadMore) warmOfficialDirectory();
     const currentUserId = isLoggedIn.value ? userInfo.id : null;
     const pageToLoad = isLoadMore ? currentPage.value + 1 : 1;
     let followingUserIds;
@@ -2800,6 +2815,16 @@ const handlePostCardCancelReply = () => {
   activeReplyTarget.value = null;
 };
 
+/* 把一批顶层评论写回帖子对象（单帖路径与批量预取共用）。
+   写入字段与 loadPostReplyPreview 末尾保持一致：replies / replies_has_more /
+   replies_preloaded / markReplyPreviewSnapshot —— 少一个都会让「展开评论区」二次回源。 */
+const applyReplyPreview = (post, rows, hasMore) => {
+  post.replies = Array.isArray(rows) ? rows : [];
+  post.replies_has_more = Boolean(hasMore);
+  post.replies_preloaded = true;
+  markReplyPreviewSnapshot(post);
+};
+
 // 返回值语义：true = 已填充（含本就有数据/已预载），false = 本次加载失败。
 // 调用方据此决定「保留展开」还是「折叠回去」（失败不留空白展开区）。
 const loadPostReplyPreview = async (post, { force = false } = {}) => {
@@ -2844,14 +2869,10 @@ const loadPostReplyPreview = async (post, { force = false } = {}) => {
     hasMore = fallback.hasMore;
   }
 
-  post.replies = Array.isArray(data) ? data : [];
-  post.replies_has_more = Boolean(hasMore);
-  post.replies_preloaded = true;
-  markReplyPreviewSnapshot(post);
+  applyReplyPreview(post, data, hasMore);
   triggerRef(forumData);
   return true;
 };
-
 const refreshPostEngagementStats = async (post) => {
   if (!post?.id) return;
   const statsRes = await getPostEngagementStats(post.id);
@@ -2899,12 +2920,19 @@ const toggleRepliesList = async (post) => {
 };
 
 // ============================================
-// idle 预取未预载回复的帖子（可选优化）
-// 列表落地后在空闲时段串行预载当前视口内「未预载 + 有评论」的帖子回复，
+// idle 预取未预载回复的帖子
+// 列表落地后在空闲时段预载当前视口内「未预载 + 有评论」的帖子回复，
 // 用户点开评论区时直接命中（loadPostReplyPreview 因 replies_preloaded 提前返回，
 // 不会二次请求），把等待期从「骨架 → 数据」压成「直接就是数据」。
+//
+// 2026-11-14：**从「逐帖串行」改成「一条 in.(…) 批量」**。
+// 原实现 `for..await loadPostReplyPreview()`，每条 = 1 GET + 1 OPTIONS 预检
+//（预检缓存按 URL 分组，post_id 不同就不互通），实测节奏 550ms/条、4 条 8 个往返。
+// 现在一次请求取全部目标帖的顶层预览，再按 post_id 分组写回。
+// 注意：本段**不在首屏关键路径上**（定向延迟反证：延迟评论 1500ms，首帖 −24ms），
+// 所以别把这里的优化算进「首帖变快」的账上。
 // ============================================
-const REPLY_PREFETCH_MAX_PER_PASS = 4;
+const REPLY_PREFETCH_MAX_PER_PASS = 6;
 let idleReplyPrefetchHandle = null;
 let idleReplyPrefetchCancelled = false;
 
@@ -2934,12 +2962,29 @@ const scheduleIdleReplyPrefetch = () => {
       )
       .slice(0, REPLY_PREFETCH_MAX_PER_PASS);
     if (!targets.length) return;
-    // 串行：预取本身是低优先级任务，不与其他请求抢并发额度
     void (async () => {
-      for (const target of targets) {
-        if (idleReplyPrefetchCancelled) return;
-        await loadPostReplyPreview(target);
+      const currentUserId = isLoggedIn.value ? userInfo.id : null;
+      const result = await getCommentPreviewsForPosts(
+        targets.map((post) => post.id),
+        currentUserId,
+        { perPost: LIST_REPLY_PREVIEW_COUNT },
+      );
+      // 失败 / 主动取消：一条都不写，用户展开时按单帖兜底（与 loadPostReplyPreview 同语义）
+      if (idleReplyPrefetchCancelled || result?.ok === false || !result?.data) return;
+      let patched = 0;
+      for (const post of targets) {
+        const group = result.data[post.id];
+        // 空组 = 该帖被热帖挤掉了配额：不写 replies_preloaded，
+        // 否则「展开却什么都没有」会被当成真的没有评论。
+        if (!group || !group.rows.length) continue;
+        applyReplyPreview(
+          post,
+          group.rows,
+          group.truncated || Number(post.comment_count || 0) > group.rows.length,
+        );
+        patched += 1;
       }
+      if (patched) triggerRef(forumData);
     })();
   };
   idleReplyPrefetchHandle =

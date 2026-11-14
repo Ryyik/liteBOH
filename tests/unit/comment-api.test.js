@@ -166,6 +166,7 @@ import {
   getCommentThreadReplies,
   getCommentAncestors,
   getCommentThreadPreviewsBatch,
+  getCommentPreviewsForPosts,
   createComment,
   deleteComment,
 } from '../../src/utils/api/forum/comment-api.js';
@@ -206,7 +207,10 @@ function makeQuery(result, calls = []) {
     ilike: vi.fn(() => q),
     lte: vi.fn(() => q),
     gt: vi.fn(() => q),
-    in: vi.fn(() => q),
+    in: vi.fn((col, vals) => {
+      calls.push({ method: 'in', col, vals });
+      return q;
+    }),
     insert: vi.fn((data) => {
       calls.push({ method: 'insert', data });
       return q;
@@ -1383,5 +1387,88 @@ describe('getCommentThreadPreviewsBatch', () => {
       p_post_id: 'p1',
       p_comment_ids: ['c1', 'c2'],
     });
+  });
+});
+
+// ============================================================
+// getCommentPreviewsForPosts（列表页 idle 批量预取，2026-11-14）
+// ============================================================
+describe('getCommentPreviewsForPosts', () => {
+  const row = (postId, id, createdAt) => ({
+    id,
+    post_id: postId,
+    content: `c-${id}`,
+    created_at: createdAt,
+    author: { avatar_url: 'a.png', avatar_frame_url: null, is_banned: false },
+  });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('returns empty map without touching the network when no ids', async () => {
+    const result = await getCommentPreviewsForPosts([]);
+    expect(result.ok).toBe(true);
+    expect(result.data).toEqual({});
+    expect(fromMock).not.toHaveBeenCalled();
+  });
+
+  it('sends one query with an in.(…) filter instead of one request per post', async () => {
+    const calls = [];
+    fromMock.mockReturnValue(makeQuery({ data: [], error: null }, calls));
+
+    await getCommentPreviewsForPosts(['p1', 'p2', 'p3']);
+
+    expect(fromMock).toHaveBeenCalledTimes(1);
+    const inCall = calls.find((c) => c.method === 'in');
+    expect(inCall.col).toBe('post_id');
+    expect(inCall.vals).toEqual(['p1', 'p2', 'p3']);
+    // 只看顶层评论：楼中楼不进预览
+    const isCall = calls.find((c) => c.method === 'is');
+    expect(isCall.col).toBe('parent_id');
+    expect(isCall.val).toBeNull();
+  });
+
+  it('dedupes ids and caps the batch at 12 posts', async () => {
+    const calls = [];
+    fromMock.mockReturnValue(makeQuery({ data: [], error: null }, calls));
+    const many = Array.from({ length: 20 }, (_, i) => `p${i}`);
+
+    await getCommentPreviewsForPosts(['p0', 'p0', ...many]);
+
+    const inCall = calls.find((c) => c.method === 'in');
+    expect(inCall.vals).toHaveLength(12);
+    expect(new Set(inCall.vals).size).toBe(12);
+  });
+
+  it('groups rows per post, keeps the newest perPost, and flags truncation', async () => {
+    fromMock.mockReturnValue(
+      makeQuery({
+        data: [
+          row('p1', 'a', '2026-11-14T10:00:00Z'),
+          row('p1', 'b', '2026-11-14T09:00:00Z'),
+          row('p1', 'c', '2026-11-14T08:00:00Z'),
+          row('p1', 'd', '2026-11-14T07:00:00Z'),
+          row('p2', 'e', '2026-11-14T06:00:00Z'),
+        ],
+        error: null,
+      }),
+    );
+
+    const result = await getCommentPreviewsForPosts(['p1', 'p2'], null, { perPost: 3 });
+    expect(result.ok).toBe(true);
+    expect(result.data.p1.rows.map((r) => r.id)).toEqual(['a', 'b', 'c']);
+    expect(result.data.p1.truncated).toBe(true);
+    expect(result.data.p2.rows.map((r) => r.id)).toEqual(['e']);
+    expect(result.data.p2.truncated).toBe(false);
+    // 头像三件套必须与 getComments 同构，否则 PostCard 两条路径长不一样
+    expect(result.data.p1.rows[0].author_avatar_url).toBe('a.png');
+    expect(result.data.p1.rows[0].author_is_banned).toBe(false);
+  });
+
+  it('keeps a post with zero rows empty rather than inventing a preview', async () => {
+    fromMock.mockReturnValue(makeQuery({ data: [], error: null }));
+    const result = await getCommentPreviewsForPosts(['p1']);
+    expect(result.data.p1).toEqual({ rows: [], truncated: false });
   });
 });

@@ -99,6 +99,15 @@ async function scheduleCommentModeration(comment = {}) {
   }
 }
 
+/* 评论行 → 视图行（作者头像三件套拍平）。
+   单帖查询与跨帖批量共用，避免两条路径渲染出的 PostCard 结构不一致。 */
+const formatCommentRow = (comment) => ({
+  ...comment,
+  author_avatar_url: comment.author?.avatar_url,
+  author_avatar_frame_url: comment.author?.avatar_frame_url || null,
+  author_is_banned: Boolean(comment.author?.is_banned),
+});
+
 export async function getComments(postId, currentUserId = null, options = {}) {
   const safePostId = String(postId || '').trim();
   const parentId = options.parentId;
@@ -170,18 +179,90 @@ export async function getComments(postId, currentUserId = null, options = {}) {
       const hasMore = hasPagination ? safeRows.length > pageSize : false;
       const slicedRows = hasPagination ? safeRows.slice(0, pageSize) : safeRows;
 
-      const formattedData = slicedRows.map((comment) => ({
-        ...comment,
-        author_avatar_url: comment.author?.avatar_url,
-        author_avatar_frame_url: comment.author?.avatar_frame_url || null,
-        author_is_banned: Boolean(comment.author?.is_banned),
-      }));
+      const formattedData = slicedRows.map(formatCommentRow);
 
       return { data: formattedData, error: null, hasMore };
     },
     {
       ttlMs: CACHE_TTL_LEVELS.LIST_DATA,
       tags: ['comments', `comments:post:${safePostId}`],
+      timeoutMs: 8000,
+      retry: 1,
+    },
+  );
+}
+
+/**
+ * 跨帖批量取「顶层评论预览」—— 论坛列表页 idle 预取用（2026-11-14）。
+ *
+ * 为什么需要：feed 的 keyset 直查不带 replies，PostCard 只能逐帖回源，
+ * 于是每进一次列表就有 N 条 `comments?post_id=eq.…` 请求，且**每条自带一次
+ * OPTIONS 预检**（预检缓存按 URL 分组，不同 post_id 不互通）。
+ * 实测（probe-forum-feed-causal）：这些请求串行发出（550ms/条），
+ * 4 条就吃掉 8 个往返。合并成 1 条 `in.(…)` 后只剩 1 个往返 + 1 次预检。
+ *
+ * 返回 `{ ok, data: { [postId]: { rows, truncated } } }`：
+ *   · rows 已按 created_at desc 取前 perPost 条，结构与 getComments 完全一致
+ *   · truncated = 该帖还有更多（调用方用来定 replies_has_more）
+ *   · 被「热帖吃满 limit」而一条都没拿到的帖，rows 为空 —— 调用方**不要**写
+ *     replies_preloaded，留待用户展开时按单帖兜底（不写比写错好）。
+ *
+ * 第二个参数只为与 getComments 的调用形状对齐而保留（预览行不含 is_liked 之类
+ * 的观看者态，用不到 viewer id）。
+ */
+export async function getCommentPreviewsForPosts(
+  postIds = [],
+  _currentUserId = null,
+  options = {},
+) {
+  const ids = [
+    ...new Set(
+      (Array.isArray(postIds) ? postIds : []).map((id) => String(id || '').trim()).filter(Boolean),
+    ),
+  ].slice(0, 12);
+  const perPost = Math.min(5, toPositiveInt(options.perPost, 3));
+
+  if (!ids.length) return { ok: true, data: {}, error: null };
+
+  return executeRead(
+    'comments.getCommentPreviewsForPosts',
+    { ids, perPost },
+    async () => {
+      // 上限留给「某条热帖评论特别多」的挤压：按帖数 × 每帖条数 × 6 倍余量，
+      // 再封 200（PostgREST 默认 max-rows 1000，200 足够且不至于拖慢序列化）。
+      const rowCap = Math.min(200, ids.length * perPost * 6);
+      const { data, error } = await supabase
+        .from('comments')
+        .select(
+          `
+          *,
+          author:author_id(avatar_url, avatar_frame_url, is_banned)
+        `,
+        )
+        .in('post_id', ids)
+        .is('parent_id', null)
+        .or('status.is.null,status.eq.approved')
+        .order('created_at', { ascending: false })
+        .limit(rowCap);
+
+      if (error) return { data: null, error };
+
+      const grouped = {};
+      for (const id of ids) grouped[id] = { rows: [], truncated: false };
+      for (const row of Array.isArray(data) ? data : []) {
+        const bucket = grouped[row.post_id];
+        if (!bucket) continue;
+        if (bucket.rows.length >= perPost) {
+          bucket.truncated = true;
+          continue;
+        }
+        bucket.rows.push(formatCommentRow(row));
+      }
+      return { data: grouped, error: null };
+    },
+    {
+      ttlMs: CACHE_TTL_LEVELS.LIST_DATA,
+      tags: ['comments'],
       timeoutMs: 8000,
       retry: 1,
     },

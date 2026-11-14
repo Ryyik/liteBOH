@@ -27,6 +27,7 @@ export {
   getCommentThreadReplies,
   getCommentAncestors,
   getCommentThreadPreviewsBatch,
+  getCommentPreviewsForPosts,
   createComment,
   deleteComment,
 } from './forum/comment-api.js';
