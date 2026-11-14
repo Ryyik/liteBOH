@@ -66,18 +66,18 @@
 .user-space-page[data-theme="dark"] .bottom-nav-glass .nav-compact,
 [data-theme="dark"] .user-space-page .bottom-nav-glass .nav-compact,
 [data-theme="dark"] .bottom-nav-glass .nav-compact {
-  color: #f8fafc;
+  color: var(--text-primary);
 }
 
 .user-space-page[data-theme="dark"] .bottom-nav-glass.is-collapsed,
 [data-theme="dark"] .user-space-page .bottom-nav-glass.is-collapsed,
 [data-theme="dark"] .bottom-nav-glass.is-collapsed {
-  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.5) !important;
+  box-shadow: var(--shadow-md) !important;
 }
 
 .user-space-page[data-theme="dark"] .bottom-nav-glass .nav-compact-dot,
 [data-theme="dark"] .bottom-nav-glass .nav-compact-dot {
-  box-shadow: 0 0 0 1.5px rgba(26, 26, 36, 0.9);
+  box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--surface) 90%, transparent);
 }
 
 /* ============================================
