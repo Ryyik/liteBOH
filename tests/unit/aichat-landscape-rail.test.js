@@ -61,8 +61,16 @@ describe('BOH AI 整页横屏左栏（2026-10-03，防「切到 AI 左栏就没�
   it('引入页面级 landscape-rail.css（按页引入，不是全局样式）', () => {
     // 引入点在页面入口 index.vue（2026-11-12 从 BOHAIMain 下移，见文件头常量注释）；
     // 「按页引入、不进 main.js」这条口径不变。
-    expect(read(BOHAI_INDEX)).toContain(
-      '<style src="@/views/user-center/UserSpace/styles/landscape-rail.css"></style>',
+    //
+    // ⚠️ 2026-11-14：形式从 `<style src>` 改成 `import '....css'`。
+    //    原因不是风格偏好 —— `<style src>` 让同一个外部 CSS 被多个 SFC 引入时，
+    //    vite-plugin-pwa 在 build 阶段拿到 undefined descriptor 直接崩：
+    //    `Cannot read properties of undefined (reading 'scoped')`（vite build exit 1）。
+    //    实测：改回 `<style src>` 立刻复现。所以这条**反向断言**必须留着。
+    const index = read(BOHAI_INDEX);
+    expect(index).toMatch(/import\s+['"][^'"]*landscape-rail\.css['"]/);
+    expect(index).not.toContain(
+      '<style src="@/views/user-center/UserSpace/styles/landscape-rail.css">',
     );
     expect(read('src/main.js')).not.toContain('landscape-rail.css');
     // 三处消费方共用同一份文件；断点与栏宽档位只在那一个文件里定义
