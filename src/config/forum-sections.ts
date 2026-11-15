@@ -10,10 +10,11 @@
  *   · views/Home/index.vue（首页 `/` 下滑直达时把 view 写回 URL）
  */
 
-export type ForumSectionId = 'official' | 'latest' | 'following' | 'news' | 'activity' | 'members';
+export type ForumSectionId =
+  'official' | 'latest' | 'album' | 'following' | 'news' | 'activity' | 'members';
 
-/** ForumMain 能承载的四个分区（其余走独立面板） */
-export type ForumExternalFeed = 'latest' | 'following' | 'news' | 'activity';
+/** ForumMain 能承载的分区（其余走独立面板） */
+export type ForumExternalFeed = 'latest' | 'album' | 'following' | 'news' | 'activity';
 
 export interface ForumSectionItem {
   id: ForumSectionId;
@@ -34,6 +35,9 @@ export interface ForumSectionItem {
 export const FORUM_SECTION_ITEMS: ForumSectionItem[] = [
   { id: 'official', label: '官方' },
   { id: 'latest', label: '最新' },
+  /* 2026-11-15：影集与帖子平级 —— 影集是一个普通功能（不是付费权益），
+     分区只筛 `posts.is_album`，不另建表。一人一本、本内帖数无上限。 */
+  { id: 'album', label: '影集' },
   { id: 'following', label: '关注' },
   /* 2026-10-22：「新闻」「活动」两席合并为「资讯」——
      **指的是论坛里官方的新闻 + 活动内容**，不是跳去 /newsroom 资讯页。
@@ -56,7 +60,13 @@ export const FORUM_SECTION_IDS: ForumSectionId[] = [
 export const FORUM_DEFAULT_SECTION: ForumSectionId = 'latest';
 
 /** 由 ForumMain（AsyncForum）承载的分区 */
-export const FORUM_FEED_SECTIONS: ForumExternalFeed[] = ['latest', 'following', 'news', 'activity'];
+export const FORUM_FEED_SECTIONS: ForumExternalFeed[] = [
+  'latest',
+  'album',
+  'following',
+  'news',
+  'activity',
+];
 
 export const isForumSection = (value: unknown): value is ForumSectionId =>
   FORUM_SECTION_IDS.includes(String(value) as ForumSectionId);

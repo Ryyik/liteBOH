@@ -1,17 +1,21 @@
-import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { defineStore } from 'pinia';
+import { ref, computed } from 'vue';
 
 export const useForumPublishQueueStore = defineStore('forumPublishQueue', () => {
-  const items = ref([])
+  const items = ref([]);
 
   const activeItem = computed(() => {
-    if (!items.value.length) return null
-    return items.value.find(i => ['queued','uploading','publishing'].includes(i.state))
-        || items.value.find(i => i.state==='failed')
-        || items.value[0]
-  })
+    if (!items.value.length) return null;
+    return (
+      items.value.find((i) => ['queued', 'uploading', 'publishing'].includes(i.state)) ||
+      items.value.find((i) => i.state === 'failed') ||
+      items.value[0]
+    );
+  });
 
-  const hasActive = computed(() => items.value.some(i => ['queued','uploading','publishing','failed'].includes(i.state)))
+  const hasActive = computed(() =>
+    items.value.some((i) => ['queued', 'uploading', 'publishing', 'failed'].includes(i.state)),
+  );
 
   const enqueue = (payload) => {
     // payload: { id, title, body, tag, location, images, authorId, authorUsername, authorAvatarUrl, submissionId, fingerprint, failedImageIndex? }
@@ -27,6 +31,9 @@ export const useForumPublishQueueStore = defineStore('forumPublishQueue', () => 
       authorAvatarUrl: String(payload.authorAvatarUrl || '').trim(),
       submissionId: payload.submissionId || '',
       fingerprint: payload.fingerprint || '',
+      // 影集帖：'album' 时发布阶段走 createAlbumPost，albumEntries 为篇内每张照片的文字
+      mode: payload.mode === 'album' ? 'album' : 'post',
+      albumEntries: Array.isArray(payload.albumEntries) ? payload.albumEntries : [],
       progress: 0,
       state: 'queued', // queued | uploading | publishing | success | failed
       failType: null, // null | 'network' | 'moderation'
@@ -34,37 +41,37 @@ export const useForumPublishQueueStore = defineStore('forumPublishQueue', () => 
       failedImageId: null,
       errorMessage: '',
       createdAt: Date.now(),
-      retryCount: 0
-    }
-    items.value.unshift(item)
-    return item
-  }
+      retryCount: 0,
+    };
+    items.value.unshift(item);
+    return item;
+  };
 
   const updateItem = (id, patch) => {
-    const idx = items.value.findIndex(i => i.id===id)
-    if (idx<0) return
-    items.value[idx] = { ...items.value[idx], ...patch }
-  }
+    const idx = items.value.findIndex((i) => i.id === id);
+    if (idx < 0) return;
+    items.value[idx] = { ...items.value[idx], ...patch };
+  };
 
   const removeItem = (id) => {
-    items.value = items.value.filter(i=>i.id!==id)
-  }
+    items.value = items.value.filter((i) => i.id !== id);
+  };
 
   const setProgress = (id, progress) => {
-    const v = Math.max(0, Math.min(100, Number(progress||0)))
-    updateItem(id, { progress: v })
-  }
+    const v = Math.max(0, Math.min(100, Number(progress || 0)));
+    updateItem(id, { progress: v });
+  };
 
-  const setState = (id, state, extra={}) => updateItem(id, { state, ...extra })
+  const setState = (id, state, extra = {}) => updateItem(id, { state, ...extra });
 
   const incrementRetry = (id) => {
-    const idx = items.value.findIndex(i=>i.id===id)
-    if (idx>=0) items.value[idx].retryCount = (items.value[idx].retryCount||0)+1
-  }
+    const idx = items.value.findIndex((i) => i.id === id);
+    if (idx >= 0) items.value[idx].retryCount = (items.value[idx].retryCount || 0) + 1;
+  };
 
   const clearSucceeded = () => {
-    items.value = items.value.filter(i=> i.state!=='success')
-  }
+    items.value = items.value.filter((i) => i.state !== 'success');
+  };
 
   return {
     items,
@@ -76,6 +83,6 @@ export const useForumPublishQueueStore = defineStore('forumPublishQueue', () => 
     setProgress,
     setState,
     incrementRetry,
-    clearSucceeded
-  }
-})
+    clearSucceeded,
+  };
+});

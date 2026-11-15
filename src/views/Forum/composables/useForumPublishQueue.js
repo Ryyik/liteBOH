@@ -23,6 +23,7 @@ import { FORUM_POST_IMAGE_MAX_COUNT } from '../forum-config.js';
 import { applyPoints } from '../forum-points.js';
 import {
   createPost,
+  createAlbumPost,
   markForumImagesPendingRecheck,
   enqueueForumImageRecheck,
   claimPostPublishReward,
@@ -613,7 +614,10 @@ export function useForumPublishQueue(deps) {
           publishQueueStore.setProgress(next.id, 88);
           updateOptimisticPost(next.id, { _progress: 88, _publishState: 'publishing' });
           publishQueueStore.setState(next.id, 'publishing');
-          const result = await createPost(
+          /* 影集帖走 createAlbumPost（同一条链路 + album_entries）。
+             判据只看队列项自己的 mode，不回读编辑器状态 —— 用户可能已经切去写别的帖子。 */
+          const publishFn = next.mode === 'album' ? createAlbumPost : createPost;
+          const result = await publishFn(
             next.body,
             next.authorId,
             next.authorUsername,
@@ -622,7 +626,9 @@ export function useForumPublishQueue(deps) {
             finalImages,
             next.tag,
             next.location,
-            { submissionId: next.submissionId },
+            next.mode === 'album'
+              ? { submissionId: next.submissionId, albumEntries: next.albumEntries || [] }
+              : { submissionId: next.submissionId },
           );
           if (controller.signal.aborted)
             throw Object.assign(new Error('已取消'), { code: 'PUBLISH_CANCELLED' });

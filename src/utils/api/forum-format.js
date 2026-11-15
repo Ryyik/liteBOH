@@ -3,10 +3,8 @@ import { normalizeDbError } from '../request-core.js';
 import { resolveDbImageUrl } from '../db-image-url.js';
 // 标题/正文拆分只有一份实现（`src/utils/forum-post-format.js`）。这里保留导出名做**委托**，
 // 不删名字 —— post-api 与既有测试都按 `splitPostContent` 引，改名会把调用面一起拖进来。
-import {
-  splitForumPostContent,
-  stripLegacyTitlePrefix,
-} from '../forum-post-format.js';
+import { splitForumPostContent, stripLegacyTitlePrefix } from '../forum-post-format.js';
+import { ALBUM_MAX_ENTRIES } from '../forum-album.js';
 
 export const APPROVED_STATUS = 'approved';
 export const REJECTED_STATUS = 'rejected';
@@ -236,8 +234,14 @@ export function normalizePostListRecord(post = {}) {
     post.cover_image_url || post.coverImageUrl || firstImage?.originalUrl || firstImage?.url || '',
   );
   const coverImageUrl = getCloudinaryTransformedUrl(rawCoverUrl, FORUM_LIST_IMAGE_TRANSFORM);
+  /* 影集帖要「翻开整本」，列表行必须带齐全部图（默认只带 4 张预览）。
+     这是个刻意的例外：阅读层不再为此多发一次详情请求，数据就是列表那一条。 */
+  const previewLimit =
+    Array.isArray(post.album_entries) && post.album_entries.length
+      ? ALBUM_MAX_ENTRIES
+      : FORUM_LIST_PREVIEW_IMAGE_MAX_COUNT;
   const previewImages = explicitImages.length
-    ? explicitImages.slice(0, FORUM_LIST_PREVIEW_IMAGE_MAX_COUNT)
+    ? explicitImages.slice(0, previewLimit)
     : coverImageUrl
       ? normalizeForumImages(
           [
