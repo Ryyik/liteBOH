@@ -42,6 +42,21 @@ const isCaptchaVerificationFailure = (message = '') => {
 };
 
 /**
+ * GoTrue 的 `same_password`（新密码与库里的哈希逐字节相同）。
+ *
+ * 为什么必须单独识别：这是**唯一**一条「用户其实记得密码」的证据 —— 用户以为
+ * 自己是来设新密码的，填的却是当前密码。原样透出会把英文
+ * "New password should be different from the old password." 直接甩到界面上，
+ * 用户读成「密码重复」，与「登录说密码错」叠加后极难解释（2026-11-15 橙子 事件）。
+ * 判据同时认 code 与文案：GoTrue 在不同版本里一处有 code 一处没有。
+ */
+const isSamePasswordError = (errorLike) => {
+  const code = String(errorLike?.code || '').toLowerCase();
+  const message = String(errorLike?.message || '').toLowerCase();
+  return code === 'same_password' || message.includes('should be different from the old password');
+};
+
+/**
  * 登录标识（方块 ID / 邮箱）→ 会话，全部在服务端完成。
  *
  * 为什么必须走 Edge Function：
@@ -784,6 +799,21 @@ export async function updatePassword(newPassword, currentPassword = '') {
     password: safePassword,
     ...(safeCurrentPassword ? { current_password: safeCurrentPassword } : {}),
   });
+
+  // 归一成中文 + 可判定的 code：调用方（重置页 / 账户安全面板）需要据此给出
+  // 不同引导 —— 重置页应告诉用户「你其实记得密码，直接去登录」，
+  // 面板里则只需说「不能与当前密码相同」。
+  if (isSamePasswordError(error)) {
+    return {
+      ok: false,
+      data: null,
+      error: normalizeDbError({
+        ...error,
+        message: '新密码不能与当前密码相同。',
+        code: 'SAME_PASSWORD',
+      }),
+    };
+  }
 
   return { ok: !error, data, error: normalizeDbError(error) };
 }

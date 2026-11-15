@@ -945,7 +945,9 @@ export const useAuthStore = defineStore(
     ): Promise<AsyncOpResult> => {
       const { updatePassword: supabaseUpdatePassword } = await loadAuthApi();
       const { error } = await supabaseUpdatePassword(newPassword, currentPassword);
-      if (error) return { success: false, message: error.message };
+      // code 必须透传：`/reset-password` 要据 SAME_PASSWORD 给出
+      // 「你其实记得密码，直接用这个登录」的专门引导，而不是干巴巴一句报错。
+      if (error) return { success: false, message: error.message, code: error.code };
       return { success: true, message: '密码更新成功' };
     };
 

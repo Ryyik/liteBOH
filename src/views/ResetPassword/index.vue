@@ -17,7 +17,18 @@ const successMessage = ref('');
 const isPreparing = ref(true);
 const isSubmitting = ref(false);
 const isReady = ref(false);
-const LOCK_ERROR_HINT = '检测到浏览器多标签会话冲突，请先关闭其他 Block of Home 标签页，再重新点击最新重置链接。';
+
+// 两个字段各自一个可见性开关：本页原先没有（登录页有），于是「我明明输的是对的」
+// 这类投诉在本页完全无法自证 —— 用户看不到自己实际打进去的字符。
+const showNewPassword = ref(false);
+const showConfirmPassword = ref(false);
+
+// GoTrue 说「新密码 == 旧密码」时置真。这不是普通报错，而是**好消息**：
+// 它意味着用户手上记的那串就是当前密码，可以直接拿去登录（2026-11-15 实证）。
+const samePasswordBlocked = ref(false);
+
+const LOCK_ERROR_HINT =
+  '检测到浏览器多标签会话冲突，请先关闭其他 Block of Home 标签页，再重新点击最新重置链接。';
 
 // 管理员代发的一次性登录令牌（手动粘贴通道，无邮箱参与）
 const manualToken = ref('');
@@ -66,7 +77,9 @@ const toFriendlyRecoveryError = (errorLike, fallbackMessage) => {
 
 async function runAuthActionWithRetry(action, options = {}) {
   const retries = Number.isFinite(options.retries) ? Math.max(0, Math.trunc(options.retries)) : 3;
-  const delayMs = Number.isFinite(options.delayMs) ? Math.max(80, Math.trunc(options.delayMs)) : 180;
+  const delayMs = Number.isFinite(options.delayMs)
+    ? Math.max(80, Math.trunc(options.delayMs))
+    : 180;
   let lastThrownError = null;
 
   for (let attempt = 0; attempt <= retries; attempt += 1) {
@@ -93,7 +106,7 @@ async function runAuthActionWithRetry(action, options = {}) {
 
   return {
     data: null,
-    error: new Error('Auth action failed')
+    error: new Error('Auth action failed'),
   };
 }
 
@@ -110,7 +123,8 @@ function readRecoveryParams() {
 
   const searchParams = new URLSearchParams(window.location.search || '');
   if (!tokenHash) tokenHash = String(searchParams.get('token_hash') || '').trim();
-  if (!errorDescription) errorDescription = String(searchParams.get('error_description') || '').trim();
+  if (!errorDescription)
+    errorDescription = String(searchParams.get('error_description') || '').trim();
   if (!accessToken) accessToken = String(searchParams.get('access_token') || '').trim();
   if (!refreshToken) refreshToken = String(searchParams.get('refresh_token') || '').trim();
   if (!authCode) authCode = String(searchParams.get('code') || '').trim();
@@ -136,12 +150,14 @@ function readRecoveryParams() {
 
 async function waitForSession(timeoutMs = 5000) {
   const start = Date.now();
-  while ((Date.now() - start) < timeoutMs) {
+  while (Date.now() - start < timeoutMs) {
     try {
-      const { data: { session } } = await runAuthActionWithRetry(
-        () => supabase.auth.getSession(),
-        { retries: 1, delayMs: 120 }
-      );
+      const {
+        data: { session },
+      } = await runAuthActionWithRetry(() => supabase.auth.getSession(), {
+        retries: 1,
+        delayMs: 120,
+      });
       if (session) return session;
     } catch (error) {
       if (!isSessionLockError(error)) {
@@ -158,7 +174,8 @@ const initRecovery = async () => {
     errorMessage.value = '';
     successMessage.value = '';
 
-    const { tokenHash, errorDescription, accessToken, refreshToken, authCode } = readRecoveryParams();
+    const { tokenHash, errorDescription, accessToken, refreshToken, authCode } =
+      readRecoveryParams();
     if (errorDescription) {
       errorMessage.value = decodeURIComponent(errorDescription);
       return;
@@ -170,7 +187,11 @@ const initRecovery = async () => {
       await authStore.updateLocalState(existingSession.user, { force: true });
       isReady.value = true;
       if (typeof window !== 'undefined' && typeof window.history?.replaceState === 'function') {
-        window.history.replaceState({}, document.title, `${window.location.origin}/#/reset-password`);
+        window.history.replaceState(
+          {},
+          document.title,
+          `${window.location.origin}/#/reset-password`,
+        );
       }
       return;
     }
@@ -178,31 +199,41 @@ const initRecovery = async () => {
     let recoveredByLinkParams = false;
     if (accessToken && refreshToken) {
       const { error: setSessionError } = await runAuthActionWithRetry(
-        () => supabase.auth.setSession({
-          access_token: accessToken,
-          refresh_token: refreshToken
-        }),
-        { retries: 4, delayMs: 180 }
+        () =>
+          supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          }),
+        { retries: 4, delayMs: 180 },
       );
       if (setSessionError) {
-        errorMessage.value = toFriendlyRecoveryError(setSessionError, '恢复会话失败，请重新申请重置链接。');
+        errorMessage.value = toFriendlyRecoveryError(
+          setSessionError,
+          '恢复会话失败，请重新申请重置链接。',
+        );
         return;
       }
       recoveredByLinkParams = true;
     } else if (authCode) {
       const { error: exchangeError } = await runAuthActionWithRetry(
         () => supabase.auth.exchangeCodeForSession(authCode),
-        { retries: 4, delayMs: 180 }
+        { retries: 4, delayMs: 180 },
       );
       if (exchangeError) {
-        errorMessage.value = toFriendlyRecoveryError(exchangeError, '恢复会话失败，请重新申请重置链接。');
+        errorMessage.value = toFriendlyRecoveryError(
+          exchangeError,
+          '恢复会话失败，请重新申请重置链接。',
+        );
         return;
       }
       recoveredByLinkParams = true;
     } else if (tokenHash) {
       const verifyResult = await authStore.verifyPasswordRecovery(tokenHash);
       if (!verifyResult.success) {
-        errorMessage.value = toFriendlyRecoveryError(verifyResult.message, '重置链接无效或已过期，请重新申请。');
+        errorMessage.value = toFriendlyRecoveryError(
+          verifyResult.message,
+          '重置链接无效或已过期，请重新申请。',
+        );
         return;
       }
       recoveredByLinkParams = true;
@@ -242,7 +273,10 @@ const submitManualToken = async () => {
   try {
     const verifyResult = await authStore.verifyPasswordRecovery(tokenHash);
     if (!verifyResult.success) {
-      manualError.value = toFriendlyRecoveryError(verifyResult.message, '令牌无效或已过期，请联系管理员重新签发。');
+      manualError.value = toFriendlyRecoveryError(
+        verifyResult.message,
+        '令牌无效或已过期，请联系管理员重新签发。',
+      );
       return;
     }
 
@@ -269,6 +303,7 @@ const submitManualToken = async () => {
 const handleSubmit = async () => {
   errorMessage.value = '';
   successMessage.value = '';
+  samePasswordBlocked.value = false;
 
   const password = String(newPassword.value || '');
   const confirmedPassword = String(confirmPassword.value || '');
@@ -290,6 +325,16 @@ const handleSubmit = async () => {
   try {
     const result = await authStore.updatePassword(password);
     if (!result.success) {
+      // SAME_PASSWORD 是「你填的就是当前密码」这一件事的**证据**，不能当普通失败处理：
+      // 用户以为自己忘了密码才走到这里，实际上一填就命中了。原样透出英文
+      // 「New password should be different from the old password」会变成
+      // 难以解释的「密码重复」，和「登录说密码错」叠加后彻底自相矛盾。
+      if (result.code === 'SAME_PASSWORD') {
+        samePasswordBlocked.value = true;
+        errorMessage.value =
+          '这个密码就是你当前正在使用的密码 —— 说明你其实还记得它。可以直接用它登录，或换一个确实不同的新密码。';
+        return;
+      }
       errorMessage.value = result.message || '更新密码失败，请稍后再试。';
       return;
     }
@@ -300,6 +345,17 @@ const handleSubmit = async () => {
     setTimeout(() => {
       router.replace('/login');
     }, 1200);
+  } finally {
+    isSubmitting.value = false;
+  }
+};
+
+// 「我其实记得密码」的出口：先退出当前（令牌建立的）会话，再回登录页用原密码登。
+const loginWithCurrentPassword = async () => {
+  isSubmitting.value = true;
+  try {
+    await authStore.logout();
+    router.replace('/login');
   } finally {
     isSubmitting.value = false;
   }
@@ -322,30 +378,71 @@ onMounted(() => {
 
       <form v-if="isReady && !successMessage" @submit.prevent="handleSubmit">
         <label for="new-password">新密码</label>
-        <input
-          id="new-password"
-          v-model="newPassword"
-          type="password"
-          autocomplete="new-password"
-          :placeholder="`至少 ${PASSWORD_MIN_LENGTH} 位`"
-          required
-        />
+        <div class="pw-row">
+          <input
+            id="new-password"
+            v-model="newPassword"
+            :type="showNewPassword ? 'text' : 'password'"
+            autocomplete="new-password"
+            :placeholder="`至少 ${PASSWORD_MIN_LENGTH} 位`"
+            required
+            @input="samePasswordBlocked = false"
+          />
+          <button
+            type="button"
+            class="pw-visibility-btn"
+            :aria-pressed="showNewPassword"
+            :aria-label="showNewPassword ? '隐藏新密码' : '显示新密码'"
+            @click="showNewPassword = !showNewPassword"
+          >
+            {{ showNewPassword ? '隐藏' : '显示' }}
+          </button>
+        </div>
 
         <label for="confirm-password">确认新密码</label>
-        <input
-          id="confirm-password"
-          v-model="confirmPassword"
-          type="password"
-          autocomplete="new-password"
-          placeholder="再次输入新密码"
-          required
-        />
+        <div class="pw-row">
+          <input
+            id="confirm-password"
+            v-model="confirmPassword"
+            :type="showConfirmPassword ? 'text' : 'password'"
+            autocomplete="new-password"
+            placeholder="再次输入新密码"
+            required
+            @input="samePasswordBlocked = false"
+          />
+          <button
+            type="button"
+            class="pw-visibility-btn"
+            :aria-pressed="showConfirmPassword"
+            :aria-label="showConfirmPassword ? '隐藏确认密码' : '显示确认密码'"
+            @click="showConfirmPassword = !showConfirmPassword"
+          >
+            {{ showConfirmPassword ? '隐藏' : '显示' }}
+          </button>
+        </div>
 
-        <button type="submit" :disabled="isSubmitting">
+        <!-- 命中 same_password 时，真正能走通的是「去登录」，
+             所以把提交按钮降为次级，避免出现两个同权重的实心主按钮 -->
+        <button type="submit" :class="{ secondary: samePasswordBlocked }" :disabled="isSubmitting">
           {{ isSubmitting ? '提交中...' : '确认修改密码' }}
         </button>
 
-        <button class="secondary skip" type="button" :disabled="isSubmitting" @click="router.replace('/')">
+        <button
+          v-if="samePasswordBlocked"
+          class="skip"
+          type="button"
+          :disabled="isSubmitting"
+          @click="loginWithCurrentPassword"
+        >
+          用这个密码直接登录
+        </button>
+
+        <button
+          class="secondary skip"
+          type="button"
+          :disabled="isSubmitting"
+          @click="router.replace('/')"
+        >
           暂不修改，直接进入
         </button>
       </form>
@@ -364,9 +461,16 @@ onMounted(() => {
             spellcheck="false"
             :disabled="isVerifyingManual"
             @keyup.enter="submitManualToken"
+          />
+          <button
+            type="button"
+            class="manual-paste-btn"
+            :disabled="isVerifyingManual"
+            title="从剪贴板粘贴令牌"
+            @click="pasteManualToken"
           >
-          <button type="button" class="manual-paste-btn" :disabled="isVerifyingManual"
-            title="从剪贴板粘贴令牌" @click="pasteManualToken">粘贴</button>
+            粘贴
+          </button>
         </div>
         <p v-if="manualError" class="error">{{ manualError }}</p>
         <p v-else-if="manualPasteHint" class="paste-hint">{{ manualPasteHint }}</p>
@@ -404,8 +508,7 @@ onMounted(() => {
   /* 光斑垫底：毛玻璃卡需要背景层次，纯 CSS 多层渐变，不加 DOM */
   background:
     radial-gradient(640px 420px at 12% 16%, rgba(0, 113, 227, 0.07), transparent 62%),
-    radial-gradient(520px 400px at 88% 84%, rgba(41, 151, 255, 0.06), transparent 62%),
-    #f5f7fb;
+    radial-gradient(520px 400px at 88% 84%, rgba(41, 151, 255, 0.06), transparent 62%), #f5f7fb;
 }
 
 .reset-card {
@@ -474,6 +577,19 @@ input::placeholder {
 input:focus {
   border-color: var(--rp-brand);
   box-shadow: 0 0 0 3px var(--rp-brand-ring);
+}
+
+/* 密码行：输入框 + 可见性开关。开关与「一键粘贴」按钮共用同一套视觉
+   （见下方 .manual-paste-btn 分组选择器），这里只负责横向排布与让位。 */
+.pw-row {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.pw-row input {
+  flex: 1;
+  min-width: 0;
 }
 
 button {
@@ -563,7 +679,8 @@ button:disabled {
   min-width: 0;
 }
 
-.manual-paste-btn {
+.manual-paste-btn,
+.pw-visibility-btn {
   flex-shrink: 0;
   height: 42px;
   padding: 0 16px;
@@ -580,12 +697,14 @@ button:disabled {
     background-color var(--duration-fast, 180ms) var(--ease-out);
 }
 
-.manual-paste-btn:hover:not(:disabled) {
+.manual-paste-btn:hover:not(:disabled),
+.pw-visibility-btn:hover:not(:disabled) {
   border-color: var(--rp-brand);
   background: var(--liquid-bg-subtle, rgba(255, 255, 255, 0.58));
 }
 
-.manual-paste-btn:disabled {
+.manual-paste-btn:disabled,
+.pw-visibility-btn:disabled {
   opacity: 0.7;
   cursor: not-allowed;
 }
@@ -613,7 +732,7 @@ button.skip {
 /* 暗色：平铺覆盖（themeManager 把 data-theme 挂在 html 上）。
    只覆盖本页品牌色 —— 文字类 --liquid-text-* 已由 tokens.css 暗色块统一派生，
    此处不再重复定义（原先的 #f5f5f7/#a1a1a6/#7c7c82 是从该缺口抄来的补丁） */
-html[data-theme="dark"] .reset-page {
+html[data-theme='dark'] .reset-page {
   --rp-brand: #2997ff;
   --rp-brand-hover: #4da3ff;
   --rp-brand-ring: rgba(41, 151, 255, 0.24);
@@ -621,8 +740,7 @@ html[data-theme="dark"] .reset-page {
   --rp-error: #ff7a7a;
   --rp-success: #38d39f;
   background:
-    radial-gradient(640px 420px at 12% 16%, rgba(41, 151, 255, 0.10), transparent 62%),
-    radial-gradient(520px 400px at 88% 84%, rgba(94, 92, 230, 0.08), transparent 62%),
-    #0e0e14;
+    radial-gradient(640px 420px at 12% 16%, rgba(41, 151, 255, 0.1), transparent 62%),
+    radial-gradient(520px 400px at 88% 84%, rgba(94, 92, 230, 0.08), transparent 62%), #0e0e14;
 }
 </style>

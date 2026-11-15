@@ -150,16 +150,26 @@ Deno.serve(async (request) => {
     }
 
     const emailLookup = await resolveEmailFromLoginId(serviceClient, loginId);
+    // 解析失败的真实原因只存在于失败分支 —— 用三元显式收窄（`!ok || !email`
+    // 之后的联合类型访问 .code 会被 deno check 判为不存在）。
+    const unresolvedCode = emailLookup.ok ? 'EMAIL_MISSING' : emailLookup.code;
     if (!emailLookup.ok || !emailLookup.email) {
       // 账号不存在也计数：否则攻击者换随机账号就能永远不触发闸门
       // （IP 维度仍会累计，两者是正交的）
+      //
+      // ⚠️ failureCode 写**真实**原因（UNKNOWN_ACCOUNT / DUPLICATED_USERNAME /
+      // EMAIL_MISSING），不要写成 INVALID_CREDENTIALS。返回给客户端的文案与 code
+      // 仍然是统一的 INVALID_CREDENTIALS（防枚举），但服务端表必须能区分 ——
+      // 「账号解析失败」和「密码真的不对」在风控表里长得一模一样时，任何一次
+      // 「用户说密码没错」的投诉都无法复盘（2026-11-15 橙子 事件实证：
+      // 同一晚 4 条 INVALID_CREDENTIALS 里，只有 3 条真正调过 GoTrue）。
       await recordLoginAttempt(serviceClient, {
         loginKey,
         ipHash,
         deviceIdHash,
         succeeded: false,
         usedAltcha: altchaVerified,
-        failureCode: 'INVALID_CREDENTIALS',
+        failureCode: unresolvedCode || 'LOGIN_ID_UNRESOLVED',
         userAgent,
       });
       return jsonResponse(

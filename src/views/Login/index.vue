@@ -49,6 +49,11 @@ const tokenPanelOpen = ref(false);
 const showPassword = ref(false);
 const isSubmitting = ref(false);
 const authError = ref('');
+// 连续「账号或密码错误」的次数。到第 3 次追加一句排查提示 —— 登录框是
+// `autocomplete="current-password"`，密码管理器会自动填入**它保存的旧密码**，
+// 用户看到一串圆点会以为是自己输入的（2026-11-15 实证：同一账号 3 次「密码错」
+// 之后用令牌登录、手打同一个密码却命中 same_password，说明手打是对的）。
+const failedLoginAttempts = ref(0);
 const emailInvalid = ref(false);
 const passwordInvalid = ref(false);
 const altchaChallengeUrl = computed(() => getAltchaChallengeUrl('login'));
@@ -386,9 +391,17 @@ const handleLogin = async () => {
     });
     if (result.success) {
       localStorage.setItem(REMEMBER_ME_STORAGE_KEY, loginForm.rememberMe ? '1' : '0');
+      failedLoginAttempts.value = 0;
       showMobileSuccess();
     } else {
       authError.value = result.message || '登录失败，请重试';
+      // 只有真正的凭据失败才计数：闸门类（429/人机验证）失败不该把用户往
+      // 「你密码记错了」的方向引导。
+      failedLoginAttempts.value =
+        result.code === 'INVALID_CREDENTIALS' ? failedLoginAttempts.value + 1 : 0;
+      if (failedLoginAttempts.value >= 3) {
+        authError.value = `${authError.value} 如果确认密码没错，可能是浏览器密码管理器自动填入了旧密码：请清空密码框手动重新输入，或换无痕窗口再试。`;
+      }
       if (altchaEnabled.value && result.requireCaptcha) {
         const wasHidden = !shouldShowAltcha.value;
         shouldShowAltcha.value = true;

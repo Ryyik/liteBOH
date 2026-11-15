@@ -50,9 +50,18 @@ import {
 function createQueryBuilder(result, calls = []) {
   const query = {
     select: vi.fn(() => query),
-    eq: vi.fn((col, val) => { calls.push({ method: 'eq', col, val }); return query; }),
-    ilike: vi.fn((col, val) => { calls.push({ method: 'ilike', col, val }); return query; }),
-    limit: vi.fn((n) => { calls.push({ method: 'limit', n }); return query; }),
+    eq: vi.fn((col, val) => {
+      calls.push({ method: 'eq', col, val });
+      return query;
+    }),
+    ilike: vi.fn((col, val) => {
+      calls.push({ method: 'ilike', col, val });
+      return query;
+    }),
+    limit: vi.fn((n) => {
+      calls.push({ method: 'limit', n });
+      return query;
+    }),
     order: vi.fn(() => query),
     range: vi.fn(() => query),
     single: vi.fn(() => query),
@@ -131,7 +140,7 @@ describe('auth-api integration: signUp', () => {
       expect.objectContaining({
         email: 'test@example.com',
         password: 'password123',
-      })
+      }),
     );
   });
 
@@ -190,7 +199,10 @@ describe('auth-api integration: signIn', () => {
       error: null,
     });
     mocks.authSetSession.mockResolvedValue({
-      data: { user: { id: 'u1', email: 'test@example.com' }, session: { access_token: 'at', refresh_token: 'rt' } },
+      data: {
+        user: { id: 'u1', email: 'test@example.com' },
+        session: { access_token: 'at', refresh_token: 'rt' },
+      },
       error: null,
     });
 
@@ -246,7 +258,11 @@ describe('auth-api integration: signIn', () => {
         message: 'Edge Function returned a non-2xx status code',
         context: {
           status: 401,
-          json: async () => ({ ok: false, code: 'INVALID_CREDENTIALS', message: '登录失败：账号或密码错误' }),
+          json: async () => ({
+            ok: false,
+            code: 'INVALID_CREDENTIALS',
+            message: '登录失败：账号或密码错误',
+          }),
         },
       },
     });
@@ -264,7 +280,11 @@ describe('auth-api integration: signIn', () => {
         message: 'Edge Function returned a non-2xx status code',
         context: {
           status: 400,
-          json: async () => ({ ok: false, code: 'EMAIL_NOT_CONFIRMED', message: '请先验证邮箱后再登录。' }),
+          json: async () => ({
+            ok: false,
+            code: 'EMAIL_NOT_CONFIRMED',
+            message: '请先验证邮箱后再登录。',
+          }),
         },
       },
     });
@@ -348,6 +368,39 @@ describe('auth-api integration: updatePassword', () => {
       password: 'newpassword123',
     });
   });
+
+  /* GoTrue 的 same_password 必须归一成中文 + 可判定的 code。
+     反证：改回「直接 normalizeDbError(error)」后，这两条会拿到英文原文
+     "New password should be different from the old password." 且 code 为
+     same_password（小写），页面上就会渲染成难以解释的「密码重复」。
+     真实事故见 2026-11-15 橙子：登录 3 次报密码错，令牌登录后手打同一个密码
+     却命中 same_password —— 说明用户记得密码，只是登录时被自动填入了别的串。 */
+  it('normalizes same_password (error.code present) into a Chinese, actionable code', async () => {
+    mocks.authUpdateUser.mockResolvedValue({
+      data: null,
+      error: {
+        code: 'same_password',
+        message: 'New password should be different from the old password.',
+      },
+    });
+
+    const result = await updatePassword('newpassword123');
+    expect(result.ok).toBe(false);
+    expect(result.error.code).toBe('SAME_PASSWORD');
+    expect(result.error.message).toBe('新密码不能与当前密码相同。');
+    expect(result.error.message).not.toMatch(/different from the old password/i);
+  });
+
+  it('detects same_password by message when GoTrue omits the code', async () => {
+    mocks.authUpdateUser.mockResolvedValue({
+      data: null,
+      error: { message: 'New password should be different from the old password.' },
+    });
+
+    const result = await updatePassword('newpassword123');
+    expect(result.ok).toBe(false);
+    expect(result.error.code).toBe('SAME_PASSWORD');
+  });
 });
 
 describe('auth-api integration: deleteMyAccount', () => {
@@ -382,7 +435,10 @@ describe('auth-api integration: profiles', () => {
 
   it('getAllProfiles returns list', async () => {
     const query = createQueryBuilder({
-      data: [{ id: 'u1', username: 'alice' }, { id: 'u2', username: 'bob' }],
+      data: [
+        { id: 'u1', username: 'alice' },
+        { id: 'u2', username: 'bob' },
+      ],
       error: null,
     });
     mocks.fromMock.mockReturnValue(query);
