@@ -1,5 +1,5 @@
 {
-  "total": 2393,
+  "total": 2430,
   "perFile": {
     "src/styles/themes/bohai-dark.css": 225,
     "src/styles/themes/forum-dark.css": 178,
@@ -35,6 +35,7 @@
     "src/components/UnifiedNavbar/GlobalNavStatusCard.vue": 21,
     "src/views/SmartOverview/styles/overview.css": 21,
     "src/views/activities/components/ActivitySignupSection.vue": 20,
+    "src/views/Forum/components/PostComposer.vue": 19,
     "src/views/Forum/styles/drawers-skeletons.css": 18,
     "src/views/Newsroom/NewsDetailPage.vue": 18,
     "src/views/user-center/BetaPreview/BetaPreviewMain.vue": 18,
@@ -61,6 +62,9 @@
     "src/views/user-center/UserSpace/components/ProfileHomePanel.vue": 8,
     "src/views/user-center/UserSpace/components/PointsCard.vue": 7,
     "src/components/UserCenterBackButton.vue": 6,
+    "src/styles/common/compose-choice.css": 6,
+    "src/views/Forum/components/AlbumPostCard.vue": 6,
+    "src/views/Forum/components/AlbumReader.vue": 6,
     "src/views/Home/components/HomeArchiveSection.vue": 6,
     "src/views/activities/components/ActivityMonthRail.vue": 5,
     "src/views/user-center/UserSpace/UserSpaceMain.vue": 5,
@@ -87,5 +91,5 @@
     "src/views/user-center/UserSpace/components/ShippingAddressPanel.vue": 1,
     "src/views/user-center/UserSpace/styles/profile-panels.css": 1
   },
-  "updatedAt": "2026-11-10"
+  "updatedAt": "2026-11-15"
 }
