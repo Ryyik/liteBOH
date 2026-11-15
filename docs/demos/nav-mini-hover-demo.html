@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>顶栏 mini + hover 展开 · 交互原型</title>
+<style>
+  :root {
+    --ink: #1f2430;
+    --ink-2: #5a6377;
+    --ink-3: #7d8598;
+    --line: rgba(31, 41, 66, 0.1);
+    --card: rgba(255, 255, 255, 0.86);
+    --blue: #1459d9;
+    --blue-soft: #eef4ff;
+    --green: #0f8a6a;
+    --amber: #b45309;
+    --red: #b3261e;
+
+    --liquid-bg: rgba(255, 255, 255, 0.72);
+    --liquid-border: rgba(255, 255, 255, 0.65);
+    --liquid-shadow: 0 20px 60px rgba(15, 23, 42, 0.07), 0 1px 3px rgba(15, 23, 42, 0.06);
+
+    --mini-w: 168px;
+    --full-w: 860px;
+    --dur: 320ms;
+    --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    color: var(--ink);
+    background:
+      radial-gradient(1200px 600px at 12% -8%, rgba(20, 89, 217, 0.08), transparent 60%),
+      radial-gradient(900px 500px at 88% 4%, rgba(124, 58, 237, 0.07), transparent 60%),
+      radial-gradient(800px 500px at 50% 100%, rgba(15, 138, 106, 0.07), transparent 60%),
+      #f2f5fa;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap { max-width: 1440px; margin: 0 auto; padding: 28px 24px 72px; }
+
+  .head { max-width: 880px; margin: 0 0 22px; }
+  .head h1 { margin: 0 0 10px; font-size: 21px; font-weight: 700; letter-spacing: -0.01em; }
+  .head p { margin: 0 0 10px; font-size: 13px; line-height: 1.75; color: var(--ink-2); }
+  .head b { color: var(--ink); font-weight: 600; }
+
+  .keyline {
+    max-width: 880px; margin: 0 0 20px;
+    padding: 12px 16px; border-radius: 12px;
+    background: var(--blue-soft); border: 1px solid rgba(20, 89, 217, 0.16);
+    font-size: 13px; line-height: 1.7; color: #123a86;
+  }
+
+  .panel {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    box-shadow: 0 14px 40px rgba(15, 23, 42, 0.06);
+  }
+
+  /* ---------- 控制条 ---------- */
+  .bar { padding: 14px 16px; margin-bottom: 14px; display: flex; flex-wrap: wrap; gap: 14px 22px; align-items: center; }
+  .grp { display: flex; align-items: center; gap: 8px; }
+  .grp > .lbl { font-size: 12px; color: var(--ink-3); white-space: nowrap; }
+  .seg { display: inline-flex; padding: 3px; border-radius: 999px; background: rgba(31, 41, 66, 0.06); }
+  .seg button {
+    border: 0; background: transparent; cursor: pointer;
+    font: inherit; font-size: 12px; color: var(--ink-2);
+    padding: 5px 11px; border-radius: 999px; white-space: nowrap;
+    transition: background 0.15s, color 0.15s;
+  }
+  .seg button:hover { color: var(--ink); }
+  .seg button[aria-pressed="true"] { background: #fff; color: var(--ink); box-shadow: 0 1px 3px rgba(15, 23, 42, 0.14); font-weight: 600; }
+
+  .btn {
+    border: 1px solid var(--line); background: #fff; cursor: pointer;
+    font: inherit; font-size: 12px; color: var(--ink);
+    padding: 7px 14px; border-radius: 999px;
+    transition: transform 0.15s, box-shadow 0.15s;
+  }
+  .btn:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(15, 23, 42, 0.1); }
+  .btn.primary { background: var(--ink); color: #fff; border-color: var(--ink); }
+
+  /* ---------- 舞台 ---------- */
+  .stage {
+    position: relative;
+    height: 560px;
+    border-radius: 18px;
+    overflow: hidden;
+    background: linear-gradient(180deg, #eef2f8 0%, #e6ecf5 100%);
+    border: 1px solid var(--line);
+    cursor: default;
+    user-select: none;
+  }
+  .stage-art {
+    position: absolute; inset: 0;
+    background:
+      radial-gradient(520px 300px at 24% 18%, rgba(20, 89, 217, 0.1), transparent 70%),
+      radial-gradient(420px 260px at 78% 12%, rgba(180, 83, 9, 0.09), transparent 70%),
+      radial-gradient(600px 340px at 55% 86%, rgba(15, 138, 106, 0.08), transparent 70%);
+  }
+  .mock { position: absolute; inset: 0; padding: 120px 40px 0; }
+  .mock h2 { margin: 0 0 8px; font-size: 40px; line-height: 1.2; letter-spacing: -0.02em; text-align: center; color: #1b2231; }
+  .mock p.sub { margin: 0 0 26px; text-align: center; font-size: 14px; color: var(--ink-2); }
+  .cards { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+  .cd {
+    width: 214px; height: 118px; border-radius: 14px;
+    background: rgba(255, 255, 255, 0.72);
+    border: 1px solid rgba(255, 255, 255, 0.9);
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+    padding: 14px;
+  }
+  .cd .tt { font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+  .cd .dd { font-size: 12px; color: var(--ink-3); line-height: 1.6; }
+
+  /* ---------- 导航胶囊（复刻真实尺寸） ---------- */
+  .nav {
+    position: absolute; top: 0; left: 0; right: 0; height: 78px;
+    display: flex; justify-content: center; align-items: flex-start;
+    pointer-events: none; z-index: 40;
+  }
+  .nav.align-left { justify-content: flex-start; padding-left: 12px; }
+
+  .band { position: absolute; top: 0; left: 0; right: 0; height: 78px; border-bottom: 1px dashed rgba(179, 38, 30, 0.45); display: none; }
+  .band.on { display: block; }
+  .band span { position: absolute; right: 10px; top: 8px; font-size: 11px; color: var(--red); }
+
+  .capsule {
+    pointer-events: auto;
+    position: relative;
+    margin-top: 10px;
+    height: 58px;
+    width: var(--mini-w);
+    max-width: calc(100% - 24px);
+    border-radius: 100px;
+    background: var(--liquid-bg);
+    border: 1px solid var(--liquid-border);
+    box-shadow: var(--liquid-shadow);
+    overflow: hidden;
+    transition: width var(--dur) var(--ease), box-shadow 0.3s ease;
+  }
+  .capsule.is-expanded { width: var(--full-w); box-shadow: 0 24px 70px rgba(15, 23, 42, 0.12), 0 1px 3px rgba(15, 23, 42, 0.06); }
+
+  .layer { position: absolute; inset: 0; display: flex; align-items: center; }
+  .layer-mini {
+    justify-content: center; gap: 9px;
+    opacity: 1; transition: opacity 90ms ease;
+  }
+  .capsule.is-expanded .layer-mini { opacity: 0; }
+  .layer-full {
+    padding: 0 22px; justify-content: space-between; gap: 10px;
+    opacity: 0; transition: opacity 110ms ease;
+  }
+  .capsule.is-expanded .layer-full { opacity: 1; transition-delay: calc(var(--dur) * 0.35); }
+
+  .logo { display: flex; align-items: center; gap: 9px; font-size: 15px; font-weight: 700; letter-spacing: 0.01em; white-space: nowrap; }
+  .logo-ico {
+    width: 30px; height: 30px; border-radius: 9px; flex: 0 0 30px;
+    background: #1d1d1f;
+    color: #fff; font-size: 13px; font-weight: 700;
+    display: grid; place-items: center;
+  }
+  .menu { display: flex; align-items: center; gap: 32px; }
+  .menu a {
+    font-size: 15px; font-weight: 700; color: #1a1a1a; text-decoration: none;
+    padding: 8px 0; position: relative; white-space: nowrap; cursor: pointer;
+  }
+  .menu a::after {
+    content: ''; position: absolute; left: 0; right: 0; bottom: 2px; height: 2px;
+    background: #1a1a1a; border-radius: 2px; transform: scaleX(0); transform-origin: left;
+    transition: transform 0.22s var(--ease);
+  }
+  .menu a:hover::after { transform: scaleX(1); }
+  .tools { display: flex; align-items: center; gap: 12px; }
+  .icon-btn {
+    width: 34px; height: 34px; border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    background: rgba(255, 255, 255, 0.55);
+    display: grid; place-items: center; color: #3a4152; cursor: pointer;
+  }
+  .icon-btn svg { width: 16px; height: 16px; }
+  .me {
+    display: flex; align-items: center; gap: 8px;
+    padding: 4px 10px; border-radius: 999px; cursor: pointer;
+    font-size: 13px; font-weight: 600; white-space: nowrap;
+  }
+  .me:hover { background: rgba(255, 255, 255, 0.6); }
+  .ava { width: 26px; height: 26px; border-radius: 50%; background: #2f6fd0; color: #fff; display: grid; place-items: center; font-size: 12px; font-weight: 700; }
+  .burger { width: 34px; height: 34px; display: grid; place-items: center; gap: 3px; cursor: pointer; }
+  .burger i { display: block; width: 17px; height: 2px; border-radius: 2px; background: #2a3141; }
+
+  .toast {
+    position: absolute; left: 50%; top: 96px; transform: translate(-50%, -6px);
+    background: rgba(29, 29, 31, 0.9); color: #fff;
+    font-size: 12px; padding: 7px 14px; border-radius: 999px;
+    opacity: 0; pointer-events: none; transition: opacity 0.2s, transform 0.2s; z-index: 60;
+  }
+  .toast.on { opacity: 1; transform: translate(-50%, 0); }
+
+  .ghost-cursor {
+    position: absolute; width: 12px; height: 12px; border-radius: 50%;
+    background: rgba(179, 38, 30, 0.9);
+    box-shadow: 0 0 0 4px rgba(179, 38, 30, 0.16);
+    transform: translate(-50%, -50%); pointer-events: none; z-index: 70;
+    opacity: 0; transition: opacity 0.15s;
+  }
+  .ghost-cursor.on { opacity: 1; }
+
+  /* ---------- HUD ---------- */
+  .hud { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 12px; }
+  .stat { padding: 12px 14px; border-radius: 12px; background: #fff; border: 1px solid var(--line); }
+  .stat .k { font-size: 11px; color: var(--ink-3); margin-bottom: 5px; }
+  .stat .v { font-size: 19px; font-weight: 700; letter-spacing: -0.02em; }
+  .stat .v small { font-size: 11px; font-weight: 500; color: var(--ink-3); margin-left: 2px; }
+  .stat.warn .v { color: var(--amber); }
+  .stat.bad .v { color: var(--red); }
+
+  .findings { max-width: 880px; margin: 22px 0 0; }
+  .findings h3 { font-size: 14px; font-weight: 600; margin: 0 0 10px; }
+  .findings ul { margin: 0; padding-left: 18px; }
+  .findings li { font-size: 13px; line-height: 1.85; color: var(--ink-2); margin-bottom: 6px; }
+  .findings li b { color: var(--ink); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="head">
+    <h1>桌面端 mini 胶囊 + hover / 点击展开</h1>
+    <p>
+      按真实尺寸复刻：胶囊 58 高、圆角 100、mini 168、展开 860，玻璃令牌与 <code>tokens.css</code> 同值。
+      关键一点：<b>mini 与长条同高</b>，横向展开不侵占纵向空间，所以它<b>不会盖住任何内容</b>。
+      这个方案唯一要回答的是下面那三个数字。
+    </p>
+  </div>
+
+  <div class="keyline">
+    一句话：这个方案能不能成立，不取决于动画做得多顺，取决于<b>「展开占比」</b>——
+    如果用户每次把鼠标往上移它就展开，那 mini 只在没人看的时候存在。
+  </div>
+
+  <div class="panel bar">
+    <div class="grp">
+      <span class="lbl">触发</span>
+      <div class="seg" data-key="mode">
+        <button data-v="hover" aria-pressed="true">hover + 点击</button>
+        <button data-v="click" aria-pressed="false">仅点击</button>
+      </div>
+    </div>
+    <div class="grp">
+      <span class="lbl">展开延时</span>
+      <div class="seg" data-key="expandDelay">
+        <button data-v="0" aria-pressed="false">0</button>
+        <button data-v="80" aria-pressed="true">80</button>
+        <button data-v="160" aria-pressed="false">160</button>
+        <button data-v="240" aria-pressed="false">240</button>
+      </div>
+    </div>
+    <div class="grp">
+      <span class="lbl">收起延时</span>
+      <div class="seg" data-key="collapseDelay">
+        <button data-v="0" aria-pressed="false">0</button>
+        <button data-v="150" aria-pressed="false">150</button>
+        <button data-v="300" aria-pressed="true">300</button>
+        <button data-v="600" aria-pressed="false">600</button>
+      </div>
+    </div>
+    <div class="grp">
+      <span class="lbl">动画时长</span>
+      <div class="seg" data-key="dur">
+        <button data-v="180" aria-pressed="false">180</button>
+        <button data-v="320" aria-pressed="true">320</button>
+        <button data-v="500" aria-pressed="false">500</button>
+      </div>
+    </div>
+    <div class="grp">
+      <span class="lbl">mini 宽</span>
+      <div class="seg" data-key="miniW">
+        <button data-v="168" aria-pressed="true">168</button>
+        <button data-v="240" aria-pressed="false">240</button>
+        <button data-v="360" aria-pressed="false">360</button>
+        <button data-v="680" aria-pressed="false">680</button>
+      </div>
+    </div>
+    <div class="grp">
+      <span class="lbl">触发热区</span>
+      <div class="seg" data-key="hotzone">
+        <button data-v="pill" aria-pressed="true">胶囊本身</button>
+        <button data-v="band" aria-pressed="false">整条顶部</button>
+      </div>
+    </div>
+    <div class="grp">
+      <span class="lbl">位置</span>
+      <div class="seg" data-key="align">
+        <button data-v="center" aria-pressed="true">居中</button>
+        <button data-v="left" aria-pressed="false">靠左</button>
+      </div>
+    </div>
+    <div class="grp" style="margin-left:auto">
+      <button class="btn primary" id="run">跑一遍典型轨迹</button>
+      <button class="btn" id="reset">清零重测</button>
+    </div>
+  </div>
+
+  <div class="stage" id="stage">
+    <div class="stage-art"></div>
+    <div class="mock">
+      <h2>这里不只有方块</h2>
+      <p class="sub">把鼠标往上推到胶囊上，或者直接点它</p>
+      <div class="cards">
+        <div class="cd"><div class="tt">社区</div><div class="dd">论坛、资讯、摄影集</div></div>
+        <div class="cd"><div class="tt">探索</div><div class="dd">BOH App、BOH AI、MBTI</div></div>
+        <div class="cd"><div class="tt">服务</div><div class="dd">周边商城、订阅计划</div></div>
+        <div class="cd"><div class="tt">关于</div><div class="dd">云上咖啡店、关于我们</div></div>
+      </div>
+    </div>
+
+    <div class="nav" id="nav">
+      <div class="band" id="band"><span>78px 触发带</span></div>
+      <div class="capsule" id="capsule">
+        <div class="layer layer-mini">
+          <div class="logo-ico">方</div>
+          <div class="ava">R</div>
+          <div class="burger"><i></i><i></i><i></i></div>
+        </div>
+        <div class="layer layer-full">
+          <div class="logo"><span class="logo-ico">方</span>方块之家</div>
+          <nav class="menu">
+            <a data-nav="首页">首页</a>
+            <a data-nav="社区">社区</a>
+            <a data-nav="探索">探索</a>
+            <a data-nav="服务">服务</a>
+            <a data-nav="关于">关于</a>
+          </nav>
+          <div class="tools">
+            <button class="icon-btn" aria-label="搜索">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="M16.5 16.5L21 21"></path></svg>
+            </button>
+            <div class="me"><span class="ava">R</span>我的方块</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+    <div class="ghost-cursor" id="cursor"></div>
+  </div>
+
+  <div class="hud">
+    <div class="stat"><div class="k">当前形态</div><div class="v" id="s-state">mini</div></div>
+    <div class="stat"><div class="k">展开占比（本次会话）</div><div class="v" id="s-ratio">0<small>%</small></div></div>
+    <div class="stat warn"><div class="k">展开次数</div><div class="v" id="s-expands">0</div></div>
+    <div class="stat bad"><div class="k">抖动（1s 内收回又展开）</div><div class="v" id="s-flicker">0</div></div>
+  </div>
+
+  <div class="findings">
+    <h3>读这三行数字，比看动画有用</h3>
+    <ul>
+      <li><b>展开占比</b>：把鼠标从内容区上移、再经过顶部时，它大半时间是展开的。默认参数下跑一次轨迹，
+        实测落在 <b>45%–55%</b> —— mini 只在「鼠标不在附近」时存在，你看它的那一刻它总是长条。</li>
+      <li><b>抖动</b>：把「收起延时」调到 0，再点一次「跑一遍典型轨迹」，抖动会立刻飙起来（实测 1 次以上）。
+        这个参数不是调参细节，是这套交互能不能用的生死线。</li>
+      <li><b>mini 宽 680 那一档</b>：宽度收到 680 时五个入口全在、展开时几乎不位移——
+        这条路不用改任何交互，就能拿到 80% 的「视觉轻」。</li>
+    </ul>
+  </div>
+</div>
+
+<script>
+(function () {
+  var S = {
+    mode: 'hover',
+    expandDelay: 80,
+    collapseDelay: 300,
+    dur: 320,
+    miniW: 168,
+    hotzone: 'pill',
+    align: 'center'
+  };
+
+  var stage = document.getElementById('stage');
+  var nav = document.getElementById('nav');
+  var band = document.getElementById('band');
+  var capsule = document.getElementById('capsule');
+  var toast = document.getElementById('toast');
+  var cursor = document.getElementById('cursor');
+
+  var expanded = false;
+  var expandTimer = null;
+  var collapseTimer = null;
+  var lastExpandAt = 0;
+  var stats = { runMs: 0, expandedMs: 0, expands: 0, flickers: 0 };
+  var toastTimer = null;
+
+  function applyVars() {
+    var r = document.documentElement.style;
+    r.setProperty('--mini-w', S.miniW + 'px');
+    r.setProperty('--dur', S.dur + 'ms');
+    nav.classList.toggle('align-left', S.align === 'left');
+    band.classList.toggle('on', S.hotzone === 'band');
+    document.getElementById('s-state').textContent = expanded ? '长条' : 'mini';
+  }
+
+  function setExpanded(next) {
+    if (expanded === next) return;
+    expanded = next;
+    capsule.classList.toggle('is-expanded', next);
+    document.getElementById('s-state').textContent = next ? '长条' : 'mini';
+    if (next) {
+      stats.expands += 1;
+      lastExpandAt = performance.now();
+    } else if (performance.now() - lastExpandAt < 1000) {
+      stats.flickers += 1;
+    }
+    document.getElementById('s-expands').textContent = stats.expands;
+    document.getElementById('s-flicker').textContent = stats.flickers;
+  }
+
+  function clearExpand() {
+    if (expandTimer) { clearTimeout(expandTimer); expandTimer = null; }
+  }
+  function clearCollapse() {
+    if (collapseTimer) { clearTimeout(collapseTimer); collapseTimer = null; }
+  }
+
+  function scheduleExpand() {
+    if (expanded || expandTimer) return;
+    clearCollapse();
+    expandTimer = setTimeout(function () {
+      expandTimer = null;
+      setExpanded(true);
+    }, S.expandDelay);
+  }
+
+  function scheduleCollapse() {
+    if (!expanded) return;
+    clearExpand();
+    if (collapseTimer) return;
+    collapseTimer = setTimeout(function () {
+      collapseTimer = null;
+      setExpanded(false);
+    }, S.collapseDelay);
+  }
+
+  function inHitZone(clientX, clientY) {
+    var s = stage.getBoundingClientRect();
+    var x = clientX - s.left;
+    var y = clientY - s.top;
+    if (S.hotzone === 'band') return y >= 0 && y <= 78;
+    var r = capsule.getBoundingClientRect();
+    var x0 = r.left - s.left - 6;
+    var x1 = r.right - s.left + 6;
+    var y0 = r.top - s.top - 6;
+    var y1 = r.bottom - s.top + 6;
+    return x >= x0 && x <= x1 && y >= y0 && y <= y1;
+  }
+
+  function handleMove(clientX, clientY) {
+    if (S.mode !== 'hover') return;
+    if (inHitZone(clientX, clientY)) scheduleExpand();
+    else scheduleCollapse();
+  }
+
+  stage.addEventListener('pointermove', function (e) {
+    handleMove(e.clientX, e.clientY);
+  });
+
+  stage.addEventListener('pointerleave', function () {
+    if (S.mode === 'hover') scheduleCollapse();
+  });
+
+  capsule.addEventListener('click', function (e) {
+    var hitNav = e.target.closest('[data-nav]');
+    if (hitNav) {
+      e.stopPropagation();
+      showToast('跳转：' + hitNav.getAttribute('data-nav'));
+      return;
+    }
+    if (e.target.closest('.icon-btn')) { e.stopPropagation(); showToast('打开搜索'); return; }
+    if (e.target.closest('.me')) { e.stopPropagation(); showToast('进入我的方块'); return; }
+    if (e.target.closest('.burger')) { e.stopPropagation(); showToast('展开移动菜单'); return; }
+    if (S.mode === 'click') {
+      clearExpand();
+      clearCollapse();
+      setExpanded(!expanded);
+    } else if (!expanded) {
+      clearExpand();
+      setExpanded(true);
+    }
+  });
+
+  function showToast(text) {
+    toast.textContent = text;
+    toast.classList.add('on');
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { toast.classList.remove('on'); }, 1100);
+  }
+
+  document.querySelectorAll('.seg').forEach(function (seg) {
+    seg.addEventListener('click', function (e) {
+      var btn = e.target.closest('button[data-v]');
+      if (!btn) return;
+      seg.querySelectorAll('button').forEach(function (b) { b.setAttribute('aria-pressed', 'false'); });
+      btn.setAttribute('aria-pressed', 'true');
+      var key = seg.getAttribute('data-key');
+      var raw = btn.getAttribute('data-v');
+      S[key] = /^\d+$/.test(raw) ? parseInt(raw, 10) : raw;
+      applyVars();
+    });
+  });
+
+  document.getElementById('reset').addEventListener('click', function () {
+    stats = { runMs: 0, expandedMs: 0, expands: 0, flickers: 0 };
+    document.getElementById('s-expands').textContent = '0';
+    document.getElementById('s-flicker').textContent = '0';
+    document.getElementById('s-ratio').innerHTML = '0<small>%</small>';
+  });
+
+  function loop(prev) {
+    var now = performance.now();
+    var dt = prev ? now - prev : 0;
+    stats.runMs += dt;
+    if (expanded) stats.expandedMs += dt;
+    var pct = stats.runMs > 300 ? Math.round((stats.expandedMs / stats.runMs) * 100) : 0;
+    document.getElementById('s-ratio').innerHTML = pct + '<small>%</small>';
+    requestAnimationFrame(function () { loop(now); });
+  }
+  requestAnimationFrame(function () { loop(0); });
+
+  var KEYS = [
+    { t: 0,    x: 0.5,  y: 500 },
+    { t: 700,  x: 0.5,  y: 60 },
+    { t: 1250, x: 0.5,  y: 39 },
+    { t: 1900, x: 0.34, y: 39 },
+    { t: 2450, x: 0.62, y: 39 },
+    { t: 3250, x: 0.62, y: 430 },
+    { t: 3950, x: 0.46, y: 60 },
+    { t: 4400, x: 0.46, y: 500 }
+  ];
+
+  var raf = null;
+  document.getElementById('run').addEventListener('click', function () {
+    if (raf) cancelAnimationFrame(raf);
+    cursor.classList.add('on');
+    var start = performance.now();
+    var total = KEYS[KEYS.length - 1].t;
+    function step(now) {
+      var e = Math.min(now - start, total);
+      var i = 0;
+      while (i < KEYS.length - 2 && KEYS[i + 1].t < e) i += 1;
+      var a = KEYS[i], b = KEYS[i + 1];
+      var k = (e - a.t) / Math.max(b.t - a.t, 1);
+      var x = a.x + (b.x - a.x) * k;
+      var y = a.y + (b.y - a.y) * k;
+      var s = stage.getBoundingClientRect();
+      var cx = s.left + x * s.width;
+      var cy = s.top + y;
+      cursor.style.left = (x * s.width) + 'px';
+      cursor.style.top = y + 'px';
+      handleMove(cx, cy);
+      if (e < total) {
+        raf = requestAnimationFrame(step);
+      } else {
+        raf = null;
+        cursor.classList.remove('on');
+        scheduleCollapse();
+      }
+    }
+    raf = requestAnimationFrame(step);
+  });
+
+  applyVars();
+})();
+</script>
+</body>
+</html>

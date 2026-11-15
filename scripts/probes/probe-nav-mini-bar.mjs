@@ -12,8 +12,10 @@ import fs from 'node:fs';
 //     D 菜单开着唤起通知岛 → 菜单被收 + 岛强制展开连体
 //     E 连发两条通知 → 宽度轨迹全程 >300（无缝接管无闪断）→ 结束回 mini
 //     F 滚动 >140px 回缩；横向滚动（scrollLeft）不误触
-//     G 横屏 1400x900 现状零影响
+//     G 桌面横屏 1400x900：默认 mini + hover 展开 + 移开回缩
 //     H 竖屏 600x900（>480 档）mini 宽 188
+//     I 横屏 900x600（700–1023 档）：mini 180 + hover 展开 720 居中 + 点开下拉
+//     J hover 热区 = 胶囊盒子（下方 120px / 右侧 24px 都不许展开）
 // =====================================================================
 const BASE = 'http://[::1]:5173';
 const OUT = 'debug-screenshots';
@@ -91,6 +93,11 @@ const MEASURE_FN = () => {
       const r2 = b.getBoundingClientRect();
       return s.display !== 'none' && r2.width > 0;
     })(),
+    // 桌面一级菜单（与上面的 menu = .nav-menu-mobile 不是一个元素，别混用）
+    navMenuDisplay: (() => {
+      const m = $('.nav-menu');
+      return m ? getComputedStyle(m).display : null;
+    })(),
     menuActive: !!menu && menu.classList.contains('active'),
     menuDisplay: menu ? getComputedStyle(menu).display : null,
     statusCardRect: rect(statusCard),
@@ -126,9 +133,39 @@ const stopWidthPolling = (page) =>
 const report = { results: {}, checks: {}, pageErrors: [] };
 const browser = await launch();
 
+/* ⚠️ 2026-11-15：首页开屏期间导航栏**不挂载**（App.vue 的 v-if 经
+   utils/global-navbar-visibility.js 读 useHomeGate 的 homeGateScreening）。
+   探针代表「已经看过开场画的老用户」，故每个 context 先预置 gate 通过标记，
+   否则所有等待 .unified-nav-surface 的断言都会 20s 超时。
+   key 与 src/utils/home-gate-storage.js 一致（dev 构建无 buildId ⇒ 无后缀）；
+   必须在**首次 goto 之前**注入 —— addInitScript 只对后续导航生效。 */
+const gateNewContext = async (options = {}) => {
+  const ctx = await browser.newContext(options);
+  await ctx.addInitScript(() => {
+    try {
+      localStorage.setItem('boh-home-gate-passed', String(Date.now()));
+    } catch {
+      /* about:blank 等无 storage 场景忽略 */
+    }
+    try {
+      /* 抑制「概览加载岛」：首页登录后 Home 会调 maybeShowOverviewIsland() →
+         showIsland.custom(OverviewIslandLoading)，导航会被撑成 has-custom-card 展开态。
+         开屏在场时这段不跑（本次改动前探针从没撞上它），开屏一跳过它就跟着跑，
+         A 组「首帧 mini」测量会随机量到展开态的中间值。
+         预置「本会话已弹过」标记 = 稳定复现真实老用户的状态。
+         userId 与下方 injectAuth 注入的 probe_user 是同一个（改一处要一起改）；
+         有专门测概览岛的探针，它们不走这个 helper，不受影响。 */
+      sessionStorage.setItem('boh_overview_island:00ac36b4-6594-440f-a9c1-38b7bd47ee8b', '1');
+    } catch {
+      /* ignore */
+    }
+  });
+  return ctx;
+};
+
 // ---------- 场景 A：竖屏 390x844 首帧 mini + logo 直达 ----------
 {
-  const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const context = await gateNewContext({ viewport: { width: 390, height: 844 } });
   const page = await context.newPage();
   page.on('pageerror', (e) => report.pageErrors.push('A: ' + String(e).slice(0, 160)));
   await page.goto(`${BASE}/#/`, { waitUntil: 'domcontentloaded' });
@@ -146,7 +183,7 @@ const browser = await launch();
 
 // ---------- 场景 B/C：点汉堡展开 + 菜单；点外部回缩 ----------
 {
-  const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const context = await gateNewContext({ viewport: { width: 390, height: 844 } });
   const page = await context.newPage();
   page.on('pageerror', (e) => report.pageErrors.push('BC: ' + String(e).slice(0, 160)));
   await page.goto(`${BASE}/#/`, { waitUntil: 'domcontentloaded' });
@@ -168,7 +205,7 @@ const browser = await launch();
 
 // ---------- 场景 D：菜单开着唤起通知岛 → 收菜单 + 强制展开连体 ----------
 {
-  const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const context = await gateNewContext({ viewport: { width: 390, height: 844 } });
   const page = await context.newPage();
   page.on('pageerror', (e) => report.pageErrors.push('D: ' + String(e).slice(0, 160)));
   await page.goto(`${BASE}/#/`, { waitUntil: 'domcontentloaded' });
@@ -196,7 +233,7 @@ const browser = await launch();
 
 // ---------- 场景 E：连发两条通知，宽度轨迹无闪断 ----------
 {
-  const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const context = await gateNewContext({ viewport: { width: 390, height: 844 } });
   const page = await context.newPage();
   page.on('pageerror', (e) => report.pageErrors.push('E: ' + String(e).slice(0, 160)));
   await page.goto(`${BASE}/#/`, { waitUntil: 'domcontentloaded' });
@@ -237,7 +274,7 @@ const browser = await launch();
 
 // ---------- 场景 F：滚动回缩 + 横向滚动不误触 ----------
 {
-  const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const context = await gateNewContext({ viewport: { width: 390, height: 844 } });
   const page = await context.newPage();
   page.on('pageerror', (e) => report.pageErrors.push('F: ' + String(e).slice(0, 160)));
   await page.goto(`${BASE}/#/`, { waitUntil: 'domcontentloaded' });
@@ -266,9 +303,12 @@ const browser = await launch();
   await context.close();
 }
 
-// ---------- 场景 G：横屏 1400x900 现状零影响 ----------
+// ---------- 场景 G：桌面横屏 1400x900 —— 默认 mini + hover 展开（2026-11-14 起） ----------
+// 旧契约是「横屏零影响（nav-mini-caps 必须不在、宽度恒 860）」，
+// 2026-11-14 用户口径改为「桌面也收 mini，hover/点击展开」⇒ 断言随之改写。
+// 注意：只有 (hover: hover) and (pointer: fine) 的设备才启用，Playwright 桌面上下文满足。
 {
-  const context = await browser.newContext({ viewport: { width: 1400, height: 900 } });
+  const context = await gateNewContext({ viewport: { width: 1400, height: 900 } });
   const page = await context.newPage();
   page.on('pageerror', (e) => report.pageErrors.push('G: ' + String(e).slice(0, 160)));
   await page.goto(`${BASE}/#/`, { waitUntil: 'domcontentloaded' });
@@ -277,12 +317,24 @@ const browser = await launch();
   await page.waitForTimeout(1200);
   report.results.G_landscape = await evalRetry(page, MEASURE_FN);
   await page.screenshot({ path: `${OUT}/nav-mini-G-landscape.png` });
+
+  // hover 展开
+  const gBox = await page.locator('.unified-nav-surface').boundingBox();
+  await page.mouse.move(gBox.x + gBox.width / 2, gBox.y + gBox.height / 2);
+  await page.waitForTimeout(700);
+  report.results.G_hover = await evalRetry(page, MEASURE_FN);
+  await page.screenshot({ path: `${OUT}/nav-mini-G-hover.png` });
+
+  // 移开 → 回缩
+  await page.mouse.move(gBox.x + gBox.width / 2, 820);
+  await page.waitForTimeout(800);
+  report.results.G_afterLeave = await evalRetry(page, MEASURE_FN);
   await context.close();
 }
 
 // ---------- 场景 H：竖屏 600x900（>480 档）mini 宽 128 ----------
 {
-  const context = await browser.newContext({ viewport: { width: 600, height: 900 } });
+  const context = await gateNewContext({ viewport: { width: 600, height: 900 } });
   const page = await context.newPage();
   page.on('pageerror', (e) => report.pageErrors.push('H: ' + String(e).slice(0, 160)));
   await page.goto(`${BASE}/#/`, { waitUntil: 'domcontentloaded' });
@@ -291,6 +343,115 @@ const browser = await launch();
   await page.waitForTimeout(1200);
   report.results.H_portrait_mid = await evalRetry(page, MEASURE_FN);
   await page.screenshot({ path: `${OUT}/nav-mini-H-600w.png` });
+  await context.close();
+}
+
+// ---------- 场景 I：横屏 900x600 —— 700–1023 档也走 mini + hover 展开（2026-11-15） ----------
+// 用户报障原文：「横屏的 hover 自动展开又没了」。
+// 原因：资格判定原为 `min-width:1024px`，900/1000 这一档落进「常驻长条」，
+// 而 `handleNavPointerEnter` 里 `if (!desktopMiniActive) return` 直接早退 ⇒ hover 无反应。
+// 现在资格加了一条「orientation: landscape and min-width: 700px」（见 DESKTOP_MINI_QUERY）。
+// 这条探针同时锁住两个容易回退的点：
+//   ① mini 宽度必须是 180 而不是 720 —— fold-nav-rail.css 的
+//      `max-width: min(720px, 100% - 112px)` 会压过 mini 的 max-width（实测过）；
+//   ② 展开后必须**视口居中** —— 同一条 fold-nav-rail 规则还带 `left: -gutter/2` 左移。
+{
+  const context = await gateNewContext({ viewport: { width: 900, height: 600 } });
+  const page = await context.newPage();
+  page.on('pageerror', (e) => report.pageErrors.push('I: ' + String(e).slice(0, 160)));
+  await page.goto(`${BASE}/#/`, { waitUntil: 'domcontentloaded' });
+  await injectAuth(page);
+  await page.waitForSelector('.unified-nav-surface', { state: 'attached', timeout: 20000 });
+  await page.waitForTimeout(1200);
+  report.results.I_landscape_mid = await evalRetry(page, MEASURE_FN);
+
+  const ibox = await page.locator('.unified-nav-surface').boundingBox();
+  await page.mouse.move(ibox.x + ibox.width / 2, ibox.y + ibox.height / 2);
+  await page.waitForTimeout(700);
+  report.results.I_hover = await evalRetry(page, MEASURE_FN);
+  await page.screenshot({ path: `${OUT}/nav-mini-I-hover.png` });
+
+  // 展开后点「社区」→ 下拉应在这条 720 的岛里长出来（不是浮一张卡、也不是不响应）
+  const comm = await page.evaluate(() => {
+    const li = [...document.querySelectorAll('.nav-menu > .nav-menu-item')].find((x) =>
+      x.textContent.includes('社区'),
+    );
+    const a = li?.querySelector('a');
+    if (!a) return null;
+    const r = a.getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  });
+  if (comm) {
+    await page.mouse.click(comm.x, comm.y);
+    await page.waitForTimeout(800);
+    report.results.I_submenu = await page.evaluate(() => {
+      const s = document.querySelector('#unified-nav-container .unified-nav-surface');
+      const sub = document.querySelector('.nav-submenu.active');
+      const r = s.getBoundingClientRect();
+      return {
+        classes: s.className,
+        surfaceW: +r.width.toFixed(1),
+        surfaceH: +r.height.toFixed(1),
+        center: +(r.left + r.width / 2).toFixed(1),
+        viewportCenter: window.innerWidth / 2,
+        submenuH: sub ? +sub.getBoundingClientRect().height.toFixed(1) : null,
+      };
+    });
+    await page.screenshot({ path: `${OUT}/nav-mini-I-submenu.png` });
+  }
+  await context.close();
+}
+
+// ---------- 场景 J：hover 热区必须**只等于胶囊盒子**（2026-11-15） ----------
+// 用户报障：「hover 区域不对，不够精确，我鼠标放在远处他也起来了」。
+// 根因：折叠态 `.nav-menu-mobile` 是 visibility:hidden，但 vendor 给里面的
+// `.nav-mobile-main-menu` 写了 `visibility: visible` —— 可见性可以被子元素压过，
+// 于是胶囊下方挂着一块 178×312 的**不可见热区**，指针离胶囊 200px 也能拉起导航。
+// 修法：`.nav-menu-mobile { pointer-events: none }`（整棵子树关掉命中）+ index.vue 的几何判据。
+// 这条探针锁三件事：
+//   ① 胶囊正下方 120px（同 x）不展开 —— 反证：删掉 pointer-events:none → 立刻红；
+//   ② 胶囊左右外侧 24px 不展开；
+//   ③ 胶囊内部仍能正常触发（别为了"精确"把热区做没了）。
+{
+  const context = await gateNewContext({ viewport: { width: 1440, height: 900 } });
+  const page = await context.newPage();
+  page.on('pageerror', (e) => report.pageErrors.push('J: ' + String(e).slice(0, 160)));
+  await page.goto(`${BASE}/#/`, { waitUntil: 'domcontentloaded' });
+  await injectAuth(page);
+  await page.waitForSelector('.unified-nav-surface', { state: 'attached', timeout: 20000 });
+  await page.waitForTimeout(1200);
+
+  const g = await page.locator('.unified-nav-surface').boundingBox();
+  const wait = async (ms) => page.waitForTimeout(ms);
+  const widthOf = () =>
+    page.evaluate(() => {
+      const s = document.querySelector('#unified-nav-container .unified-nav-surface');
+      return +s.getBoundingClientRect().width.toFixed(1);
+    });
+  const reset = async () => {
+    await page.mouse.move(g.x + g.width / 2, 800);
+    await wait(500);
+  };
+
+  await reset();
+  const baseW = await widthOf();
+  // ① 正下方 120px
+  await page.mouse.move(g.x + g.width / 2, g.y + g.height + 120, { steps: 2 });
+  await wait(500);
+  const belowW = await widthOf();
+  // ② 右侧 24px（同一中线）
+  await reset();
+  await page.mouse.move(g.x + g.width + 24, g.y + g.height / 2, { steps: 2 });
+  await wait(500);
+  const rightW = await widthOf();
+  // ③ 盒内
+  await reset();
+  await page.mouse.move(g.x + g.width / 2, g.y + g.height / 2, { steps: 2 });
+  await wait(600);
+  const insideW = await widthOf();
+
+  report.results.J_hitzone = { baseW, belowW, rightW, insideW, box: g };
+  await page.screenshot({ path: `${OUT}/nav-mini-J-hitzone.png` });
   await context.close();
 }
 
@@ -306,7 +467,13 @@ const DC = report.results.D_afterClose;
 const F1 = report.results.F_afterHScroll;
 const F2 = report.results.F_afterVScroll;
 const G = report.results.G_landscape;
+const GL = report.results.G_hover;
+const GH = report.results.G_afterLeave;
 const H = report.results.H_portrait_mid;
+const I = report.results.I_landscape_mid;
+const IH = report.results.I_hover;
+const IS = report.results.I_submenu;
+const J = report.results.J_hitzone;
 
 const hasMini = (m) => /nav-mini-caps/.test(m.classes || '');
 const hasExpanded = (m) => /nav-expanded/.test(m.classes || '');
@@ -342,12 +509,38 @@ report.checks = {
   // F：横向滚动不误触、纵向滚动回缩
   F_hscroll_no_collapse: hasExpanded(F1) && F1.menuActive,
   F_vscroll_collapses: hasMini(F2) && !hasExpanded(F2),
-  // G：横屏零影响（nav-mini-caps 必须不在；nav-expanded 横屏常驻是派生预期，无样式效果）
-  G_no_mini_class: !hasMini(G),
-  G_landscape_width_intact: G.surface && Math.abs(G.surface.w - 860) <= 4,
+  // G：桌面横屏 = 默认 mini(180×44) → hover 展开(720×50) → 移开回缩(180×44)
+  //    2026-11-15：岛宽 860→720、mini 200→176、mini 高 50→44。
+  G_mini_by_default: hasMini(G) && !hasExpanded(G),
+  G_mini_width_180: G.surface && Math.abs(G.surface.w - 180) <= 6,
+  G_mini_height_44: G.surfaceH === '44px',
+  G_menu_hidden_in_mini: G.navMenuDisplay === 'none',
+  G_hover_expands: hasExpanded(GL) && GL.surface && Math.abs(GL.surface.w - 720) <= 6,
+  // 展开态汉堡**保留**（2026-11-15）：hover 汉堡触发展开后，它变成「钉住/收起」把手。
+  // 旧契约要求 `!GL.burgerRendered`（展开后藏掉），但那样鼠标下方会突然变成空白/搜索，
+  // 且没有按钮可点回去 —— 交互闭环断了。现在只断言「菜单出来了 + 汉堡仍在」。
+  G_hover_menu_visible: GL.navMenuDisplay === 'flex' && GL.logoTextOpacity === '1',
+  G_hover_burger_kept: GL.burgerRendered === true,
+  G_collapse_after_leave:
+    hasMini(GH) && !hasExpanded(GH) && GH.surface && Math.abs(GH.surface.w - 180) <= 6,
   // H：>480 竖屏 mini 档 188（内容实测 144 + 两条间隙各 8 + padding 28）
   H_mini_width_188: hasMini(H) && H.surface && H.surface.w >= 182 && H.surface.w <= 194,
   H_no_overflow: H.containerScrollW && H.containerScrollW <= H.surface.w - 2,
+  // I：横屏 900 —— 700–1023 档也必须是 mini（180）+ hover 展开（720 + 视口居中）+ 下拉可用。
+  //    反证：把 DESKTOP_MINI_QUERY 的 landscape 那一段删掉 → I_mini_width_180 立刻红（180→720）。
+  I_mini_width_180: hasMini(I) && !hasExpanded(I) && I.surface && Math.abs(I.surface.w - 180) <= 6,
+  I_hover_expands: hasExpanded(IH) && IH.surface && Math.abs(IH.surface.w - 720) <= 6,
+  I_hover_centered:
+    IH.surface &&
+    IH.viewport &&
+    Math.abs(IH.surface.left + IH.surface.w / 2 - IH.viewport.w / 2) <= 2,
+  I_submenu_opens: !!IS && IS.surfaceH > 120 && IS.submenuH > 100,
+  I_submenu_centered: !!IS && Math.abs(IS.center - IS.viewportCenter) <= 2,
+  // J：热区 = 胶囊盒子本身。below/right 用「明显变宽」当判据（>+120 = 展开了），
+  //    而不是精确等于 180 —— 收起动画尾巴上的 204 不是展开，别误判。
+  J_no_expand_below: J.belowW < J.baseW + 120,
+  J_no_expand_right: J.rightW < J.baseW + 120,
+  J_inside_expands: J.insideW >= 700,
 };
 
 report.pass = Object.values(report.checks).every(Boolean) && report.pageErrors.length === 0;

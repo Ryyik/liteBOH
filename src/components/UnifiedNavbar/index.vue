@@ -18,6 +18,11 @@
         'has-login-card': showLoginModal,
         'has-task-card': isTaskCardShown,
         'has-custom-card': !!islandCustomSlot.component,
+        // 桌面下拉打开 = surface 自己长成宽岛（内容坐在长出来的玻璃里，与 has-status-card 同一套机制）
+        'has-submenu': !!expandedMenu,
+        // 移动端菜单（汉堡）同理：竖屏/桌面的汉堡菜单也坐在长出来的那块玻璃里，
+        // 不再在岛下面浮一张独立白卡（用户口径「竖屏没有做好同样岛化的适配」）。
+        'has-mobile-menu': isMobileMenuOpen,
         // 新闻中心的搜索/筛选是从灵动导航栏向下衍生的扩展卡片，不占用导航文字行。
         'has-nav-island-panel': false,
         'has-nav-search-panel': false,
@@ -29,10 +34,17 @@
         'nav-expanded': isExpandedLooking,
       }"
       @click="handleSurfaceTap"
+      @pointerenter="handleNavPointerEnter"
+      @pointermove="handleNavPointerMove"
+      @pointerleave="handleNavPointerLeave"
+      @focusin="handleNavFocusIn"
+      @focusout="handleNavFocusOut"
       :style="{
         '--global-nav-status-duration': `${navStatus.duration}ms`,
         '--global-nav-status-card-height': `${navStatusCardHeight}px`,
         '--global-nav-custom-card-height': `${customCardHeight}px`,
+        '--nav-submenu-h': `${submenuH}px`,
+        '--nav-mobile-h': `${mobileMenuH}px`,
       }"
     >
       <div class="nav-container">
@@ -58,12 +70,20 @@
               <a
                 href="javascript:;"
                 class="nav-link-wrapper"
+                role="button"
                 :class="{ active: item.isActive, expanded: item.isExpanded }"
+                :aria-expanded="item.isExpanded"
+                aria-haspopup="true"
                 @click.stop="toggleSubMenu(item.name)"
               >
                 <span>{{ item.label }}</span>
               </a>
-              <ul class="nav-submenu" :class="{ active: item.isExpanded }" @click.stop>
+              <ul
+                :ref="(el) => setSubmenuEl(item.name, el)"
+                class="nav-submenu"
+                :class="{ active: item.isExpanded }"
+                @click.stop
+              >
                 <!-- 有分组的菜单：分组列表 ↔ 三级下钻（带切换动画） -->
                 <template v-if="hasGroupChildren(item)">
                   <Transition name="nav-drill" mode="out-in">
@@ -254,10 +274,13 @@
           class="nav-hamburger"
           id="nav-hamburger"
           :class="{ active: isMobileMenuOpen }"
-          :aria-expanded="isMobileMenuOpen"
+          :aria-expanded="isMobileMenuOpen || (desktopMiniActive && isExpandedLooking)"
           aria-controls="nav-menu-mobile"
-          :aria-label="isMobileMenuOpen ? '关闭导航菜单' : '打开导航菜单'"
-          @click.stop="toggleMobileMenu"
+          :aria-label="
+            isMobileMenuOpen ? '关闭导航菜单' : desktopMiniActive ? '展开导航' : '打开导航菜单'
+          "
+          @pointerdown="handleBurgerPointerDown"
+          @click.stop="handleBurgerClick"
         >
           <span></span>
           <span></span>
@@ -282,7 +305,10 @@
                   <a
                     href="javascript:;"
                     class="nav-mobile-link"
+                    role="button"
                     :class="{ active: item.isActive }"
+                    :aria-expanded="item.isExpanded"
+                    aria-haspopup="true"
                     @click="toggleSubMenu(item.name)"
                   >
                     <span>{{ item.label }}</span>
@@ -368,8 +394,9 @@
                         >
                           {{ child.label }}
                         </a>
-                        <div
+                        <button
                           v-else
+                          type="button"
                           class="nav-mobile-group-entry"
                           @click="
                             activeGroup = child.name;
@@ -377,7 +404,7 @@
                           "
                         >
                           <span class="nav-mobile-group-entry-label">{{ child.label }}</span>
-                        </div>
+                        </button>
                       </template>
                     </template>
                   </template>
@@ -948,6 +975,83 @@ const activeGroup = ref(null);
  */
 const activeGroupParent = ref(null);
 
+/* ============================================
+   宽岛：surface 需要按「菜单实际高度」长高
+
+   `.nav-submenu` 挂在 `<li>` 里（DOM 不变），它不是 surface 的文档流子节点 ⇒
+   撑不开 surface；而 `height: auto` 又无法参与过渡。所以实测后写进 `--nav-submenu-h`，
+   surface 用 `calc(rest + var(--nav-submenu-h))` 长高。
+
+   ⚠️ 2026-11-15 **打开前预量**（这是「展开不流畅」的主因之一）：
+   旧写法只在 `await nextTick()` 之后量 —— 于是打开那一帧 `.has-submenu` 已经生效、
+   而 `--nav-submenu-h` 还是收起时的 0 ⇒ 首帧 height = rest（50），下一帧才跳到目标值。
+   肉眼读作「先卡一帧、再弹开」。菜单是常驻渲染的（收起态只是 `visibility: hidden`，
+   不影响布局），所以可以在**类挂上之前**同步量到真实高度，让 height 从第一帧就是终值。
+
+   ⚠️ ResizeObserver 仍然要留：三级下钻（分组 ↔ 子项）换 pane 时内容高度会变，
+   预量拿不到那个值（DOM 还没换）。
+   ============================================ */
+const submenuH = ref(0);
+let submenuResizeObserver = null;
+
+/** name → <ul.nav-submenu> 元素（收起态也注册：预量全靠它） */
+const submenuEls = new Map();
+const setSubmenuEl = (name, el) => {
+  if (el) submenuEls.set(name, el);
+  else submenuEls.delete(name);
+};
+
+const measureSubmenu = () => {
+  const el = document.querySelector('#unified-nav-container .nav-submenu.active');
+  if (!el) {
+    submenuH.value = 0;
+    return null;
+  }
+  submenuH.value = Math.ceil(el.getBoundingClientRect().height);
+  return el;
+};
+
+const stopSubmenuObserver = () => {
+  submenuResizeObserver?.disconnect();
+  submenuResizeObserver = null;
+};
+
+const syncSubmenuHeight = () => {
+  const el = measureSubmenu();
+  if (!el) {
+    stopSubmenuObserver();
+    return;
+  }
+  if (!submenuResizeObserver) {
+    submenuResizeObserver = new ResizeObserver(() => measureSubmenu());
+  }
+  submenuResizeObserver.disconnect();
+  submenuResizeObserver.observe(el);
+};
+
+/* flush: 'pre' —— 回调跑在组件更新**之前**，此刻 `.has-submenu` 还没挂到 surface 上，
+   但目标 `<ul>` 早就在 DOM 里（v-for 恒渲染）。量出来的高度和下一帧 surface 要长的
+   高度是同一个数 ⇒ height 一次性过渡，没有「先 50 再跳」的中间帧。 */
+watch(
+  expandedMenu,
+  (open) => {
+    if (!open) {
+      submenuH.value = 0;
+      return;
+    }
+    const el = submenuEls.get(open);
+    if (!el) return;
+    const h = Math.ceil(el.getBoundingClientRect().height);
+    if (h > 0) submenuH.value = h;
+  },
+  { flush: 'pre' },
+);
+
+watch([expandedMenu, activeGroup], async () => {
+  await nextTick();
+  syncSubmenuHeight();
+});
+
 /**
  * 判断菜单项的子菜单中是否存在分组（三级结构）
  * @param {Object} item - 菜单项
@@ -1181,6 +1285,57 @@ const navItems = computed(() => {
 const isMobileMenuOpen = ref(false);
 const mobileMenuOpenCount = ref(0);
 
+/* ============================================
+   移动端菜单岛化：surface 按菜单实际高度长高
+
+   此前菜单是 `position: fixed` 的独立卡片（自己的白底 + 18px 圆角 + 投影），
+   与桌面下拉「岛自己长高」是两套视觉语言（用户口径「竖屏没有做好同样岛化的适配」）。
+   现在与桌面同一套机制：菜单坐在 surface 长出来的那块玻璃里，
+   高度实测后写进 `--nav-mobile-h`，surface 走 `calc(rest + var(--h))`。
+
+   量测窗口：菜单在 CSS 里**常驻渲染**（收起态只是 `visibility: hidden`，不占布局），
+   所以打开前就能量到真实高度 —— 和桌面预量同一个理由：避免首帧 height=0
+   那一帧"卡一下再弹开"。
+   一级 ↔ 二级下钻切换时高度会变，ResizeObserver 兜底。
+   ============================================ */
+const mobileMenuH = ref(0);
+let mobileMenuResizeObserver = null;
+
+const measureMobileMenu = () => {
+  const el = document.querySelector('#unified-nav-container .nav-menu-mobile');
+  if (!el) return 0;
+  const h = Math.ceil(el.getBoundingClientRect().height);
+  mobileMenuH.value = h;
+  return h;
+};
+
+const syncMobileMenuObserver = () => {
+  const el = document.querySelector('#unified-nav-container .nav-menu-mobile');
+  if (!el) return;
+  if (!mobileMenuResizeObserver) {
+    mobileMenuResizeObserver = new ResizeObserver(() => {
+      if (isMobileMenuOpen.value) measureMobileMenu();
+    });
+  }
+  mobileMenuResizeObserver.disconnect();
+  mobileMenuResizeObserver.observe(el);
+};
+
+/**
+ * 开菜单后把页面滚动位置钉回原处。
+ *
+ * 真机（iOS Safari）上，`position: fixed` 的菜单展开 / body overflow 变更会让
+ * 浏览器把文档滚回顶部 —— 用户报障原话「竖屏点开导航栏的时候会导致页面直接回到最前面」。
+ * 菜单改成岛内 absolute 之后这个诱因已经没了（本地实测 700 → 700 不复现），
+ * 这段留作兜底：打开后的下一帧检查一次，偏离就恢复，避免又一次"回到最前面"。
+ */
+const pinScrollAfterMenuToggle = () => {
+  const y = window.scrollY;
+  requestAnimationFrame(() => {
+    if (Math.abs(window.scrollY - y) > 2) window.scrollTo(0, y);
+  });
+};
+
 /**
  * 切换移动端菜单
  * 同时控制body滚动，防止菜单打开时页面滚动/**
@@ -1199,9 +1354,25 @@ const toggleMobileMenu = () => {
     return;
   }
 
-  isMobileMenuOpen.value = !isMobileMenuOpen.value;
-  if (isMobileMenuOpen.value) {
+  // 桌面 mini 的汉堡 = 「展开导航」，不是「打开移动菜单卡」。
+  // 移动菜单的定位/尺寸整段写在 `@media (orientation: portrait) and (max-width: 699px)` 里
+  // （scoped 439–788），桌面直接开它会拿到一个没定位的裸卡。所以这里改成钉住长条。
+  if (desktopMiniQuery.matches && !route.meta?.immersiveNav && !isMobileMenuOpen.value) {
+    toggleMiniPin();
+    return;
+  }
+
+  const willOpen = !isMobileMenuOpen.value;
+  // ⚠️ 必须在翻状态**之前**量：菜单常驻渲染，此刻已能拿到真实高度
+  if (willOpen) measureMobileMenu();
+
+  isMobileMenuOpen.value = willOpen;
+  if (willOpen) {
     mobileMenuOpenCount.value += 1;
+    syncMobileMenuObserver();
+    pinScrollAfterMenuToggle();
+  } else {
+    mobileMenuH.value = 0;
   }
 
   // Beta 6：常驻悬浮导航下移动端菜单始终允许页面滚动。
@@ -1217,6 +1388,7 @@ const closeMobileMenu = () => {
   expandedMenu.value = null;
   activeGroup.value = null;
   activeGroupParent.value = null;
+  mobileMenuH.value = 0;
   document.body.style.overflow = '';
 };
 
@@ -1241,10 +1413,39 @@ watch(
 // 边界 699：700–768 已是完整导航形态（iPad mini 744 起），不再走竖屏 mini 条。
 // 改这里必须同步 unified-nav.css 的 max-width: 699px 三处与下方 innerWidth 判据。
 const portraitMiniQuery = window.matchMedia('(orientation: portrait) and (max-width: 699px)');
-const navMini = ref(portraitMiniQuery.matches);
-const handlePortraitMiniChange = (event) => {
-  navMini.value = event.matches;
+
+/**
+ * 桌面档 mini 的资格判定 —— **唯一真源**（CSS 侧刻意不重复判，只按 JS 给的类生效）。
+ *
+ * 三个条件缺一不可：
+ *   · 宽度：`min-width: 1024px`，**或者**「横屏且 ≥700」（2026-11-15 补）；
+ *   · `hover: hover`：没有真 hover 的设备（触屏笔记本、iPad 带鼠标）收起来就等于
+ *     把 5 个入口藏死 —— 那一档继续走常驻长条，宁可重一点；
+ *   · `pointer: fine`：粗指针（手指）点 200px 胶囊的边角很容易误触。
+ *
+ * ⚠️ 为什么会多出「横屏 ≥700」这一条（用户报障「横屏的 hover 自动展开又没了」）：
+ * 原来只有 `min-width: 1024px`，于是 700–1023 的横屏（笔记本半屏窗口、内置预览面板、
+ * 平板横屏）落进「常驻长条」档 —— 那一档 `handleNavPointerEnter` 里
+ * `if (!desktopMiniActive) return` 直接早退，**hover 完全没有反应**。
+ * 用户看到的是「胶囊没了、hover 也不展开了」。
+ *
+ * 为什么用 `orientation: landscape` 而不是直接把 1024 降到 700：
+ * 竖屏 700–1023 是**平板档**（iPad mini 744 起就是完整导航，见 unified-nav.css 的
+ * 边界注释与 iPad 适配调查）。降阈值会把它一起收成胶囊，破坏那条契约。
+ * 横屏 + 精细指针 = 桌面式使用姿势，收胶囊才成立；触屏横屏（pointer: coarse）仍走长条。
+ *
+ * CSS 侧对应尺寸写在 style.scoped.css 的
+ * `@media (orientation: landscape) and (min-width: 700px) and (max-width: 1023px)`。
+ */
+const DESKTOP_MINI_QUERY =
+  '((min-width: 1024px) or ((orientation: landscape) and (min-width: 700px))) and (hover: hover) and (pointer: fine)';
+const desktopMiniQuery = window.matchMedia(DESKTOP_MINI_QUERY);
+
+const navMini = ref(portraitMiniQuery.matches || desktopMiniQuery.matches);
+const syncNavMini = () => {
+  navMini.value = portraitMiniQuery.matches || desktopMiniQuery.matches;
 };
+const handlePortraitMiniChange = () => syncNavMini();
 
 // ============================================
 // 沉浸阅读形态（route.meta.immersiveNav）：导航收成左上角迷你球。
@@ -1266,15 +1467,195 @@ watch(immersiveNav, (immersive) => {
   }
 });
 
+// ============================================
+// 桌面 mini：hover / 点击 / 聚焦展开（2026-11-14）
+// ============================================
+// 三个时间常数是**体感参数**，不是随手取的：
+//   · OPEN_DELAY 70ms —— 设 0 会让「鼠标借道经过顶部」也弹开（用户根本没想看导航）；
+//     160ms 起明显迟钝。
+//   · CLOSE_DELAY 280ms —— 防抖生死线。低于 ~200ms 时，鼠标贴着胶囊边缘微微一动就是
+//     「收起→再展开」的反复呼吸（原型实测：收起延时设 0，三次经过顶部就抖 1 次以上）。
+//   · 宽度过渡 300ms 写在 CSS —— 用户看到开始展开时已经在移向目标项了，动画过长等于
+//     「目标一直在动、点不中」。旧值 500ms 在竖屏无害（mini→菜单卡，点的东西不动），
+//     在 hover 场景是硬伤。
+const MINI_HOVER_OPEN_DELAY = 70;
+const MINI_HOVER_CLOSE_DELAY = 280;
+const miniHoverExpanded = ref(false);
+const miniPinned = ref(false);
+const miniPointerInside = ref(false);
+let miniHoverTimer = null;
+
+/** 桌面 mini 是否真的生效：沉浸形态（route.meta.immersiveNav）有自己的球态，两套不能同开 */
+const desktopMiniActive = computed(() => desktopMiniQuery.matches && !immersiveNav.value);
+
+const clearMiniHoverTimer = () => {
+  if (miniHoverTimer) {
+    clearTimeout(miniHoverTimer);
+    miniHoverTimer = null;
+  }
+};
+
+const scheduleMiniExpand = () => {
+  if (!desktopMiniActive.value || isExpandedLooking.value) return;
+  clearMiniHoverTimer();
+  miniHoverTimer = setTimeout(() => {
+    miniHoverTimer = null;
+    miniHoverExpanded.value = true;
+  }, MINI_HOVER_OPEN_DELAY);
+};
+
+const scheduleMiniCollapse = () => {
+  if (!desktopMiniActive.value) return;
+  // 菜单展开 / 已钉住 / 移动菜单开着 —— 一律不收。
+  // 少这一条就会出现「点开二级菜单，鼠标往内容区一看，菜单连同导航一起消失」。
+  if (expandedMenu.value || miniPinned.value || isMobileMenuOpen.value) return;
+  clearMiniHoverTimer();
+  miniHoverTimer = setTimeout(() => {
+    miniHoverTimer = null;
+    // 定时器到点时指针又回来了（贴着边缘来回）：不动，交给 scheduleMiniExpand 兜
+    if (!miniPointerInside.value) miniHoverExpanded.value = false;
+  }, MINI_HOVER_CLOSE_DELAY);
+};
+
+/**
+ * ⚠️ 2026-11-15 修：汉堡上**不再**屏蔽 hover 展开。
+ *
+ * 旧写法（`isOverMiniBurger` 早退）是为了保住「点击汉堡展开」这条手势 —— hover 展开会把
+ * 汉堡藏掉，mouseup 落空。但实测代价更大：mini 态只有 logo / 登录 / 汉堡三个元素，
+ * 用户想展开时**必然指向汉堡**（它是唯一像把手的东西），于是「hover 什么都没发生」
+ * 成了最普遍的体验（用户报障原话就是这个）。
+ *
+ * 现在两条都留：
+ *   · hover 进胶囊任何位置（含汉堡）→ 70ms 后展开；
+ *   · 汉堡点击改用 pointerdown 处理（见 handleBurgerPointerDown）—— pointerdown 在
+ *     汉堡还可见时就触发，不依赖 mouseup 那一刻元素还在原位；
+ *   · 展开态**保留汉堡**（CSS 里 `:not(.nav-expanded)` 已去掉），它从「展开」变成
+ *     「钉住 / 收起」把手，鼠标下方不会突然变成空白或别的按钮。
+ */
+/**
+ * 指针是否**真的**落在胶囊的盒子里。
+ *
+ * `pointerenter` / `pointermove` 只要指针进入**任意后代**就会在 surface 上触发，
+ * 而后代可以待在盒子外面 —— 于是「可见形状」与「热区」就不是一回事了。
+ * 实测（2026-11-15，用户报障「hover 区域不对，不够精确，我鼠标放在远处他也起来了」）：
+ * 折叠态 `.nav-menu-mobile` 是 `visibility: hidden`，但 vendor 给里面的
+ * `.nav-mobile-main-menu` 写了 `visibility: visible` —— 子元素可见性可以**压过**祖先，
+ * 于是一块 178×312 的**完全看不见的热区**挂在胶囊下方（胶囊只有 44 高），
+ * 指针离胶囊 200px、只要横向还在胶囊那 180px 里，就能把导航拉出来。
+ *
+ * CSS 侧已经给 `.nav-menu-mobile` 补了 `pointer-events: none`（那才是根因修法）；
+ * 这里再加一道几何判据，任何「子元素故意溢出到盒外」的写法都不会再污染 hover 热区。
+ */
+const isPointerOnSurface = (event) => {
+  const box = navSurface.value?.getBoundingClientRect();
+  if (!box || !event) return true; // 拿不到盒子时不拦截，宁可放行也不要让导航点不开
+  return (
+    event.clientX >= box.left &&
+    event.clientX <= box.right &&
+    event.clientY >= box.top &&
+    event.clientY <= box.bottom
+  );
+};
+
+const handleNavPointerEnter = (event) => {
+  if (!isPointerOnSurface(event)) return;
+  miniPointerInside.value = true;
+  if (!desktopMiniActive.value) return;
+  clearMiniHoverTimer();
+  scheduleMiniExpand();
+};
+
+const handleNavPointerMove = (event) => {
+  if (!isPointerOnSurface(event)) return;
+  if (!desktopMiniActive.value || isExpandedLooking.value) return;
+  // 指针在胶囊内持续移动时不要再排一次 —— scheduleMiniExpand 会先 clearTimeout，
+  // 每移动一像素就把 70ms 往后推，结果是「一直在动就永远不展开」。
+  if (!miniHoverTimer) scheduleMiniExpand();
+};
+
+const handleNavPointerLeave = () => {
+  miniPointerInside.value = false;
+  scheduleMiniCollapse();
+};
+
+/** 点击钉住：hover 展开是「临时看」，钉住是「我要用」。再点一次取消。 */
+const toggleMiniPin = () => {
+  miniPinned.value = !miniPinned.value;
+  if (miniPinned.value) {
+    clearMiniHoverTimer();
+    miniHoverExpanded.value = true;
+    return;
+  }
+  /* 取消钉住 = 明确要收，**立即收**，不走 280ms 防抖：
+     那个防抖是为「鼠标擦边来回」设计的，而此刻指针必然还停在汉堡上
+     （`miniPointerInside` 为 true），交给 scheduleMiniCollapse 会被它自己的判据顶回来
+     —— 用户点汉堡收不起来（实测）。收起后胶囊缩回 176，汉堡位置从右端退回原位，
+     指针自然落到胶囊外，不会再被 pointerenter 拉起。 */
+  clearMiniHoverTimer();
+  miniHoverExpanded.value = false;
+};
+
+/**
+ * 汉堡的两条输入通道（2026-11-15）：
+ * · 指针（鼠标左键 / 触摸）走 **pointerdown** —— hover 会把它展开成 720 长条，汉堡随之
+ *   右移；若等 mouseup，汉堡已在别处，click 不派发到它（实测整个点不中）。
+ *   pointerdown 发生在位移之前，这一下必定命中。
+ * · 键盘走 click，且只认 `detail === 0`（键盘合成的 click 恒为 0，鼠标点击是点击次数
+ *   ≥1）—— 否则一次鼠标点击会被 pointerdown + click 各 toggle 一次，等于没点。
+ */
+const handleBurgerPointerDown = (event) => {
+  if (event.pointerType === 'mouse' && event.button !== 0) return;
+  toggleMobileMenu();
+};
+
+const handleBurgerClick = (event) => {
+  if (event.detail === 0) toggleMobileMenu();
+};
+
+/** 键盘：焦点进到胶囊就把导航展开，否则 Tab 只能在 logo/头像之间打转（菜单是 display: none）
+ *
+ * ⚠️ 必须过滤「鼠标点出来的 focus」：点击 button 也会触发 focusin，若在这里无条件展开，
+ * 汉堡会在 pointerdown 与 mouseup 之间被 `display: none` 掉，浏览器把 click 派发到
+ * 共同祖先 `.nav-container` —— 「点击展开」永远点不中（实测日志：pointerdown:SPAN →
+ * click:DIV.nav-container）。判据用 `:focus-visible`：键盘 Tab 命中，鼠标点击不命中。 */
+const handleNavFocusIn = (event) => {
+  if (!desktopMiniActive.value) return;
+  const target = event?.target;
+  if (target?.matches && !target.matches(':focus-visible')) return;
+  clearMiniHoverTimer();
+  miniHoverExpanded.value = true;
+};
+
+const handleNavFocusOut = (event) => {
+  if (!desktopMiniActive.value) return;
+  // relatedTarget 是下一个获得焦点的元素；仍在组件内就不收（logo → 菜单项 是连续 Tab）
+  const next = event?.relatedTarget;
+  if (next && event.currentTarget?.contains?.(next)) return;
+  if (expandedMenu.value || miniPinned.value) return;
+  scheduleMiniCollapse();
+};
+
+// 二级菜单收起后补一次「该不该收回 mini」的判定。
+// 没有这一条：菜单开着时鼠标已离开 → pointerleave 按上面那条早退 → 菜单关掉后
+// 导航就永远停在展开态（用户看到的是「点一下别处，导航变长了但不回去」）。
+watch(expandedMenu, (open, prev) => {
+  if (open || !prev) return;
+  if (!miniPointerInside.value) scheduleMiniCollapse();
+});
+
 const isExpandedLooking = computed(() =>
   immersiveNav.value
     ? immersiveExpanded.value ||
       isMobileMenuOpen.value ||
+      miniHoverExpanded.value ||
+      miniPinned.value ||
       statusCardItem.value.visible ||
       isTaskCardShown.value ||
       !!islandCustomSlot.component
     : !navMini.value ||
       isMobileMenuOpen.value ||
+      miniHoverExpanded.value ||
+      miniPinned.value ||
       statusCardItem.value.visible ||
       isTaskCardShown.value ||
       !!islandCustomSlot.component,
@@ -1444,6 +1825,11 @@ const handleSurfaceTap = () => {
     return;
   }
   if (navMini.value && !isExpandedLooking.value) {
+    // 桌面 mini：点胶囊空白 = 钉住展开（竖屏那边是开移动菜单，两条路径不能共用）
+    if (desktopMiniQuery.matches && !immersiveNav.value) {
+      toggleMiniPin();
+      return;
+    }
     toggleMobileMenu();
   }
 };
@@ -1466,7 +1852,11 @@ const collapseMiniOnScroll = (target) => {
 };
 
 const handleMiniCollapseScroll = (event) => {
-  if (!navMini.value || miniScrollRafId) return;
+  // 桌面 mini **不由滚动驱动**：
+  // ① 体感上「滚一下导航突然缩回去」很突兀，而 hover 展开已经覆盖了「我要用导航」；
+  // ② 滚动收纳那套（.scrolled）已被 tests/unit/unified-nav-scrolled-guard.test.js
+  //    在源码层锁死 —— 要引入必须先显式删断言并说明理由，不能换个写法绕回去。
+  if (!navMini.value || miniScrollRafId || !portraitMiniQuery.matches) return;
   const target = event.target;
   miniScrollRafId = requestAnimationFrame(() => {
     miniScrollRafId = null;
@@ -1507,6 +1897,33 @@ const handleClickOutside = (event) => {
     !event.target.closest('.unified-nav-surface')
   ) {
     immersiveExpanded.value = false;
+  }
+  // 桌面 mini：点外部 → 取消钉住并收起（否则钉住态没有退出路径 —— 菜单关掉了、
+  // 鼠标也早走了，导航却一直挂着）
+  if (
+    (miniPinned.value || miniHoverExpanded.value) &&
+    !event.target.closest('.unified-nav-surface')
+  ) {
+    miniPinned.value = false;
+    miniHoverExpanded.value = false;
+    clearMiniHoverTimer();
+  }
+};
+
+/**
+ * Esc：先收二级菜单，再退出 mini 钉住态。
+ * 键盘用户在展开的二级菜单里没有别的出口 —— 只能靠点页面另一处，
+ * 而对纯键盘操作来说「点外部」根本不存在（2026-11-14 实测：Esc 后菜单仍是 active）。
+ */
+const handleNavEsc = (event) => {
+  if (event.key !== 'Escape') return;
+  if (expandedMenu.value) {
+    closeSubMenu();
+    return;
+  }
+  if (miniPinned.value) {
+    miniPinned.value = false;
+    scheduleMiniCollapse();
   }
 };
 
@@ -1598,10 +2015,19 @@ onMounted(() => {
   window.addEventListener('boh_unread_refresh', handleUnreadRefresh);
   // 竖屏 Mini 形态（plans/009）：断点切换 + 滚动回缩
   portraitMiniQuery.addEventListener('change', handlePortraitMiniChange);
+  // 桌面档 mini 的资格随时可能变（外接/拔掉鼠标、切到触摸模式、窗口跨 1024）
+  desktopMiniQuery.addEventListener('change', syncNavMini);
   window.addEventListener('scroll', handleMiniCollapseScroll, { capture: true, passive: true });
   themeManager.addListener(handleThemeChange);
   // 添加点击外部关闭下拉菜单的事件监听
-  document.addEventListener('click', handleClickOutside);
+  /* ⚠️ 必须用 **capture** 阶段（第三参 true）：
+     bubble 阶段会被页面里任意 `@click.stop` 截断 —— 实测点导航外部时若落在
+     `.post-actions-v2`（帖子的点赞/评论区，自带 stopPropagation）上，本监听根本收不到，
+     移动菜单就关不掉。capture 阶段在冒泡之前跑，不受任何下游 stopPropagation 影响；
+     "点在菜单内部不关" 仍由 handleClickOutside 里的 closest 守卫保证。 */
+  document.addEventListener('click', handleClickOutside, true);
+  // Esc：二级菜单 / mini 钉住态的键盘出口
+  document.addEventListener('keydown', handleNavEsc);
 
   // 竖屏下拉唤起 BOHAI：touchmove 必须 non-passive 才能 preventDefault 掉页面滚动
   const surfaceEl = navSurface.value;
@@ -1633,6 +2059,8 @@ onUnmounted(() => {
   navStatusQueue.length = 0;
   customHostResizeObserver?.disconnect();
   customHostResizeObserver = null;
+  stopSubmenuObserver();
+  submenuEls.clear();
   if (unreadRefreshInterval) {
     clearInterval(unreadRefreshInterval);
   }
@@ -1644,6 +2072,8 @@ onUnmounted(() => {
   window.removeEventListener('storage', handleStorageChange);
   window.removeEventListener('boh_unread_refresh', handleUnreadRefresh);
   portraitMiniQuery.removeEventListener('change', handlePortraitMiniChange);
+  desktopMiniQuery.removeEventListener('change', syncNavMini);
+  clearMiniHoverTimer();
   window.removeEventListener('scroll', handleMiniCollapseScroll, { capture: true });
   if (miniScrollRafId) {
     cancelAnimationFrame(miniScrollRafId);
@@ -1651,7 +2081,8 @@ onUnmounted(() => {
   }
   themeManager.removeListener(handleThemeChange);
   // 移除点击外部关闭下拉菜单的事件监听
-  document.removeEventListener('click', handleClickOutside);
+  document.removeEventListener('click', handleClickOutside, true);
+  document.removeEventListener('keydown', handleNavEsc);
 
   const surfaceEl = navSurface.value;
   surfaceEl?.removeEventListener('touchstart', onPullTouchStart);

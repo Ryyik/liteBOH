@@ -106,7 +106,9 @@
                   views/Login/index.vue（登录卡片，下半岛）
      值里的 100% 在两侧都解析为视口宽度（overlay padding: 0 / 导航容器满宽），
      因此两侧永远同宽。 */
-  --boh-login-island-width: min(860px, calc(100% - 24px));
+  /* 必须与导航岛同宽（`.unified-nav-surface` 的 max-width）：上半岛 + 登录卡片
+     拼成一张岛，差 1px 都会露缝。2026-11-15 导航 860 → 720，这里同步。 */
+  --boh-login-island-width: min(720px, calc(100% - 24px));
 
   /* 横屏登录岛材质：导航上半岛 + 登录卡片下半岛共用，改一处两半同时变。
      浅色取纯白：页面底是 --boh-page-bg(#fff)，岛若用灰底会读成「脏」，

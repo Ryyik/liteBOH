@@ -21,13 +21,16 @@ const check = (name, pass, detail = '') => {
   console.log(`${pass ? 'PASS' : 'FAIL'}  ${name}${detail ? '  -- ' + detail : ''}`);
 };
 
-const launch = () => chromium.launch({
-  channel: 'chrome',
-  args: ['--no-proxy-server', '--proxy-server=direct://', '--proxy-bypass-list=*']
-});
+const launch = () =>
+  chromium.launch({
+    channel: 'chrome',
+    args: ['--no-proxy-server', '--proxy-server=direct://', '--proxy-bypass-list=*'],
+  });
 
 const injectAuth = async (page) => {
-  await page.waitForFunction(() => document.querySelector('#app')?.__vue_app__, null, { timeout: 30000 });
+  await page.waitForFunction(() => document.querySelector('#app')?.__vue_app__, null, {
+    timeout: 30000,
+  });
   await page.waitForTimeout(500);
   await page.evaluate(() => {
     const pinia = document.querySelector('#app').__vue_app__.config.globalProperties.$pinia;
@@ -35,7 +38,9 @@ const injectAuth = async (page) => {
     auth.isLoggedIn = true;
     Object.assign(auth.userInfo, {
       id: '00ac36b4-6594-440f-a9c1-38b7bd47ee8b',
-      username: 'probe_user', role: 'user', points: 42
+      username: 'probe_user',
+      role: 'user',
+      points: 42,
     });
   });
 };
@@ -62,21 +67,64 @@ const MEASURE = () => {
     leftMargin: +sb.left.toFixed(2),
     rightMargin: +(window.innerWidth - sb.right).toFixed(2),
     surfaceCxVsVp: +(cx - window.innerWidth / 2).toFixed(2),
-    opticalMidVsVp: (opticalL !== null && opticalR !== null)
-      ? +(((opticalL + opticalR) / 2) - window.innerWidth / 2).toFixed(2) : null,
+    opticalMidVsVp:
+      opticalL !== null && opticalR !== null
+        ? +((opticalL + opticalR) / 2 - window.innerWidth / 2).toFixed(2)
+        : null,
     avatarOffset: mid(avatar) !== null ? +(mid(avatar) - cx).toFixed(2) : null,
     logoOffset: mid(logo) !== null ? +(mid(logo) - cx).toFixed(2) : null,
     burgerOffset: mid(burger) !== null ? +(mid(burger) - cx).toFixed(2) : null,
-    usernameW: rect(username) ? +rect(username).width.toFixed(1) : null
+    usernameW: rect(username) ? +rect(username).width.toFixed(1) : null,
   };
 };
 
 const browser = await launch();
 
+/* ⚠️ 2026-11-15：首页开屏期间导航栏**不挂载**（App.vue 的 v-if 经
+   utils/global-navbar-visibility.js 读 useHomeGate 的 homeGateScreening）。
+   探针代表「已经看过开场画的老用户」，故每个 context 先预置 gate 通过标记，
+   否则所有等待 .unified-nav-surface 的断言都会 20s 超时。
+   key 与 src/utils/home-gate-storage.js 一致（dev 构建无 buildId ⇒ 无后缀）；
+   必须在**首次 goto 之前**注入 —— addInitScript 只对后续导航生效。 */
+const gateNewContext = async (options = {}) => {
+  const ctx = await browser.newContext(options);
+  await ctx.addInitScript(() => {
+    try {
+      localStorage.setItem('boh-home-gate-passed', String(Date.now()));
+    } catch {
+      /* about:blank 等无 storage 场景忽略 */
+    }
+    try {
+      /* 抑制「概览加载岛」：首页登录后 Home 会调 maybeShowOverviewIsland() →
+         showIsland.custom(OverviewIslandLoading)，导航会被撑成 has-custom-card 展开态。
+         开屏在场时这段不跑（本次改动前探针从没撞上它），开屏一跳过它就跟着跑，
+         A 组「首帧 mini」测量会随机量到展开态的中间值。
+         预置「本会话已弹过」标记 = 稳定复现真实老用户的状态。
+         userId 与下方 injectAuth 注入的 probe_user 是同一个（改一处要一起改）；
+         有专门测概览岛的探针，它们不走这个 helper，不受影响。 */
+      sessionStorage.setItem('boh_overview_island:00ac36b4-6594-440f-a9c1-38b7bd47ee8b', '1');
+    } catch {
+      /* ignore */
+    }
+  });
+  return ctx;
+};
+
 // ---------- A/B：各竖屏档的几何居中 + 头像偏移 ----------
-const miniCases = [[360, 780], [390, 844], [430, 932], [500, 1035], [600, 900], [768, 1000]];
+// 竖屏档位。⚠️ 末档原为 768x1000：2026-10-30 起 mini 边界从 768 收到 699
+// （iPad mini 744 起走完整导航，见 unified-nav.css 的同名注释），而本探针没跟着改 ⇒
+// 768 那一档的 A/B 断言从那天起一直红着（768 不是 mini，汉堡 display:none ⇒ 右参考点 rect 全 0，
+// Δ 恒为负）。这不是代码回归，是**探针的用例过期**；改成 699 才是真正的边界档。
+const miniCases = [
+  [360, 780],
+  [390, 844],
+  [430, 932],
+  [500, 1035],
+  [600, 900],
+  [699, 844],
+];
 for (const [w, h] of miniCases) {
-  const ctx = await browser.newContext({ viewport: { width: w, height: h } });
+  const ctx = await gateNewContext({ viewport: { width: w, height: h } });
   const page = await ctx.newPage();
   await page.goto(`${BASE}/#/`, { waitUntil: 'domcontentloaded' });
   await injectAuth(page);
@@ -84,32 +132,47 @@ for (const [w, h] of miniCases) {
   await page.waitForTimeout(1100);
   const m = await page.evaluate(MEASURE);
   const tag = `${w}x${h}`;
-  check(`A ${tag} 外壳居中（左右边距相等 + Δ中心=0）`,
+  check(
+    `A ${tag} 外壳居中（左右边距相等 + Δ中心=0）`,
     m.leftMargin === m.rightMargin && m.surfaceCxVsVp === 0,
-    `L/R=${m.leftMargin}/${m.rightMargin} Δ=${m.surfaceCxVsVp}`);
+    `L/R=${m.leftMargin}/${m.rightMargin} Δ=${m.surfaceCxVsVp}`,
+  );
   check(`A ${tag} 内容外框居中`, m.opticalMidVsVp === 0, `Δ=${m.opticalMidVsVp}`);
-  check(`B ${tag} 头像圆心偏移 ≥ -6`, m.avatarOffset !== null && m.avatarOffset >= -6 && m.avatarOffset <= 0,
-    `头像=${m.avatarOffset} logo=${m.logoOffset} 汉堡=${m.burgerOffset}`);
+  check(
+    `B ${tag} 头像圆心偏移 ≥ -6`,
+    m.avatarOffset !== null && m.avatarOffset >= -6 && m.avatarOffset <= 0,
+    `头像=${m.avatarOffset} logo=${m.logoOffset} 汉堡=${m.burgerOffset}`,
+  );
   await ctx.close();
 }
 
 // ---------- C：岛态（满宽）不被负 margin 污染 ----------
 {
-  const ctx = await browser.newContext({ viewport: { width: 500, height: 1035 } });
+  const ctx = await gateNewContext({ viewport: { width: 500, height: 1035 } });
   const page = await ctx.newPage();
   await page.goto(`${BASE}/#/`, { waitUntil: 'domcontentloaded' });
   await injectAuth(page);
   await page.waitForSelector('.unified-nav-surface', { timeout: 20000 });
   await page.waitForTimeout(1000);
-  await page.evaluate(() => window.dispatchEvent(new CustomEvent('boh_global_nav_status', {
-    detail: { title: '视觉重心探针', message: '', icon: 'success', durationMs: 6000 }
-  })));
+  await page.evaluate(() =>
+    window.dispatchEvent(
+      new CustomEvent('boh_global_nav_status', {
+        detail: { title: '视觉重心探针', message: '', icon: 'success', durationMs: 6000 },
+      }),
+    ),
+  );
   await page.waitForTimeout(1100);
   const m = await page.evaluate(MEASURE);
-  check('C 岛态满宽：内容外框仍居中', /has-status-card/.test(m.classes) && m.opticalMidVsVp === 0,
-    `cls=${m.classes.trim()} Δ=${m.opticalMidVsVp}`);
-  check('C 岛态用户名恢复显示（负 margin 只在 mini 态生效）', m.usernameW !== null && m.usernameW > 20,
-    `usernameW=${m.usernameW}`);
+  check(
+    'C 岛态满宽：内容外框仍居中',
+    /has-status-card/.test(m.classes) && m.opticalMidVsVp === 0,
+    `cls=${m.classes.trim()} Δ=${m.opticalMidVsVp}`,
+  );
+  check(
+    'C 岛态用户名恢复显示（负 margin 只在 mini 态生效）',
+    m.usernameW !== null && m.usernameW > 20,
+    `usernameW=${m.usernameW}`,
+  );
   await ctx.close();
 }
 

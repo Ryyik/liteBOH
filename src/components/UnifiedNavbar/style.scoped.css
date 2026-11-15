@@ -37,6 +37,26 @@
     var(--global-nav-status-top) + var(--global-nav-status-card-height) +
       var(--global-nav-status-bottom-gap)
   );
+  /* 导航 morph 专用缓动（2026-11-15）。
+     全站 --ease-emphasized 是 cubic-bezier(.16,1,.3,1)：起步瞬间接近满速、
+     前 15% 走完 60% 距离 ⇒ 用在这条 50→160 的长高上读作「啪」地弹开。
+     这条曲线起步温和、中段匀速、末段收干净，长高才像「玻璃自己长大」。
+     ⚠️ 只在导航（胶囊展开 / 下拉长高 / 菜单卡）用，**不要**上提成全局令牌 ——
+     那会改掉全站所有 emphasized 动效的观感，属于另一个决策。 */
+  --nav-open-ease: cubic-bezier(0.32, 0.72, 0, 1);
+  /* 下拉展开态底色（2026-11-15）。刻意不是 --liquid-bg-strong（0.84）：
+     后者是给「有模糊兜底」的玻璃准备的。展开态为了动画帧率**不上 backdrop-filter**
+     （理由见 has-submenu 块），0.84 的 alpha 压不住背后的正文 —— 实测截图里
+     论坛的 tab 栏「官方/最新/关注」直接透过来和菜单文字叠在一起。
+     0.97 是「还能看出背后有东西、但读不清它」的位置，配合内高光仍是玻璃，
+     只是更接近 frosted 而不是 clear。暗色不走这里（navbar-dark.css 的
+     background !important 会压过 background-color，那条是 0.9 的藏青）。 */
+  --nav-frost-bg: rgba(252, 252, 254, 0.97);
+  /* 汉堡菜单岛用**实底**：它是一整块 350×340 的菜单容器，0.97 之下背后的正文
+     仍然能辨出字形（实测截图里「现在，介绍方块滤镜…」与菜单项叠在一起）。
+     小浮层（桌面下拉）透一点是玻璃，大面积容器透一点就是"脏"。
+     暗色不走这里 —— navbar-dark.css 的 background !important 会接管。 */
+  --nav-frost-solid: #fbfbfd;
   position: relative;
   width: 100%;
   max-width: 100%;
@@ -72,10 +92,16 @@
    `src/styles/common/tokens.css` 的 `--liquid-*`（仓库规则：玻璃变量只有一个出口，
    子组件不许自建）。改观感就改 tokens.css 一处，全站玻璃一起动。 */
 :global(#unified-nav-container .unified-nav-surface) {
-  --global-nav-rest-height: 58px;
-  --global-nav-status-top: 65px;
-  max-width: min(860px, calc(100% - 24px));
-  height: 58px;
+  /* 2026-11-15 整体收一档（用户口径「整个导航栏小一点」）：
+     58 → 50 高、860 → 720 宽。50 不是新数 —— 竖屏 ≤699 档早就是 50
+     （见下方 portrait 块），桌面跟它对齐后两个形态终于同高。
+     宽度 720 是实测出来的：logo 122 + 菜单 236（14px/24 gap）+ 右侧工具 101
+     = 459，减去 2×32 padding 后仍余 ~200px 给 space-between 分配，
+     再窄就会把 logo 与菜单挤在一起。 */
+  --global-nav-rest-height: 50px;
+  --global-nav-status-top: 57px;
+  max-width: min(720px, calc(100% - 24px));
+  height: 50px;
   transform: translateY(10px);
   border: 1px solid var(--liquid-border);
   border-radius: 100px;
@@ -336,43 +362,239 @@
   }
 }
 
-/* Beta 6：桌面下拉菜单为有界悬浮卡（旧 stable 全宽 sheet 与 .scrolled 触发已移除）。 */
-@media (min-width: 769px) {
-  :global(#unified-nav-container .nav-submenu) {
-    top: 78px;
-    left: 12px;
-    right: 12px;
-    width: 860px;
-    max-width: calc(100% - 24px);
-    max-height: calc(100dvh - 94px);
-    margin: 0 auto;
-    padding: 16px 20px;
-    overflow-y: auto;
-    border: 1px solid rgba(255, 255, 255, 0.5);
-    border-radius: 18px;
-    background-color: rgba(255, 255, 255, 0.82) !important;
-    box-shadow: 0 14px 36px rgba(0, 0, 0, 0.14);
-    backdrop-filter: var(--liquid-filter) !important;
-    -webkit-backdrop-filter: var(--liquid-filter) !important;
-    transform-origin: top center;
+/* Beta 6：桌面下拉菜单为有界悬浮卡（旧 stable 全宽 sheet 与 .scrolled 触发已移除）。
+   ⚠️ 边界必须是 **700**，不是 769：`.nav-menu` 到 699 才隐藏（unified-nav.css），
+   而这条覆盖原先写在 769 —— 700–768 那 69px（iPad mini 竖屏 744 正好在里面）会落回
+   vendor 的旧版全宽 sheet：实测 742×297、`border-radius: 0`、`#fff` 实心、padding 48px，
+   与 769+ 的 834×282 玻璃卡是两个视觉语言。同一条边界在 src/ 里共 6 个文件 15 处，
+   改它要一起对。 */
+@media (min-width: 700px) {
+  /* 桌面下拉 = **surface 自己长成宽岛**（用户口径「点开下拉菜单变一个类似别的岛的那种」）。
+     与 has-status-card / has-boh-island 同一套机制：岛的玻璃往下长，菜单内容坐在长出来的
+     这块玻璃里；**不是**在导航下面再浮一张卡。
+
+     三条硬约束（都是被坑出来的）：
+     1) 高度由 JS 实测写进 `--nav-submenu-h`：`.nav-submenu` 挂在 `<li>` 里，不是 surface
+        的文档流子节点 ⇒ 撑不开 surface；`height: auto` 又不参与过渡。
+     2) `.nav-submenu` 用 `position: fixed` + `left/right: 0`：surface 带 transform（translateY），
+        fixed 的包含块就是 surface 本身 ⇒ 左右 0 恰好等于「铺满岛宽」。
+        ⚠️ 不要改回 absolute —— 那会退回「相对 li 定位」，又变成窄卡。
+     3) 内容铺成 2 列：720 宽的岛里只放 3–4 项会重新出现大片空白（上一版实测 718 宽
+        只用了 181），单列行盒宽 680、文字仍挤在左侧，等于没解决问题。 */
+  :global(#unified-nav-container .unified-nav-surface.has-submenu) {
+    height: calc(var(--global-nav-rest-height) + var(--nav-submenu-h, 0px));
+    border-radius: 30px;
+    /* ⚠️ 必须裁切：surface 常态是 `overflow: visible`（mini 态菜单"漏到胶囊外"就是靠它暴露的）。
+       长高过程中菜单已经完整存在，不裁的话下两行会画在**玻璃外面**的页面背景上。
+       裁的是自己的子元素，不影响布局与投影。 */
+    overflow: hidden;
+    /* ⚠️ 展开态换材质：常态是「清晰玻璃」0.46，那是给一行 logo + 5 个字用的。
+       菜单里是整行文字，同款 alpha 下背后页面的 tab 栏会直接透过字来（实测读不清）。
+       与 has-boh-island 打开时同一条纪律：读内容时给更实的底。值走令牌，
+       别写字面量 —— check:liquid-glass 会红。
+
+       ⚠️ 2026-11-15 **这里刻意不写 backdrop-filter**（此前写的是 `--liquid-filter`）。
+       原因就是用户报的「展开不流畅」：height 从 50 → 160 的 300ms 里，每帧都要按新的
+       裁剪区重新采样并模糊一次整条 720px 宽的区域，实测就是掉帧（长高一顿一顿的）。
+       0.84 的实底已经足够读清菜单（背后只是淡影），而**纯 alpha 过渡 + height 重排**
+       是这条动画里最便宜的组合。要找回毛玻璃感，代价是这段动画必然回到掉帧，
+       除非改成固定尺寸的模糊层（另一套结构，别顺手加回来）。 */
+    background-color: var(--nav-frost-bg);
+    /* 一条缓动管所有几何属性：宽度、高度、圆角同速同曲线 ⇒ 岛是「等比长大」，
+       而不是先长高再变宽（旧值 max-width 300 / height 260 两条不同时长，
+       尾部几十毫秒里形状还在扭，肉眼就是「不顺」）。
+       ⚠️ 缓动也换了：--ease-emphasized 是 cubic-bezier(.16,1,.3,1)，起步瞬间就到
+       接近满速（前 15% 走完 60% 距离）⇒ 观感是「啪」地弹开。这里改用起步温和、
+       末段收干净的曲线，长高才像「玻璃自己长大」而不是「被弹出来」。 */
+    transition:
+      max-width 300ms var(--nav-open-ease),
+      height 300ms var(--nav-open-ease),
+      border-radius 300ms var(--nav-open-ease),
+      background-color 180ms ease,
+      box-shadow 180ms ease;
   }
 
-  :global(#unified-nav-container[data-theme='dark'] .nav-submenu) {
-    border-color: rgba(255, 255, 255, 0.14);
-    background-color: rgba(28, 28, 30, 0.86) !important;
-    box-shadow: 0 14px 36px rgba(0, 0, 0, 0.34);
+  /* 展开态补一道顶部内高光：没有模糊之后，这层细亮边是「玻璃」质感的主要来源，
+     inset 阴影不参与合成器开销，比 backdrop-filter 便宜得多。 */
+  :global(#unified-nav-container .unified-nav-surface.has-submenu) {
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.72),
+      0 18px 44px rgba(15, 23, 42, 0.16);
+  }
+
+  :global(#unified-nav-container[data-theme='dark'] .unified-nav-surface.has-submenu) {
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.1),
+      0 18px 44px rgba(0, 0, 0, 0.46);
+  }
+
+  /* 长高之后 `.nav-container` 默认 height:100% 会把导航行拉到整岛高度并居中 ⇒ 内容浮到中间。
+     钉回 rest 高度，导航行始终贴在岛的上沿。 */
+  :global(#unified-nav-container .unified-nav-surface.has-submenu > .nav-container) {
+    height: var(--global-nav-rest-height);
+  }
+
+  :global(#unified-nav-container .nav-submenu) {
+    position: fixed;
+    top: var(--global-nav-rest-height);
+    left: 0;
+    right: 0;
+    width: auto;
+    max-width: none;
+    max-height: calc(100dvh - 96px);
+    margin: 0;
+    padding: 4px 12px 14px;
+    overflow-y: auto;
+    border: 0;
+    border-radius: 0;
+    /* 材质**全部交给宿主 surface**：这里再铺一层玻璃，岛里就会出现一张"玻璃上的玻璃"，
+       边缘还会多出一道描边（上一版窄卡的观感就是这么来的）。 */
+    background: transparent !important;
+    box-shadow: none;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    transform: none;
+    /* 单列（用户口径「一行显示一个选项」）。
+       ⚠️ 内容块**不做**自己的淡入/位移：出场入场完全交给宿主 surface 的高度裁切 ——
+       玻璃长高就把内容"抽出来"，玻璃收回就把它"收进去"。只有一层动画，
+       才不会出现「玻璃在长、内容自己在抖」这种两段不同步（vendor 原本是
+       translateY(-12px) + scaleY(.96) + 0.4s，必须清掉）。
+       ⚠️ 这里**不留任何 transition**。曾经用
+       `opacity 0s linear 300ms` 把关闭推迟到玻璃收完，但那条延迟是**全局生效**的：
+       快速从一个一级菜单切到另一个时，旧 ul 也在等这 300ms 才透明 ⇒ **两个菜单
+       同时可见、叠在一起**（实测就是这个现象）。可见性改由 JS 给的
+       `.is-closing` 精确控制，只有「整个下拉关闭」那一次才延迟。 */
+    transition: none;
+  }
+
+  :global(#unified-nav-container .nav-submenu.active),
+  :global(#unified-nav-container .nav-submenu.is-closing) {
+    opacity: 1;
+    visibility: visible;
+    transform: none;
+    transition: none;
+  }
+
+  /* vendor 的噪点层是给实心面板准备的，透明态没有意义 */
+  :global(#unified-nav-container .nav-submenu::before) {
+    display: none;
+  }
+
+  /* li 的位移/错峰淡入全部关掉，opacity 也钉成 1：
+     内容本来就"在玻璃里"，可见性由 surface 的 overflow 裁切决定。
+     这样展开的 300ms 与内容的露出是**同一条曲线**，没有第二段。 */
+  :global(#unified-nav-container .nav-submenu li) {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+
+  /* 行盒铺满整条岛宽：720 宽的岛里单列一行只有 ~40px 文字，
+     热区和视觉重量都只落在左端 —— 让行盒占满，右侧留给扫光与箭头。 */
+  :global(#unified-nav-container .nav-submenu a) {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 44px;
+    padding: 10px 16px;
+    border-radius: 12px;
+    /* ⚠️ vendor 给 `.nav-submenu a` 写了 `letter-spacing 0.3s` 过渡、`.active a` 又改成
+       -0.01em ⇒ 展开瞬间 5~6 行文字同时重排字距（每行都宽一点点）。
+       这是「展开时文字在抖」的隐藏来源，钉死成 normal，别跟着 active 变。 */
+    letter-spacing: normal;
+  }
+
+  /* 行左侧的品牌竖条：hover 时从中间长出来。
+     单列宽行只有一个文字块，右侧空得多；竖条把视线重新锚在行首。 */
+  :global(#unified-nav-container .nav-submenu > li),
+  :global(#unified-nav-container .nav-submenu-pane > li) {
+    position: relative;
+    border-radius: 12px;
+  }
+
+  :global(#unified-nav-container .nav-submenu > li::before),
+  :global(#unified-nav-container .nav-submenu-pane > li::before) {
+    content: '';
+    position: absolute;
+    left: 5px;
+    top: 50%;
+    width: 2px;
+    height: 0;
+    border-radius: 2px;
+    background: #1459d9;
+    transform: translateY(-50%);
+    transition: height 240ms var(--nav-open-ease);
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  :global(#unified-nav-container .nav-submenu > li:hover::before),
+  :global(#unified-nav-container .nav-submenu-pane > li:hover::before) {
+    height: 15px;
+  }
+
+  /* ⚠️ 悬停底色必须写在 li 上，**不能**写在 a 上：
+     src/style.css:290 有一条全局 `a:hover { background-color: transparent !important }`
+     （它是为压 glass-ui-vue 的全局 hover 加的），任何 a 级的悬停底色都会被它吃掉。
+     实测特征：`a.matches(':hover')` 为真、`transform: translateX(4px)` 也生效，
+     但 computed background 仍是 rgba(0,0,0,0) —— 只看截图会误判成"没写 hover"。
+     暗色下之所以"看着正常"，是 navbar-dark.css 用 !important 另写了一份。 */
+  :global(#unified-nav-container:not([data-theme='dark']) .nav-submenu li:hover) {
+    background-color: rgba(20, 89, 217, 0.075);
+  }
+
+  /* 整行有了底色之后，vendor 的 translateX(4px) 会让文字在色块里"滑动"、看着像行裂开。 */
+  :global(#unified-nav-container .nav-submenu a:hover) {
+    transform: none;
+  }
+
+  /* 分组标题是"进下一层"，靠这个 chevron 说明"还有内容"（原先完全没有提示）。 */
+  :global(#unified-nav-container .nav-submenu-group-title) {
+    min-width: 0;
+    /* vendor 在这条上写了 justify-content: space-between。加了 meta 之后
+       它会把「方块世界 / 3 项 / ›」摊成三段，数字飘在行中间（实测就是这个观感）。
+       改成左对齐，靠右由 meta 的 margin-left: auto 和 ::after 自己完成。 */
+    justify-content: flex-start;
+  }
+
+  :global(#unified-nav-container .nav-submenu-group-title::after) {
+    content: '›';
+    margin-left: auto;
+    padding-left: 8px;
+    font-size: 15px;
+    line-height: 1;
+    opacity: 0.45;
+    transition:
+      opacity 200ms ease,
+      transform 240ms var(--nav-open-ease);
+  }
+
+  :global(#unified-nav-container .nav-submenu-group-title:hover::after) {
+    opacity: 0.85;
+    transform: translateX(2px);
   }
 }
 
-@media (prefers-reduced-transparency: reduce) and (min-width: 769px) {
+/* 降动偏好：竖条的长高一律静止。 */
+@media (prefers-reduced-motion: reduce) {
+  :global(#unified-nav-container .nav-submenu > li::before),
+  :global(#unified-nav-container .nav-submenu-pane > li::before) {
+    transition: none;
+    height: 0;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) and (min-width: 700px) {
+  /* 下拉已内嵌进岛（透明、无自有材质）—— 这里原来给 `.nav-submenu` 铺 `#fff`，
+     会在岛上再贴一块白方片。改为只关滤镜、保持透明，材质仍由宿主 surface 提供。
+     ⚠️ 暗色那条 `#1c1c1e !important` 也一并删掉：`.nav-submenu` 现在是
+     `border-radius: 0` 的直角块，铺不透明色就是一块**盖住 surface 圆角**的方片。
+     暗色实底由 surface 的 --liquid-bg-strong（本档 = #252532）提供。 */
   :global(#unified-nav-container .nav-submenu) {
-    background-color: #ffffff !important;
+    background: transparent !important;
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
-  }
-
-  :global(#unified-nav-container[data-theme='dark'] .nav-submenu) {
-    background-color: #1c1c1e !important;
   }
 }
 
@@ -410,8 +632,450 @@
   border-color: rgba(245, 245, 247, 0.45);
 }
 
-/* 竖屏 mini 条：边界 699。700–768（iPad mini 744 起）走完整导航，
-   与 unified-nav.css 的 max-width: 699px 保持一致。 */
+/* ============================================
+   键盘焦点环（2026-11-14）
+   此前全仓库导航 CSS 里 `:focus-visible` **零命中** —— 焦点环是 UA 默认的直角方框，
+   在圆角 100px 的胶囊里非常刺眼（暗色下尤其像「选错了项」）。
+   用 outline 而不是 box-shadow：outline 不参与布局、不会把 34px 圆钮顶成方块，
+   现代 Chrome/Safari 的 outline 会跟着 border-radius 走。
+   ⚠️ 只对 :focus-visible 生效；鼠标点击不该出现焦点环。
+   ============================================ */
+#unified-nav-container :focus:not(:focus-visible) {
+  outline: none;
+}
+
+#unified-nav-container .nav-link-wrapper:focus-visible,
+/* 没有二级的一级项（首页）渲染出来是 `<a class="active">`，**没有** .nav-link-wrapper ——
+   只写 wrapper 那一串，首页的焦点环会静默退回 UA 默认方框（实测就是这么翻车的）。 */
+#unified-nav-container .nav-menu > .nav-menu-item > a:focus-visible,
+#unified-nav-container .nav-logo:focus-visible,
+#unified-nav-container .nav-user-profile:focus-visible,
+#unified-nav-container .nav-search-btn:focus-visible,
+#unified-nav-container .nav-hamburger:focus-visible,
+#unified-nav-container .nav-login-btn:focus-visible,
+#unified-nav-container .nav-submenu a:focus-visible,
+#unified-nav-container .nav-mobile-link:focus-visible,
+#unified-nav-container .nav-mobile-group-entry:focus-visible {
+  outline: 2px solid rgba(20, 89, 217, 0.7);
+  outline-offset: 2px;
+}
+
+/* 焦点环的圆角：这几类目标本身没有 border-radius（纯文字行），outline 会画成直角方框，
+   在 100px 圆角的胶囊里很突兀。只给「文字行」补 8px；圆钮（搜索/头像/汉堡）各自已有
+   自己的圆角，outline 会跟着走，**不要**在这里统一设，否则会把圆钮描成方块。 */
+#unified-nav-container .nav-link-wrapper:focus-visible,
+#unified-nav-container .nav-menu > .nav-menu-item > a:focus-visible,
+#unified-nav-container .nav-submenu a:focus-visible {
+  border-radius: 8px;
+}
+
+/* 岛把二级条目从「行内文字」改成了 11px 圆角的整行行盒（见 @media 700 的 island 块），
+   焦点环若还停在 8px，会在四角露出一圈直角差。放在上面那条之后覆盖。 */
+@media (min-width: 700px) {
+  :global(#unified-nav-container .nav-submenu a:focus-visible) {
+    border-radius: 11px;
+  }
+}
+
+#unified-nav-container[data-theme='dark'] .nav-link-wrapper:focus-visible,
+#unified-nav-container[data-theme='dark'] .nav-menu > .nav-menu-item > a:focus-visible,
+#unified-nav-container[data-theme='dark'] .nav-logo:focus-visible,
+#unified-nav-container[data-theme='dark'] .nav-user-profile:focus-visible,
+#unified-nav-container[data-theme='dark'] .nav-search-btn:focus-visible,
+#unified-nav-container[data-theme='dark'] .nav-hamburger:focus-visible,
+#unified-nav-container[data-theme='dark'] .nav-login-btn:focus-visible,
+#unified-nav-container[data-theme='dark'] .nav-submenu a:focus-visible,
+#unified-nav-container[data-theme='dark'] .nav-mobile-link:focus-visible,
+#unified-nav-container[data-theme='dark'] .nav-mobile-group-entry:focus-visible {
+  outline-color: rgba(138, 180, 255, 0.85);
+}
+
+/* ============================================
+   Mini 胶囊形态（plans/009）—— **形态机制，与视口无关**
+
+   nav-mini-caps = 机制生效（JS 决定）；nav-expanded = 当前视觉长条（纯派生类）。
+   展开态宽度无需声明：:not(.nav-expanded) 不命中时回落到上方
+   surface 块的 max-width。
+
+   ⚠️ 2026-11-14 从竖屏媒体查询里上提：桌面端也要走 mini（默认收起 + hover/点击展开）。
+   形态规则若留在 `@media (orientation: portrait) and (max-width: 699px)` 内，
+   桌面就得整套复制一份 —— 两份必然漂移（本仓库最贵的债就是这种）。
+   这里只放**机制**：宽度来源 / 文本收起 / 菜单让位 / 过渡时长；
+   **尺寸**仍留在各自的媒体查询里（竖屏 188、≤480 档 168、桌面档见下方）。
+   ============================================ */
+
+/* Beta6 surface 块刻意冻结了 transition（常驻悬浮岛），mini 机制需重新开启。
+   岛态块（has-* 带 important 标记）优先级更高 → 岛唤起仍走自身 duration 体系；
+   岛关闭后本条接管 → height 回落与 max-width 收缩同段动画直接回 mini（双轴 morph）。 */
+:global(#unified-nav-container .unified-nav-surface.nav-mini-caps) {
+  /* >480 档（探针实测，padding 14+14）：内容实测 134 = icon 32 + user-info 58
+     〔边距 12+1 + avatar 32 + 1+12〕+ burger 44。164 时内容盒 136 已贴死
+     → 头像胶囊与汉堡右缘重叠 13px（"汉堡放不下"）。
+     188 = 134 + 两条间隙各 13 + padding 28（实测 12，亚像素取整）。
+     注意 user-info 的 58：收起的用户名用负 margin 抵消了 vendor 的 gap，详见下方。 */
+  --nav-mini-width: 188px;
+  /* 300ms 不是随手调的：hover 展开的可用窗口就在这里 —— 用户看到开始展开时，鼠标已经在
+     移向目标项了，动画还没结束就等于「目标一直在动、点不中」。旧值 500ms 在竖屏是
+     「点的东西本来就不动」（mini→菜单卡），在桌面 hover 场景下会变成硬伤。
+     缓动走 --nav-open-ease（见 .unified-nav-surface 块）：--ease-emphasized 的起步
+     太猛，180→720 这一下横向拉开会读作「被弹出去」。 */
+  transition:
+    max-width 300ms var(--nav-open-ease),
+    height 300ms var(--nav-open-ease),
+    border-radius 300ms var(--nav-open-ease),
+    background-color 300ms ease,
+    box-shadow 300ms ease;
+  will-change: max-width, height;
+}
+
+:global(#unified-nav-container .unified-nav-surface.nav-mini-caps:not(.nav-expanded)) {
+  max-width: var(--nav-mini-width);
+}
+
+/* mini 未展开态：桌面一级菜单让位（surface 是 overflow: visible，不收起来会**漏到胶囊外面**，
+   这不是"挤一点"的问题），汉堡现身当「展开导航」的可见把手。
+   ≤699 档 vendor 已经把 .nav-menu 置 none、把汉堡置 flex，这两条在那儿是幂等的。 */
+:global(#unified-nav-container .nav-mini-caps:not(.nav-expanded) .nav-menu) {
+  display: none;
+}
+
+/* 2026-11-15 mini 收一档：汉堡视觉 38（原 44），热区用 ::before 补回 44×44 ——
+   视觉可以小，触达尺寸不能破（WCAG 2.5.8）。padding 7 是算出来的：
+   3 条 span（2px + margin 3+3）共 24 高，38 − 24 = 14 ⇒ 上下各 7。
+   ⚠️ 不再限定 `:not(.nav-expanded)`：展开成长条后汉堡要**留着**。理由是交互闭环 ——
+   汉堡是 mini 唯一的可见把手，用户在它上面 hover 触发展开，若此刻把它藏掉，
+   鼠标下方会突然变成空白/搜索按钮（误触），而且再想「收起」就没有按钮可点了。
+   展开态它变成「钉住 / 收起」把手（点击走 pointerdown，见 index.vue）。 */
+:global(#unified-nav-container .nav-mini-caps .nav-hamburger) {
+  display: flex;
+  width: 38px;
+  height: 38px;
+  padding: 7px;
+  position: relative;
+}
+
+:global(#unified-nav-container .nav-mini-caps .nav-hamburger::before) {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 14px;
+}
+
+/* 文本生长：morph 必守「展开=宽度先行内容后进（delay 90ms）；回缩=内容先出宽度后收」，
+   否则 14px 文本在收窄容器里被 overflow 生硬截断。
+   ⚠️ 所有规则必须整段 :global() 包裹——`:global(A) .b` 前缀式写法在本管线会丢掉后代
+   选择器，产物变成命中 surface 自身的 display:none/opacity:0（已踩坑，勿回退）。 */
+:global(#unified-nav-container .nav-mini-caps:not(.nav-expanded) .nav-logo-text) {
+  opacity: 0;
+  max-width: 0;
+  transform: translateX(-6px);
+  transition:
+    max-width 160ms ease,
+    opacity 140ms ease,
+    transform 160ms ease;
+}
+
+/* ⚠️ margin-left:-8px 是必须的：vendor `unified-nav.css:1532` 给 `.nav-user-info`
+   钉了 gap: 8px（带 important，且 1528 那条又重复一遍），用户名收起成 0 宽后
+   这 8px 仍然占位（胶囊底 66 = 12+1+8+32+0+1+12），把可见头像挤到胶囊中心左侧 9px。
+   用负 margin 抵消它，不新增 important（预算 1332 已满，注释里也别写该字面量）。
+   展开时本规则不命中，margin 自动回 0，文字与头像间恢复 8px 间距。 */
+:global(#unified-nav-container .nav-mini-caps:not(.nav-expanded) .nav-username) {
+  opacity: 0;
+  max-width: 0;
+  margin-left: -8px;
+  transform: translateX(-6px);
+  transition:
+    max-width 160ms ease,
+    opacity 140ms ease,
+    margin-left 160ms ease,
+    transform 160ms ease;
+}
+
+:global(#unified-nav-container .nav-mini-caps.nav-expanded .nav-logo-text) {
+  opacity: 1;
+  max-width: 96px;
+  transform: translateX(0);
+  transition:
+    max-width 220ms var(--ease-emphasized) 90ms,
+    opacity 200ms ease 90ms,
+    transform 220ms var(--ease-emphasized) 90ms;
+}
+
+:global(#unified-nav-container .nav-mini-caps.nav-expanded .nav-username) {
+  opacity: 1;
+  max-width: 96px;
+  transform: translateX(0);
+  transition:
+    max-width 220ms var(--ease-emphasized) 90ms,
+    opacity 200ms ease 90ms,
+    margin-left 220ms var(--ease-emphasized) 90ms,
+    transform 220ms var(--ease-emphasized) 90ms;
+}
+
+/* 文本收起后归零组内 gap（icon|text、avatar|username），mini 三元素才贴得紧；
+   nowrap 防止过渡中途换行。 */
+:global(#unified-nav-container .nav-mini-caps .nav-logo-text) {
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+:global(#unified-nav-container .nav-mini-caps .nav-username) {
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+:global(#unified-nav-container .nav-mini-caps:not(.nav-expanded) .nav-logo) {
+  gap: 0;
+}
+
+:global(#unified-nav-container .nav-mini-caps:not(.nav-expanded) .nav-user-info) {
+  gap: 0;
+  /* ⚠️ 这里**不要**试图收 padding 来压缩 user-info 宽度（58 → 52）。
+     实测无效：vendor `unified-nav.css:1583` 的
+     `body.page-home .unified-nav .nav-user-info { padding: 4px 12px !important }`
+     带 !important，首页上必定赢过本文件任何非 important 规则（试过，量出来还是 58）。
+     要真的收，得动那条 vendor 规则 —— 但它服务的是首页所有形态，不属于 mini 专项，
+     代价大于收益。所以 mini 宽度按「user-info 恒 58」算（见 --nav-mini-width 注释）。 */
+}
+
+/* DEV 测试按钮会撑宽 mini 胶囊，mini 未展开态隐藏（横屏/展开态照旧） */
+:global(#unified-nav-container .nav-mini-caps:not(.nav-expanded) .nav-dev-island-btn) {
+  display: none;
+}
+
+/* 全局搜索按钮同理：--nav-mini-width 是按「logo + 头像 + 汉堡」精算出来的
+   （188px / ≤480 档 168px，164px 时就已让头像与汉堡重叠），再塞一个 34px 圆按钮会直接撑爆。
+   mini 未展开态隐藏，展开成长条或横屏时照常显示；移动端仍可经展开态进入搜索。 */
+:global(#unified-nav-container .nav-mini-caps:not(.nav-expanded) .nav-search-btn) {
+  display: none;
+}
+
+/* 菜单卡：等胶囊宽度展开过半再落（slideDown keyframes 进场 + delay）。
+   出场维持现状 display 切换即收（与宽度收缩同时开始，视觉连续）。
+   2026-11-15：180 → 90ms。180 是为「等 300ms 的宽度过渡过半」算的，但在竖屏上
+   胶囊只从 168 长到 350 出头，前 90ms 已经走完大半 —— 剩下的 90ms 纯粹是
+   「点了，屏幕上什么都没发生」。 */
+:global(#unified-nav-container .nav-mini-caps .nav-menu-mobile.active) {
+  animation-delay: 90ms;
+}
+
+/* ============================================
+   桌面档 mini（2026-11-14）：默认收起，hover / 点击 / 聚焦展开成长条。
+
+   只在「精细指针 + 真 hover」的桌面启用 —— 条件写在 index.vue 的
+   DESKTOP_MINI_QUERY，别在这里补 media query 判定（JS 与 CSS 两处判定必然漂移）。
+   触摸笔记本没有 hover：收起来等于把导航藏死，那一档继续走常驻长条。
+   ============================================ */
+@media (min-width: 1024px) {
+  :global(#unified-nav-container .unified-nav-surface.nav-mini-caps) {
+    /* 2026-11-15 收一档（用户口径「缩起来的胶囊态可以小一点」）：200 → 180。
+       180 = padding 12×2 + logo 28 + 间隙 15×2 + user-info 58（登录态）/ login-btn 50（未登录）
+       + 汉堡 38。
+       user-info 恒为 58 —— 它的 padding 被首页的 !important 锁死，收不动（见下方 mini 块注释），
+       所以按 58 算；未登录态右侧是 .nav-login-btn（50），比 58 还窄 8px，故 180 对两态都成立
+       （登录态内容实测 174+2 边框 = 176，留 4px 余量；未登录态更宽松）。
+       再小就要动 avatar 32 本身了 —— 那是全站头像尺寸，不在导航范围内。 */
+    --nav-mini-width: 180px;
+  }
+
+  /* 未展开态高度单独收一档 50 → 44：mini 该比长条更「圆」一点，
+     展开时靠 surface 的 height 300ms 过渡自然长回 50，不需要额外动画。 */
+  :global(#unified-nav-container .unified-nav-surface.nav-mini-caps:not(.nav-expanded)) {
+    height: 44px;
+  }
+
+  /* 桌面容器常态 padding 是 32：32+28+38+52+32 = 182 > 176，不收掉会把头像挤出胶囊。 */
+  :global(#unified-nav-container .nav-mini-caps:not(.nav-expanded) > .nav-container) {
+    padding: 0 12px;
+  }
+
+  /* 未登录态右侧是 .nav-login-btn（不是 .nav-user-info），58 → 48：
+     「登录」两字 26 + padding 20 + 边框 2。只在桌面档收 —— 竖屏 ≤480 有更小的
+     `padding: 5px 10px / font-size: 11px` 专用值，全局覆盖会把那档撑高。 */
+  :global(#unified-nav-container .nav-mini-caps:not(.nav-expanded) .nav-login-btn) {
+    padding: 6px 10px;
+  }
+
+  :global(#unified-nav-container .nav-mini-caps > .nav-container) {
+    transition: padding 300ms var(--ease-emphasized);
+  }
+}
+
+/* ---- 横屏 700–1023 的 mini 档（2026-11-15）----
+   资格判定在 index.vue 的 DESKTOP_MINI_QUERY（JS 单源）；这里只补**尺寸**，
+   与上面 1024 档同一套数值 —— 差的只是 vendor 在这一档把 `.nav-container`
+   padding 写成了 20（桌面是 32），20+28+38+58+20 = 164 < 180 装得下，
+   但两侧留白会不对称地偏大，所以还是钉回 12。
+
+   ⚠️ 不写 `max-height` / 宽度：展开态回落到 surface 的 `min(720px, 100% - 24px)`，
+      750 视口下 726 装得下 720。 */
+@media (orientation: landscape) and (min-width: 700px) and (max-width: 1023px) {
+  :global(#unified-nav-container .unified-nav-surface.nav-mini-caps) {
+    --nav-mini-width: 180px;
+  }
+
+  :global(#unified-nav-container .unified-nav-surface.nav-mini-caps:not(.nav-expanded)) {
+    height: 44px;
+  }
+
+  :global(#unified-nav-container .nav-mini-caps:not(.nav-expanded) > .nav-container) {
+    padding: 0 12px;
+  }
+
+  /* 未登录态「登录」按钮：同 1024 档（26 + padding 20 + 边框 2 = 48） */
+  :global(#unified-nav-container .nav-mini-caps:not(.nav-expanded) .nav-login-btn) {
+    padding: 6px 10px;
+  }
+
+  :global(#unified-nav-container .nav-mini-caps > .nav-container) {
+    transition: padding 300ms var(--ease-emphasized);
+  }
+}
+
+/* 展开时一级菜单必须**晚于宽度**进场。原因不是审美：
+   mini 态 `.nav-menu` 是 display: none（它必须移出布局流，否则 280px 的菜单会把
+   200px 胶囊里的 logo/头像挤出去），而 display 切换吃掉 transition ⇒ 只能用
+   animation；而 surface 是 overflow: visible，菜单若在宽度还没长开时就可见，
+   前 100~200ms 会**漏到胶囊外面**（实测就是一条悬空的文字挂在胶囊右侧）。
+   animation 的 `both` 填充让它在 delay 期间停在 opacity:0，正好吃掉这段。 */
+:global(#unified-nav-container .nav-mini-caps.nav-expanded .nav-menu) {
+  animation: nav-mini-menu-in 220ms var(--ease-out) 130ms both;
+}
+/* ⚠️ 上面引用的 @keyframes 定义在 vendor/unified-nav.css（非 scoped）。
+   写在 scoped 块里会被 Vue 改名成 `nav-mini-menu-in-xxxx`，而 `:global()` 里的
+   动画名不会被同步改写 ⇒ 动画静默失效（首屏看着「正常」，只是那 130ms 漏字回来了）。 */
+
+/* 降动偏好：animation: none 让元素停在自然态（opacity 1）。
+   不能改成 duration 0s —— `both` 会把 opacity 钉死在 from 的 0，菜单直接蒸发。 */
+@media (prefers-reduced-motion: reduce) {
+  :global(#unified-nav-container .nav-mini-caps.nav-expanded .nav-menu) {
+    animation: none;
+  }
+}
+
+/* ============================================
+   移动端菜单岛（汉堡菜单）—— 与桌面下拉同一套「岛自己长高」
+
+   surface 高度 = rest + 菜单实测高度（`--nav-mobile-h`，index.vue 里量）。
+   菜单本身在 surface 内 absolute 铺满，材质由这块玻璃提供 —— 不再在岛下面浮一张白卡。
+
+   ⚠️ 与 `.has-submenu` 同特异性，靠文件顺序后者赢。实际两者互斥：
+      桌面 mini 的汉堡走「钉住展开」，不开移动菜单（见 toggleMobileMenu）。
+   ⚠️ 圆角 26 而不是桌面的 30：竖屏岛宽只有 ~366，30 的圆角在小岛上看像被咬掉一块。
+   ============================================ */
+:global(#unified-nav-container .unified-nav-surface.has-mobile-menu) {
+  height: calc(var(--global-nav-rest-height) + var(--nav-mobile-h, 0px));
+  border-radius: 26px;
+  /* 同 has-submenu：必须裁切，否则长高过程中菜单会画在玻璃外面 */
+  overflow: hidden;
+  background-color: var(--nav-frost-solid);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.72),
+    0 18px 44px rgba(15, 23, 42, 0.16);
+  transition:
+    max-width 300ms var(--nav-open-ease),
+    height 300ms var(--nav-open-ease),
+    border-radius 300ms var(--nav-open-ease),
+    background-color 200ms ease,
+    box-shadow 200ms ease;
+}
+
+:global(#unified-nav-container .unified-nav-surface.has-mobile-menu > .nav-container) {
+  /* ⚠️ 必须钉回 rest 高度。`.nav-container` 基础规则是 height: 100%，
+     岛长到 342 后它也被拉满、内容垂直居中 ⇒ 导航行**浮在菜单中间**，
+     菜单项从它上下两侧穿过去（实测截图就是这样）。钉回 50 让导航行始终贴岛顶，
+     菜单从它下方 `top: var(--global-nav-rest-height)` 开始，两者不重叠。 */
+  height: var(--global-nav-rest-height);
+}
+
+:global(#unified-nav-container[data-theme='dark'] .unified-nav-surface.has-mobile-menu) {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 18px 44px rgba(0, 0, 0, 0.46);
+}
+
+/* 竖屏/汉堡菜单 = **岛自己长高**（2026-11-15，用户口径「竖屏没有做好同样岛化的适配」）。
+
+   此前是导航下面浮一张独立卡片（fixed + 自己的白底 + 18px 圆角 + 投影），
+   与桌面下拉「岛自己长高」是两套视觉语言。现在菜单坐在 surface 长出来的那块玻璃里：
+   surface 高 = rest + `--nav-mobile-h`（JS 实测），材质/圆角/投影全部由 surface 提供。
+
+   四条硬约束（都被坑过）：
+   1) `top` 用 `--global-nav-rest-height`，**不能**用 `100%` —— 岛长高后 100% 是
+      新的包含块高度，菜单会被推到岛底下面去（旧写法 `top: 100%` 只在岛高恒 50 时成立）。
+   2) `position: absolute`，**不要退回 fixed**：surface 带 transform ⇒ 它就是包含块；
+      而移动端 `position: fixed` 的浮层展开会触发 iOS 把文档滚回顶部
+      （用户报障原话「竖屏点开导航栏的时候会导致页面直接回到最前面」）。
+   3) 菜单**常驻渲染**（收起态只 `visibility: hidden`）——`display: none` 期间
+      量不到高度，岛会先长到 0 再跳；常驻之后打开前就能预量，与桌面预量同一套。
+   4) 材质全交给 surface：这里再铺一层就是"玻璃上的玻璃"，边缘还会多一道描边。 */
+:global(#unified-nav-container .nav-menu-mobile) {
+  position: absolute;
+  top: var(--global-nav-rest-height);
+  left: 0;
+  right: 0;
+  width: auto;
+  max-width: none;
+  height: auto;
+  max-height: calc(100dvh - 120px);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent !important;
+  box-shadow: none;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  /* 滚动交给菜单自己（内容容器不再套第二层滚动）。
+     ⚠️ `overscroll-behavior` 必须是 **auto**，不能是 contain（2026-11-15 用户报障
+     「点击展开导航栏之后没法滚动页面」）：
+     contain 的含义是「到边界也不把多余的手势交给祖先」，而 iOS 上这块菜单是
+     fixed 岛内的 absolute 层、内容通常又不够高（292 < max-height）⇒ 容器自身不可滚，
+     手势既不滚菜单、也不链到页面，整块面板变成一片**死区**：手指从菜单上划，页面纹丝不动。
+     改 auto 后：内容能滚就滚菜单，滚到头 / 本来就不能滚就把手势交还页面。
+     同一条纪律适用于 `-webkit-overflow-scrolling: touch`——它会额外造一个合成滚动层，
+     在老 iOS 上同样不向下穿透，这里的动效收益为零，一并去掉。 */
+  overflow-y: auto;
+  overscroll-behavior: auto;
+  display: block;
+  visibility: hidden;
+  opacity: 0;
+  /* 🔴 折叠态必须**不可命中**（2026-11-15 用户报障「hover 区域不对，我鼠标放在远处他也起来了」）。
+     只写 `visibility: hidden` 是不够的 —— 可见性是**可以被后代覆盖**的：vendor 里
+     `.unified-nav .nav-mobile-main-menu { visibility: visible }` 就在这层菜单内部，
+     于是那块 178×312 的内容即使在 opacity 0 下依然是 hit-testable 的，
+     指针进入它 = 进入 surface 的后代 = 触发 surface 的 pointerenter ⇒ 离胶囊 200px 也会展开。
+     `pointer-events: none` 是唯一能**整棵子树**关掉命中测试的开关（`visibility` 不能，
+     因为后代可以再声明 visible）。展开态在 `.active` 里恢复 auto。
+     回归护栏：index.vue 的 isPointerOnSurface() 是第二道（几何）防线。 */
+  pointer-events: none;
+  /* 不做 transition：进出场完全由 surface 的高度裁切揭示。
+     两层同时动（vendor 的 slideDown 是 translateY(-20px)+scaleY(.85)+400ms）
+     就是之前「菜单从上面掉下来砸一下」的来源。 */
+  transition: none;
+}
+
+:global(#unified-nav-container .nav-menu-mobile.active) {
+  /* ⚠️ display 必须显式写：文件后段还有一条 `.nav-menu-mobile.active { display: flex }`
+     （0,2,0），它会把这道块级容器变成 flex 行盒、把菜单内容压成一条。 */
+  display: block;
+  visibility: visible;
+  opacity: 1;
+  pointer-events: auto;
+  animation: none;
+  transition: none;
+}
+
+:global(#unified-nav-container .nav-menu-mobile-content) {
+  height: auto;
+  /* 滚动已上移到 .nav-menu-mobile（那里要量高度），这里不能再有第二层滚动容器：
+     两层 auto 会让 max-height 互相打架、量出来的高度也跟着失真。 */
+  max-height: none;
+  padding: 10px;
+  overflow: visible;
+}
+
 @media (orientation: portrait) and (max-width: 699px) {
   .unified-nav-surface {
     height: 60px;
@@ -435,46 +1099,26 @@
     border-radius: 24px !important;
   }
 
-  /* Beta 6：常驻悬浮导航使用独立紧凑菜单。 */
-  :global(#unified-nav-container .nav-menu-mobile) {
-    /* ⚠️ 这里**不能**写死数字，而且 `top` 的坐标系也不是视口 —— 两件事都踩过。
-       1. `.unified-nav-surface` 有 transform: translateY(8px)，于是**菜单的包含块是这座岛
-          （padding box，高 48px = 50 − 上下 1px 边框），不是视口**（实测它的 offsetParent
-          就是 .unified-nav-surface）。把 top 当视口坐标写，会**重复计入一次 translateY**。
-       2. 于是「紧贴岛底边」在**包含块坐标系**里就是 `100%`（= 岛的内容高度），
-          视觉结果 = 岛底边（8 + 50 = 58px）再往上 1px（岛的下边框），天然无缝。
-       原先写死 `top: 66px`：实测菜单视觉上沿 8 + 1 + 66 = 75px，而岛底边 58px ⇒
-       **中间那条 17px 的空隙**（用户截图报的就是它）。66 是「按视口坐标、岛上一次改版前
-       的高度」算出来的旧值，岛高从 58 收到 50 后就再没人跟着改。
-       回归护栏：scripts/probes/probe-nav-mobile-menu.mjs（B 组断言空隙 ≤ 1px）。 */
-    top: 100%;
-    left: 8px;
-    right: 8px;
-    width: auto;
-    max-width: calc(100% - 16px);
-    height: auto;
-    max-height: calc(100dvh - 82px);
-    border: 1px solid rgba(255, 255, 255, 0.5);
-    border-radius: 18px;
-    background-color: rgba(255, 255, 255, 0.82) !important;
-    box-shadow: 0 14px 36px rgba(0, 0, 0, 0.14);
-    overflow: hidden;
-    transform-origin: right top;
-  }
-
-  :global(#unified-nav-container .nav-menu-mobile-content) {
-    height: auto;
-    max-height: calc(100dvh - 98px);
-    padding: 10px;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-    overscroll-behavior: contain;
-  }
-
   :global(#unified-nav-container .nav-mobile-link) {
-    min-height: 44px;
-    padding: 11px 14px;
-    border-radius: 12px;
+    min-height: 46px;
+    padding: 12px 16px;
+    border-radius: 14px;
+    position: relative;
+    overflow: hidden;
+    /* vendor 给 `.nav-mobile-link` 写的是 translateX(-12px) 起步，横向位移会让
+       长中文标签在窄卡里先被裁一刀再滑出来 —— 竖屏没有横向空间做这个动作，
+       收成纯淡入（见下面 active 那条的 transition 覆盖）。 */
+    letter-spacing: normal;
+  }
+
+  /* 取消 vendor 的 0.05~0.35s 逐项错峰：7 项时最后一项要等 350ms 才现身，
+     整卡「一格一格亮起来」在 390 宽的手机上读作卡顿而不是节奏。
+     统一 0 延迟，跟着卡片一起淡入。 */
+  :global(#unified-nav-container .nav-menu-mobile.active .nav-mobile-link) {
+    transition-delay: 0s;
+    transition:
+      opacity 160ms var(--nav-open-ease),
+      transform 180ms var(--nav-open-ease);
   }
 
   :global(#unified-nav-container .nav-mobile-submenu-container) {
@@ -518,131 +1162,12 @@
     display: none;
   }
 
+  /* 暗色只需要更深的投影：底色/描边已走 --liquid-* 令牌（上面那条），
+     暗色下自动切到 rgba(40,40,52,.84) / rgba(255,255,255,.18)。 */
   :global(#unified-nav-container[data-theme='dark'] .nav-menu-mobile) {
-    border-color: rgba(255, 255, 255, 0.14);
-    background-color: rgba(28, 28, 30, 0.86) !important;
-    box-shadow: 0 14px 36px rgba(0, 0, 0, 0.34);
+    box-shadow: 0 20px 48px rgba(0, 0, 0, 0.42);
   }
 
-  /* ============================================
-     竖屏 Mini 形态（plans/009-portrait-nav-mini-bar.md）
-     nav-mini-caps = 机制生效；nav-expanded = 当前视觉长条（纯派生类）。
-     展开态宽度无需声明：:not(.nav-expanded) 不命中时回落到上方
-     :global surface 块的 max-width: calc(100% - 16px)。
-     ============================================ */
-
-  /* Beta6 surface 块刻意冻结了 transition（常驻悬浮岛），mini 机制需重新开启。
-     岛态块（has-* 带 important 标记）优先级更高 → 岛唤起仍走自身 duration 体系；
-     岛关闭后本条接管 → height 回落与 max-width 收缩同段动画直接回 mini（双轴 morph）。 */
-  :global(#unified-nav-container .unified-nav-surface.nav-mini-caps) {
-    /* >480 档（探针实测，padding 14+14）：内容实测 134 = icon 32 + user-info 58
-       〔边距 12+1 + avatar 32 + 1+12〕+ burger 44。164 时内容盒 136 已贴死
-       → 头像胶囊与汉堡右缘重叠 13px（"汉堡放不下"）。
-       188 = 134 + 两条间隙各 13 + padding 28（实测 12，亚像素取整）。
-       注意 user-info 的 58：收起的用户名用负 margin 抵消了 vendor 的 gap，详见下方。 */
-    --nav-mini-width: 188px;
-    transition:
-      max-width 500ms var(--ease-emphasized),
-      height 500ms var(--ease-emphasized),
-      border-radius 500ms var(--ease-emphasized),
-      background-color 300ms ease,
-      box-shadow 300ms ease;
-    will-change: max-width, height;
-  }
-
-  :global(#unified-nav-container .unified-nav-surface.nav-mini-caps:not(.nav-expanded)) {
-    max-width: var(--nav-mini-width);
-  }
-
-  /* 文本生长：morph 必守「展开=宽度先行内容后进（delay 90ms）；回缩=内容先出宽度后收」，
-     否则 14px 文本在收窄容器里被 overflow 生硬截断。
-     ⚠️ 所有规则必须整段 :global() 包裹——`:global(A) .b` 前缀式写法在本管线会丢掉后代
-     选择器，产物变成命中 surface 自身的 display:none/opacity:0（已踩坑，勿回退）。 */
-  :global(#unified-nav-container .nav-mini-caps:not(.nav-expanded) .nav-logo-text) {
-    opacity: 0;
-    max-width: 0;
-    transform: translateX(-6px);
-    transition:
-      max-width 160ms ease,
-      opacity 140ms ease,
-      transform 160ms ease;
-  }
-
-  /* ⚠️ margin-left:-8px 是必须的：vendor `unified-nav.css:1532` 给 `.nav-user-info`
-     钉了 gap: 8px（带 important，且 1528 那条又重复一遍），用户名收起成 0 宽后
-     这 8px 仍然占位（胶囊底 66 = 12+1+8+32+0+1+12），把可见头像挤到胶囊中心左侧 9px。
-     用负 margin 抵消它，不新增 important（预算 1332 已满，注释里也别写该字面量）。
-     展开时本规则不命中，margin 自动回 0，文字与头像间恢复 8px 间距。 */
-  :global(#unified-nav-container .nav-mini-caps:not(.nav-expanded) .nav-username) {
-    opacity: 0;
-    max-width: 0;
-    margin-left: -8px;
-    transform: translateX(-6px);
-    transition:
-      max-width 160ms ease,
-      opacity 140ms ease,
-      margin-left 160ms ease,
-      transform 160ms ease;
-  }
-
-  :global(#unified-nav-container .nav-mini-caps.nav-expanded .nav-logo-text) {
-    opacity: 1;
-    max-width: 96px;
-    transform: translateX(0);
-    transition:
-      max-width 220ms var(--ease-emphasized) 90ms,
-      opacity 200ms ease 90ms,
-      transform 220ms var(--ease-emphasized) 90ms;
-  }
-
-  :global(#unified-nav-container .nav-mini-caps.nav-expanded .nav-username) {
-    opacity: 1;
-    max-width: 96px;
-    transform: translateX(0);
-    transition:
-      max-width 220ms var(--ease-emphasized) 90ms,
-      opacity 200ms ease 90ms,
-      margin-left 220ms var(--ease-emphasized) 90ms,
-      transform 220ms var(--ease-emphasized) 90ms;
-  }
-
-  /* 文本收起后归零组内 gap（icon|text、avatar|username），mini 三元素才贴得紧；
-     nowrap 防止过渡中途换行。 */
-  :global(#unified-nav-container .nav-mini-caps .nav-logo-text) {
-    white-space: nowrap;
-    overflow: hidden;
-  }
-
-  :global(#unified-nav-container .nav-mini-caps .nav-username) {
-    white-space: nowrap;
-    overflow: hidden;
-  }
-
-  :global(#unified-nav-container .nav-mini-caps:not(.nav-expanded) .nav-logo) {
-    gap: 0;
-  }
-
-  :global(#unified-nav-container .nav-mini-caps:not(.nav-expanded) .nav-user-info) {
-    gap: 0;
-  }
-
-  /* DEV 测试按钮会撑宽 mini 胶囊，mini 未展开态隐藏（横屏/展开态照旧） */
-  :global(#unified-nav-container .nav-mini-caps:not(.nav-expanded) .nav-dev-island-btn) {
-    display: none;
-  }
-
-  /* 全局搜索按钮同理：--nav-mini-width 是按「logo + 头像 + 汉堡」精算出来的
-     （188px / ≤480 档 168px，164px 时就已让头像与汉堡重叠），再塞一个 34px 圆按钮会直接撑爆。
-     mini 未展开态隐藏，展开成长条或横屏时照常显示；移动端仍可经展开态进入搜索。 */
-  :global(#unified-nav-container .nav-mini-caps:not(.nav-expanded) .nav-search-btn) {
-    display: none;
-  }
-
-  /* 菜单卡：等胶囊宽度展开过半再落（slideDown keyframes 进场 + delay）。
-     出场维持现状 display 切换即收（与宽度收缩同时开始，视觉连续）。 */
-  :global(#unified-nav-container .nav-mini-caps .nav-menu-mobile.active) {
-    animation-delay: 180ms;
-  }
 }
 
 /* ============================================

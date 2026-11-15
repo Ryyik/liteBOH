@@ -2,13 +2,16 @@ import { chromium } from 'playwright';
 
 // 量 mini 胶囊的「固有内容宽」→ 反推合适的 --nav-mini-width（内容 + 两侧各 ~8px 余量）
 const BASE = 'http://[::1]:5173';
-const launch = () => chromium.launch({
-  channel: 'chrome',
-  args: ['--no-proxy-server', '--proxy-server=direct://', '--proxy-bypass-list=*']
-});
+const launch = () =>
+  chromium.launch({
+    channel: 'chrome',
+    args: ['--no-proxy-server', '--proxy-server=direct://', '--proxy-bypass-list=*'],
+  });
 
 const injectAuth = async (page) => {
-  await page.waitForFunction(() => document.querySelector('#app')?.__vue_app__, null, { timeout: 30000 });
+  await page.waitForFunction(() => document.querySelector('#app')?.__vue_app__, null, {
+    timeout: 30000,
+  });
   await page.waitForTimeout(500);
   await page.evaluate(() => {
     const pinia = document.querySelector('#app').__vue_app__.config.globalProperties.$pinia;
@@ -16,7 +19,9 @@ const injectAuth = async (page) => {
     auth.isLoggedIn = true;
     Object.assign(auth.userInfo, {
       id: '00ac36b4-6594-440f-a9c1-38b7bd47ee8b',
-      username: 'probe_user', role: 'user', points: 42
+      username: 'probe_user',
+      role: 'user',
+      points: 42,
     });
   });
 };
@@ -46,14 +51,47 @@ const MEASURE = () => {
     border: cs.borderLeftWidth,
     intrinsicContainerW: Math.round(intrinsicContainer),
     intrinsicScrollW: scrollW,
-    intrinsicContentW: Math.round(intrinsicContainer - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)),
-    items
+    intrinsicContentW: Math.round(
+      intrinsicContainer - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight),
+    ),
+    items,
   };
 };
 
 const browser = await launch();
+
+/* ⚠️ 2026-11-15：首页开屏期间导航栏**不挂载**（App.vue 的 v-if 经
+   utils/global-navbar-visibility.js 读 useHomeGate 的 homeGateScreening）。
+   探针代表「已经看过开场画的老用户」，故每个 context 先预置 gate 通过标记，
+   否则所有等待 .unified-nav-surface 的断言都会 20s 超时。
+   key 与 src/utils/home-gate-storage.js 一致（dev 构建无 buildId ⇒ 无后缀）；
+   必须在**首次 goto 之前**注入 —— addInitScript 只对后续导航生效。 */
+const gateNewContext = async (options = {}) => {
+  const ctx = await browser.newContext(options);
+  await ctx.addInitScript(() => {
+    try {
+      localStorage.setItem('boh-home-gate-passed', String(Date.now()));
+    } catch {
+      /* about:blank 等无 storage 场景忽略 */
+    }
+    try {
+      /* 抑制「概览加载岛」：首页登录后 Home 会调 maybeShowOverviewIsland() →
+         showIsland.custom(OverviewIslandLoading)，导航会被撑成 has-custom-card 展开态。
+         开屏在场时这段不跑（本次改动前探针从没撞上它），开屏一跳过它就跟着跑，
+         A 组「首帧 mini」测量会随机量到展开态的中间值。
+         预置「本会话已弹过」标记 = 稳定复现真实老用户的状态。
+         userId 与下方 injectAuth 注入的 probe_user 是同一个（改一处要一起改）；
+         有专门测概览岛的探针，它们不走这个 helper，不受影响。 */
+      sessionStorage.setItem('boh_overview_island:00ac36b4-6594-440f-a9c1-38b7bd47ee8b', '1');
+    } catch {
+      /* ignore */
+    }
+  });
+  return ctx;
+};
+
 for (const w of [320, 390, 480, 600, 768]) {
-  const ctx = await browser.newContext({ viewport: { width: w, height: 800 } });
+  const ctx = await gateNewContext({ viewport: { width: w, height: 800 } });
   const page = await ctx.newPage();
   await page.goto(`${BASE}/#/`, { waitUntil: 'domcontentloaded' });
   await injectAuth(page);

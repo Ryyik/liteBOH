@@ -153,12 +153,19 @@
      （与 --boh-login-island-width 同式，仍是一处定义）。
      ❗不要改成「给卡片补 left: 44px」：那会把卡片推出整页中心，
        且两份数字会各自漂移。 */
-  body.page-home #unified-nav-container .unified-nav-surface:not(.has-login-card),
-  body.page-userspace #unified-nav-container .unified-nav-surface:not(.has-login-card),
-  body.page-userprofile #unified-nav-container .unified-nav-surface:not(.has-login-card),
-  body.page-bohcloudplus #unified-nav-container .unified-nav-surface:not(.has-login-card),
-  body.page-aichat #unified-nav-container .unified-nav-surface:not(.has-login-card) {
-    max-width: min(860px, calc(100% - 24px - var(--fold-nav-gutter, 88px)));
+  /* ⚠️ `:not(.nav-mini-caps)` 必须留着（2026-11-15）：
+     这一档（横屏 700–1023 + 精细指针）现在也走 mini 胶囊（见 UnifiedNavbar 的
+     DESKTOP_MINI_QUERY）。收起态该是 180 的小胶囊，展开态是**视口居中**的 720 长条；
+     本条的「按内容列收窄 + 左移 gutter/2」只对完整长条成立，套到胶囊上会得到
+     一条 720 宽、左移 44px 的长条（实测 max-width 被本文件压成
+     min(720px, 100% - 112px)，mini 的 180 完全不生效，展开后也不居中）。
+     触屏横屏（pointer: coarse，nav-mini-caps 不在）仍走完整长条，本条照旧。 */
+  body.page-home #unified-nav-container .unified-nav-surface:not(.has-login-card):not(.nav-mini-caps),
+  body.page-userspace #unified-nav-container .unified-nav-surface:not(.has-login-card):not(.nav-mini-caps),
+  body.page-userprofile #unified-nav-container .unified-nav-surface:not(.has-login-card):not(.nav-mini-caps),
+  body.page-bohcloudplus #unified-nav-container .unified-nav-surface:not(.has-login-card):not(.nav-mini-caps),
+  body.page-aichat #unified-nav-container .unified-nav-surface:not(.has-login-card):not(.nav-mini-caps) {
+    max-width: min(720px, calc(100% - 24px - var(--fold-nav-gutter, 88px)));
     left: calc(var(--fold-nav-gutter, 88px) / -2);
   }
 }

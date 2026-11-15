@@ -42,7 +42,9 @@
 .unified-nav .nav-container {
   max-width: 1400px;
   margin: 0 auto;
-  padding: 0 48px;
+  /* 2026-11-15 随岛宽 860→720 从 48 收到 32：48 的左右留白是给 860 宽的长条配的，
+     收窄后同样的 48 会让内容区只剩 656，logo 与菜单被挤到一起。 */
+  padding: 0 32px;
   width: 100%;
   display: flex;
   justify-content: space-between;
@@ -67,10 +69,10 @@
 }
 
 .unified-nav .nav-logo-icon {
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   background: transparent;
-  border-radius: 8px;
+  border-radius: 7px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -84,7 +86,8 @@
 .unified-nav .nav-menu {
   display: flex;
   align-items: center;
-  gap: 32px;
+  /* 2026-11-15 32 → 24：与岛宽 860→720 同步收紧，5 项总宽省下 32px。 */
+  gap: 24px;
   list-style: none;
   margin: 0;
   padding: 0;
@@ -102,7 +105,7 @@
   padding: 8px 0;
   text-decoration: none;
   color: #1a1a1a;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 600;
   border-radius: 0;
   position: relative;
@@ -142,7 +145,7 @@
   padding: 8px 0;
   text-decoration: none;
   color: #1a1a1a;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 600;
   border-radius: 0;
   position: relative;
@@ -257,7 +260,8 @@
   padding: 12px 20px;
   text-decoration: none;
   color: #1a1a1a;
-  font-size: 15px;
+  /* 与一级菜单同字号（原都 15）：不同字号会让「点开的那一项」看起来比父级还大。 */
+  font-size: 14px;
   font-weight: 600;
   border-radius: 6px;
   white-space: nowrap;
@@ -405,6 +409,34 @@
   to {
     opacity: 1;
     transform: translateX(0);
+  }
+}
+
+/* 桌面 mini 胶囊展开时，一级菜单的进场（被 style.scoped.css 的
+   `.nav-mini-caps.nav-expanded .nav-menu` 引用）。
+   ⚠️ 必须定义在这里（非 scoped）：写在 scoped 块里会被 Vue 改名成 `...-xxxx`，
+   而 `:global()` 规则里的动画名不会被同步改写 ⇒ 动画静默失效。
+   ⚠️ 只能动 opacity，**不要加 transform**：给 `.nav-menu` 挂 transform 动画会让它成为
+   fixed 定位后代的包含块 —— 二级菜单的 left:0/right:0 会从「贴着胶囊」变成
+   「贴着 .nav-menu」（实测宽度从 858 塌成 276，卡片缩成一条挂在「探索」下面）。
+   这是 2026-11-14 实测踩到的坑，别把 translateX 加回来。 */
+@keyframes nav-mini-menu-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes nav-menu-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
   }
 }
 
@@ -974,6 +1006,15 @@
   border-radius: 10px;
   cursor: pointer;
   transition: background-color 0.2s ease;
+  /* 2026-11-14：元素由 div 改为 button —— 三级分组的入口原本 tabIndex:-1，
+     键盘和读屏都进不去。改成 button 之后必须显式清掉 UA 外观，
+     否则会多出 2px outset 边框 + buttonface 灰底，且字体被 UA 默认族顶掉。 */
+  width: 100%;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  text-align: left;
 }
 
 .unified-nav .nav-mobile-group-entry:hover {
@@ -1025,6 +1066,14 @@
     font-size: 13px;
   }
 
+  /* 触达尺寸：13px 档实测行高只有 40.7，低于 44 的可点最小高度。
+     只抬一级项（`.nav-menu > .nav-menu-item > a`）——`.nav-menu a` 会连二级一起命中。 */
+  .unified-nav .nav-menu > .nav-menu-item > a {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
+
   .unified-nav .nav-container {
     padding: 0 20px;
   }
@@ -1054,6 +1103,11 @@
   .unified-nav .nav-login-btn {
     padding: 6px 12px;
     font-size: 12px;
+    /* 实测 46×26：胶囊高 50，26 太薄了（手指点得到但很勉强）。
+       只抬高度，不动宽度 —— mini 胶囊的 188/168 是按宽度精算的。 */
+    min-height: 40px;
+    display: inline-flex;
+    align-items: center;
   }
 
   .unified-nav .nav-user-info {
@@ -1081,9 +1135,12 @@
   }
 
   .unified-nav .nav-menu-mobile {
-    top: 58px;
-    height: calc(100dvh - 58px);
-    max-height: calc(100dvh - 58px);
+    /* top 的正确值恒等于岛高（包含块是岛，见基础块的注释）。原先四处各自写死
+       58/56/60/54，岛高 58→50 后横屏窄档（667×375）空隙变成 9px 才暴露。
+       改成跟随 --global-nav-rest-height，岛高再变这里自动跟。 */
+    top: var(--global-nav-rest-height, 50px);
+    height: calc(100dvh - var(--global-nav-rest-height, 50px));
+    max-height: calc(100dvh - var(--global-nav-rest-height, 50px));
   }
 
   .unified-nav .nav-user-info.show-dropdown .nav-dropdown {
@@ -1122,9 +1179,9 @@
   }
 
   .unified-nav .nav-menu-mobile {
-    top: 56px;
-    height: calc(100dvh - 56px);
-    max-height: calc(100dvh - 56px);
+    top: var(--global-nav-rest-height, 50px);
+    height: calc(100dvh - var(--global-nav-rest-height, 50px));
+    max-height: calc(100dvh - var(--global-nav-rest-height, 50px));
   }
 
   .unified-nav .nav-menu-mobile-content {

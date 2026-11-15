@@ -31,7 +31,7 @@ import { chromium } from 'playwright';
 //
 // 断言（竖屏三个宽度档各跑一遍，另加一个窄横屏档）：
 //   A 汉堡可见、点击后菜单打开（.nav-menu-mobile.active）
-//   B **菜单上沿与岛底边齐平**：|menuTop − islandBottom| ≤ 1
+//   B **菜单上沿贴导航行下沿**（岛化后菜单在岛内）：|menuTop − navRowBottom| ≤ 1.5
 //   C 菜单不被岛盖住：menuTop ≥ islandBottom − 1（允许 1px 边框重叠）
 //   D 菜单打开时岛无下投影（否则阴影横跨接缝，视觉上又是一条灰缝）
 //   E 菜单关闭时岛**有**投影（防止 D 被写成永久 none）
@@ -115,8 +115,15 @@ const MEASURE = () => {
     })(),
     menuActive: menu ? menu.classList.contains('active') : false,
     menuVisible: menu ? menu.getBoundingClientRect().height > 0 : false,
+    islandTop: sb ? +sb.top.toFixed(2) : null,
     islandBottom: sb ? +sb.bottom.toFixed(2) : null,
+    /* 导航行（logo/汉堡那一行）的下沿：岛化后菜单紧贴它，而不是贴岛底 */
+    navRowBottom: (() => {
+      const c = document.querySelector('.unified-nav-surface > .nav-container');
+      return c ? +c.getBoundingClientRect().bottom.toFixed(2) : null;
+    })(),
     menuTop: mb ? +mb.top.toFixed(2) : null,
+    menuBottom: mb ? +mb.bottom.toFixed(2) : null,
     menuLeft: mb ? +mb.left.toFixed(2) : null,
     menuRight: mb ? +mb.right.toFixed(2) : null,
     surfaceBoxShadow: surface ? getComputedStyle(surface).boxShadow : null,
@@ -209,8 +216,38 @@ const MEASURE_DEEP = () => {
 
 const browser = await launch();
 
+/* ⚠️ 2026-11-15：首页开屏期间导航栏**不挂载**（App.vue 的 v-if 经
+   utils/global-navbar-visibility.js 读 useHomeGate 的 homeGateScreening）。
+   探针代表「已经看过开场画的老用户」，故每个 context 先预置 gate 通过标记，
+   否则所有等待 .unified-nav-surface 的断言都会 20s 超时。
+   key 与 src/utils/home-gate-storage.js 一致（dev 构建无 buildId ⇒ 无后缀）；
+   必须在**首次 goto 之前**注入 —— addInitScript 只对后续导航生效。 */
+const gateNewContext = async (options = {}) => {
+  const ctx = await browser.newContext(options);
+  await ctx.addInitScript(() => {
+    try {
+      localStorage.setItem('boh-home-gate-passed', String(Date.now()));
+    } catch {
+      /* about:blank 等无 storage 场景忽略 */
+    }
+    try {
+      /* 抑制「概览加载岛」：首页登录后 Home 会调 maybeShowOverviewIsland() →
+         showIsland.custom(OverviewIslandLoading)，导航会被撑成 has-custom-card 展开态。
+         开屏在场时这段不跑（本次改动前探针从没撞上它），开屏一跳过它就跟着跑，
+         A 组「首帧 mini」测量会随机量到展开态的中间值。
+         预置「本会话已弹过」标记 = 稳定复现真实老用户的状态。
+         userId 与下方 injectAuth 注入的 probe_user 是同一个（改一处要一起改）；
+         有专门测概览岛的探针，它们不走这个 helper，不受影响。 */
+      sessionStorage.setItem('boh_overview_island:00ac36b4-6594-440f-a9c1-38b7bd47ee8b', '1');
+    } catch {
+      /* ignore */
+    }
+  });
+  return ctx;
+};
+
 for (const width of WIDTHS) {
-  const ctx = await browser.newContext({
+  const ctx = await gateNewContext({
     viewport: { width, height: 844 },
     isMobile: true,
     hasTouch: true,
@@ -242,27 +279,33 @@ for (const width of WIDTHS) {
     open.menuActive && open.menuVisible,
     `.active=${open.menuActive} 高度>0=${open.menuVisible}`,
   );
+  /* 2026-11-15 岛化：菜单不再浮在岛下面的独立卡片里，而是坐在 surface 长高的那块
+     玻璃里。B/C 两条判据跟着换了 —— 旧口径「菜单上沿与岛底齐平」在岛化后必然为负，
+     它会一直红（实测 -291px），但那是**旧形态的定义**，不是回归。
+     现在的口径：菜单紧贴导航行下沿、并且完全落在岛内。 */
   check(
-    `B ${tag} 菜单上沿与岛底边齐平`,
+    `B ${tag} 菜单上沿贴导航行下沿（岛化）`,
     open.menuTop !== null &&
+      open.navRowBottom !== null &&
+      Math.abs(open.menuTop - open.navRowBottom) <= 1.5,
+    `菜单 ${open.menuTop} / 导航行底 ${open.navRowBottom} / 差 ${(open.menuTop - open.navRowBottom).toFixed(2)}px`,
+  );
+  check(
+    `C ${tag} 菜单完全落在岛内（不溢出岛底）`,
+    open.menuBottom !== null &&
       open.islandBottom !== null &&
-      Math.abs(open.menuTop - open.islandBottom) <= 1,
-    `菜单 ${open.menuTop} / 岛底 ${open.islandBottom} / 空隙 ${(open.menuTop - open.islandBottom).toFixed(2)}px`,
+      open.menuBottom <= open.islandBottom + 1,
+    `菜单底 ${open.menuBottom} / 岛底 ${open.islandBottom} / 溢出 ${(open.menuBottom - open.islandBottom).toFixed(2)}px`,
   );
   check(
-    `C ${tag} 菜单未被岛盖住`,
-    open.menuTop !== null && open.islandBottom !== null && open.menuTop >= open.islandBottom - 1,
-    `Δ=${(open.menuTop - open.islandBottom).toFixed(2)}px`,
-  );
-  check(
-    `D ${tag} 展开时岛无下投影`,
-    open.surfaceBoxShadow === 'none',
+    `D ${tag} 展开时岛有下投影（实体面板）`,
+    open.surfaceBoxShadow !== 'none',
     `box-shadow=${open.surfaceBoxShadow}`,
   );
   check(
-    `E ${tag} 收起时岛有投影（D 不是永久 none）`,
-    closed.surfaceBoxShadow !== 'none',
-    `box-shadow=${closed.surfaceBoxShadow}`,
+    `E ${tag} 岛确实长高了（菜单不是压在岛外）`,
+    open.islandBottom - open.islandTop > closed.islandBottom - closed.islandTop + 100,
+    `收起高 ${(closed.islandBottom - closed.islandTop).toFixed(0)} → 展开高 ${(open.islandBottom - open.islandTop).toFixed(0)}`,
   );
   check(
     `F ${tag} 菜单横向不出视口`,
@@ -409,7 +452,7 @@ const colorSum = (color) => {
   return (d[0] || 0) + (d[1] || 0) + (d[2] || 0);
 };
 {
-  const ctx = await browser.newContext({
+  const ctx = await gateNewContext({
     viewport: { width: 390, height: 844 },
     isMobile: true,
     hasTouch: true,
@@ -514,7 +557,7 @@ const colorSum = (color) => {
 const LANDSCAPE = [{ tag: '667x375 窄横屏', width: 667, height: 375 }];
 
 for (const lc of LANDSCAPE) {
-  const ctx = await browser.newContext({
+  const ctx = await gateNewContext({
     viewport: { width: lc.width, height: lc.height },
     isMobile: true,
     hasTouch: true,
@@ -542,21 +585,24 @@ for (const lc of LANDSCAPE) {
     open.menuActive && open.menuVisible,
     `.active=${open.menuActive} 高度>0=${open.menuVisible}`,
   );
+  /* 同竖屏：岛化后菜单在岛内，判据换成「贴导航行下沿 + 不溢出岛底」 */
   check(
-    `B ${lc.tag} 菜单上沿与岛底边齐平`,
+    `B ${lc.tag} 菜单上沿贴导航行下沿（岛化）`,
     open.menuTop !== null &&
+      open.navRowBottom !== null &&
+      Math.abs(open.menuTop - open.navRowBottom) <= 1.5,
+    `菜单 ${open.menuTop} / 导航行底 ${open.navRowBottom} / 差 ${(open.menuTop - open.navRowBottom).toFixed(2)}px`,
+  );
+  check(
+    `C ${lc.tag} 菜单完全落在岛内（不溢出岛底）`,
+    open.menuBottom !== null &&
       open.islandBottom !== null &&
-      Math.abs(open.menuTop - open.islandBottom) <= 1,
-    `菜单 ${open.menuTop} / 岛底 ${open.islandBottom} / 空隙 ${(open.menuTop - open.islandBottom).toFixed(2)}px`,
+      open.menuBottom <= open.islandBottom + 1,
+    `菜单底 ${open.menuBottom} / 岛底 ${open.islandBottom} / 溢出 ${(open.menuBottom - open.islandBottom).toFixed(2)}px`,
   );
   check(
-    `C ${lc.tag} 菜单未被岛盖住`,
-    open.menuTop !== null && open.islandBottom !== null && open.menuTop >= open.islandBottom - 1,
-    `Δ=${(open.menuTop - open.islandBottom).toFixed(2)}px`,
-  );
-  check(
-    `D ${lc.tag} 展开时岛无下投影`,
-    open.surfaceBoxShadow === 'none',
+    `D ${lc.tag} 展开时岛有下投影（实体面板）`,
+    open.surfaceBoxShadow !== 'none',
     `box-shadow=${open.surfaceBoxShadow}`,
   );
   check(
