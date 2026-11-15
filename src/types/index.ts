@@ -214,7 +214,7 @@ export interface HomeHero {
   /**
    * 仅 template='street-scene' 使用：首屏问候语模板。
    * 支持 {greeting} 占位符（运行时替换为时段词：早上好/中午好/下午好/晚上好）；
-   * 留空回落默认 '{greeting}，欢迎回到方块街'。
+   * 留空回落默认 '这里不只有方块'（2026-11-14 起为固定文案，不随时段变化）。
    */
   greeting_text?: string | null;
   /** 仅 template='street-scene' 使用：首屏底部提示文案（↓ 箭头为组件固定装饰）；留空回落「往下逛逛」 */

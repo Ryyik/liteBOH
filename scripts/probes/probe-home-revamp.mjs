@@ -212,11 +212,7 @@ const main = async () => {
   const greeting = await page
     .$eval('.street-hero-greeting', (el) => el.textContent.trim())
     .catch(() => '');
-  check(
-    'A2 时段问候文案',
-    /^(早上好|中午好|下午好|晚上好)，欢迎回到方块街$/.test(greeting),
-    greeting,
-  );
+  check('A2 首屏默认文案「这里不只有方块」', greeting === '这里不只有方块', greeting);
 
   const hint = await page
     .$eval('.street-hero-hint', (el) => el.textContent.replace(/\s+/g, ''))

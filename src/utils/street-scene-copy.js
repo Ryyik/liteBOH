@@ -9,10 +9,14 @@
  *   - src/views/HeroConsole/index.vue                 装修台实时预览
  *
  * 占位符：{greeting} 会被替换成访问时段的问候词（早上好 / 中午好 / 下午好 / 晚上好）。
- * 模板里不写占位符即固定文案。
+ * 模板里不写占位符即固定文案 —— 默认文案就是这种「固定文案」形态。
+ *
+ * 2026-11-14：默认问候语由「{greeting}，欢迎回到方块街」改为品牌固定文案
+ * 「这里不只有方块」。时段问候能力仍保留（自定义模板里写 {greeting} 即可），
+ * 只是不再作为默认外观 —— 首屏不再随访问时间变化。
  */
 
-export const DEFAULT_GREETING_TEMPLATE = '{greeting}，欢迎回到方块街';
+export const DEFAULT_GREETING_TEMPLATE = '这里不只有方块';
 export const DEFAULT_HINT_TEXT = '往下逛逛';
 
 const GREETING_PLACEHOLDER_RE = /\{greeting\}/g;

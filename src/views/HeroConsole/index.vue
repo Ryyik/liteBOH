@@ -838,7 +838,7 @@
                   v-model="draftHero.greeting_text"
                   type="text"
                   maxlength="60"
-                  placeholder="{greeting}，欢迎回到方块街"
+                  placeholder="这里不只有方块"
                   @input="markDirty(selectedHero.id)"
                 />
               </label>
@@ -854,7 +854,7 @@
               </label>
               <p class="quick-fill-hint">
                 填 <code>{'{greeting}'}</code> 会按访问时段变成「早上好 / 中午好 / 下午好 /
-                晚上好」； 不写占位符就是固定文案。两处都留空时与默认外观完全一致。
+                晚上好」； 不写占位符就是固定文案。留空回落默认「这里不只有方块」。
               </p>
             </details>
 

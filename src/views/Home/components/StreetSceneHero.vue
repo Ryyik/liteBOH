@@ -61,7 +61,11 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { getCloudinaryTransformedUrl } from '@/utils/cloudinary-client.js';
-import { resolveGreetingText, resolveHintText } from '@/utils/street-scene-copy.js';
+import {
+  resolveGreetingText,
+  resolveGreetingWord,
+  resolveHintText,
+} from '@/utils/street-scene-copy.js';
 
 /* 首屏街景开场画（任务 A）
    规格来源：docs/2026-09-22-首页改版实施交付说明.md §2
@@ -140,14 +144,10 @@ const onBrandLogoError = () => {
 };
 
 // —— 时段问候 ——
+// 2026-11-14：默认文案已改为固定句「这里不只有方块」（不随时段变），
+// 但自定义模板仍可写 {greeting} 占位符，所以时段词继续保留。
+// 时段词实现只在 utils/street-scene-copy.js 一处（此处不得另立副本）。
 const greetingWord = ref('');
-const resolveGreetingWord = () => {
-  const hour = new Date().getHours();
-  if (hour >= 5 && hour < 11) return '早上好';
-  if (hour >= 11 && hour < 13) return '中午好';
-  if (hour >= 13 && hour < 18) return '下午好';
-  return '晚上好';
-};
 /* 问候语 / 提示文案：由 street-scene 行的 greeting_text / hint_text 控制（2026-09-24 起可配）。
    留空一律回落默认值。口径与装修台实时预览共用 utils/street-scene-copy.js —— 勿在此另立副本。
    时段词沿用 greetingWord（onMounted 回填，避免首帧取时间的抖动）。 */

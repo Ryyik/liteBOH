@@ -48,7 +48,7 @@
               <GateSceneHero v-if="draft.theme !== 'default'" :config="draft" @cta="onPreviewCta" />
               <div v-else class="gc-fallback">
                 <img src="/icons/icon-512.png" alt="" />
-                <p>晚上好，欢迎回到方块街</p>
+                <p>这里不只有方块</p>
               </div>
             </div>
           </div>
@@ -71,7 +71,7 @@
             </div>
             <p class="gc-hint">
               关掉后线上立刻回到默认开屏（白底 + 红苹果 +
-              时段问候）。正在看的人不受影响，下次进站生效。
+              「这里不只有方块」）。正在看的人不受影响，下次进站生效。
             </p>
           </div>
 

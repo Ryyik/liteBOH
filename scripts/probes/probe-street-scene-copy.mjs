@@ -49,13 +49,13 @@ const baseHero = (over = {}) => ({
   updated_at: '2026-09-24T00:00:00.000Z',
   created_by: null,
   updated_by: null,
-  ...over
+  ...over,
 });
 
 const runScenario = async (name, rows, expect) => {
   const browser = await chromium.launch({
     channel: 'chrome',
-    args: ['--no-proxy-server', '--proxy-server=direct://', '--proxy-bypass-list=*']
+    args: ['--no-proxy-server', '--proxy-server=direct://', '--proxy-bypass-list=*'],
   });
   const context = await browser.newContext({ viewport: { width: 430, height: 900 } });
   const page = await context.newPage();
@@ -70,9 +70,9 @@ const runScenario = async (name, rows, expect) => {
       contentType: 'application/json',
       headers: {
         'content-range': rows.length ? `0-${rows.length - 1}/${rows.length}` : '*/0',
-        'access-control-expose-headers': 'Content-Range'
+        'access-control-expose-headers': 'Content-Range',
       },
-      body: JSON.stringify(rows)
+      body: JSON.stringify(rows),
     });
   });
 
@@ -106,24 +106,20 @@ await runScenario(
   [baseHero({ greeting_text: '{greeting}，这里是自定义问候', hint_text: '下滑探索' })],
   {
     greeting: (t) => /这里是自定义问候$/.test(t) && /^(早上好|中午好|下午好|晚上好)，/.test(t),
-    hint: (t) => t === '下滑探索'
-  }
+    hint: (t) => t === '下滑探索',
+  },
 );
 
 // ── B. 留空 → 回落默认（等价于 DB 里没有 street-scene 行的现状）──
-await runScenario(
-  'B-回落默认',
-  [baseHero()],
-  {
-    greeting: (t) => t === '早上好，欢迎回到方块街' || /^(早上好|中午好|下午好|晚上好)，欢迎回到方块街$/.test(t),
-    hint: (t) => t === '往下逛逛'
-  }
-);
+await runScenario('B-回落默认', [baseHero()], {
+  greeting: (t) => t === '这里不只有方块',
+  hint: (t) => t === '往下逛逛',
+});
 
 // ── C. 完全没有 street-scene 行（当前线上真实状态）──
 await runScenario('C-无行', [], {
-  greeting: (t) => /，欢迎回到方块街$/.test(t),
-  hint: (t) => t === '往下逛逛'
+  greeting: (t) => t === '这里不只有方块',
+  hint: (t) => t === '往下逛逛',
 });
 
 console.log('\n' + '='.repeat(72));
@@ -131,7 +127,7 @@ const pass = results.filter((r) => r.pass).length;
 console.log(`首屏文案可配探针：${pass}/${results.length} 通过`);
 fs.writeFileSync(
   'output/street-scene-copy-scan.json',
-  JSON.stringify({ generatedAt: new Date().toISOString(), results }, null, 2)
+  JSON.stringify({ generatedAt: new Date().toISOString(), results }, null, 2),
 );
 console.log('明细已写入 output/street-scene-copy-scan.json');
 process.exit(pass === results.length ? 0 : 1);

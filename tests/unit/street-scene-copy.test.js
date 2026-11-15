@@ -6,14 +6,14 @@ import {
   DEFAULT_HINT_TEXT,
   resolveGreetingWord,
   resolveGreetingText,
-  resolveHintText
+  resolveHintText,
 } from '../../src/utils/street-scene-copy.js';
 
 // ---------------------------------------------------------------------------
 // 2026-09-24：首屏街景问候语 / 底部提示改为可配（home_heroes.greeting_text / hint_text）
 //
-// 关键不变量：**留空必须与可配上线前逐字一致** —— 否则这次改动会静默改掉所有存量首屏外观。
-// 这条不变量由本文件锁住。
+// 关键不变量：**留空必须等于「当前默认文案」** —— 否则改默认值会静默漂移；
+// 默认值本身有明确出处（2026-11-14 起为品牌固定句「这里不只有方块」），由本文件锁住。
 // ---------------------------------------------------------------------------
 
 const at = (hour) => new Date(2026, 0, 1, hour, 0, 0);
@@ -33,20 +33,22 @@ describe('时段词', () => {
 });
 
 describe('问候语：留空回落默认（回归护栏）', () => {
-  it('null / undefined / 空串 / 纯空白 都回落默认模板', () => {
+  it('null / undefined / 空串 / 纯空白 都回落默认文案', () => {
     for (const empty of [null, undefined, '', '   ', '\n']) {
-      expect(resolveGreetingText(empty, '早上好')).toBe('早上好，欢迎回到方块街');
+      expect(resolveGreetingText(empty, '早上好')).toBe('这里不只有方块');
     }
   });
 
-  it('默认模板与改动前的硬编码逐字一致', () => {
-    expect(DEFAULT_GREETING_TEMPLATE).toBe('{greeting}，欢迎回到方块街');
-    expect(resolveGreetingText(null, '晚上好')).toBe('晚上好，欢迎回到方块街');
+  it('默认文案是固定句「这里不只有方块」，不随时段变化', () => {
+    expect(DEFAULT_GREETING_TEMPLATE).toBe('这里不只有方块');
+    expect(resolveGreetingText(null, '晚上好')).toBe('这里不只有方块');
+    expect(resolveGreetingText(null, at(9))).toBe('这里不只有方块');
+    expect(resolveGreetingText(null, at(20))).toBe('这里不只有方块');
   });
 
-  it('传 Date 时内部算时段词', () => {
-    expect(resolveGreetingText(null, at(9))).toBe('早上好，欢迎回到方块街');
-    expect(resolveGreetingText(null, at(20))).toBe('晚上好，欢迎回到方块街');
+  it('传 Date 时自定义模板里的 {greeting} 仍按时段替换', () => {
+    expect(resolveGreetingText('{greeting}，今天也要开心', at(9))).toBe('早上好，今天也要开心');
+    expect(resolveGreetingText('{greeting}，今天也要开心', at(20))).toBe('晚上好，今天也要开心');
   });
 });
 
@@ -101,6 +103,14 @@ describe('接线守卫', () => {
     // 硬编码的默认文案不得在组件内复现
     expect(src).not.toContain("'，欢迎回到方块街'");
     expect(src).not.toContain('`${greetingWord.value}，欢迎回到方块街`');
+  });
+
+  it('时段词实现只在共享模块一处，组件不得另立副本', () => {
+    const src = read(HERO);
+    expect(src).toContain('resolveGreetingWord');
+    // 组件里出现 return '早上好' 就说明又抄了一份分段阈值
+    expect(src).not.toContain("return '早上好'");
+    expect(src).not.toContain('hour >= 5 && hour < 11');
   });
 
   it('装修台预览从同一共享模块取值', () => {
