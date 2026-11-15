@@ -101,4 +101,29 @@ describe('isGlobalNavbarVisible（导航栏可见性单一真源）', () => {
       isGlobalNavbarVisible(route({ path: '/forum', query: { tab: 'settings', view: 'privacy' } })),
     ).toBe(true);
   });
+
+  /* 2026-11-15 用户口径：首页开屏（`.home-gate` 满屏浮层 + 锁滚动）在场时
+     **不挂载**导航栏。第二个参数是显式传入的（不读全局单例），所以这三条能
+     稳定地覆盖「开屏中 / 开屏结束 / 非首页」三态。 */
+  describe('首页开场画在场时', () => {
+    it('首页不挂载导航栏', () => {
+      expect(isGlobalNavbarVisible(route({ name: 'Home', path: '/' }), true)).toBe(false);
+    });
+
+    it('开屏结束后照常挂载', () => {
+      expect(isGlobalNavbarVisible(route({ name: 'Home', path: '/' }), false)).toBe(true);
+    });
+
+    it('不影响非首页（那里根本没有开屏层）', () => {
+      expect(isGlobalNavbarVisible(route({ name: 'Shop', path: '/shop' }), true)).toBe(true);
+      expect(isGlobalNavbarVisible(route({ path: '/user-space' }), true)).toBe(true);
+    });
+
+    it('不覆盖更高优先级的隐藏条件', () => {
+      // hideNavbar 的路由无论如何都不显示
+      expect(isGlobalNavbarVisible(route({ path: '/', meta: { hideNavbar: true } }), true)).toBe(
+        false,
+      );
+    });
+  });
 });

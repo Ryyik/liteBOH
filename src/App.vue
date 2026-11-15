@@ -4,6 +4,7 @@ import { createPanelAsync, AsyncPanelNotice } from '@/utils/async-component.js';
 import { useRoute, useRouter } from 'vue-router';
 import Footer from './components/Footer.vue';
 import { isGlobalNavbarVisible } from '@/utils/global-navbar-visibility.js';
+import { homeGateScreening } from '@/composables/useHomeGate.js';
 import { shouldMarkBootReady } from '@/utils/boot-readiness.js';
 import UnifiedNavbar from '@/components/UnifiedNavbar/index.vue';
 import BohIsland from '@/components/BohIsland.vue';
@@ -394,7 +395,7 @@ watch(isInitialized, (newVal) => {
 // 全局导航栏：隐藏在桌面嵌入模式、路由标记隐藏、UserSpace内部子页面、或个人资料子页面时
 // ⚠️ 判据已抽到 utils/global-navbar-visibility.js（**单一真源**）：
 //    AI 岛的 canOpen 必须用同一函数，否则会出现「导航栏已卸载但 canOpen 说能开」的静默失败。
-const showGlobalNavbar = computed(() => isGlobalNavbarVisible(route));
+const showGlobalNavbar = computed(() => isGlobalNavbarVisible(route, homeGateScreening.value));
 </script>
 
 <template>

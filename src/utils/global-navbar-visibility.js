@@ -12,9 +12,13 @@
  * 所以：App.vue 的 showGlobalNavbar 调用本函数。要加新的隐藏条件，只改这里一处。
  *
  * @param {import('vue-router').RouteLocationNormalizedLoaded | null | undefined} route
+ * @param {boolean} [gateScreening=false] 首页开场画（`.home-gate`）是否在场。
+ *   刻意做成**显式参数**而不是在函数里读全局单例：本文件是纯路由判据、被单测直接调用，
+ *   读可变全局状态会让「path === '/'」的用例结果取决于跑测时的 localStorage。
+ *   调用方（App.vue）传 `homeGateScreening.value`，computed 里读 ref 仍然能追踪依赖。
  * @returns {boolean} 导航栏是否应该显示
  */
-export const isGlobalNavbarVisible = (route) => {
+export const isGlobalNavbarVisible = (route, gateScreening = false) => {
   if (!route) return true;
   // 桌面嵌入模式（外部壳把本页当 iframe 用，自带导航）
   if (route.query?.embed === 'desktop') return false;
@@ -38,5 +42,10 @@ export const isGlobalNavbarVisible = (route) => {
     route.query.view !== 'home'
   )
     return false;
+  /* 首页开场画（`.home-gate`）在场期间**不挂载**导航栏（2026-11-15 用户口径）。
+     这不是「隐藏」而是「不渲染」：开屏层是 inset:0 的满屏浮层且锁滚动，
+     导航压在上面既抢视觉重心，又会在 z 轴上跟「下滑揭开」的手势层打架。
+     ⚠️ 只对首页生效 —— 非首页即便「本会话没看过开场画」，也不存在开屏层。 */
+  if (route.path === '/' && gateScreening) return false;
   return true;
 };

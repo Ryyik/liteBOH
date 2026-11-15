@@ -134,6 +134,7 @@ import {
 } from '@/utils/api/gate-config-api.js';
 import HomeFooter from './components/HomeFooter.vue';
 import { useGatePull } from './composables/useGatePull.js';
+import { setHomeGateScreening } from '@/composables/useHomeGate.js';
 import ForumSectionShell from '@/views/user-center/UserSpace/components/ForumSectionShell.vue';
 import UserSpaceBottomNav from '@/views/user-center/UserSpace/components/UserSpaceBottomNav.vue';
 import UserSpaceSideRail from '@/views/user-center/UserSpace/components/UserSpaceSideRail.vue';
@@ -190,6 +191,12 @@ const {
   mounted: mountGatePull,
   unmounted: unmountGatePull,
 } = useGatePull();
+
+/* 开屏在场 = 导航栏不挂载（App.vue 的 v-if 经 global-navbar-visibility 读这个单例）。
+   immediate 是必要的：进站时 gate 就是开着的，导航必须从**首帧**起就不存在，
+   否则会「先挂载再卸载」闪一下。写入值与 useHomeGate 的模块初值同源
+   （都来自 readGatePassed），所以 immediate 这一下不会造成跳变。 */
+watch(gateDismissed, (dismissed) => setHomeGateScreening(!dismissed), { immediate: true });
 
 // ============================================
 // 活动版开屏（home_gate_config）

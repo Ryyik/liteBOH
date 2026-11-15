@@ -1,4 +1,5 @@
 import { computed, ref, watch } from 'vue';
+import { readGatePassed, markGatePassed } from '@/utils/home-gate-storage.js';
 
 /* ============================================
    首页开场画「跟手揭开浮层」的全部逻辑（2026-09-27 抽离）
@@ -20,37 +21,10 @@ import { computed, ref, watch } from 'vue';
 */
 
 /* ---------- 「看过一次」的标记 ----------
-   2026-09-24：key 带构建指纹（生产构建注入的 <meta name="boh-build-id">；dev 不注入）——
-   每次发布新版本，用户再访问就会重播一次开场画。
-   原来是 sessionStorage：在 iOS PWA / 长驻标签下「会话」能跨好几天，标记一旦写入，
-   开场画就再也不会播（用户感知为「首屏动画没了」）。改 localStorage + 24h 时间窗：
-   同构建 24h 内不重复打扰，跨天自动重播。 */
-const GATE_PASSED_KEY = 'boh-home-gate-passed';
-const GATE_REPLAY_WINDOW_MS = 24 * 60 * 60 * 1000;
-
-const resolveGateStorageKey = () => {
-  if (typeof document === 'undefined') return GATE_PASSED_KEY;
-  const buildId = String(document.querySelector('meta[name="boh-build-id"]')?.content || '').trim();
-  return buildId ? `${GATE_PASSED_KEY}:${buildId}` : GATE_PASSED_KEY;
-};
-const GATE_STORAGE_KEY = resolveGateStorageKey();
-
-const readGatePassed = () => {
-  try {
-    const seenAt = Number(window.localStorage.getItem(GATE_STORAGE_KEY));
-    if (!Number.isFinite(seenAt) || seenAt <= 0) return false;
-    return Date.now() - seenAt < GATE_REPLAY_WINDOW_MS;
-  } catch {
-    return false; // 隐私模式 / storage 被禁：当作没通过，照常播
-  }
-};
-const markGatePassed = () => {
-  try {
-    window.localStorage.setItem(GATE_STORAGE_KEY, String(Date.now()));
-  } catch {
-    /* 存不住就算了，下次照常播 */
-  }
-};
+   2026-11-15：判据整体搬到 `utils/home-gate-storage.js`（无依赖的小模块）——
+   因为 App 级的「开屏期间不挂载导航栏」也要读它，而 App 不能去 import
+   本文件所在的首页懒加载链（会把整个 Home chunk 拉进主包）。
+   key / 24h 窗口 / buildId 指纹的说明见那个文件，这里只负责消费。 */
 
 /* ---------- 跟手参数 ----------
    旧实现是「阈值触发器」：累计位移到 28px 就播一条固定时长动画 + 立即卸载开场层，
