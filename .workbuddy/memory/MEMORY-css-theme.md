@@ -15,6 +15,12 @@
   （全局那条编译后带 `[data-v-*]`，同为 0,3,0 且更靠后）⇒ 静默失效（实测 offset 仍 2px）。
   用双写伪类 `.x:focus-visible:focus-visible`(0,4,0)，比依赖祖先结构稳（岛形态也生效）。
 - ⚠️ 切 tab 只切 class 不同步 `hidden` ⇒ `.panel.is-on{display:block}` 压过 `[hidden]`，两面板同时显示。
+- 🔴 **`src/style.css:290` 有全局 `a:hover { background-color: transparent !important }`**
+  （为压 glass-ui-vue 的全局 hover）。任何**写在 `a` 上的悬停底色都会被它吃掉**，
+  且症状极具欺骗性：`a.matches(':hover')` 为真、同规则里的 `transform` 也生效，
+  只有 `background-color` 恒为透明 —— 只看截图会误判成"没写 hover"。
+  ⇒ 链接类悬停底色一律写在**行容器（`li` / 父 div）**上；暗色之所以"看起来正常"，
+  是 `navbar-dark.css` 用 `!important` 另写了一份（2026-11-15 下拉岛整行 hover 踩到）。
 
 ## 液态玻璃
 
@@ -51,6 +57,11 @@
 - ⚠️ **fixed 容器会被撑高的子元素撑开**：`#unified-nav-container` 岛展开 78→390px 且 `pointer-events:auto`
   （**撑高有意**，接「点外部关闭」，别改高度）；带实心背景就成页顶一块矩形 ⇒ 容器只定位＋接点击，
   **视觉全交 `.unified-nav-surface`**。
+- ⚠️ 绝对定位元素要「按自身宽度居中」时，`left:0;right:0;margin:0 auto` **对 `width:max-content` 无效**
+  （引擎走 shrink-to-fit，auto 边距在宽度定下来之前先解析成 0；实测偏右半个宽度）。
+  正确写法 `left:50%` + **`translate:-50% 0`**（独立属性，不被 `transform` 覆盖）。
+  ⚠️ 别用 `transform: translateX(-50%)` —— 元素已有进出场动画（transform 写 translateY/scaleY）时，
+  两个声明会互相覆盖、动画静默失效；`translate` 与 `transform` 是两套坐标系，可叠加（下拉岛实测）。
 
 ## 滚动锁 / 穿透
 
@@ -67,6 +78,19 @@
   高度断言用 `offsetHeight`。
 - ⚠️ `.badge` 在 `1fr` 网格列默认 stretch ⇒ 要 `justify-self:start`。
 - ⚠️ `--muted-foreground:#7f8d9f` 在白底只有 3.38:1（< AA 4.5）⇒ 达标值 `#5a6577`(5.41) / 暗色 `#a8b0bd`(7.49)。
+
+## 过渡动效：两条会「看起来像没做」的坑（2026-11-14 定帧实测）
+
+- ⚠️ **别把为 transform 写的急起曲线用在 opacity 上**。`cubic-bezier(0.23,1,0.32,1)`
+  在 30% 时间就走完 90% 不透明度 ⇒ 240ms 的动画感知只有 ~50ms，报障会写成「硬切」，
+  而你在代码里明明写了动画（底栏切页就是这么被判死的）。
+  透明度用端部平缓的 `cubic-bezier(0.4,0,0.2,1)`。
+- ⚠️ **两层同时淡 = 必然漏底色**。上层 A→0、下层 0→B 且两段时长不等时，
+  中途合成覆盖率 < 1，页面底色就透出来（本仓 2026-10-31「闪白」的根因，
+  切页时 t=20ms 实测覆盖率只有 0.68）。
+  正确做法：**让其中一层全程不透明**，只让另一层退场 —— 覆盖率恒为 1，结构上不可能漏。
+- 取证手法：`document.getAnimations().forEach(a => { a.pause(); a.currentTime = t })`
+  再截图，可把过渡定在任意毫秒，比 screencast 逐帧稳。
 
 ## 验收纪律
 

@@ -87,6 +87,16 @@
   （旧注记说它给的是 78 字符非 PAT、401，已过期；写/DDL 仍受 `read_only` 与角色限制，
   `set role authenticated` 会被 42501 拒，`list_forum_posts` 这类函数 mgmt-api 角色也 execute 不了 ⇒
   **跑不了带 RLS 的执行计划**，只能按策略文本静态推断。）
+- ✅ **DDL 也能走同一条通道（2026-11-14 实测）**：`POST /v1/projects/{ref}/database/query`
+  **不传 `read_only`（或传 false）就是可写会话** —— 整个迁移文件含 `begin;…commit;` 一次跑完，
+  HTTP 201 + 空数组 `[]` 即成功。所以「线上推迁移」不需要 EF 那套重活。
+  ⚠️ 但 `db push` 仍连不上库（同上 TLS EOF）⇒ **手工落库后必须自己补登记**
+  `supabase_migrations.schema_migrations (version, name, statements)`，
+  否则下次 `db push` 会认为它没跑过而重复执行。查「线上已应用到哪一版」=
+  `select version, name from supabase_migrations.schema_migrations order by version desc`，
+  再和 `ls supabase/migrations/*.sql` 对差集。
+  （搬 DDL 时建议直接用 `scripts/lib/supabase-admin-api.mjs` 的 `runQuery({readOnly:false})`，
+  别手搓 curl + 解 keychain。）
 - ✅ **可用：一次性 Edge Function**。`supabase secrets set X=<值>` → 写个只认 `x-xxx-token` 头的小函数 →
   `supabase functions deploy <名> --no-verify-jwt` → `curl https://<ref>.supabase.co/functions/v1/<名>`（本次 HTTP 200，
   说明 EF 域名可达，旧笔记里「解析不到 *.supabase.co」只对 DB 主机成立）→ 跑完 `supabase functions delete <名> --yes`。
