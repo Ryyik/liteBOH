@@ -40,18 +40,31 @@ const sliceFromDeclaration = (code, declaration, length) => {
 };
 
 describe('forum post draft cross-host sync wiring', () => {
-  it('keeps the composer bar to cancel / publish, with landscape cancel hidden', async () => {
+  /* 2026-11-15 用户口径**反转**：横屏必须能退出。
+     旧守卫锁的是「横屏隐藏取消」，理由是「分栏左栏仍是退出上下文」—— 但 overlay 是
+     Teleport 到 body 的 inset:0 全宽层，铺满时左栏根本点不到，实测用户打开发帖器后
+     **没有任何退出路径**（截图：一条全宽白条只剩右端一颗按钮）。
+     所以这条守卫改成锁新契约，并且要能抓住「有人顺手把 display:none 加回去」。 */
+  it('keeps the landscape composer escapable: cancel visible + three-column bar', async () => {
     const vue = await readFile(FORUM_MAIN, 'utf8');
-    const css = await readFile(REPLIES_RESPONSIVE, 'utf8');
-    expect(vue).not.toContain('mobile-composer-title');
-    expect(vue).not.toMatch(/>\s*新帖\s*</);
-    expect(css).not.toContain('.mobile-composer-title');
-    const landscapeBlock =
-      css.match(
-        /@media \(orientation: landscape\) and \(min-width: 1024px\) and \(min-height: 600px\) \{[\s\S]*?\n\}/,
-      )?.[0] || '';
-    expect(landscapeBlock).toContain('.mobile-composer-overlay .mobile-composer-back');
-    expect(landscapeBlock).toContain('display: none');
+    const css = squeezeSource(stripComments(await readFile(REPLIES_RESPONSIVE, 'utf8')));
+
+    // 取消按钮必须在（横屏不再隐藏）
+    expect(vue).toContain('mobile-composer-back');
+
+    // 顶栏标题：帖子 / 影集两种形态靠它区分，所以标记与文案都得在
+    expect(vue).toContain('mobile-composer-title');
+    expect(css).toContain('.mobile-composer-title');
+
+    // 反证闸：任何「把取消藏掉」的写法都会命中（旧 bug 的形态）
+    expect(css).not.toMatch(
+      /\.mobile-composer-overlay\s+\.mobile-composer-back\s*\{[^}]*display:\s*none/,
+    );
+
+    // 横屏顶栏也必须是三栏（取消 / 标题 / 发布）：两栏就等于又回到「只剩发布」
+    expect(css).toMatch(
+      /\.mobile-composer-overlay\s+\.mobile-composer-bar\s*\{[^}]*grid-template-columns:\s*auto\s+minmax\(0,\s*1fr\)\s+auto/,
+    );
   });
 
   it('keeps the portrait composer enter/leave motion on the overlay (never cancelled by !important)', async () => {
