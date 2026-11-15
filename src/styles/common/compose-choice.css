@@ -1,0 +1,154 @@
+/**
+ * 竖屏发帖入口的「选择球」—— 帖子 / 影集（2026-11-14 用户口径）。
+ *
+ * 为什么独立成全局文件：这套浮层和 FAB 一样 Teleport 到 body（见 compose-fab.css 顶部说明），
+ * scoped CSS 会因为组件哈希变化而失效；且 FAB 的四个位置变体都在这里与它对齐。
+ *
+ * 锚点约定：
+ * · 浮层自身 `position: fixed`，坐标由脚本实测 FAB 的 rect 后以 inline style 传入
+ *   （ForumMain 的 computeComposerChoiceAnchor）——**不要**在这里写死 bottom，
+ *   FAB 有 18 / 144 / 折叠 22 / 横屏窄档四个 bottom。
+ * · 气泡从右下角（贴着 FAB）张开，所以 transform-origin 固定在右下。
+ */
+
+.compose-choice-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 1199;
+  background: rgba(15, 23, 42, 0.16);
+  -webkit-backdrop-filter: blur(1.5px);
+  backdrop-filter: blur(1.5px);
+}
+
+.compose-choice-scrim-enter-active,
+.compose-choice-scrim-leave-active {
+  transition: opacity 0.2s ease;
+}
+
+.compose-choice-scrim-enter-from,
+.compose-choice-scrim-leave-to {
+  opacity: 0;
+}
+
+.compose-choice-cluster {
+  position: fixed;
+  z-index: 1201;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 12px;
+  transform-origin: 100% 100%;
+}
+
+.compose-choice-ball {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  width: 60px;
+  height: 60px;
+  padding: 0;
+  border-radius: 999px;
+  border: 1px solid var(--liquid-border, rgba(255, 255, 255, 0.65));
+  background: var(--liquid-bg-strong, rgba(255, 255, 255, 0.9));
+  color: var(--liquid-text-primary, #1d1d1f);
+  box-shadow:
+    var(--liquid-shadow-sm, 0 8px 24px rgba(15, 23, 42, 0.06)),
+    0 12px 24px rgba(0, 0, 0, 0.14);
+  -webkit-backdrop-filter: var(--glass-filter-sm, blur(18px));
+  backdrop-filter: var(--glass-filter-sm, blur(18px));
+  cursor: pointer;
+  transform-origin: 100% 100%;
+}
+
+.compose-choice-ball.is-primary {
+  background: var(--apple-blue, #0071e3);
+  border-color: var(--apple-blue, #0071e3);
+  color: #fff;
+}
+
+.compose-choice-ball:active {
+  transform: scale(0.93);
+}
+
+.compose-choice-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
+}
+
+.compose-choice-label {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  line-height: 1.2;
+}
+
+/* 入场：从右下角弹开，两颗球错峰 45ms —— 「灵动」全在这条曲线上，
+   不用 spring 库（站点其余动效也不引第三方）。 */
+.compose-choice-cluster-enter-active .compose-choice-ball {
+  transition:
+    transform 0.36s cubic-bezier(0.34, 1.56, 0.64, 1),
+    opacity 0.18s ease;
+  transition-delay: calc(var(--i, 0) * 45ms);
+}
+
+.compose-choice-cluster-enter-from .compose-choice-ball {
+  opacity: 0;
+  transform: translateY(10px) scale(0.55);
+}
+
+.compose-choice-cluster-leave-active .compose-choice-ball {
+  transition:
+    transform 0.16s ease,
+    opacity 0.16s ease;
+  transition-delay: calc(var(--i, 0) * 24ms);
+}
+
+.compose-choice-cluster-leave-to .compose-choice-ball {
+  opacity: 0;
+  transform: translateY(6px) scale(0.7);
+}
+
+/* FAB 自身在展开时变成 ×（+ 旋转 135°） */
+.mobile-compose-fab span {
+  transition: transform 0.28s cubic-bezier(0.34, 1.4, 0.64, 1);
+}
+
+.mobile-compose-fab.is-choice-open span {
+  transform: translateY(-2px) rotate(135deg);
+}
+
+.mobile-compose-fab.is-choice-open {
+  box-shadow:
+    0 0 0 3px rgba(0, 113, 227, 0.18),
+    0 12px 26px rgba(0, 0, 0, 0.18);
+}
+
+[data-theme='dark'] .compose-choice-ball {
+  border-color: rgba(255, 255, 255, 0.16);
+  background: rgba(38, 38, 42, 0.92);
+  color: #f2f2f7;
+}
+
+[data-theme='dark'] .compose-choice-ball.is-primary {
+  background: var(--apple-blue, #0a84ff);
+  border-color: var(--apple-blue, #0a84ff);
+  color: #fff;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* 不用 !important：竞争的 transition 声明都在本文件更早的位置（25 / 91-106 / 116），
+     特异性与这里同级或更低 ⇒ 靠源码序即可胜出。检查见 check:important-budget
+     （新文件基线为 0，两个 !important 会直接把它拦下）。
+     0.001ms 而不是 transition: none 是刻意的：前者仍会派发 transitionend，
+     后者不会，等它的 JS 会永远挂着。 */
+  .compose-choice-ball,
+  .compose-choice-cluster-enter-active .compose-choice-ball,
+  .compose-choice-cluster-leave-active .compose-choice-ball,
+  .mobile-compose-fab span {
+    transition-duration: 0.001ms;
+    transition-delay: 0ms;
+  }
+}

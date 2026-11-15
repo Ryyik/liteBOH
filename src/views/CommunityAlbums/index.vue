@@ -3,7 +3,9 @@
     <main class="ca-main">
       <header class="ca-header">
         <div class="ca-heading">
-          <span class="ca-kicker"><Camera :size="14" :stroke-width="2.2" aria-hidden="true" /> COMMUNITY ALBUMS</span>
+          <span class="ca-kicker"
+            ><Camera :size="14" :stroke-width="2.2" aria-hidden="true" /> COMMUNITY ALBUMS</span
+          >
           <h1>社区影集</h1>
           <p>居民们亲手装帧的影集，翻开就是一段一段被认真整理过的时光。</p>
         </div>
@@ -13,7 +15,14 @@
         </RouterLink>
       </header>
 
-      <section v-if="isLoading" class="ca-grid" aria-hidden="true">
+      <section v-if="selectedAuthor" class="ca-reader">
+        <button type="button" class="ca-btn ghost ca-back" @click="closeAuthor">
+          ← 返回全部影集
+        </button>
+        <MyAlbumBook :author-id="selectedAuthor" />
+      </section>
+
+      <section v-else-if="isLoading" class="ca-grid" aria-hidden="true">
         <article v-for="item in 6" :key="item" class="ca-card skeleton">
           <div class="ca-cover skeleton-block"></div>
           <div class="ca-card-body">
@@ -30,17 +39,26 @@
       </section>
 
       <section v-else-if="!albums.length" class="ca-empty">
-        <span class="ca-empty-icon"><Camera :size="30" :stroke-width="1.6" aria-hidden="true" /></span>
+        <span class="ca-empty-icon"
+          ><Camera :size="30" :stroke-width="1.6" aria-hidden="true"
+        /></span>
         <h2>还没有人分享影集</h2>
         <p>第一本被装帧好的影集，会出现在这里。</p>
-        <RouterLink v-if="isLoggedIn" to="/user-space/albums" class="ca-btn primary">去做一本影集</RouterLink>
+        <RouterLink v-if="isLoggedIn" to="/user-space/albums" class="ca-btn primary"
+          >去做一本影集</RouterLink
+        >
       </section>
 
       <!-- 2026-11-04 硬切审计：骨架⇄社区影集网格补内容侧淡入 -->
       <template v-else>
         <section class="ca-grid content-swap-in">
           <article v-for="album in albums" :key="album.id" class="ca-card">
-            <RouterLink :to="`/albums/${album.id}`" class="ca-cover" :aria-label="`阅读 ${album.title}`">
+            <button
+              type="button"
+              class="ca-cover ca-cover-btn"
+              :aria-label="`翻开 ${album.authorName} 的影集`"
+              @click="openAuthor(album)"
+            >
               <img
                 v-if="album.coverUrl"
                 :src="album.coverUrl"
@@ -51,17 +69,29 @@
                 @load="markImageLoaded(`ca-${album.id}`)"
                 @error="onCoverError(album, $event)"
               />
-              <span v-else class="ca-cover-placeholder"><Camera :size="26" :stroke-width="1.6" aria-hidden="true" /></span>
-              <span class="ca-photo-count"><Images :size="12" :stroke-width="2.2" aria-hidden="true" /> {{ album.photoCount }}</span>
-            </RouterLink>
+              <span v-else class="ca-cover-placeholder"
+                ><Camera :size="26" :stroke-width="1.6" aria-hidden="true"
+              /></span>
+              <span class="ca-photo-count"
+                ><Images :size="12" :stroke-width="2.2" aria-hidden="true" />
+                {{ album.photoCount }}</span
+              >
+            </button>
             <div class="ca-card-body">
               <h2>{{ album.title }}</h2>
               <p v-if="album.subtitle" class="ca-subtitle">{{ album.subtitle }}</p>
               <div class="ca-meta">
                 <span class="ca-author">
-                  <img v-if="album.authorAvatar" :src="album.authorAvatar" :alt="album.authorName" loading="lazy"
-                    @error="onAvatarError(album, $event)" />
-                  <span v-else class="ca-avatar-fallback">{{ (album.authorName || '居').charAt(0).toUpperCase() }}</span>
+                  <img
+                    v-if="album.authorAvatar"
+                    :src="album.authorAvatar"
+                    :alt="album.authorName"
+                    loading="lazy"
+                    @error="onAvatarError(album, $event)"
+                  />
+                  <span v-else class="ca-avatar-fallback">{{
+                    (album.authorName || '居').charAt(0).toUpperCase()
+                  }}</span>
                   {{ album.authorName || '方块居民' }}
                 </span>
                 <span>{{ formatTime(album.updatedAt) }}</span>
@@ -85,9 +115,11 @@ import { computed, onMounted, ref } from 'vue';
 import { useImageLoaded } from '@/composables/useImageLoaded.js';
 import { Camera, Images, BookOpen } from 'lucide-vue-next';
 import { useAuthStore } from '@/stores/auth';
-import { listCommunityAlbums } from '@/utils/api/photo-albums-api.js';
+import { getPosts } from '@/utils/api/forum-api.js';
+import MyAlbumBook from '@/views/Forum/components/MyAlbumBook.vue';
 
-const PAGE_SIZE = 24;
+/* 一次拉多少条影集帖用于聚合（一人一本 ⇒ 24 条可能只聚出几本，给到 60） */
+const FEED_LIMIT = 60;
 
 const authStore = useAuthStore();
 const isLoggedIn = computed(() => Boolean(authStore?.isLoggedIn));
@@ -118,31 +150,72 @@ function onAvatarError(album, event) {
   album.authorAvatar = '';
 }
 
+/* 翻开某人的那本（就地切换，不跳路由 —— 影集是帖子，没有独立的书 id） */
+const selectedAuthor = ref('');
+
+/**
+ * 「社区影集」= 按作者聚合的影集帖（**一人一本**）。
+ * 不再是 photo_albums 里那些 published+shared 的册子：影集已并入帖子形态（A 投影），
+ * 一本书 = 某个作者的全部 `is_album` 帖子。所以这里只做「按 author_id 分组」，
+ * 封面/标题/时间取该作者最新的一帖。
+ */
+function aggregateByAuthor(rows) {
+  const byAuthor = new Map();
+  for (const post of rows) {
+    const key = String(post?.author_id || '');
+    if (!key) continue;
+    const frames = Array.isArray(post?.album_entries) ? post.album_entries.length : 0;
+    const imgs = Array.isArray(post?.images) ? post.images : [];
+    const cover =
+      imgs[0]?.detailUrl || imgs[0]?.originalUrl || imgs[0]?.url || post?.cover_image_url || '';
+    const authorName = String(post?.author_username || post?.author?.username || '').trim();
+    const existing = byAuthor.get(key);
+    if (existing) {
+      existing.photoCount += frames;
+      existing.postCount += 1;
+      if (cover && !existing.coverUrl) existing.coverUrl = cover;
+      continue;
+    }
+    byAuthor.set(key, {
+      id: key,
+      title: String(post?.title || '').trim() || '未命名影集',
+      subtitle: '',
+      coverUrl: cover,
+      photoCount: frames,
+      postCount: 1,
+      authorName: authorName || '方块居民',
+      authorAvatar: post?.author?.avatar_url || '',
+      updatedAt: post?.created_at,
+    });
+  }
+  return [...byAuthor.values()];
+}
+
 async function loadAlbums() {
   isLoading.value = true;
   loadError.value = '';
-  const result = await listCommunityAlbums({ limit: PAGE_SIZE, offset: 0 });
-  if (result.ok) {
-    albums.value = result.data;
-    hasMore.value = result.data.length >= PAGE_SIZE;
+  const result = await getPosts(null, { page: 1, pageSize: FEED_LIMIT, albumOnly: true });
+  if (result?.error) {
+    loadError.value = '读取社区影集失败';
+    albums.value = [];
   } else {
-    loadError.value = result.error || '读取社区影集失败';
+    albums.value = aggregateByAuthor(Array.isArray(result?.data) ? result.data : []);
   }
+  hasMore.value = false;
   isLoading.value = false;
 }
 
-async function loadMore() {
-  if (isLoadingMore.value) return;
-  isLoadingMore.value = true;
-  const result = await listCommunityAlbums({ limit: PAGE_SIZE, offset: albums.value.length });
-  if (result.ok) {
-    const known = new Set(albums.value.map((item) => item.id));
-    albums.value = albums.value.concat(result.data.filter((item) => !known.has(item.id)));
-    hasMore.value = result.data.length >= PAGE_SIZE;
-  } else {
-    hasMore.value = false;
-  }
-  isLoadingMore.value = false;
+function loadMore() {
+  hasMore.value = false;
+}
+
+function openAuthor(album) {
+  selectedAuthor.value = album?.id || '';
+  if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function closeAuthor() {
+  selectedAuthor.value = '';
 }
 
 onMounted(loadAlbums);
@@ -207,7 +280,9 @@ onMounted(loadAlbums);
   transition: transform 0.15s ease;
 }
 
-.ca-mine-btn:hover { transform: translateY(-1px); }
+.ca-mine-btn:hover {
+  transform: translateY(-1px);
+}
 
 .ca-grid {
   margin-top: 24px;
@@ -223,7 +298,9 @@ onMounted(loadAlbums);
   border-radius: 20px;
   overflow: hidden;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
-  transition: transform 0.18s ease, box-shadow 0.18s ease;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease;
 }
 
 .ca-card:hover {
@@ -237,6 +314,29 @@ onMounted(loadAlbums);
   aspect-ratio: 4 / 3;
   background: var(--surface-secondary, #f2f2f7);
   overflow: hidden;
+}
+
+/* 封面从 RouterLink 换成 button（一人一本后没有「书 id」，翻开是就地切视图，不是跳路由） */
+.ca-cover-btn {
+  width: 100%;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ca-cover-btn:focus-visible {
+  outline: 2px solid var(--liquid-accent, #0071e3);
+  outline-offset: 3px;
+}
+
+.ca-reader {
+  margin-top: 24px;
+}
+
+.ca-back {
+  margin-bottom: 16px;
 }
 
 .ca-cover img {
@@ -253,7 +353,9 @@ onMounted(loadAlbums);
   opacity: 0;
 }
 
-.ca-card:hover .ca-cover img { transform: scale(1.04); }
+.ca-card:hover .ca-cover img {
+  transform: scale(1.04);
+}
 
 .ca-cover-placeholder {
   position: absolute;
@@ -375,8 +477,15 @@ onMounted(loadAlbums);
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
 }
 
-.ca-empty h2 { margin: 4px 0 0; font-size: 20px; }
-.ca-empty p { margin: 0; font-size: 14px; color: var(--text-secondary, #515154); }
+.ca-empty h2 {
+  margin: 4px 0 0;
+  font-size: 20px;
+}
+.ca-empty p {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-secondary, #515154);
+}
 
 .ca-btn {
   padding: 10px 18px;
@@ -388,8 +497,13 @@ onMounted(loadAlbums);
   transition: opacity 0.15s ease;
 }
 
-.ca-btn:hover { opacity: 0.85; }
-.ca-btn:disabled { opacity: 0.6; cursor: default; }
+.ca-btn:hover {
+  opacity: 0.85;
+}
+.ca-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
 
 .ca-btn.primary {
   border: 0;
@@ -411,19 +525,39 @@ onMounted(loadAlbums);
   border-radius: 8px;
 }
 
-.ca-card.skeleton .ca-cover { border-radius: 0; }
-.ca-card.skeleton .line { height: 14px; margin: 4px 0; }
-.ca-card.skeleton .line.short { width: 55%; }
+.ca-card.skeleton .ca-cover {
+  border-radius: 0;
+}
+.ca-card.skeleton .line {
+  height: 14px;
+  margin: 4px 0;
+}
+.ca-card.skeleton .line.short {
+  width: 55%;
+}
 
 @keyframes ca-shimmer {
-  from { background-position: 200% 0; }
-  to { background-position: -200% 0; }
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
 }
 
 @media (max-width: 640px) {
-  .ca-main { padding: 20px 14px 64px; }
-  .ca-header h1 { font-size: 24px; }
-  .ca-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }
-  .ca-subtitle { display: none; }
+  .ca-main {
+    padding: 20px 14px 64px;
+  }
+  .ca-header h1 {
+    font-size: 24px;
+  }
+  .ca-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+  .ca-subtitle {
+    display: none;
+  }
 }
 </style>

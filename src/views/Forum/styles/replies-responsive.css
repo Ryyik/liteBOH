@@ -388,8 +388,9 @@
   margin: 10px 10px 0;
   padding: env(safe-area-inset-top) 12px 0;
   display: grid;
-  /* 左侧取消、右侧发布。标题文案已下线，不再保留中间的空栅格。 */
-  grid-template-columns: 1fr auto;
+  /* 左「取消」/ 中标题 / 右「发布」（2026-11-15 恢复中间标题：横屏原先只剩一颗
+     右端按钮浮在全宽白条上，页面没有任何「这是什么」的指示）。 */
+  grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 12px;
   align-items: center;
   border: 1px solid var(--liquid-border, rgba(255,255,255,0.65));
@@ -414,6 +415,19 @@
   justify-content: flex-start;
   cursor: pointer;
   padding: 0;
+}
+
+/* 顶栏标题：「写点东西」/「做一本影集」——两种形态一眼分得开 */
+.mobile-composer-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  color: var(--liquid-text-primary, #0f1419);
 }
 
 .mobile-composer-submit {
@@ -448,19 +462,94 @@
   z-index: 1;
 }
 
-/* 横屏发布会话（有左侧分栏时）不再显示「取消」：分栏左栏仍是退出上下文，
-   顶栏只保留右端的发布主操作。 */
+/* 横屏发布会话（2026-11-15 重做布局）
+   旧规则把「取消」display:none，理由是「分栏左栏仍是退出上下文」——
+   但 overlay 是 Teleport 到 body 的 inset:0 全宽层，铺满时左栏根本点不到，
+   用户打开发帖器后没有任何退出路径（实测截图：一条全宽白条只剩右端一颗按钮）。
+   现在：恢复取消 + 居中标题 + 内容收成居中白卡，和页面底色分出边界。
+
+   ⚠️ 宽度用 min() 而不是只有 max-width：overlay 在分栏下已被 landscape-rail.css
+   收到左栏右侧（left: var(--userspace-rail-w)），这里的 100% 是「右区宽」，
+   所以两种情形（全宽 / 分栏）都能居中。 */
 @media (orientation: landscape) and (min-width: 1024px) and (min-height: 600px) {
-  .mobile-composer-overlay .mobile-composer-back {
-    display: none;
+  /* 浅灰底：`--boh-page-bg` 在浅色主题是纯白（tokens.css），
+     白卡贴在白底上等于没有边界 —— 必须比卡片暗一档才看得出「这是一张纸」。
+     暗色由既有的 `[data-theme="dark"] .mobile-composer-overlay`（#16161e）接管，
+     那条特异性 (0,1,1) 高于本条的 (0,1,0)，媒体查询不改变特异性。 */
+  .mobile-composer-overlay {
+    background: #f4f4f6;
   }
 
+  /* 全宽布局（2026-11-15 用户定稿）：横屏不用居中的窄卡 ——
+     左右各留 16px 呼吸位，其余铺满，写作时标题/正文的行宽由内容自己决定。 */
   .mobile-composer-overlay .mobile-composer-bar {
-    grid-template-columns: minmax(0, 1fr) auto;
+    width: 100%;
+    margin: 10px 0 0;
+    padding: env(safe-area-inset-top) 16px 0;
+    grid-template-columns: auto minmax(0, 1fr) auto;
   }
 
-  .mobile-composer-overlay .mobile-composer-submit {
-    grid-column: 2;
+  .mobile-composer-overlay .mobile-composer-scroll {
+    width: 100%;
+    margin: 10px 0 0;
+    padding: 0 16px 18px;
+  }
+
+  /* 白卡边界：纯白编辑区贴在浅灰底上才有「这是一张纸」的轮廓 */
+  .mobile-composer-overlay .mobile-composer-scroll > .mobile-composer-section {
+    background: var(--surface-primary, #ffffff);
+    border: 1px solid var(--liquid-border, rgba(15, 23, 42, 0.08));
+    border-radius: 18px;
+    box-shadow: 0 10px 30px -18px rgba(15, 23, 42, 0.25);
+    overflow: hidden;
+  }
+
+  /* 影集模式反着来：卷首语只占一行，把高度让给下面的分篇编辑区
+     （否则「分篇 / 先选照片」会被推到 620px 处、贴着底部工具条，用户看不见该干什么） */
+  .mobile-composer-overlay.is-album-mode .composer-post-body {
+    flex: 0 0 auto;
+    min-height: 0;
+  }
+
+  .mobile-composer-overlay.is-album-mode .composer-post-body .composer-body-shell textarea {
+    flex: 0 0 auto;
+    min-height: 84px;
+  }
+
+  /* 影集第三步：配文只是「卷首的一句话」，可留空。沿用 10vh 的起写区会白占半屏，
+     把逐张配字和大图挤到折叠线以下 —— 这里再压一档（2026-11-15）。 */
+  .mobile-composer-overlay.is-album-mode
+    .composer-post-body.has-images
+    .composer-body-shell
+    textarea {
+    min-height: 62px;
+  }
+
+  /* 正文区撑满剩余高度：横屏卡片有 500px+ 空白，正文只占一行时
+     大片留白读起来像「页面没加载完」，而且可点区域只有一条窄带。
+     ⚠️ 只对帖子模式生效：影集模式的正文只是卷首语，主体是下面的分篇编辑区，
+     撑开它会把「分篇 / 先选照片」整块挤出首屏（实测）。 */
+  .mobile-composer-overlay:not(.is-album-mode) .composer-post-body:not(.has-images) {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    min-height: 200px;
+  }
+
+  .mobile-composer-overlay:not(.is-album-mode)
+    .composer-post-body:not(.has-images)
+    .composer-body-shell {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .mobile-composer-overlay:not(.is-album-mode)
+    .composer-post-body:not(.has-images)
+    .composer-body-shell
+    textarea {
+    flex: 1 1 auto;
+    min-height: 170px;
   }
 }
 
@@ -1263,4 +1352,18 @@
     padding-right: 7px;
   }
 
+}
+
+/* ── 影集三步走：配文是「卷首的一句话」（可留空），任何宽度都不该占半屏 ──────
+   34vh 的起写区在横屏会把「逐张配字 + 大图对照」整块顶到折叠线以下（实测）。
+   放在文件末尾是刻意的：要压过上面几条 `.mobile-composer-section` 的同名规则。 */
+.mobile-composer-overlay.is-album-mode .composer-post-body.has-images .post-content-input {
+  min-height: 72px;
+}
+
+/* 影集第三步：底栏是这套流程的主推进器（上一步/下一步），
+   走到最后一步不能只剩一个「上一步」、把发布留给顶栏 —— 那里保持同一颗发布按钮。
+   （其余场景仍遵守「发布出口只在顶栏」，见 composer.css 的同名隐藏规则。） */
+.mobile-composer-overlay.is-album-mode .editor-footer .post-btn {
+  display: inline-flex;
 }

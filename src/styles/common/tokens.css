@@ -165,6 +165,9 @@
         所以不要「顺手」换成 --liquid-filter* —— 那是改视觉，不是重构。 */
   --liquid-filter-island: blur(26px) saturate(150%);
   --liquid-filter-scrim: blur(16px) saturate(140%) brightness(0.7);
+  /* 影集阅读层的纸面顶栏 / 底坞：比 sm 档轻（14px vs 18px）、且刻意不去到 180% 饱和
+     —— 底是纸色，过饱和会把纸纹理染成灰蓝。 */
+  --liquid-filter-reader: blur(14px) saturate(140%);
   --liquid-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.86);
   --liquid-highlight-subtle: inset 0 1px 0 rgba(255, 255, 255, 0.55);
   --liquid-shadow: 0 20px 60px rgba(15, 23, 42, 0.07), 0 1px 3px rgba(15, 23, 42, 0.06);

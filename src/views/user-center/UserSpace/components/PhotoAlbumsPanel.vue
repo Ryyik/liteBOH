@@ -1,20 +1,21 @@
 <template>
-  <!-- 摄影集（2026-11-10 收进设置三级页）
-       之前设置里点「摄影集」是 `router.push('/user-space/albums')` —— 整页替换，
-       横屏左侧目录消失、底栏也不在，用户报障的「有些页面还是单独一页」就是这类。
-       现在横屏出在右栏、竖屏整页；内容与独立路由共用同一个页面组件（PhotoAlbums
-       的 `embed` 只改外壳：去底色 / 去 100vh / 去自带返回按钮），不复制一份列表逻辑。 -->
+  <!-- 我的影集（2026-11-15 起由「摄影集」改造而来）
+       形态定稿：**一个用户就一本影集** —— 这本 = 该用户全部影集帖按时间倒序，
+       不需要建册、没有书位配额、本内帖数无上限。
+       入口位置不变（设置三级页 / 横屏右栏），换的只是数据源：
+       以前读 photo_albums（3 张表 + 编辑器），现在读 posts 里 is_album 的那些。 -->
   <div class="photo-albums-panel">
-    <PhotoAlbums embed />
+    <MyAlbumBook />
   </div>
 </template>
 
 <script setup>
 /**
- * 摄影集内联面板：零逻辑包装。
- * 建册 / 上传 / 配额 / 分享全部留在 PhotoAlbums 里，这里只决定「用哪层外壳」。
+ * 影集内联面板：零逻辑包装。
+ * 读数据、空态、点开阅读全在 MyAlbumBook 里（与论坛「影集」分区共用同一套卡片与阅读层）。
+ * 老摄影集的编辑器（6 版式 / 章节 / 离线导出）暂未接入，等以后作为「精装」挂回来。
  */
-import PhotoAlbums from '@/views/PhotoAlbums/index.vue';
+import MyAlbumBook from '@/views/Forum/components/MyAlbumBook.vue';
 </script>
 
 <style scoped>

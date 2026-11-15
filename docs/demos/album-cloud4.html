@@ -1,0 +1,646 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>影集帖 · 三十天与一次出走｜方块之家 BOH</title>
+<style>
+/* ============================================================
+   影集帖 · 真实内容测试版
+   数据来源：Ryyik 的 Cloud+ 最新一条（2026.11.11「分享最近」）
+   取前 4 张：冰美式 / 自习的课桌 / 江心屿的塔 / 洞头的灯塔
+   版式：单图 + 左栏标题·日期地点 + 右栏正文
+   ============================================================ */
+
+:root{
+  --bg:#F1F0EC;
+  --sheet:#FFFFFF;
+  --ink:#1A1A18;
+  --ink-2:#3F3F3A;
+  --ink-3:#8F8D86;
+  --line:#E7E5DF;
+  --line-2:rgba(26,26,24,.10);
+  --serif:"Songti SC","Noto Serif SC","Source Han Serif SC",STSong,"SimSun",serif;
+  --sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  --ease:cubic-bezier(.22,.7,.2,1);
+}
+[data-theme="dark"]{
+  --bg:#0C0C0B;
+  --sheet:#151513;
+  --ink:#EFECE5;
+  --ink-2:#C4C0B7;
+  --ink-3:#827E76;
+  --line:#262623;
+  --line-2:rgba(239,236,229,.10);
+}
+
+*{box-sizing:border-box}
+html,body{min-height:100%}
+body{
+  margin:0;background:var(--bg);color:var(--ink);
+  font-family:var(--sans);-webkit-font-smoothing:antialiased;
+  transition:background .3s var(--ease),color .3s var(--ease);
+}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+input,textarea{font:inherit;color:inherit}
+:focus-visible{outline:1px solid var(--ink);outline-offset:4px}
+
+/* ---------- 顶栏 ---------- */
+.topbar{
+  position:sticky;top:0;z-index:40;height:54px;display:flex;align-items:center;gap:12px;padding:0 20px;
+  background:color-mix(in srgb,var(--bg) 88%,transparent);
+  backdrop-filter:saturate(150%) blur(14px);-webkit-backdrop-filter:saturate(150%) blur(14px);
+  border-bottom:1px solid var(--line-2);
+}
+.brand{font-size:12px;letter-spacing:.22em;color:var(--ink-2)}
+.brand em{font-style:normal;color:var(--ink-3);margin-left:10px;letter-spacing:.1em}
+.top-right{margin-left:auto;display:flex;align-items:center;gap:14px}
+.tag{font-size:10.5px;letter-spacing:.18em;color:var(--ink-3)}
+.icon-btn{width:30px;height:30px;display:grid;place-items:center;color:var(--ink-3)}
+.icon-btn:hover{color:var(--ink)}
+.icon-btn svg{width:15px;height:15px}
+
+/* ---------- 视图 ---------- */
+.wrap{max-width:620px;margin:0 auto;padding:22px 16px 80px}
+.tabs{display:flex;gap:22px;margin:0 0 18px;padding:0 4px}
+.tab{font-size:12.5px;letter-spacing:.1em;color:var(--ink-3);padding:6px 0;border-bottom:1px solid transparent;transition:.2s var(--ease)}
+.tab:hover{color:var(--ink-2)}
+.tab[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--ink)}
+.view[hidden]{display:none}
+
+/* ---------- 纸页 ---------- */
+.sheet{background:var(--sheet);border:1px solid var(--line);padding:24px 18px 18px}
+.kicker{
+  font-size:10.5px;letter-spacing:.2em;color:var(--ink-3);
+  margin:0 0 16px;padding:0 6px;display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;
+}
+.kicker .by{margin-left:auto;letter-spacing:.14em}
+
+/* ---------- 图文条目 ---------- */
+.entry-photo{width:100%;display:block;background:#EAE8E2;overflow:hidden}
+.entry-photo img{width:100%;height:auto;display:block;object-position:center}
+[data-theme="dark"] .entry-photo{background:#1F1E1B}
+
+.entry-text{
+  display:grid;grid-template-columns:28% 1fr;column-gap:4%;
+  margin-top:18px;align-items:start;padding:0 6px;
+}
+.entry-title{
+  font-family:var(--serif);font-weight:400;font-size:19px;line-height:1.5;letter-spacing:.03em;
+  margin:0;word-break:break-word;
+}
+.entry-when{font-size:10.5px;letter-spacing:.02em;color:var(--ink-3);margin:10px 0 0;line-height:1.8}
+.entry-when span{display:block}
+.entry-when .when-place{margin-top:1px}
+.prose{font-family:var(--serif);font-size:13.6px;line-height:2;color:var(--ink-2);min-width:0}
+.prose p{margin:0 0 12px}
+.prose p:last-child{margin-bottom:0}
+
+/* ---------- 卷首 ---------- */
+.preface{
+  font-family:var(--serif);font-size:13px;line-height:2.05;color:var(--ink-2);
+  margin:0 0 30px;padding:0 6px 22px;border-bottom:1px solid var(--line);
+  white-space:pre-line;
+}
+.preface .label{
+  display:block;font-family:var(--sans);font-size:10px;letter-spacing:.24em;
+  color:var(--ink-3);margin-bottom:10px;
+}
+
+/* ---------- 信息流卡 ---------- */
+.card{cursor:pointer;transition:border-color .3s var(--ease)}
+.card:hover{border-color:#D8D5CD}
+.card .entry-photo img{transition:opacity .3s var(--ease)}
+.card:hover .entry-photo img{opacity:.94}
+.card-foot{
+  display:flex;align-items:center;gap:14px;margin:22px 6px 0;padding-top:13px;
+  border-top:1px solid var(--line);color:var(--ink-3);font-size:11px;letter-spacing:.06em;
+}
+.card-foot .more{letter-spacing:.12em}
+.card-acts{margin-left:auto;display:flex;gap:16px}
+.act{display:inline-flex;align-items:center;gap:5px;color:var(--ink-3);font-size:11.5px;transition:.2s var(--ease)}
+.act svg{width:14px;height:14px}
+.act:hover,.act.on{color:var(--ink)}
+.act.on svg{fill:currentColor}
+
+/* ---------- 阅读层 ---------- */
+.reader{position:fixed;inset:0;z-index:80;background:var(--bg);display:none;overflow-y:auto;overscroll-behavior:contain}
+.reader.open{display:block}
+.reader-bar{
+  position:sticky;top:0;z-index:2;height:54px;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;
+  padding:0 16px;background:color-mix(in srgb,var(--bg) 88%,transparent);
+  backdrop-filter:saturate(150%) blur(14px);-webkit-backdrop-filter:saturate(150%) blur(14px);
+  border-bottom:1px solid var(--line-2);
+}
+.bar-back{display:inline-flex;align-items:center;gap:6px;font-size:12px;letter-spacing:.1em;color:var(--ink-2);justify-self:start}
+.bar-back svg{width:15px;height:15px}
+.bar-title{text-align:center;font-family:var(--serif);font-size:13.5px;letter-spacing:.16em;white-space:nowrap}
+.bar-count{justify-self:end;font-size:10.5px;letter-spacing:.16em;color:var(--ink-3)}
+.reader .sheet{border-left:0;border-right:0;border-top:0;padding:26px 22px 96px}
+
+.entry + .entry{margin-top:76px}
+.end-mark{
+  margin:64px 0 8px;text-align:center;font-family:var(--serif);
+  font-size:11.5px;letter-spacing:.34em;color:var(--ink-3);
+}
+.comments{margin-top:38px;padding-top:20px;border-top:1px solid var(--line)}
+.comments h4{font-size:11px;letter-spacing:.2em;color:var(--ink-3);font-weight:400;margin:0 0 14px}
+.comment{display:flex;gap:10px;margin-bottom:14px;font-size:13px;line-height:1.75;color:var(--ink-2)}
+.comment b{font-weight:500;color:var(--ink);flex:0 0 auto}
+.comment span{min-width:0;word-break:break-word}
+
+.reader-dock{
+  position:fixed;left:50%;transform:translateX(-50%);bottom:0;z-index:3;width:100%;max-width:620px;
+  padding:9px 16px calc(9px + env(safe-area-inset-bottom));
+  background:color-mix(in srgb,var(--bg) 96%,transparent);
+  backdrop-filter:saturate(150%) blur(14px);-webkit-backdrop-filter:saturate(150%) blur(14px);
+  border-top:1px solid var(--line-2);
+  display:flex;align-items:center;gap:14px;
+}
+.dock-acts{display:flex;gap:16px}
+.dock-input{flex:1;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--line);padding:5px 0}
+.dock-input input{flex:1;border:0;background:none;font-size:12.5px;min-width:0}
+.dock-input input::placeholder{color:var(--ink-3)}
+.dock-input button{font-size:11.5px;letter-spacing:.1em;color:var(--ink-2)}
+
+/* ---------- 发布器 ---------- */
+.strip{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 14px;scrollbar-width:none}
+.strip::-webkit-scrollbar{display:none}
+.thumb{
+  flex:0 0 auto;width:54px;height:54px;position:relative;overflow:hidden;
+  opacity:.38;transition:.22s var(--ease);border:1px solid transparent;
+}
+.thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.thumb[aria-current="true"]{opacity:1;border-color:var(--ink)}
+.thumb span{position:absolute;left:3px;bottom:2px;font-size:8.5px;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.6)}
+.thumb:hover{opacity:.75}
+
+.name-row{display:flex;align-items:baseline;gap:8px;margin:0 0 14px;color:var(--ink-3);font-size:10.5px;letter-spacing:.16em}
+.name-input{
+  flex:1;min-width:0;border:0;border-bottom:1px dashed transparent;background:none;padding:0 0 2px;
+  font-family:var(--serif);font-size:12px;letter-spacing:.16em;color:var(--ink-2);
+}
+.name-input:focus{border-bottom-color:var(--line);outline:none}
+
+.ed-title{
+  width:100%;border:0;border-bottom:1px dashed transparent;background:none;padding:0 0 2px;
+  font-family:var(--serif);font-size:19px;line-height:1.5;letter-spacing:.03em;color:var(--ink);
+}
+.ed-title:focus,.ed-date:focus,.ed-place:focus,.ed-body:focus,.name-input:focus{border-bottom-color:var(--line);outline:none}
+.ed-when{display:flex;gap:8px;margin-top:9px;font-size:10.5px;color:var(--ink-3)}
+.ed-date{width:76px;border:0;border-bottom:1px dashed transparent;background:none;padding:0 0 2px;color:var(--ink-3);letter-spacing:.04em}
+.ed-place{flex:1;min-width:0;border:0;border-bottom:1px dashed transparent;background:none;padding:0 0 2px;color:var(--ink-3);letter-spacing:.04em}
+@media (max-width:699px){
+  .ed-when{display:block}
+  .ed-date{display:block;width:100%}
+  .ed-place{display:block;width:100%;margin-top:3px}
+}
+.ed-body{
+  width:100%;border:0;border-bottom:1px dashed transparent;background:none;padding:0;resize:none;overflow:hidden;
+  font-family:var(--serif);font-size:13.6px;line-height:2;color:var(--ink-2);min-height:120px;
+}
+textarea::placeholder,input::placeholder{color:color-mix(in srgb,var(--ink-3) 70%,transparent)}
+
+/* 发布器里的照片只做预览：不裁切，整体缩到半屏内，好让字段一屏可见 */
+.editor .entry-photo{background:transparent;display:grid;place-items:center}
+.editor .entry-photo img{width:auto;max-width:100%;max-height:44vh}
+@media (min-width:700px){ .editor .entry-photo img{max-height:54vh} }
+
+.compose-foot{display:flex;align-items:center;gap:14px;margin-top:24px;padding-top:16px;border-top:1px solid var(--line)}
+.btn{
+  height:36px;padding:0 16px;border:1px solid var(--ink);font-size:11.5px;letter-spacing:.16em;
+  transition:.22s var(--ease);flex:0 0 auto;white-space:nowrap;
+}
+.btn.primary{background:var(--ink);color:var(--sheet)}
+.btn.primary:hover{background:transparent;color:var(--ink)}
+.btn.ghost{border-color:var(--line);color:var(--ink-2)}
+.btn.ghost:hover{border-color:var(--ink-3);color:var(--ink)}
+.compose-foot .tip{margin-left:auto;font-size:10.5px;letter-spacing:.06em;color:var(--ink-3);line-height:1.8;text-align:right}
+
+/* ---------- 我的影集 ---------- */
+.books{max-width:620px;margin:0 auto}
+.book{
+  display:flex;gap:14px;align-items:center;padding:14px 2px;border-bottom:1px solid var(--line);
+  width:100%;text-align:left;transition:.22s var(--ease);
+}
+.book:hover{background:color-mix(in srgb,var(--ink) 4%,transparent)}
+.book img{width:64px;height:64px;object-fit:cover;flex:0 0 auto;display:block}
+.book-main{min-width:0;flex:1}
+.book-title{font-family:var(--serif);font-size:16px;letter-spacing:.05em;margin:0 0 5px;line-height:1.4}
+.book-meta{font-size:10.5px;letter-spacing:.1em;color:var(--ink-3);margin:0}
+.book-no{font-size:10px;letter-spacing:.18em;color:var(--ink-3);flex:0 0 auto}
+.books-head{display:flex;align-items:baseline;gap:12px;margin:0 0 10px;padding:0 2px}
+.books-head h1{font-family:var(--serif);font-weight:400;font-size:22px;letter-spacing:.1em;margin:0}
+.books-head span{font-size:10.5px;letter-spacing:.1em;color:var(--ink-3)}
+.note{
+  max-width:620px;margin:26px auto 0;padding:0 2px;font-family:var(--serif);
+  font-size:12px;line-height:2.1;color:var(--ink-3);
+}
+
+/* ---------- 岛 ---------- */
+.island{
+  position:fixed;left:50%;top:14px;transform:translate(-50%,-14px);
+  background:var(--ink);color:var(--sheet);padding:9px 16px;
+  font-size:11.5px;letter-spacing:.1em;opacity:0;pointer-events:none;
+  transition:.32s var(--ease);z-index:120;
+}
+.island.show{opacity:1;transform:translate(-50%,0)}
+
+@media (min-width:700px){
+  .sheet{padding:30px 18px 22px}
+  .reader .sheet{padding:34px 18px 150px;max-width:620px;margin:0 auto;border-left:1px solid var(--line);border-right:1px solid var(--line)}
+  .entry-text{margin-top:22px;grid-template-columns:26% 1fr;column-gap:2%;padding:0 10px}
+  .kicker{padding:0 10px}
+  .preface{padding:0 10px 24px;font-size:14px}
+  .entry-title{font-size:26px;line-height:1.45}
+  .entry-when{font-size:11.5px;margin-top:13px}
+  .entry-when span{display:inline-block}
+  .entry-when .when-date{margin-right:.6em}
+  .entry-when .when-place{margin-top:0}
+  .prose{font-size:15.5px}
+  .ed-title{font-size:26px;line-height:1.45}
+  .ed-body{font-size:15.5px}
+  .entry + .entry{margin-top:88px}
+  .thumb{width:62px;height:62px}
+}
+@media (max-width:520px){
+  .topbar{height:50px;padding:0 14px;gap:8px}
+  .brand em{display:none}
+  .top-right .tag{display:none}
+  .kicker .by{display:none}
+}
+@media (max-width:380px){
+  .entry-title{font-size:17.5px}
+  .prose{font-size:13px}
+  .ed-title{font-size:17.5px}
+  .ed-body{font-size:13px}
+}
+@media (prefers-reduced-motion:reduce){
+  *{transition-duration:.001ms !important;animation-duration:.001ms !important}
+}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">方块之家<em>影集帖 · 真实内容测试</em></div>
+  <div class="top-right">
+    <span class="tag">4 篇 · 来自 Cloud+</span>
+    <button class="icon-btn" id="themeBtn" aria-label="切换明暗">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 3.5v1.8M12 18.7v1.8M3.5 12h1.8M18.7 12h1.8M6 6l1.3 1.3M16.7 16.7 18 18M18 6l-1.3 1.3M7.3 16.7 6 18"/></svg>
+    </button>
+  </div>
+</header>
+
+<main class="wrap">
+  <nav class="tabs" role="tablist" aria-label="原型视图">
+    <button class="tab" role="tab" aria-selected="true" data-view="feed">信息流</button>
+    <button class="tab" role="tab" aria-selected="false" data-view="compose">写影集</button>
+    <button class="tab" role="tab" aria-selected="false" data-view="books">我的影集</button>
+  </nav>
+
+  <section class="view" id="view-feed" role="tabpanel">
+    <div id="feedMount"></div>
+  </section>
+
+  <section class="view" id="view-compose" role="tabpanel" hidden>
+    <div class="sheet editor">
+      <div class="name-row">
+        <label for="albumName">影集名</label>
+        <input id="albumName" class="name-input" value="三十天与一次出走" maxlength="20" />
+        <span id="photoCount">4 篇</span>
+      </div>
+      <div class="strip" id="thumbStrip" aria-label="选择要编辑的一篇"></div>
+      <div id="editorMount"></div>
+      <div class="compose-foot">
+        <button class="btn primary" id="publishBtn">测试发布</button>
+        <button class="btn ghost" id="draftBtn">存草稿</button>
+        <p class="tip">一张照片一篇<br />发布后在信息流翻开连读</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="view" id="view-books" role="tabpanel" hidden>
+    <div class="books-head">
+      <h1>我的影集</h1>
+      <span>每发一篇影集帖，就多一本</span>
+    </div>
+    <div class="books" id="booksMount"></div>
+    <p class="note">
+      影集帖不是相册，是排好版的图文页：一张照片配一小段字，几篇连起来是一本。<br />
+      它不占摄影集配额，所有人可用；需要换版式、做章节、导出成书时，再精修成摄影集。
+    </p>
+  </section>
+</main>
+
+<div class="reader" id="reader" role="dialog" aria-modal="true" aria-label="影集阅读">
+  <div class="reader-bar">
+    <button class="bar-back" id="readerClose">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M15 5l-7 7 7 7"/></svg>
+      返回
+    </button>
+    <div class="bar-title" id="barTitle">三十天与一次出走</div>
+    <div class="bar-count" id="barCount">四篇</div>
+  </div>
+  <div class="sheet" id="readerSheet"></div>
+  <div class="reader-dock">
+    <div class="dock-acts">
+      <button class="act" data-act="like" aria-pressed="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 20s-7-4.6-7-9.2A4.1 4.1 0 0 1 12 7.8 4.1 4.1 0 0 1 19 10.8C19 15.4 12 20 12 20Z"/></svg>
+        <span id="likeCount">12</span>
+      </button>
+      <button class="act" data-act="comment">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20 11.5a7.5 7.5 0 0 1-7.5 7.5H8l-4 3v-6.3A7.5 7.5 0 0 1 11.5 4h1A7.5 7.5 0 0 1 20 11.5Z"/></svg>
+        <span id="commentCount">3</span>
+      </button>
+      <button class="act" data-act="save" aria-pressed="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M7 4h10v16l-5-3.4L7 20V4Z"/></svg>
+        <span>存</span>
+      </button>
+    </div>
+    <form class="dock-input" id="commentForm">
+      <input id="commentText" placeholder="说点什么…" maxlength="120" autocomplete="off" />
+      <button type="submit">发送</button>
+    </form>
+  </div>
+</div>
+
+<div class="island" id="island"><span id="islandText">已发布</span></div>
+
+<script>
+/* ---------- 真实数据：Cloud+ 最新一条的前 4 张 ---------- */
+const CDN = 'https://res.cloudinary.com/dkqae7j1m/image/upload/';
+const full = (id, v) => `${CDN}f_auto,q_auto,w_1200/v${v}/boh-cloud-plus/forum/${id}.png`;
+const thumb = (id, v) => `${CDN}f_auto,q_auto,w_200/v${v}/boh-cloud-plus/forum/${id}.png`;
+
+const photos = [
+  { id:'rr7ud9apyxsqhi9sirxc', v:'1794369059' },
+  { id:'a9gknhkh9rhkguzin3sy', v:'1794369059' },
+  { id:'mv6hdr1eptx7nkpsnvaq', v:'1794369057' },
+  { id:'z9dboecofjem7yg7foup', v:'1794369067' },
+].map((p) => ({ src: full(p.id, p.v), small: thumb(p.id, p.v) }));
+
+const entries = [
+  { title:'一杯冰的', date:'2026.11.09', place:'学校边上',
+    body:['本来想点热的，看到菜单上「冰」字还是没忍住。十一月了，杯壁上还是很快挂了一层水。',
+          '抱着它走回图书馆的时候，风比想象中冷。手心里那点凉，反而让人清醒。'] },
+  { title:'三十天', date:'2026.11.10', place:'自习室',
+    body:['离六级还有三十多天。卷子摊开，笔压在纸上，什么也没写。',
+          '表盘上的数字走得很慢。抬头看一圈，所有人都在低头，只有我在数还剩多少天。'] },
+  { title:'塔在雾里', date:'2026.11.08', place:'塔下',
+    body:['阴天，塔看不清上面几层，像被谁用橡皮擦淡了。',
+          '廊檐的格子在眼前，塔在格子外面。站在这里看出去，整座园子都被框进了一扇窗。'] },
+  { title:'洞头的风', date:'2026.11.07', place:'洞头 · 海边',
+    body:['海是灰的，灯塔是白的，山在更远的地方。风大到说话都要靠喊。',
+          '拍完这几张，手已经冻僵了。可回来的路上一直在想，下次还要来。'] },
+];
+
+const album = {
+  title:'三十天与一次出走',
+  preface:'还有三十多天考六级，然后我发现去福州的时间真的很紧。上周末去了洞头的海边，风超级大超级冷，也拍了一些好看的照片。',
+  author:'Ryyik',
+  date:'2026.11',
+  likes:12, comments:3, saves:5,
+};
+let liked = false, saved = false;
+let editing = 0;
+let published = false;
+
+const $ = (s) => document.querySelector(s);
+const icon = {
+  heart:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 20s-7-4.6-7-9.2A4.1 4.1 0 0 1 12 7.8 4.1 4.1 0 0 1 19 10.8C19 15.4 12 20 12 20Z"/></svg>',
+  comment:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20 11.5a7.5 7.5 0 0 1-7.5 7.5H8l-4 3v-6.3A7.5 7.5 0 0 1 11.5 4h1A7.5 7.5 0 0 1 20 11.5Z"/></svg>',
+  save:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M7 4h10v16l-5-3.4L7 20V4Z"/></svg>',
+};
+
+function esc(s){ return String(s).replace(/[<>&]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[c])); }
+function proseHtml(body){ return body.map(p => `<p>${esc(p)}</p>`).join(''); }
+function photoHtml(i){
+  return `<div class="entry-photo"><img src="${photos[i].src}" alt="" loading="${i ? 'lazy' : 'eager'}" /></div>`;
+}
+const cn = ['零','一','二','三','四','五','六','七','八','九','十'];
+const countCn = (n) => (n <= 10 ? cn[n] : n) + '篇';
+
+/* ---------- 信息流：只放第一篇 ---------- */
+function renderFeed() {
+  const e = entries[0];
+  $('#feedMount').innerHTML = `
+    <article class="sheet card" id="feedCard" role="button" tabindex="0" aria-label="翻开影集《${esc(album.title)}》">
+      <p class="kicker">${esc(album.title)}<span>·</span><span>${countCn(entries.length)}</span><span>·</span><span>${esc(album.date)}</span><span class="by">${esc(album.author)}</span></p>
+      ${photoHtml(0)}
+      <div class="entry-text">
+        <div>
+          <h2 class="entry-title">${esc(e.title)}</h2>
+          <p class="entry-when"><span class="when-date">${esc(e.date)}</span><span class="when-place">${esc(e.place)}</span></p>
+        </div>
+        <div class="prose">${proseHtml(e.body)}</div>
+      </div>
+      <div class="card-foot">
+        <span class="more">共${countCn(entries.length)} · 翻开连读</span>
+        <div class="card-acts">
+          <span class="act">${icon.heart}${album.likes}</span>
+          <span class="act">${icon.comment}${album.comments}</span>
+          <span class="act">${icon.save}${album.saves}</span>
+        </div>
+      </div>
+    </article>`;
+  const card = $('#feedCard');
+  card.addEventListener('click', () => openReader());
+  card.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); openReader(); }
+  });
+}
+
+/* ---------- 阅读：四篇竖排 + 卷首 ---------- */
+function renderReader() {
+  $('#readerSheet').innerHTML = `
+    <p class="kicker">${esc(album.title)}<span>·</span><span>${countCn(entries.length)}</span><span>·</span><span>${esc(album.date)}</span><span class="by">${esc(album.author)}</span></p>
+    <p class="preface"><span class="label">卷首</span>${esc(album.preface)}</p>
+    ${entries.map((e, i) => `
+      <article class="entry">
+        ${photoHtml(i)}
+        <div class="entry-text">
+          <div>
+            <h2 class="entry-title">${esc(e.title)}</h2>
+            <p class="entry-when"><span class="when-date">${esc(e.date)}</span><span class="when-place">${esc(e.place)}</span></p>
+          </div>
+          <div class="prose">${proseHtml(e.body)}</div>
+        </div>
+      </article>`).join('')}
+    <p class="end-mark">— ${esc(album.title)} · ${countCn(entries.length)} —</p>
+    <div class="comments">
+      <h4>评论 ${album.comments}</h4>
+      <div id="commentList">
+        <div class="comment"><b>林间</b><span>第四张的风感出来了，灯塔那面墙很干净。</span></div>
+        <div class="comment"><b>周一白</b><span>「只有我在数还剩多少天」——这段太多人懂。</span></div>
+      </div>
+    </div>`;
+  $('#likeCount').textContent = album.likes;
+  $('#commentCount').textContent = album.comments;
+}
+
+function openReader() {
+  renderReader();
+  $('#reader').classList.add('open');
+  $('#reader').scrollTop = 0;
+  document.body.style.overflow = 'hidden';
+  $('#barTitle').textContent = album.title;
+  $('#barCount').textContent = `${countCn(entries.length)} · ${album.date}`;
+  liked = false; saved = false;
+  document.querySelectorAll('.reader-dock .act').forEach((b) => {
+    if (b.dataset.act === 'like' || b.dataset.act === 'save') { b.classList.remove('on'); b.setAttribute('aria-pressed','false'); }
+  });
+}
+function closeReader() {
+  $('#reader').classList.remove('open');
+  document.body.style.overflow = '';
+}
+$('#readerClose').addEventListener('click', closeReader);
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && $('#reader').classList.contains('open')) closeReader();
+});
+
+/* ---------- 互动 ---------- */
+document.querySelectorAll('.reader-dock .act').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    const act = btn.dataset.act;
+    if (act === 'like') {
+      liked = !liked; btn.classList.toggle('on', liked); btn.setAttribute('aria-pressed', String(liked));
+      album.likes += liked ? 1 : -1;
+      $('#likeCount').textContent = album.likes;
+      renderFeed();
+    }
+    if (act === 'save') {
+      saved = !saved; btn.classList.toggle('on', saved); btn.setAttribute('aria-pressed', String(saved));
+      album.saves += saved ? 1 : -1;
+      renderFeed();
+    }
+    if (act === 'comment') $('#commentText').focus();
+  });
+});
+
+$('#commentForm').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const input = $('#commentText');
+  const text = input.value.trim();
+  if (!text) return;
+  album.comments += 1;
+  $('#commentCount').textContent = album.comments;
+  document.querySelector('.comments h4').textContent = `评论 ${album.comments}`;
+  const row = document.createElement('div');
+  row.className = 'comment';
+  row.innerHTML = `<b>你</b><span>${esc(text)}</span>`;
+  $('#commentList').appendChild(row);
+  input.value = '';
+  renderFeed();
+});
+
+/* ---------- 发布器 ---------- */
+function renderThumbs() {
+  $('#thumbStrip').innerHTML = entries.map((e, i) => `
+    <button class="thumb" data-i="${i}" aria-current="${i === editing}" aria-label="第 ${i + 1} 篇：${esc(e.title)}">
+      <img src="${photos[i].small}" alt="" />
+      <span>${String(i + 1).padStart(2,'0')}</span>
+    </button>`).join('');
+  $('#thumbStrip').querySelectorAll('.thumb').forEach((t) => {
+    t.addEventListener('click', () => { editing = Number(t.dataset.i); renderThumbs(); renderEditor(); });
+  });
+}
+
+function renderEditor() {
+  const e = entries[editing];
+  $('#editorMount').innerHTML = `
+    <div class="entry">
+      ${photoHtml(editing)}
+      <div class="entry-text">
+        <div>
+          <input class="ed-title" id="edTitle" value="${esc(e.title)}" maxlength="16" aria-label="标题" />
+          <div class="ed-when">
+            <input class="ed-date" id="edDate" value="${esc(e.date)}" maxlength="12" aria-label="日期" />
+            <input class="ed-place" id="edPlace" value="${esc(e.place)}" maxlength="16" aria-label="地点" />
+          </div>
+        </div>
+        <textarea class="ed-body" id="edBody" aria-label="正文" placeholder="写这一张字…">${esc(e.body.join('\n\n'))}</textarea>
+      </div>
+    </div>`;
+  const body = $('#edBody');
+  const grow = () => { body.style.height = 'auto'; body.style.height = `${body.scrollHeight}px`; };
+  grow();
+  body.addEventListener('input', grow);
+
+  $('#edTitle').addEventListener('input', (ev) => { entries[editing].title = ev.target.value; });
+  $('#edDate').addEventListener('input', (ev) => { entries[editing].date = ev.target.value; });
+  $('#edPlace').addEventListener('input', (ev) => { entries[editing].place = ev.target.value; });
+  body.addEventListener('input', (ev) => {
+    entries[editing].body = ev.target.value.split(/\n{2,}/).map(s => s.trim()).filter(Boolean);
+  });
+}
+
+$('#albumName').addEventListener('input', (ev) => {
+  album.title = ev.target.value.trim() || '未命名影集';
+});
+
+$('#publishBtn').addEventListener('click', () => {
+  published = true;
+  renderFeed();
+  showIsland(`已测试发布 · ${countCn(entries.length)}连读`);
+  setTimeout(openReader, 420);
+});
+$('#draftBtn').addEventListener('click', () => showIsland('已存草稿 · 只有你能看到'));
+
+/* ---------- 我的影集 ---------- */
+const books = [
+  { title:'三十天与一次出走', no:'第 01 本', meta:`${countCn(entries.length)} · 2026.11`, src:photos[0].small, own:true },
+  { title:'晚课下课了', no:'第 02 本', meta:'四篇 · 2026.10', src:'https://res.cloudinary.com/dkqae7j1m/image/upload/f_auto,q_auto,w_200/v1793367686/boh-cloud-plus/forum/a2v3iwq7i9bew9ukk3il.png' },
+  { title:'温州行记录', no:'第 03 本', meta:'五篇 · 2026.10', src:'https://res.cloudinary.com/dkqae7j1m/image/upload/f_auto,q_auto,w_200/v1793193010/boh-cloud-plus/forum/xuyplpkysm99xp6qsdtw.png' },
+];
+
+function renderBooks() {
+  $('#booksMount').innerHTML = books.map((b, i) => `
+    <button class="book" data-i="${i}">
+      <img src="${b.src}" alt="" loading="lazy" />
+      <div class="book-main">
+        <h3 class="book-title">${esc(b.title)}</h3>
+        <p class="book-meta">${esc(b.meta)}${b.own && published ? ' · 刚发布' : ''}</p>
+      </div>
+      <span class="book-no">${esc(b.no)}</span>
+    </button>`).join('');
+  $('#booksMount').querySelectorAll('.book').forEach((el) => {
+    el.addEventListener('click', () => {
+      const b = books[Number(el.dataset.i)];
+      if (b.own) { openReader(); return; }
+      showIsland(`《${b.title}》还没导入内容`);
+    });
+  });
+}
+
+/* ---------- 视图 / 主题 / 岛 ---------- */
+function switchView(name) {
+  document.querySelectorAll('.tab').forEach((t) => t.setAttribute('aria-selected', String(t.dataset.view === name)));
+  document.querySelectorAll('.view').forEach((v) => { v.hidden = v.id !== `view-${name}`; });
+  if (name === 'compose') { renderThumbs(); renderEditor(); }
+  if (name === 'books') renderBooks();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+document.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () => switchView(t.dataset.view)));
+
+const root = document.documentElement;
+root.dataset.theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+$('#themeBtn').addEventListener('click', () => {
+  root.dataset.theme = root.dataset.theme === 'dark' ? 'light' : 'dark';
+});
+
+let islandTimer;
+function showIsland(text) {
+  const el = $('#island');
+  $('#islandText').textContent = text;
+  el.classList.add('show');
+  clearTimeout(islandTimer);
+  islandTimer = setTimeout(() => el.classList.remove('show'), 2200);
+}
+
+renderFeed();
+renderBooks();
+</script>
+</body>
+</html>
