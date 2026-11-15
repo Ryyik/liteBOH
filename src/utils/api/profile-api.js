@@ -150,6 +150,28 @@ export async function getUserImpressions(targetId, options = {}) {
   );
 }
 
+/**
+ * 印象总数 —— 他人空间「印象」tab 上的数字。
+ *
+ * 与 getCommentsCountByUsername 同一个理由：tab 上原先显示 `impressions.length`，
+ * 那是「已加载的那一页」，而 ensureActiveTabData() 只加载当前 tab ⇒ 不点开永远是 0。
+ * 过滤链对齐 getUserImpressions：target_id + moderation_status=approved
+ * （线上缺审核列时列表会降级为不过滤，此时计数按 approved 会偏小 —— 属已知降级，
+ *  该列已由迁移补齐，这里不再复制整套降级逻辑）。
+ */
+export async function getUserImpressionsCount(targetId) {
+  const safeTargetId = String(targetId || '').trim();
+  if (!safeTargetId) return { count: 0, error: null };
+
+  const { count, error } = await supabase
+    .from('user_impressions')
+    .select('id', { count: 'exact', head: true })
+    .eq('target_id', safeTargetId)
+    .eq('moderation_status', UNIFIED_APPROVED_STATUS);
+
+  return { count: error ? null : (count ?? 0), error: error || null };
+}
+
 function buildImpressionModerationInput(content = '') {
   const safeContent = String(content || '').trim();
   return `正文：${safeContent}`;
@@ -607,6 +629,44 @@ export async function getCommentsByUsername(username, userId = null, options = {
       retry: 1,
     },
   );
+}
+
+/**
+ * 回复总数 —— 他人空间「回复」tab 上的数字。
+ *
+ * 为什么必须单独查：tab 上原先显示 `comments.length`，那是「已加载的那一页」，
+ * 而 ensureActiveTabData() 只加载当前 tab ⇒ 刚打开别人的空间时回复恒显示 0，
+ * 点开 tab 后才变成首屏 20 条 —— 用户报障「回复数点了才有」，而且两个读数都不对。
+ *
+ * 过滤链必须与 getCommentsByUsername 逐条对齐（可见性口径是 status.is.null /
+ * status.eq.approved，与帖子同一套），否则「总数」和列表条数对不上。
+ * 走 head:true 只回 count，不拉行。
+ */
+export async function getCommentsCountByUsername(username, userId = null) {
+  const safeUsername = String(username || '').trim();
+  const filterSafeUsername = safeUsername.replace(/[,.\()']/g, '');
+
+  const countBy = async (applyFilter) => {
+    const { count, error } = await applyFilter(
+      supabase.from('comments').select('id', { count: 'exact', head: true }),
+    );
+    return { count: error ? null : (count ?? 0), error: error || null };
+  };
+
+  if (userId && filterSafeUsername) {
+    return countBy((query) =>
+      query
+        .or(`author_id.eq.${userId},author_username.eq.${filterSafeUsername}`)
+        .or(CONTENT_STATUS_FILTER),
+    );
+  }
+  // ⚠️ 不要再写「按 author_id 数为 0 就回退按 username 数一次」：列表那边那段是
+  //    不可达分支（进到 userId-only 的前提就是 username 为空），照抄过来只会多一次请求。
+  if (userId) {
+    return countBy((query) => query.eq('author_id', userId).or(CONTENT_STATUS_FILTER));
+  }
+  if (!safeUsername) return { count: 0, error: null };
+  return countBy((query) => query.eq('author_username', safeUsername).or(CONTENT_STATUS_FILTER));
 }
 
 const ALLOWED_PROFILE_FIELDS = new Set([

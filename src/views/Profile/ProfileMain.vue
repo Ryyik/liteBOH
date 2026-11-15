@@ -432,7 +432,7 @@
             :aria-selected="activeTab === 'replies'"
             @click="setActiveTab('replies')"
           >
-            回复 <span class="profile-content-count">{{ comments.length }}</span>
+            回复 <span class="profile-content-count">{{ totalCommentCount ?? 0 }}</span>
           </button>
           <button
             type="button"
@@ -442,7 +442,7 @@
             :aria-selected="activeTab === 'impressions'"
             @click="setActiveTab('impressions')"
           >
-            印象 <span class="profile-content-count">{{ impressions.length }}</span>
+            印象 <span class="profile-content-count">{{ totalImpressionCount ?? 0 }}</span>
           </button>
         </div>
 
@@ -887,7 +887,9 @@ import {
   getPostsByUsername,
   getPostsByIds,
   getCommentsByUsername,
+  getCommentsCountByUsername,
   getUserImpressions,
+  getUserImpressionsCount,
   addUserImpression,
   deleteUserImpression,
   updateProfileAvatar,
@@ -1024,6 +1026,13 @@ let profileFetchInflightUsername = '';
 
 const posts = ref([]);
 const totalPostCount = ref(0);
+/* 回复 / 印象的**服务端总数**（2026-11-15 修）。
+   原先 tab 上显示的是 `comments.length` / `impressions.length` —— 那是「已加载的那一页」，
+   而 ensureActiveTabData() 只加载当前 tab ⇒ 别人的空间刚打开时回复恒显示 0，
+   点开回复 tab 后才变成 20（首屏 20 条），两个读数都不对。
+   null = 还没取回来，模板按 0 渲染（面板整体在 loading 之后才挂载，实际看不到 0）。 */
+const totalCommentCount = ref(null);
+const totalImpressionCount = ref(null);
 const comments = ref([]);
 const impressions = ref([]);
 const loading = ref(true);
@@ -1530,6 +1539,10 @@ const resetProfileCollections = () => {
   posts.value = [];
   comments.value = [];
   impressions.value = [];
+  // 三个计数一并清空：否则从 A 的空间切到 B 的空间时，tab 上会短暂沿用 A 的数字
+  totalPostCount.value = 0;
+  totalCommentCount.value = null;
+  totalImpressionCount.value = null;
   showcasePostsFetched.value = [];
   activityHeatmap.value = null;
   isHeatmapLoading.value = false;
@@ -1750,6 +1763,27 @@ const fetchTotalPostCount = async (username, userId) => {
   }
 };
 
+/* 回复 / 印象的真实总数（为什么需要：见 totalCommentCount 的声明处注释）。
+   与 totalPostCount 同一套做法 —— head:true 只取 count，且刻意不进 request-core 缓存：
+   计数开销很小，而「刚回复完回到空间页」必须立刻看到新数字。 */
+const fetchTotalCommentCount = async (username, userId) => {
+  try {
+    const { count, error } = await getCommentsCountByUsername(username, userId);
+    if (!error) totalCommentCount.value = count ?? 0;
+  } catch (e) {
+    console.error('获取回复总数失败:', e);
+  }
+};
+
+const fetchTotalImpressionCount = async (userId) => {
+  try {
+    const { count, error } = await getUserImpressionsCount(userId);
+    if (!error) totalImpressionCount.value = count ?? 0;
+  } catch (e) {
+    console.error('获取印象总数失败:', e);
+  }
+};
+
 const loadCommentsPage = async ({
   reset = false,
   fetchVersion = profileFetchVersion.value,
@@ -1857,6 +1891,9 @@ const fetchProfileData = async (username) => {
         loadPublicCloudNotes(profileData.id, fetchVersion),
         loadFollowState(profileData.id),
         fetchTotalPostCount(safeUsername, profileData.id),
+        // 回复 / 印象的总数与当前 tab 无关：跟着资料一起取，tab 上的数字才「一打开就对」
+        fetchTotalCommentCount(safeUsername, profileData.id),
+        fetchTotalImpressionCount(profileData.id),
         loadActivityHeatmap(profileData.id, fetchVersion),
       ]);
     } catch (err) {

@@ -36,6 +36,13 @@ import {
 } from '../forum-format.js';
 // 内容类型派生单源（P2-2）
 import { deriveForumPostKind } from '../../forum-post-format.js';
+// 影集帖数据契约（单篇照片数上限 / entries 归一）—— 单源在 utils/forum-album.js
+import {
+  ALBUM_MAX_ENTRIES,
+  normalizeAlbumBook,
+  toAlbumEntriesRpcPayload,
+  validateAlbumDraft,
+} from '../../forum-album.js';
 import { getForumPostImages } from '../forum-images-api.js';
 import {
   canMutateForumContent,
@@ -571,6 +578,9 @@ export async function getPosts(userId = null, pagination = {}) {
     pagination.kindFilter || pagination.contentType || '',
   );
   const includeUnapprovedForAuthor = Boolean(pagination.includeUnapprovedForAuthor);
+  /* 影集视图（论坛「影集」分区 / 个人影集页）：只取 is_album 的帖子。
+     用生成列过滤而不是比 JSONB 字面量（`album_entries=neq.[]` 的编码很容易出错）。 */
+  const albumOnly = Boolean(pagination.albumOnly);
   const cursorMode = String(pagination.cursorMode || '')
     .trim()
     .toLowerCase();
@@ -596,6 +606,15 @@ export async function getPosts(userId = null, pagination = {}) {
       searchQuery,
       tagFilter,
       kindFilter,
+      /* ⚠️ 影集与「资讯」必须各自独立成键（2026-11-15 修）。
+         原先这两维都不在 key 里，后果是「切过去显示的不是那个分区的内容」：
+           · albumOnly 缺失 ⇒ 30s 内从「最新」切到「影集」直接命中最新流的缓存，
+             而 prepareForumPosts 对 selectedContentType==='' 不做补筛 ⇒ 影集里出现非影集帖；
+           · 「资讯」的 kindFilter 归一后是 null（clientOnly，靠 fetcher 内补筛），与
+             「全部」同键 ⇒ 命中缓存时那段补筛根本不执行，只剩 1~2 张官方卡。 */
+      albumOnly,
+      kindValues:
+        Array.isArray(kindValues) && kindValues.length ? [...kindValues].sort().join(',') : null,
       includeUnapprovedForAuthor,
       cursorMode,
       cursorToken,
@@ -614,6 +633,7 @@ export async function getPosts(userId = null, pagination = {}) {
 
         query = applyForumTagFilter(query, tagFilter);
         if (kindValues) query = query.in('post_kind', kindValues);
+        if (albumOnly) query = query.eq('is_album', true);
 
         // 降级路径也要带搜索词（同上：追加的 .or 由 PostgREST 按 AND 组合）
         const cursorSearchOr = buildFallbackSearchOr(searchQuery);
@@ -633,6 +653,39 @@ export async function getPosts(userId = null, pagination = {}) {
         const pagedRows = formattedRows.slice(0, normalizedPageSize);
         const nextCursor = buildNextPostCursor(pagedRows, hasMore);
         return { data: pagedRows, error: null, hasMore, nextCursor };
+      }
+
+      /* 影集视图 + 有搜索词/关注等不进游标分支的情况：
+         list_forum_posts 的返回体里没有 album_entries，走 RPC 会把影集帖退化成普通卡
+         （卡片没照片数、点开不是阅读层）。影集量小，直接读表更简单也更准；
+         搜索/标签复用同一套 applyForumTagFilter + buildFallbackSearchOr，与主链路同语义。 */
+      if (albumOnly) {
+        let albumQuery = supabase.from('posts').select(postListSelect(Boolean(userId)));
+        albumQuery = albumQuery.or('status.is.null,status.eq.approved').eq('is_album', true);
+        albumQuery = applyForumTagFilter(albumQuery, tagFilter);
+        const albumSearchOr = buildFallbackSearchOr(searchQuery);
+        if (albumSearchOr) albumQuery = albumQuery.or(albumSearchOr);
+
+        const { data: albumData, error: albumError } = await withAbortSignal(
+          albumQuery
+            .order('created_at', { ascending: false })
+            .order('id', { ascending: false })
+            .range(offset, offset + fallbackLimit - 1),
+          abortSignal,
+        );
+        if (albumError) return { data: [], error: albumError };
+
+        const albumRows = normalizePostListRows(formatPosts(albumData || [], userId));
+        const albumHasMore = shouldOverfetch
+          ? albumRows.length > normalizedPageSize
+          : albumRows.length >= normalizedPageSize;
+        const albumPageRows = shouldOverfetch ? albumRows.slice(0, normalizedPageSize) : albumRows;
+        return {
+          data: albumPageRows,
+          error: null,
+          hasMore: albumHasMore,
+          nextCursor: buildNextPostCursor(albumPageRows, albumHasMore),
+        };
       }
 
       const rpcPage = page;
@@ -853,17 +906,34 @@ export async function createPostWithImages(
   location = null,
   options = {},
 ) {
+  /* 影集帖：同一条发帖链路，只多一份「每张照片的文字」（A 投影，图片仍是 forum_post_images）。
+     两条 RPC 的差异只有「图数上限」与「album_entries 一列」，所以不另写一份函数 ——
+     复制 150 行必然在标签回写 / 审核入队 / 孤儿清理这些边角上漂移。 */
+  const albumEntries = Array.isArray(options?.albumEntries) ? options.albumEntries : [];
+  const isAlbum = albumEntries.length > 0;
+  const maxImages = isAlbum ? ALBUM_MAX_ENTRIES : FORUM_IMAGE_MAX_COUNT;
+
   const safeImages = normalizeForumImages(images);
   const safeTag = normalizeForumTag(tag);
-  if (safeImages.length > FORUM_IMAGE_MAX_COUNT) {
+  if (safeImages.length > maxImages) {
     return {
       ok: false,
       data: null,
       error: normalizeDbError({
         code: 'FORUM_IMAGE_LIMIT',
-        message: `每个帖子最多发布 ${FORUM_IMAGE_MAX_COUNT} 张图片`,
+        message: `每${isAlbum ? '本影集' : '个帖子'}最多发布 ${maxImages} 张图片`,
       }),
     };
+  }
+  if (isAlbum) {
+    const verdict = validateAlbumDraft({ entries: albumEntries, imageCount: safeImages.length });
+    if (!verdict.ok) {
+      return {
+        ok: false,
+        data: null,
+        error: normalizeDbError({ code: verdict.code, message: verdict.message }),
+      };
+    }
   }
 
   const safeTitle = String(title || '').trim();
@@ -917,15 +987,41 @@ export async function createPostWithImages(
     p_location_lat: location?.lat ?? null,
     p_location_lng: location?.lng ?? null,
   };
+  if (isAlbum) {
+    rpcPayload.p_album_entries = toAlbumEntriesRpcPayload(albumEntries);
+  }
   const submissionId = String(options?.submissionId || '').trim();
-  const rpcName = submissionId
-    ? 'create_forum_post_with_images_idempotent'
-    : 'create_forum_post_with_images';
+  const baseRpcName = isAlbum ? 'create_album_post_with_images' : 'create_forum_post_with_images';
+  const rpcName = submissionId ? `${baseRpcName}_idempotent` : baseRpcName;
   const requestPayload = submissionId
     ? { ...rpcPayload, p_submission_id: submissionId }
     : rpcPayload;
   let { data, error } = await supabase.rpc(rpcName, requestPayload);
-  if (submissionId && error && isMissingRpcFunctionError(error, rpcName)) {
+  /* 影集帖**不允许**降级成普通发帖：普通 RPC 单帖上限 6 张、也没有 album_entries，
+     降级的结果是「10 张被打回」或「发出去变成普通帖、文字全丢」—— 两种都比报错更糟。
+     所以这里只回报「需要执行迁移」，让用户去部署。 */
+  if (isAlbum) {
+    if (submissionId && error && isMissingRpcFunctionError(error, rpcName)) {
+      ({ data, error } = await supabase.rpc(baseRpcName, rpcPayload));
+    }
+    if (error) {
+      if (
+        isMissingRpcFunctionError(error, baseRpcName) ||
+        isMissingColumnError(error, 'album_entries')
+      ) {
+        return {
+          ok: false,
+          data: null,
+          error: normalizeDbError({
+            code: 'FORUM_ALBUM_MIGRATION_REQUIRED',
+            message: '影集帖的数据库迁移尚未部署，请先执行最新 Supabase migration 后再试',
+          }),
+        };
+      }
+      return { ok: false, data: null, error: normalizeForumImagePostError(error) };
+    }
+  }
+  if (!isAlbum && submissionId && error && isMissingRpcFunctionError(error, rpcName)) {
     // Deploy compatibility: existing installations still publish through the stable RPC.
     // 降级会失去幂等保护（网络超时重试可能重复发帖），必须留下可观测告警提醒尽快执行迁移
     logger.warn(
@@ -1009,6 +1105,90 @@ export async function createPostWithImages(
     .catch((err) => logger.warn('forum-api', '论坛图片 pending 归属标记异常', err));
 
   return { ok: true, data: [insertedPost], error: null };
+}
+
+/**
+ * 创建影集帖。
+ *
+ * 与 `createPost` 的唯一差别是**带 `album_entries`**（篇内每张照片的标题/日期/地点/正文），
+ * 实现复用同一条 `createPostWithImages` 链路 —— 图片上限、标签回写、异步审核、
+ * Cloudinary pending 归属、孤儿清理全部共享，避免两套发帖路径在边角上漂移。
+ *
+ * `options.albumEntries` 形如 `[{ image_index, title, date, place, body }]`
+ * （由 utils/forum-album.js 的 `toAlbumEntriesRpcPayload` 生成）。
+ */
+/**
+ * 读取本人的影集本体（名称 / 简介）。
+ * 「一人一本」——存在 profiles 上，与 auth.users 1:1，公共可读、本人可写。
+ * 返回值 `data: { title, intro }`，title 为空表示还没建过。
+ */
+export async function getAlbumBook(userId) {
+  const id = String(userId || '').trim();
+  if (!id) {
+    return {
+      ok: false,
+      data: null,
+      error: normalizeDbError({ code: 'NO_USER', message: '请先登录' }),
+    };
+  }
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('album_title, album_intro')
+    .eq('id', id)
+    .maybeSingle();
+  if (error) return { ok: false, data: null, error: normalizeDbError(error) };
+  return {
+    ok: true,
+    data: normalizeAlbumBook({ title: data?.album_title, intro: data?.album_intro }),
+    error: null,
+  };
+}
+
+/** 创建 / 修改本人的影集名称与简介（初次发布前必须调用一次）。 */
+export async function setAlbumBook(title, intro = '') {
+  const { data, error } = await supabase.rpc('set_forum_album_book', {
+    p_title: String(title || ''),
+    p_intro: String(intro || ''),
+  });
+  if (error) return { ok: false, data: null, error: normalizeDbError(error) };
+  return { ok: true, data: normalizeAlbumBook(data), error: null };
+}
+
+export async function createAlbumPost(
+  content,
+  authorId,
+  authorUsername,
+  status = 'approved',
+  title = '',
+  images = [],
+  tag = '',
+  location = null,
+  options = {},
+) {
+  const albumEntries = Array.isArray(options?.albumEntries) ? options.albumEntries : [];
+  /* 「每次发布可以写配文」⇒ 允许 entries 全空（只传图）。
+     图是硬要求，由 validateAlbumDraft / 服务端 RPC 各自把关。 */
+  if (!Array.isArray(images) || images.length < 1) {
+    return {
+      ok: false,
+      data: null,
+      error: normalizeDbError({ code: 'NO_IMAGE', message: '影集至少需要一张照片' }),
+    };
+  }
+  return createPostWithImages(
+    content,
+    authorId,
+    authorUsername,
+    status,
+    title,
+    images,
+    tag,
+    location,
+    {
+      ...options,
+      albumEntries,
+    },
+  );
 }
 
 export async function createPost(
@@ -1344,6 +1524,8 @@ export async function getUserPosts(targetUserId, currentUserId = null, paginatio
       ? pagination.includeUnapprovedForAuthor
       : targetUserId && currentUserId && String(targetUserId) === String(currentUserId),
   );
+  // 个人影集页：只要这个人的影集帖（is_album 生成列，见 2026111402 迁移）
+  const albumOnly = Boolean(pagination.albumOnly);
 
   return executeRead(
     'posts.getUserPosts',
@@ -1378,6 +1560,7 @@ export async function getUserPosts(targetUserId, currentUserId = null, paginatio
         }
 
         query = applyForumTagFilter(query, tagFilter);
+        if (albumOnly) query = query.eq('is_album', true);
 
         if (parsedCursor?.createdAt && parsedCursor?.id) {
           query = query.or(
@@ -1393,6 +1576,44 @@ export async function getUserPosts(targetUserId, currentUserId = null, paginatio
         const pagedRows = formattedRows.slice(0, normalizedPageSize);
         const nextCursor = buildNextPostCursor(pagedRows, hasMore);
         return { data: pagedRows, error: null, hasMore, nextCursor };
+      }
+
+      /* 个人影集 + 搜索：同 getPosts 的理由，RPC 返回体没有 album_entries，直接读表。 */
+      if (albumOnly) {
+        let albumQuery = supabase
+          .from('posts')
+          .select(postListSelect(Boolean(currentUserId)))
+          .eq('author_id', targetUserId)
+          .eq('is_album', true);
+        if (!(
+          includeUnapprovedForAuthor && String(targetUserId || '') === String(currentUserId || '')
+        )) {
+          albumQuery = albumQuery.or('status.is.null,status.eq.approved');
+        }
+        albumQuery = applyForumTagFilter(albumQuery, tagFilter);
+        const albumSearchOr = buildFallbackSearchOr(searchQuery);
+        if (albumSearchOr) albumQuery = albumQuery.or(albumSearchOr);
+
+        const { data: albumData, error: albumError } = await withAbortSignal(
+          albumQuery
+            .order('created_at', { ascending: false })
+            .order('id', { ascending: false })
+            .range(offset, offset + fallbackLimit - 1),
+          abortSignal,
+        );
+        if (albumError) return { data: [], error: albumError };
+
+        const albumRows = normalizePostListRows(formatPosts(albumData || [], currentUserId));
+        const albumHasMore = shouldOverfetch
+          ? albumRows.length > normalizedPageSize
+          : albumRows.length >= normalizedPageSize;
+        const albumPageRows = shouldOverfetch ? albumRows.slice(0, normalizedPageSize) : albumRows;
+        return {
+          data: albumPageRows,
+          error: null,
+          hasMore: albumHasMore,
+          nextCursor: buildNextPostCursor(albumPageRows, albumHasMore),
+        };
       }
 
       const rpcPage = page;

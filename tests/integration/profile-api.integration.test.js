@@ -13,7 +13,7 @@ vi.mock('../../src/utils/supabase-client.js', () => ({
 }));
 
 vi.mock('../../src/utils/cloudinary-client.js', () => ({
-  getCloudinaryTransformedUrl: vi.fn((url) => url ? `transformed:${url}` : ''),
+  getCloudinaryTransformedUrl: vi.fn((url) => (url ? `transformed:${url}` : '')),
   getCloudinaryUrl: vi.fn((id) => `https://res.cloudinary.com/demo/image/upload/${id}`),
 }));
 
@@ -46,6 +46,8 @@ import {
   getProfileByUsername,
   getPostsByUsername,
   getCommentsByUsername,
+  getCommentsCountByUsername,
+  getUserImpressionsCount,
   updateProfile,
   updateProfileBio,
   updateProfileAvatar,
@@ -55,9 +57,18 @@ import {
 function createQueryBuilder(result, calls = []) {
   const query = {
     select: vi.fn(() => query),
-    eq: vi.fn((col, val) => { calls.push({ method: 'eq', col, val }); return query; }),
-    ilike: vi.fn((col, val) => { calls.push({ method: 'ilike', col, val }); return query; }),
-    limit: vi.fn((n) => { calls.push({ method: 'limit', n }); return query; }),
+    eq: vi.fn((col, val) => {
+      calls.push({ method: 'eq', col, val });
+      return query;
+    }),
+    ilike: vi.fn((col, val) => {
+      calls.push({ method: 'ilike', col, val });
+      return query;
+    }),
+    limit: vi.fn((n) => {
+      calls.push({ method: 'limit', n });
+      return query;
+    }),
     order: vi.fn(() => query),
     range: vi.fn(() => query),
     in: vi.fn(() => query),
@@ -98,10 +109,12 @@ describe('profile-api integration', () => {
       // 通知触发器是 AFTER INSERT，冲突走 UPDATE 路径不会重复发通知。
       // 故 mock 需提供 upsert 而非 insert。
       const upsertQuery = {
-        select: vi.fn(() => Promise.resolve({
-          data: [{ id: 'new-imp', content: 'Hello', author_id: 'u1', target_id: 'u2' }],
-          error: null,
-        })),
+        select: vi.fn(() =>
+          Promise.resolve({
+            data: [{ id: 'new-imp', content: 'Hello', author_id: 'u1', target_id: 'u2' }],
+            error: null,
+          }),
+        ),
       };
       const upsertMock = vi.fn(() => upsertQuery);
       fm.fromMock.mockReturnValue({ upsert: upsertMock });
@@ -110,10 +123,9 @@ describe('profile-api integration', () => {
       expect(result.ok).toBe(true);
       expect(result.data).toBeDefined();
       expect(fm.fromMock).toHaveBeenCalledWith('user_impressions');
-      expect(upsertMock).toHaveBeenCalledWith(
-        expect.any(Array),
-        { onConflict: 'author_id,target_id' }
-      );
+      expect(upsertMock).toHaveBeenCalledWith(expect.any(Array), {
+        onConflict: 'author_id,target_id',
+      });
     });
 
     it('blocks content that fails keyword check', async () => {
@@ -171,7 +183,9 @@ describe('profile-api integration', () => {
   describe('getPostsByUsername', () => {
     it('fetches posts by username with author_id', async () => {
       const query = createQueryBuilder({
-        data: [{ id: 'p1', title: 'Post 1', body: 'Content', author_id: 'u1', forum_post_images: [] }],
+        data: [
+          { id: 'p1', title: 'Post 1', body: 'Content', author_id: 'u1', forum_post_images: [] },
+        ],
         error: null,
       });
       fm.fromMock.mockReturnValue(query);
@@ -205,7 +219,9 @@ describe('profile-api integration', () => {
     it('updates profile fields', async () => {
       const updateQuery = {
         eq: vi.fn(() => ({
-          select: vi.fn(() => Promise.resolve({ data: [{ id: 'u1', bio: 'new bio' }], error: null })),
+          select: vi.fn(() =>
+            Promise.resolve({ data: [{ id: 'u1', bio: 'new bio' }], error: null }),
+          ),
         })),
       };
       fm.fromMock.mockReturnValue({ update: vi.fn(() => updateQuery) });
@@ -258,7 +274,13 @@ describe('profile-api integration', () => {
 
     it('creates order with valid items', async () => {
       fm.rpcMock.mockResolvedValue({
-        data: { ok: true, order_id: 'order-1', order_no: 'NO-001', points_deducted: 100, current_points: 900 },
+        data: {
+          ok: true,
+          order_id: 'order-1',
+          order_no: 'NO-001',
+          points_deducted: 100,
+          current_points: 900,
+        },
         error: null,
       });
 
@@ -280,5 +302,89 @@ describe('profile-api integration', () => {
       });
       expect(result.ok).toBe(false);
     });
+  });
+});
+/* 他人空间 tab 上的数字（2026-11-15 修）：
+   原先渲染的是 `comments.length` / `impressions.length`，也就是「已加载的那一页」，
+   而 ensureActiveTabData() 只加载当前 tab ⇒ 回复数刚打开恒为 0、点开后才变成首屏 20。
+   这两条守的是「计数走 head:true 服务端总数，且过滤口径与列表一致」。 */
+describe('profile-api integration: 空间 tab 计数口径', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  // 计数查询是 from().select().or()/.eq() 直连，不进 executeRead，无需清缓存
+  const createCountBuilder = (result, calls = []) => {
+    const query = {
+      select: vi.fn((cols, opts) => {
+        calls.push({ method: 'select', cols, opts });
+        return query;
+      }),
+      eq: vi.fn((col, val) => {
+        calls.push({ method: 'eq', col, val });
+        return query;
+      }),
+      or: vi.fn((filter) => {
+        calls.push({ method: 'or', filter });
+        return query;
+      }),
+      then: (resolve) => Promise.resolve(result).then(resolve),
+    };
+    return query;
+  };
+
+  it('回复总数：同时按 author_id 与 author_username 数，并带可见性过滤', async () => {
+    const calls = [];
+    fm.fromMock.mockReturnValue(createCountBuilder({ count: 42, error: null }, calls));
+
+    const result = await getCommentsCountByUsername('alice', 'u1');
+
+    expect(result).toEqual({ count: 42, error: null });
+    expect(fm.fromMock).toHaveBeenCalledWith('comments');
+    expect(calls).toContainEqual({
+      method: 'select',
+      cols: 'id',
+      opts: { count: 'exact', head: true },
+    });
+    expect(calls).toContainEqual({
+      method: 'or',
+      filter: 'author_id.eq.u1,author_username.eq.alice',
+    });
+    expect(calls).toContainEqual({ method: 'or', filter: 'status.is.null,status.eq.approved' });
+  });
+
+  it('回复总数：只有 author_id 时只按 author_id 数（不做不可达的 username 回退）', async () => {
+    const calls = [];
+    fm.fromMock.mockReturnValue(createCountBuilder({ count: 7, error: null }, calls));
+
+    const result = await getCommentsCountByUsername('', 'u1');
+
+    expect(result).toEqual({ count: 7, error: null });
+    expect(fm.fromMock).toHaveBeenCalledTimes(1);
+    expect(calls).toContainEqual({ method: 'eq', col: 'author_id', val: 'u1' });
+    expect(calls).toContainEqual({ method: 'or', filter: 'status.is.null,status.eq.approved' });
+  });
+
+  it('回复总数：查询失败时返回 null 计数而不是冒充 0', async () => {
+    fm.fromMock.mockReturnValue(
+      createCountBuilder({ count: null, error: { message: 'rls denied' } }),
+    );
+
+    const result = await getCommentsCountByUsername('alice', 'u1');
+
+    expect(result.count).toBeNull();
+    expect(result.error).toEqual({ message: 'rls denied' });
+  });
+
+  it('印象总数：只数 approved，且限定 target_id', async () => {
+    const calls = [];
+    fm.fromMock.mockReturnValue(createCountBuilder({ count: 5, error: null }, calls));
+
+    const result = await getUserImpressionsCount('u9');
+
+    expect(result).toEqual({ count: 5, error: null });
+    expect(fm.fromMock).toHaveBeenCalledWith('user_impressions');
+    expect(calls).toContainEqual({ method: 'eq', col: 'target_id', val: 'u9' });
+    expect(calls).toContainEqual({ method: 'eq', col: 'moderation_status', val: 'approved' });
   });
 });

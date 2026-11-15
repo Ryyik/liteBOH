@@ -12,12 +12,15 @@ import {
   triggerRef,
 } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import { invalidateByTags } from '@/utils/request-core.js';
 import {
   ArrowUpRight,
   BookOpen,
   CloudOff,
+  Images,
   Inbox,
   Newspaper,
+  PenLine,
   RotateCw,
   SearchX,
   Sparkles,
@@ -25,6 +28,16 @@ import {
 } from 'lucide-vue-next';
 import PostComposer from './components/PostComposer.vue';
 import PostCard from './components/PostCard.vue';
+import AlbumPostCard from './components/AlbumPostCard.vue';
+import AlbumReader from './components/AlbumReader.vue';
+import {
+  ALBUM_MAX_ENTRIES,
+  hasAlbumBook,
+  isAlbumPost,
+  syncAlbumEntriesToCount,
+  toAlbumEntriesRpcPayload,
+  validateAlbumDraft,
+} from '@/utils/forum-album.js';
 import { resolveFrameForAuthor } from '@/composables/useAvatarFrame.js';
 import ShareIsland from '@/components/UnifiedNavbar/ShareIsland.vue';
 import AdSlot from './components/AdSlot.vue';
@@ -83,6 +96,8 @@ import {
   getForumPostImages,
   fetchQuotedPostsByIds,
   matchesForumContentKind,
+  getAlbumBook,
+  setAlbumBook,
 } from '../../utils/api/forum-api.js';
 import { showIsland } from '@/composables/useIsland.js';
 import { getCloudinaryTransformedUrl } from '@/utils/cloudinary-client.js';
@@ -216,6 +231,9 @@ const selectedTagFilter = ref('');
 const selectedContentType = ref('');
 const showFollowingOnly = ref(false);
 const feedMode = ref('posts');
+/* 影集分区（externalFeed === 'album'）：只筛 is_album 的帖子。
+   与 showFollowingOnly / selectedContentType 同层 —— 三者由外部 section 一次同步。 */
+const albumOnlyFeed = ref(false);
 const highlightedPostIds = ref(new Set());
 const likePulsePostIds = ref(new Set());
 const replySuccessPostIds = ref(new Set());
@@ -476,6 +494,9 @@ defineExpose({
   refreshEmbeddedScroll,
   // 横屏左栏等外部入口：延迟到调用时求值 —— openMobileComposer / closeMobileComposer /
   // focusForumSearch 定义在本文件更靠后的位置，直接引用会撞 TDZ
+  /* ⚠️ 外部入口（横屏左栏「发布」）保持「直接打开发帖器」的原语义 ——
+     `probe-composer-session-gate` 的 26 条断言全部建立在这个瞬时行为上。
+     「帖子 / 影集」选择球只挂在竖屏 FAB 上（用户口径：竖屏端要灵动一些）。 */
   openComposer: () => openMobileComposer(),
   closeComposer: () => closeMobileComposer(),
   focusSearch: () => focusForumSearch(),
@@ -724,6 +745,71 @@ const forumImageViewerImages = ref([]);
 const forumImageViewerIndex = ref(0);
 // 发布会话是发帖唯一入口：横屏左栏「发布」、窄屏 FAB、帖子详情编辑复用同一套组件。
 const isMobileComposerOpen = ref(false);
+/* 发什么：'post' 普通帖 / 'album' 影集帖（同一场发布会话，只换编辑器形态与上限）。
+   形态由入口处的「选择球」决定，不新增第二套会话状态 —— 会话真源仍是
+   isMobileComposerOpen，`closeMobileComposer` 的守卫语义不用改。 */
+const composerMode = ref('post');
+/* 这一篇里每张照片的文字（与 postImages 按下标对齐）。普通帖模式恒为空数组。 */
+const albumEntries = ref([]);
+/* 影集本体（一人一本）：名称 + 简介，存在 profiles.album_title / album_intro。
+   初次创建时填写；之后每次发布只写配文 + 图。title 为空 = 还没建过。 */
+const albumBook = ref({ title: '', intro: '' });
+const isAlbumBookLoading = ref(false);
+const isAlbumBookSaving = ref(false);
+/* ── 影集三步走（2026-11-15）─────────────────────────────────────────────
+   「建本 → 选照片 → 写第一篇」。状态住在这一层而不是发帖器里：
+   顶栏那颗按钮和编辑器底栏的「下一步」必须走**同一个**推进函数，
+   否则两处各算一套，空名/空图能从另一条路径绕过去。
+   发帖器只通过 `album-step` 事件请求推进，自己不改步数。 */
+const ALBUM_STEP_TOTAL = 3;
+const albumStep = ref(1);
+const albumStepFloor = computed(() => (hasAlbumBook(albumBook.value) ? 2 : 1));
+
+const goAlbumStep = (step) => {
+  if (composerMode.value !== 'album') return;
+  const raw = Number(step) || 1;
+  const target = Math.min(ALBUM_STEP_TOTAL, Math.max(albumStepFloor.value, raw));
+  if (target === albumStep.value) return;
+  /* 往前推进时先兜住上一步的硬条件：空名 / 空图不该被「下一步」带过去。 */
+  if (target > albumStep.value) {
+    if (
+      target >= 2 &&
+      !hasAlbumBook(albumBook.value) &&
+      !String(newPost.value.title || '').trim()
+    ) {
+      showModal('warning', '还没起名', '先给这本影集起个名字，再挑照片');
+      return;
+    }
+    if (target >= 3 && postImages.value.length === 0) {
+      showModal('warning', '还差照片', '影集至少要有 1 张照片，先挑几张');
+      return;
+    }
+  }
+  albumStep.value = target;
+};
+
+const advanceAlbumStep = () => goAlbumStep(albumStep.value + 1);
+
+/* 本子取回来后直接落到第二步：已经建过本的人不需要再看「起名」那一屏。
+   取本对所有人都是异步的（loadAlbumBook 不 await），所以必须用 watch 兜，
+   在 openMobileComposer 里同步算一次是算不出来的。 */
+watch(
+  () => [composerMode.value, albumBook.value.title, isMobileComposerOpen.value],
+  () => {
+    if (composerMode.value !== 'album') {
+      albumStep.value = 1;
+      return;
+    }
+    if (hasAlbumBook(albumBook.value) && albumStep.value < 2) albumStep.value = 2;
+  },
+  { immediate: true },
+);
+
+/* 竖屏 FAB 的「选择球」：点 + 之后浮出「帖子 / 影集」两颗球（2026-11-14 用户口径）。 */
+const isComposerChoiceOpen = ref(false);
+const composerChoiceAnchor = ref({ right: 18, bottom: 90 });
+/* 影集阅读层：点卡片翻开整本，数据就是列表里那条 post（A 投影，不额外请求）。 */
+const albumReaderPost = ref(null);
 /* 竖屏发布会话的缩放起点：从 FAB 的真实中心出发，关闭时缩回同一点。
    CSS 只消费这个变量，不在样式里写死右下角坐标（安全区 / embedded 抬升 / 旋转都会变）。 */
 const mobileComposerTransformOrigin = ref('100% 100%');
@@ -1354,14 +1440,130 @@ const isForumComposerFabVisible = computed(() => {
   return view === '' || isForumFeedSection(view);
 });
 
-const openMobileComposer = () => {
+/** 取本人的影集本体（一人一本）。token 为空即「还没建过」，发帖器会切到建本形态。 */
+const loadAlbumBook = async () => {
+  if (!isLoggedIn.value) return;
+  const userId = String(userInfo.id || '').trim();
+  if (!userId || isAlbumBookLoading.value) return;
+  isAlbumBookLoading.value = true;
+  try {
+    const result = await getAlbumBook(userId);
+    if (result.ok && result.data) albumBook.value = result.data;
+  } finally {
+    isAlbumBookLoading.value = false;
+  }
+};
+
+const openMobileComposer = (mode = 'post') => {
   feedMode.value = 'posts';
+  composerMode.value = mode === 'album' ? 'album' : 'post';
+  /* 影集的 entries 与「图」按下标对齐：进影集模式时先按当前图数补齐，
+     否则先选图后切模式的路径会渲染出「图有 4 张、字只有 0 条」。 */
+  if (composerMode.value === 'album') {
+    albumEntries.value = syncAlbumEntriesToCount(albumEntries.value, postImages.value.length);
+    /* 一人一本：名称/简介只在初次创建时填一次，之后每次发布只写配文 + 图。
+       打开影集模式时先取本人的那本，决定发帖器显示「建本」还是「配文」。 */
+    void loadAlbumBook();
+  }
+  /* 每次开会话都从该走的那一步开始：建过本的人从「选照片」起，
+     没建过的从「建本」起。不重置的话第二次发布还停在上次的第三步。 */
+  albumStep.value = composerMode.value === 'album' && hasAlbumBook(albumBook.value) ? 2 : 1;
   // 先拍 FAB 中心，再开 v-if；overlay 的 transform-origin 才能锚定到触发按钮。
   captureMobileComposerOrigin();
   /* 打开编辑器时按最新草稿对一次账（兜住"另一个宿主刚保存/清空"的情况）。
      preserveLocalEdits：另一个标签页/实例可能已经改过草稿，不能覆盖当前内存稿。 */
   void restorePostDraft({ preserveLocalEdits: true });
   isMobileComposerOpen.value = true;
+};
+
+/* ── FAB 的选择球（帖子 / 影集）───────────────────────────────────────────
+   2026-11-14 用户口径：竖屏点 + 之后先浮出两颗球，再进对应编辑器。
+   ⚠️ 锚点必须**实测 FAB 的 rect**：FAB 的 bottom 有四个变体（18 / 144 / 折叠 22 / 横屏窄档），
+   在 CSS 里另写一套坐标一定会漂；这里只传 offset 给浮层，浮层自身仍 fixed 定位。 */
+const computeComposerChoiceAnchor = () => {
+  if (typeof document === 'undefined') return;
+  const fab = document.querySelector('.mobile-compose-fab');
+  if (!fab) {
+    composerChoiceAnchor.value = { right: 18, bottom: 90 };
+    return;
+  }
+  const rect = fab.getBoundingClientRect();
+  if (!(rect.width > 0)) return;
+  composerChoiceAnchor.value = {
+    right: Math.max(12, window.innerWidth - rect.right),
+    bottom: Math.max(12, window.innerHeight - rect.top + 14),
+  };
+};
+
+const openComposerChoice = () => {
+  /* 横屏（≥1024×600）不挂 FAB：选择球的锚点就是 FAB 的 rect（openComposerChoice 会去量它），
+     没有 FAB 时遮罩照渲染、球容器却因 `isForumComposerFabVisible` 为假不渲染
+     ⇒ 用户看到一层盖住页面的遮罩、没有任何按钮（2026-11-15 实测）。
+     那里直接开编辑器即可 —— 「帖子 / 影集」的形态切换在编辑器顶部（PostComposer）。 */
+  if (!isForumComposerFabVisible.value) {
+    openMobileComposer('post');
+    return;
+  }
+  if (isComposerChoiceOpen.value) return;
+  computeComposerChoiceAnchor();
+  isComposerChoiceOpen.value = true;
+};
+
+const closeComposerChoice = () => {
+  isComposerChoiceOpen.value = false;
+};
+
+const chooseComposerMode = (mode) => {
+  isComposerChoiceOpen.value = false;
+  openMobileComposer(mode);
+};
+
+/* 编辑器内的形态切换（横屏没有 FAB，靠这个进影集模式）。
+   从影集切回帖子时，若图已超过普通帖上限就拒绝 —— 静默截断会删掉用户的图。 */
+const handleComposerModeChange = (mode) => {
+  const next = mode === 'album' ? 'album' : 'post';
+  if (next === composerMode.value) return;
+  if (next === 'post' && postImages.value.length > FORUM_POST_IMAGE_MAX_COUNT) {
+    showModal(
+      'warning',
+      '图片超限',
+      `普通帖最多 ${FORUM_POST_IMAGE_MAX_COUNT} 张图片，先删掉几张再切回帖子`,
+    );
+    return;
+  }
+  composerMode.value = next;
+  if (next === 'album') {
+    albumEntries.value = syncAlbumEntriesToCount(albumEntries.value, postImages.value.length);
+    void loadAlbumBook();
+  }
+  /* 切形态就回到该走的第一步（见 openMobileComposer 同款注释）。 */
+  albumStep.value = next === 'album' && hasAlbumBook(albumBook.value) ? 2 : 1;
+};
+
+/* 视图切换 / 会话关闭时收起浮层：否则浮层会留在新页面上（它 Teleport 到 body）。 */
+watch(isMobileComposerOpen, (isOpen) => {
+  if (isOpen) closeComposerChoice();
+});
+
+/* 影集图片增删 → 逐张文字跟着对齐（删第 2 张时第 3 张的字必须前移，不能错位）。 */
+watch(
+  () => postImages.value.length,
+  (nextCount) => {
+    if (composerMode.value !== 'album') return;
+    albumEntries.value = syncAlbumEntriesToCount(albumEntries.value, nextCount);
+  },
+);
+
+const openAlbumReader = (post) => {
+  albumReaderPost.value = post || null;
+};
+const closeAlbumReader = () => {
+  albumReaderPost.value = null;
+};
+/* 阅读层里点评论 → 走既有详情页（评论区、楼中楼、删除都在那边，不在这里再做一套）。 */
+const handleAlbumReaderComment = (post) => {
+  closeAlbumReader();
+  openPostDetail(post);
 };
 
 // 外部搜索入口（横屏左栏）：embedded 下论坛工具栏常驻，滚到搜索框并聚焦。
@@ -1444,6 +1646,11 @@ const handleForumRefreshRequest = () => {
   forumLoadError.value = '';
   searchQuery.value = '';
   searchKeyword.value = '';
+  /* ⚠️ 必须先显式失效再取数（2026-11-15 修）。
+     getPosts 走 executeRead，TTL = LIST_DATA(30s)，cache key 只由查询条件决定 ——
+     查询条件没变就等于「同一个请求」。不失效的话，用户点「我的方块」刷新时
+     30 秒内会直接吃旧缓存，表现为「点了刷新没反应 / 新帖不出现」 */
+  invalidateByTags(['posts']);
   // 重新加载论坛数据
   fetchForumData();
   // 滚动到顶部
@@ -1771,10 +1978,18 @@ watch(
        见 post-api 的 normalizeForumKindFilter）。activity 分区保留原映射，
        让旧深链 `?view=activity` 仍可用。 */
     const nextKind = val === 'news' ? 'info' : val === 'activity' ? 'activity' : '';
+    const nextAlbum = val === 'album';
     if (nextFollowing && !isLoggedIn.value) return; // 与 setFeedMode 一致：关注流需登录
-    if (showFollowingOnly.value === nextFollowing && selectedContentType.value === nextKind) return;
+    if (
+      showFollowingOnly.value === nextFollowing &&
+      selectedContentType.value === nextKind &&
+      albumOnlyFeed.value === nextAlbum
+    ) {
+      return;
+    }
     showFollowingOnly.value = nextFollowing;
     selectedContentType.value = nextKind;
+    albumOnlyFeed.value = nextAlbum;
     feedMode.value = 'posts';
     /* ⚠️ 必须延到本组件 setup 跑完之后再取数（微任务即可）：
      immediate 会在 setup 中途同步回调，而 fetchForumData 是下方才声明的 const
@@ -2342,6 +2557,8 @@ const fetchForumData = async (isLoadMore = false, { background = false } = {}) =
       tagFilter: selectedTagFilter.value,
       // 内容类型筛选下推服务端（list_forum_posts p_kind_filter），否则官方卡沉底导致筛选后空页
       kindFilter: selectedContentType.value,
+      // 影集分区：只取 is_album 的帖子（走直连表，RPC 的返回体没有 album_entries）
+      albumOnly: albumOnlyFeed.value,
       cursorMode: 'keyset',
       cursor: isLoadMore ? nextPageCursor.value : '',
       signal: abortController.signal,
@@ -2659,13 +2876,51 @@ const handlePost = async () => {
       return;
     }
   }
+  /* 影集：名称 + 简介只在**初次创建**时填写，之后每次发布只写配文 + 图。
+     所以这里先兜住「本子还没建」的情况，再走与普通帖相同的发布链路。 */
+  const isAlbumPublishing = composerMode.value === 'album';
+  if (isAlbumPublishing && !hasAlbumBook(albumBook.value)) {
+    const bookTitle = String(newPost.value.title || '').trim();
+    const bookIntro = String(albumBook.value.intro || '').trim();
+    if (!bookTitle) {
+      showModal('warning', '还没起名', '先给这本影集起个名字');
+      return;
+    }
+    // 简介可留空（2026-11-15 用户定稿）：只是个可选的说明，不该挡住第一次发布。
+    isAlbumBookSaving.value = true;
+    const created = await setAlbumBook(bookTitle, bookIntro);
+    isAlbumBookSaving.value = false;
+    if (!created.ok) {
+      showModal('error', '影集没有建成', created.error?.message || '请稍后重试');
+      return;
+    }
+    albumBook.value = created.data;
+  }
+  if (isAlbumPublishing) {
+    // 展示标题统一取本名（改名走 set_forum_album_book 回写所有已发影集帖）
+    newPost.value.title = albumBook.value.title;
+  }
   if (!newPost.value.title.trim()) {
     showModal('warning', '提示', '请填写标题');
     return;
   }
-  if (postImages.value.length > FORUM_POST_IMAGE_MAX_COUNT) {
-    showModal('warning', '图片超限', `每个帖子最多发布 ${FORUM_POST_IMAGE_MAX_COUNT} 张图片`);
+  const imageLimit =
+    composerMode.value === 'album' ? ALBUM_MAX_ENTRIES : FORUM_POST_IMAGE_MAX_COUNT;
+  if (postImages.value.length > imageLimit) {
+    showModal('warning', '图片超限', `每个帖子最多发布 ${imageLimit} 张图片`);
     return;
+  }
+  /* 影集帖多一道内容校验：至少一张照片（一篇 = 一次发布，图必传；配文可空）。
+     上限/校验逻辑在 utils/forum-album.js（单源），这里只负责弹提示。 */
+  if (composerMode.value === 'album') {
+    const verdict = validateAlbumDraft({
+      entries: albumEntries.value,
+      imageCount: postImages.value.length,
+    });
+    if (!verdict.ok) {
+      showModal('warning', '还差一点', verdict.message);
+      return;
+    }
   }
   if (postCooldownSeconds.value > 0) {
     showModal('warning', '发布太频繁', `请 ${postCooldownSeconds.value} 秒后再试`);
@@ -2717,6 +2972,11 @@ const handlePost = async () => {
     tag: snapshotTag,
     location: snapshotLocation,
     images: snapshotImages,
+    /* 影集帖：mode + 每篇文字跟着队列一起走。普通帖 mode='post'、entries 为空，
+       队列侧按 mode 决定调 createPost 还是 createAlbumPost。 */
+    mode: composerMode.value,
+    albumEntries:
+      composerMode.value === 'album' ? toAlbumEntriesRpcPayload(albumEntries.value) : [],
     authorId: userInfo.id,
     authorUsername: userInfo.username,
     authorAvatarUrl: rawAvatar,
@@ -2748,6 +3008,9 @@ const handlePost = async () => {
   // 清空编辑器图片状态（不触发云端删除，因队列已接管；localPreviewUrl 留给队列）
   postImages.value = [];
   postImageUploadStatus.value = '';
+  // 影集模式的两份状态一起收（队列已拿到快照，这里清的是编辑器本体）
+  albumEntries.value = [];
+  composerMode.value = 'post';
   // 关闭移动端编辑器（无二次确认，因已入队）
   if (isMobileComposerOpen.value) {
     captureMobileComposerOrigin();
@@ -3902,6 +4165,13 @@ const {
                       </button>
                     </div>
                   </article>
+                  <AlbumPostCard
+                    v-else-if="isAlbumPost(item.post)"
+                    :post="item.post"
+                    :is-logged-in="isLoggedIn"
+                    @open="openAlbumReader"
+                    @like="handleToggleLike"
+                  />
                   <PostCard
                     v-else
                     :post="item.post"
@@ -4042,12 +4312,60 @@ const {
           v-if="isForumComposerFabVisible"
           type="button"
           class="mobile-compose-fab"
-          :class="{ 'embedded-compose-fab': embedded }"
-          aria-label="发布帖子"
-          @click="openMobileComposer"
+          :class="{
+            'embedded-compose-fab': embedded,
+            'is-choice-open': isComposerChoiceOpen,
+          }"
+          :aria-label="isComposerChoiceOpen ? '收起发布选项' : '发布'"
+          :aria-expanded="isComposerChoiceOpen"
+          @click="isComposerChoiceOpen ? closeComposerChoice() : openComposerChoice()"
         >
           <span>+</span>
         </button>
+      </Transition>
+
+      <!-- 竖屏「选择球」（2026-11-14 用户口径）：点 + 后浮出 帖子 / 影集 两颗球。
+           锚点由脚本实测 FAB 的 rect 传入（FAB 的 bottom 有四个变体，CSS 里另写坐标必漂）。 -->
+      <Transition name="compose-choice-scrim">
+        <div
+          v-if="isComposerChoiceOpen"
+          class="compose-choice-scrim"
+          aria-hidden="true"
+          @click="closeComposerChoice"
+        ></div>
+      </Transition>
+      <Transition name="compose-choice-cluster">
+        <div
+          v-if="isComposerChoiceOpen && isForumComposerFabVisible"
+          class="compose-choice-cluster"
+          :style="{
+            right: `${composerChoiceAnchor.right}px`,
+            bottom: `${composerChoiceAnchor.bottom}px`,
+          }"
+          role="menu"
+          aria-label="发布什么"
+        >
+          <button
+            type="button"
+            class="compose-choice-ball"
+            role="menuitem"
+            style="--i: 1"
+            @click="chooseComposerMode('album')"
+          >
+            <span class="compose-choice-icon"><Images :size="17" /></span>
+            <span class="compose-choice-label">影集</span>
+          </button>
+          <button
+            type="button"
+            class="compose-choice-ball is-primary"
+            role="menuitem"
+            style="--i: 0"
+            @click="chooseComposerMode('post')"
+          >
+            <span class="compose-choice-icon"><PenLine :size="17" /></span>
+            <span class="compose-choice-label">帖子</span>
+          </button>
+        </div>
       </Transition>
     </Teleport>
 
@@ -4160,6 +4478,7 @@ const {
         <div
           v-if="isMobileComposerOpen"
           class="mobile-composer-overlay"
+          :class="{ 'is-album-mode': composerMode === 'album' }"
           :style="{ '--mobile-composer-origin': mobileComposerTransformOrigin }"
         >
           <div class="mobile-composer-bar">
@@ -4171,14 +4490,37 @@ const {
             >
               取消
             </button>
+            <!-- 顶栏标题（2026-11-15）：横屏原来只有一颗「发布」浮在全宽白条右端，
+                 没有任何「这是什么页面」的指示；标题把两种形态说清楚。 -->
+            <!-- 顶栏标题：把「这次是建一本 / 往本里加一篇」说清楚，
+                 并带上第几步 —— 三步流程里最怕用户不知道自己在哪。 -->
+            <span class="mobile-composer-title" aria-live="polite">
+              {{
+                composerMode === 'album'
+                  ? `${
+                      albumBook.title ? `发布到《${albumBook.title}》` : '创建影集'
+                    } · ${albumStep}/${ALBUM_STEP_TOTAL}`
+                  : '写点东西'
+              }}
+            </span>
             <button
               type="button"
               class="mobile-composer-submit"
-              @click="handlePost"
+              @click="
+                composerMode === 'album' && albumStep < ALBUM_STEP_TOTAL
+                  ? advanceAlbumStep()
+                  : handlePost()
+              "
               :disabled="isSubmitting || isUploadingPostImage || postCooldownSeconds > 0"
             >
               <span class="mobile-composer-submit-label">{{
-                postCooldownSeconds > 0 ? `${postCooldownSeconds}s` : '发布'
+                postCooldownSeconds > 0
+                  ? `${postCooldownSeconds}s`
+                  : composerMode === 'album'
+                    ? albumStep < ALBUM_STEP_TOTAL
+                      ? '下一步'
+                      : '发布'
+                    : '发布'
               }}</span>
             </button>
           </div>
@@ -4187,6 +4529,12 @@ const {
               v-model:new-post="newPost"
               v-model:selected-post-tag="selectedPostTag"
               v-model:post-location="postLocation"
+              v-model:album-entries="albumEntries"
+              v-model:album-book="albumBook"
+              :mode="composerMode"
+              :album-step="albumStep"
+              @update:mode="handleComposerModeChange"
+              @album-step="goAlbumStep"
               :is-logged-in="isLoggedIn"
               :user-info="userInfo"
               :post-images="postImages"
@@ -4195,7 +4543,9 @@ const {
               :post-image-upload-status="postImageUploadStatus"
               :post-cooldown-seconds="postCooldownSeconds"
               :forum-tag-options="FORUM_TAG_OPTIONS"
-              :max-post-images="FORUM_POST_IMAGE_MAX_COUNT"
+              :max-post-images="
+                composerMode === 'album' ? ALBUM_MAX_ENTRIES : FORUM_POST_IMAGE_MAX_COUNT
+              "
               :mention-users="forumMentionUsers"
               :is-home-cat-theme="isHomeCatActive"
               is-mobile-composer
@@ -4214,6 +4564,16 @@ const {
         </div>
       </Transition>
     </Teleport>
+
+    <!-- 影集阅读层：点卡片翻开整本。数据直接复用列表里那条 post（A 投影）。 -->
+    <AlbumReader
+      v-if="albumReaderPost"
+      :post="albumReaderPost"
+      :is-logged-in="isLoggedIn"
+      @close="closeAlbumReader"
+      @like="handleToggleLike"
+      @comment="handleAlbumReaderComment"
+    />
 
     <!-- 签到成功舞台：卡面 3D 旋转 + 极简到账提示（替代原「每周签到」弹窗）。
          v-if 而不是 v-show —— 组件挂载即起播，资源就绪的判断在派发前已完成 -->
@@ -4338,6 +4698,7 @@ const {
 @import './styles/feed.css';
 @import './styles/replies-responsive.css';
 @import '../../styles/common/compose-fab.css';
+@import '../../styles/common/compose-choice.css';
 @import './styles/drawers-skeletons.css';
 @import './styles/anniversary.css';
 @import './styles/weekly-report.css';
