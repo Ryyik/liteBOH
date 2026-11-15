@@ -27,9 +27,11 @@
 
 - 🔴 **沙箱内 `curl` 返回 `000` ≠ 外网不通**：判定「外部 API / 远端库不可达，只能靠推断」**之前**必须在沙箱外复测一次
   （2026-10-31 实证：`api.supabase.com` 沙箱内 `000`、`dangerouslyDisableSandbox` 下 `401` ⇒ 可达）。
-- 🔴 **但 `*.supabase.co` 是例外：沙箱外也一样不通**（2026-11-03 实证：同一 IP `104.18.38.10`
-  换 SNI 即 200/404，`supabase.co` 域族被 reset；代理、IPv6、HTTP/3 全无效）。要验证 EF 运行时别再说
-  「无法验证」——改查 `api.supabase.com` 的 `/analytics/endpoints/logs`：函数调用在
+- ⚠️ **`*.supabase.co` 能不能通要先 curl 一次，别按旧结论预判**。2026-11-03 曾实测「沙箱外也一样
+  不通（域族被 reset）」，但 **2026-11-15 实测已可直连**：`curl <ref>.supabase.co/functions/v1/auth-login`
+  经本机代理 CONNECT 拿到 HTTP/2 405/401 正文 ⇒ 能直接验 EF 运行时（含「不带 Authorization 打一次」
+  看网关是否要求 JWT：401=verify_jwt 为 true，405=函数体自己返回、false）。
+  真判「不可达」时再退回 `api.supabase.com` 的 `/analytics/endpoints/logs`：函数调用在
   **`function_edge_logs`**（`edge_logs` 只有 REST）、过滤列是 `source`、必带 `iso_timestamp_start/end`
   （否则默认只查 1 分钟且静默返空），连查多次会 429。DB 侧 `pg_net` 走不通（管理 API 是只读用户）。
 - `supabase` CLI 已登录（ref `nplnlefdwfgtyimfkyih`），`supabase secrets list` 能查 EF 变量**名**；
