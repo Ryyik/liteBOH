@@ -875,7 +875,14 @@
   bottom: 0;
   width: 100%;
   box-sizing: border-box;
-  background-color: rgba(255, 255, 255, 0.85) !important;
+  /* ⚠️ 这里**不能**带 !important（2026-11-16 摘掉）。这层白底是「菜单卡里再叠一张卡」
+     那个年代的写法；岛化之后材质统一由宿主 surface 提供，组件那边用
+     `#unified-nav-container .nav-mobile-submenu-container { background-color: transparent }`
+     (1,1,0) 把它抹平 —— 但 !important 会直接压过那条 ⇒
+     暗色竖屏下二级菜单顶着一块 352×451 的**白板**，白字蓝底全糊在一起
+     （用户报障「暗色模式导航栏子菜单有白块」）。摘掉之后 ID 选择器正常获胜。
+     预算：check:important-budget 是按文件棘轮的，这里少一处是**下调**，永远合法。 */
+  background-color: rgba(255, 255, 255, 0.85);
   padding: 12px 16px 20px;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;

@@ -329,7 +329,7 @@
           </div>
           <div
             class="nav-mobile-submenu-container"
-            :class="{ active: expandedMenu }"
+            :class="{ active: expandedMenu && isMobileMenuOpen }"
             data-panel-variant="glass"
           >
             <div class="nav-mobile-back" @click="closeSubMenu">
@@ -1566,8 +1566,20 @@ const handleNavPointerEnter = (event) => {
 };
 
 const handleNavPointerMove = (event) => {
-  if (!isPointerOnSurface(event)) return;
+  /* ⚠️ 顺序有性能含义，别把几何判据调到前面（2026-11-16 实测）。
+   *
+   * `isPointerOnSurface` 里是 `getBoundingClientRect()`，它会**强制同步布局**；
+   * 而 pointermove 在鼠标划过时每秒能触发 100+ 次。原来的顺序是先量盒子再看门控，
+   * 于是「展开态」这个**什么也不做**的分支也在每次移动时白量一次盒子 ——
+   * 实测：展开态连发 200 次 pointermove 触发 200 次 gBCR（单次 0.07ms，
+   * 一次展开动画里就能白烧 8ms 主线程，而且全程压在 300ms 的 height 过渡上，
+   * 每一次都可能打断合成）。调换后同一场景为 0 次。
+   *
+   * 门控先行之后，几何判据只在「mini 生效且还没展开」的那 ~70ms 窗口里跑，
+   * 而那个窗口里盒子是稳定的（宽度还没开始变）。
+   */
   if (!desktopMiniActive.value || isExpandedLooking.value) return;
+  if (!isPointerOnSurface(event)) return;
   // 指针在胶囊内持续移动时不要再排一次 —— scheduleMiniExpand 会先 clearTimeout，
   // 每移动一像素就把 70ms 往后推，结果是「一直在动就永远不展开」。
   if (!miniHoverTimer) scheduleMiniExpand();

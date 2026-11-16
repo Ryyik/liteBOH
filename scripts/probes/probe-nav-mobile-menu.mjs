@@ -451,6 +451,15 @@ const colorSum = (color) => {
       ?.map(Number) ?? [];
   return (d[0] || 0) + (d[1] || 0) + (d[2] || 0);
 };
+
+/** 取颜色 alpha：rgb(...) 视为 1，rgba(...,a) 取第 4 个数。 */
+const alphaOf = (color) => {
+  const d =
+    String(color)
+      .match(/[\d.]+/g)
+      ?.map(Number) ?? [];
+  return d.length >= 4 ? d[3] : 1;
+};
 {
   const ctx = await gateNewContext({
     viewport: { width: 390, height: 844 },
@@ -498,6 +507,13 @@ const colorSum = (color) => {
         };
         return {
           cardBg: getComputedStyle(document.querySelector('.nav-menu-mobile')).backgroundColor,
+          /* 二级子菜单容器（2026-11-16 用户报障「暗色模式导航栏子菜单有白块」）：
+             vendor 有一条 `background-color: rgba(255,255,255,.85) !important`，
+             岛化之后这层白底就是一块白板压在深色菜单上。 */
+          panelBg: (() => {
+            const el = document.querySelector('.nav-mobile-submenu-container');
+            return el ? getComputedStyle(el).backgroundColor : null;
+          })(),
           back: vis('.nav-mobile-back'),
           heading: (() => {
             const el = [...document.querySelectorAll('.nav-mobile-submenu-heading')].find(
@@ -534,6 +550,15 @@ const colorSum = (color) => {
         `O4 ${tag} 子链接是浅字（深底可读）`,
         m.subLink && colorSum(m.subLink) > 400,
         `color=${m.subLink}`,
+      );
+      /* O5：二级面板**不能自带底色**（材质统一由宿主 surface 提供）。
+         回归值：vendor 的 rgba(255,255,255,.85) !important ⇒ alpha 0.85，
+         在深色菜单上就是一块白板，白字直接看不见。
+         反证：把 unified-nav.css 里那条的 !important 加回去 → 本项立刻红。 */
+      check(
+        `O5 ${tag} 二级面板不自带白底（材质交给岛）`,
+        m.panelBg !== null && alphaOf(m.panelBg) < 0.15,
+        `panelBg=${m.panelBg} alpha=${m.panelBg === null ? 'n/a' : alphaOf(m.panelBg)}`,
       );
     }
   }

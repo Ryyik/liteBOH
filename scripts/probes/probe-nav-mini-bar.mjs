@@ -15,7 +15,7 @@ import fs from 'node:fs';
 //     G 桌面横屏 1400x900：默认 mini + hover 展开 + 移开回缩
 //     H 竖屏 600x900（>480 档）mini 宽 188
 //     I 横屏 900x600（700–1023 档）：mini 180 + hover 展开 720 居中 + 点开下拉
-//     J hover 热区 = 胶囊盒子（下方 120px / 右侧 24px 都不许展开）
+//     J hover 热区 = 胶囊盒子（下方 120px / 右侧 24px 都不许展开）+ 展开态 pointermove 不量盒子
 // =====================================================================
 const BASE = 'http://[::1]:5173';
 const OUT = 'debug-screenshots';
@@ -450,7 +450,37 @@ const gateNewContext = async (options = {}) => {
   await wait(600);
   const insideW = await widthOf();
 
-  report.results.J_hitzone = { baseW, belowW, rightW, insideW, box: g };
+  /* ④ 展开态下指针移动**不再量盒子**（2026-11-16 性能契约）。
+     `isPointerOnSurface` 里的 getBoundingClientRect 会强制同步布局，而 pointermove
+     每秒可触发 100+ 次。曾经几何判据排在 `isExpandedLooking` 门控**之前**，
+     于是「展开态什么也不做」的分支每次移动都白量一次盒子（实测 200 次事件 = 200 次）。
+     这条锁的是「调用次数不随事件数线性增长」—— 允许 1~2 次（首帧建立缓存/页面自身），
+     但不允许 120 次。 */
+  const gbcr = await page.evaluate(async () => {
+    const s = document.querySelector('#unified-nav-container .unified-nav-surface');
+    const r = s.getBoundingClientRect();
+    let calls = 0;
+    const orig = Element.prototype.getBoundingClientRect;
+    Element.prototype.getBoundingClientRect = function (...a) {
+      if (this === s) calls += 1;
+      return orig.apply(this, a);
+    };
+    for (let i = 0; i < 120; i += 1) {
+      s.dispatchEvent(
+        new PointerEvent('pointermove', {
+          clientX: r.left + 20 + ((r.width - 40) * i) / 120,
+          clientY: r.top + r.height / 2,
+          bubbles: true,
+          pointerType: 'mouse',
+        }),
+      );
+      if (i % 20 === 0) await new Promise((res) => requestAnimationFrame(res));
+    }
+    Element.prototype.getBoundingClientRect = orig;
+    return { calls, width: +r.width.toFixed(0) };
+  });
+
+  report.results.J_hitzone = { baseW, belowW, rightW, insideW, box: g, move: gbcr };
   await page.screenshot({ path: `${OUT}/nav-mini-J-hitzone.png` });
   await context.close();
 }
@@ -541,6 +571,10 @@ report.checks = {
   J_no_expand_below: J.belowW < J.baseW + 120,
   J_no_expand_right: J.rightW < J.baseW + 120,
   J_inside_expands: J.insideW >= 700,
+  // J4：展开态 120 次 pointermove 里量盒子的次数不许跟着事件数涨。
+  //     反证：把 handleNavPointerMove 里 `isExpandedLooking` 门控挪回几何判据之后
+  //     → calls 变成 120 → 立刻红。
+  J_move_no_layout_thrash: !!J.move && J.move.calls <= 2,
 };
 
 report.pass = Object.values(report.checks).every(Boolean) && report.pageErrors.length === 0;

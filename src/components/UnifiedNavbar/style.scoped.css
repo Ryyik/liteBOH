@@ -72,14 +72,17 @@
      ⚠️ 因此顶栏**不参与** `--glass-blur-scale` 那档「全站模糊度」—— 它没有模糊可缩放。
         要让它重新参与，把这两行加回来即可：`backdrop-filter: var(--liquid-filter-sm);`。
      ⚠️ 别再给这个岛写死 `blur(NNpx)` 字面量（`check:liquid-glass` 会红）。 */
-  transition:
-    max-width 500ms cubic-bezier(0.16, 1, 0.3, 1),
-    height 500ms cubic-bezier(0.16, 1, 0.3, 1),
-    transform 500ms cubic-bezier(0.16, 1, 0.3, 1),
-    border-radius 500ms cubic-bezier(0.16, 1, 0.3, 1),
-    background-color 350ms ease,
-    box-shadow 350ms ease;
-  will-change: max-width, height, transform;
+  /* ⚠️ 2026-11-16：这里原本还有 `transition`（500ms，含 transform）与
+     `will-change: max-width, height, transform` —— **两条都是死声明**。
+     本规则 (0,1,0) 被下方 `:global(#unified-nav-container .unified-nav-surface)`
+     (1,1,0) 整体压掉：那条写了 `transition: none; will-change: auto`，
+     真正生效的过渡来自 `.nav-mini-caps`(1,1,0) / `.has-submenu`(1,2,0) /
+     `.has-status-card`(0,3,0 + !important) 各自的声明。
+     留着它们只会让人以为「岛的基础动画是 500ms transform」，实测 computed
+     `transitionProperty` 里**从来没有** transform。已删。
+     ⚠️ 也别把 `will-change` 加回来：max-width / height 是布局属性，
+     浏览器无法为它们预建合成层，`will-change` 只留下长期层管理成本
+     （2026-11-16 实测：留着与删掉帧时间同等，删掉最大帧还更低 18.5 vs 22.2ms）。 */
   pointer-events: auto;
 }
 
@@ -137,13 +140,18 @@
      ⚠️ 若确实想让展开态更淡：给这两条补 `!important`（与 height/border-radius 一致），
         并先跑 `probe-navbar-tokens.mjs` 确认真的换值了 —— 那是观感决策，别静默改。 */
   /* 岛展开态同样**不上模糊**（与常态一致，见 `.unified-nav-surface` 基础块的注释） */
+  /* ⚠️ 2026-11-16 去掉末尾的 `box-shadow 180ms ease`：状态岛**不改** surface 的投影
+     （收起态与展开态都是 `--liquid-shadow-sm`），值不变 ⇒ 这条过渡永不触发，
+     只是让浏览器每帧多挂一条属性检查。
+     ⚠️ `!important` 必须留在**最后一条**上 —— 它是声明级标记，对整条 transition 生效；
+     本条 (0,3,0) 对面是 (1,1,0) 的 ID 规则，丢了 !important 整条会失效、
+     岛唤起会从 240ms 长高变成瞬跳。 */
   transition:
     height var(--global-nav-status-duration, 240ms)
       var(--ease-emphasized, cubic-bezier(0.16, 1, 0.3, 1)),
     border-radius var(--global-nav-status-duration, 240ms)
       var(--ease-emphasized, cubic-bezier(0.16, 1, 0.3, 1)),
-    background-color 180ms ease,
-    box-shadow 180ms ease !important;
+    background-color 180ms ease !important;
 }
 
 /* 自定义岛高度独立上报（--global-nav-custom-card-height）：
@@ -411,6 +419,13 @@
       height 300ms var(--nav-open-ease),
       border-radius 300ms var(--nav-open-ease),
       background-color 180ms ease,
+      /* ⚠️ 这一条 box-shadow **刻意留着**（与 mini / 状态岛那边删掉的不是一回事）：
+         这里的投影值是真的变（常态 `0 4px 30px rgba(0,0,0,.02)` → 展开态
+         inset 高光 + `0 18px 44px rgba(15,23,42,.16)`，见下方第二条规则）。
+         2026-11-16 试过删掉它：投影会在 t=0 就拉满，而那一刻岛还只有 50 高，
+         等于一根细条上顶着一圈 44px 的浓阴影 —— 展开瞬间「糊一下」再长大。
+         代价是这 180ms 内每帧要重绘一次模糊投影（约 800×250 区域），
+         实测对帧时间无可测影响（4× CPU 降速下仍是满帧），所以保留渐变。 */
       box-shadow 180ms ease;
   }
 
@@ -723,9 +738,14 @@
     max-width 300ms var(--nav-open-ease),
     height 300ms var(--nav-open-ease),
     border-radius 300ms var(--nav-open-ease),
-    background-color 300ms ease,
-    box-shadow 300ms ease;
-  will-change: max-width, height;
+    background-color 300ms ease;
+  /* ⚠️ 2026-11-16 删掉的两项：
+     · `box-shadow 300ms ease` —— mini 收起态与展开态的投影都是 `--liquid-shadow-sm`
+       （本规则不覆盖 box-shadow），值根本不变 ⇒ 这条过渡**永远不触发**。
+       真展开成下拉时投影才变，那种情况由 `.has-submenu`（1,2,0）自己接管。
+     · `will-change: max-width, height` —— 布局属性，无法预合成；而且它是**常驻**的
+       （mini 收起态也挂着）。实测去掉后帧时间不劣于留着（最大帧 18.5 vs 22.2ms）。
+       实测数据见 `.unified-nav-surface` 块尾部注释。 */
 }
 
 :global(#unified-nav-container .unified-nav-surface.nav-mini-caps:not(.nav-expanded)) {
