@@ -18,6 +18,7 @@ import {
 } from 'lucide-vue-next';
 import HomeCatMascot from '@/components/HomeCatMascot.vue';
 import ImageEditModal from './ImageEditModal.vue';
+import AlbumEntryBlock from './AlbumEntryBlock.vue';
 import { useAutoGrowTextarea } from '@/composables/useAutoGrowTextarea.js';
 import { FORUM_POST_TITLE_MAX_LENGTH } from '../forum-config.js';
 import {
@@ -91,8 +92,6 @@ const isAlbumMode = computed(() => props.mode === 'album');
 /** 只用于 `is-album-flow` 这个类：窄屏/矮横屏时让出装饰性的问候行，给正文腾空间。 */
 const isAlbumFlow = computed(() => isAlbumMode.value && !isEditMode.value);
 
-const albumEditIndex = ref(0);
-
 const EMPTY_ALBUM_ENTRY = { title: '', date: '', place: '', body: '' };
 
 const albumEntryList = computed(() => {
@@ -101,61 +100,35 @@ const albumEntryList = computed(() => {
   return Array.from({ length: count }, (_, i) => list[i] || EMPTY_ALBUM_ENTRY);
 });
 
-const currentAlbumEntry = computed(
-  () => albumEntryList.value[albumEditIndex.value] || EMPTY_ALBUM_ENTRY,
-);
-
-/* 删图/清空后选中项可能越界 —— 夹回最后一张，避免编辑到不存在的照片 */
-watch(
-  () => props.postImages.length,
-  (count) => {
-    if (albumEditIndex.value >= count) {
-      albumEditIndex.value = Math.max(0, count - 1);
-    }
-  },
-);
-
-watch(
-  () => props.mode,
-  (mode) => {
-    if (mode !== 'album') albumEditIndex.value = 0;
-  },
-);
-
-const updateAlbumEntry = (field, value) => {
+/** 按**下标**写某一格：卡片流里每一块都有自己的下标，不再有「当前选中的那张」。 */
+const updateAlbumEntryAt = (index, field, value) => {
   const next = albumEntryList.value.map((entry) => ({ ...entry }));
-  const target = next[albumEditIndex.value];
+  const target = next[index];
   if (!target) return;
   target[field] = String(value ?? '');
   emit('update:albumEntries', next);
-};
-
-const albumEntryFilled = (index) => {
-  const entry = albumEntryList.value[index];
-  return Boolean(entry && (entry.title || entry.body));
 };
 
 /** 「共 N 张 · 已写 k」里的 k：进度自己会说话，比再写一句「可选」有用。 */
 const albumFilledCount = computed(
   () => albumEntryList.value.filter((e) => e.title || e.body).length,
 );
-
-/** 两位张号（01 / 02）—— 缩略图角标与标题行文案共用同一个格式，避免两处各写一份。 */
-const albumCurrentLabel = computed(() => String(albumEditIndex.value + 1).padStart(2, '0'));
-const albumTotalLabel = computed(() => String(props.postImages.length).padStart(2, '0'));
+const albumFlowSummary = computed(() => {
+  const total = props.postImages.length;
+  return albumFilledCount.value
+    ? `共 ${total} 张 · 已写 ${albumFilledCount.value}`
+    : `共 ${total} 张 · 还没写字`;
+});
 
 /** 图文格式里看不见、但发布会带上的那截正文（常规格式里写过的）。 */
 const hasHiddenBody = computed(
   () => isAlbumMode.value && Boolean(String(props.newPost.content || '').trim()),
 );
 
-/* 配字正文也走「多字扩展」：这里没有它，写超过三行就只能在框里滚，
-   上下张的上下文都看不见（与评论区同一个问题，单一实现见 composables/useAutoGrowTextarea.js）。
-   上限住 CSS（`.album-part-body { max-height }`），JS 不写第二份像素值。
-   ⚠️ 必须传 value：切到另一张时正文由父层改写，只绑 @input 的实现不会回缩。 */
-const { textareaRef: albumBodyInputRef } = useAutoGrowTextarea({
-  value: () => currentAlbumEntry.value.body,
-});
+/* 配字正文的「多字扩展」不在本文件 —— 图文格式是**一张一块**的卡片流，
+   每一块的四个字段各自一条增高实例，住在 components/AlbumEntryBlock.vue
+   （那里才拿得到「这一块」的 value）。单一实现仍是
+   composables/useAutoGrowTextarea.js，本文件不再持有第二条。 */
 
 /* 标题上限：与主流社区一致，防止超长标题撑破排版。
    2026-10-25 提为单源（原先是本文件局部常量）—— 「智能整理」要对模型下同一个
@@ -214,14 +187,22 @@ watch(
 );
 
 /* 标题是单行字段：Enter（非 IME 组合中）跳到「下一处该写字的地方」。
-   常规格式 = 正文；图文格式没有正文，落到当前这张的配字上（没有图就没有落点）。
-   必须判 isComposing —— 中文输入法确认候选词的回车不能被拦。 */
+   常规格式 = 正文；图文格式没有正文，落到**第一块**的配字上（还没照片就没有落点，
+   直接开选图）。必须判 isComposing —— 中文输入法确认候选词的回车不能被拦。 */
+const composerRootRef = ref(null);
+
 const handleTitleKeydown = (event) => {
   if (event.key !== 'Enter') return;
   if (event.isComposing || event.keyCode === 229) return;
   event.preventDefault();
   if (isAlbumMode.value) {
-    albumBodyInputRef.value?.focus?.();
+    if (!props.postImages.length) {
+      handleImagePickerRequest();
+      return;
+    }
+    /* 每一块的正文框都在子组件里，拿不到 ref 数组 ⇒ 在宿主根节点里取第一个。
+       这里只定位「第一块」，不关心是哪一块，DOM 查询比透传 expose 更省。 */
+    composerRootRef.value?.querySelector?.('.album-block-body')?.focus?.();
     return;
   }
   postContentInputRef.value?.focus?.();
@@ -825,6 +806,7 @@ onUnmounted(() => {
 
 <template>
   <section
+    ref="composerRootRef"
     class="post-creation-section fade-in-up"
     :class="{ 'mobile-composer-section': isMobileComposer, 'is-album-flow': isAlbumFlow }"
     :style="{ '--composer-album-font': ALBUM_FONT_STACK }"
@@ -928,6 +910,11 @@ onUnmounted(() => {
             {{ titleCharCount }}/{{ TITLE_MAX_LENGTH }}
           </span>
         </div>
+
+        <!-- 篇名 / 每张标题是**两个层级**（发出后的卡片上，篇名是 h2、每张标题是 h3）。
+             不给说明的话，两个 16px 输入框长得一模一样，谁也不知道自己的字会落在哪。
+             一行字说清楚，位置也替他们分开：篇名在页顶、每张标题在块内左栏。 -->
+        <p v-if="isAlbumMode" class="album-name-hint">篇名 · 会显示在信息流卡片上</p>
 
         <!-- 正文：**只有常规格式有**。
              图文格式是「一张照片配一段字」的并排式结构（2026-11-16 用户定稿），
@@ -1038,8 +1025,13 @@ onUnmounted(() => {
           <!-- 一行胶片条：横向滑动看全，长按整卡拖动排序（见 useImageStripDrag）。
              指针事件绑在条带上做委托 —— 空白处按下＝横滑，卡片上按下＝可能是拖拽。
              click 走 capture 阶段，用来吞掉"长按/拖动结束后那一次 click"（否则会顺带
-             打开全屏预览）。 -->
+             打开全屏预览）。
+
+             ⚠️ 图文格式**不渲染**这一条：照片在卡片流里已经当了一次配字的载体，
+             再在顶上画一遍 108px 缩略图 = 同一批照片看两遍、序号标两遍
+             （2026-11-16 用户评为「粗糙」的首要来源）。排序/删除改走每块照片上的「⋯」。 -->
           <div
+            v-if="!isAlbumMode"
             ref="imageStripRef"
             class="post-image-preview-grid"
             :class="{ 'is-reordering': isImageReordering }"
@@ -1054,10 +1046,6 @@ onUnmounted(() => {
                 :class="{ 'is-failed': image.uploadStatus === 'failed' }"
                 :data-image-index="index"
               >
-                <!-- 影集模式：序号就是这一篇里的阅读顺序，必须看得见 -->
-                <span v-if="isAlbumMode" class="post-image-album-no">{{
-                  String(index + 1).padStart(2, '0')
-                }}</span>
                 <button
                   v-if="image.url"
                   type="button"
@@ -1171,8 +1159,11 @@ onUnmounted(() => {
               <div class="post-image-upload-progress-fill"></div>
             </div>
           </div>
+          <!-- 图文格式的「清空」在卡片流尾部（见 `.album-flow-foot`）——那里它和
+               「共 N 张 · 已写 k」是同一行，语义是一对：进度 ↔ 重置，而不是一个
+               孤零零浮在图片区下面的灰药丸。 -->
           <button
-            v-if="postImages.length > 0"
+            v-if="!isAlbumMode && postImages.length > 0"
             type="button"
             class="post-image-clear-btn"
             :disabled="isPostBusy"
@@ -1182,82 +1173,60 @@ onUnmounted(() => {
           </button>
         </div>
 
-        <!-- 逐张配字 ── 图文格式的形态核心：照片传上来之后，每张各写标题 / 日期 / 地点 / 一段字。
-             2026-11-16（第二版）：原先「外卡 + 灰槽 + 内框 + 每个输入框描边」四层盒子，
-             读起来像一张没排完的表；现在整块只留**一层**书写面板，行与行用发丝线分开。
-             · 竖屏：照片缩略图横排在上、字段在下（窄屏没有并排的宽度）；
-             · 宽屏 / 横屏（≥640px）：缩略图立到左边当索引 —— 那里缺的是高度，不缺宽度。
-             没有照片时整块**不出现**：此时说「这里将来会有东西」只是噪音，
-             这句话由底栏那一行负责（「图文模式，每张照片可写一段文字。」）。 -->
-        <div v-if="isAlbumMode && postImages.length" class="album-parts">
-          <div class="album-parts-head">
-            <span class="album-parts-kicker">逐张配字</span>
-            <span class="album-parts-hint">
-              第 {{ albumCurrentLabel }} / {{ albumTotalLabel }} 张<template
-                v-if="albumFilledCount"
-              >
-                · 已写 {{ albumFilledCount }}</template
-              >
+        <!-- 图文格式的主体 ── **卡片流**：一张照片一块，图在上、这一张的字在下。
+             版式与阅读层（AlbumReader 的 `.album-entry`）同构 ⇒「写完看到的就是发出去的」。
+
+             2026-11-16（第三版）删掉了两样东西，都是「同一批照片被要求看两遍」：
+             · 上面那条 108px 缩略图条（照片在块里已经是主角，序号也已经在图角标了）；
+             · 「缩略图选一张 + 下面填一张」的两段式（要连点四下才能给三张配完字）。
+             没有照片时**也渲染**，第一块就是「＋ 添加照片」——空态不再是 760px 黑洞，
+             入口也不用去底栏那个 12.5px 的文字按钮里找。 -->
+        <div v-if="isAlbumMode" class="album-flow">
+          <AlbumEntryBlock
+            v-for="(image, index) in postImages"
+            :key="image.uploadId || image.url || `album-${index}`"
+            :image="image"
+            :entry="albumEntryList[index]"
+            :index="index"
+            :total="postImages.length"
+            :busy="isPostBusy"
+            :editable="Boolean(image.file) && !isPostBusy"
+            @update="(field, value) => updateAlbumEntryAt(index, field, value)"
+            @remove="emit('remove-image', image, index)"
+            @retry="emit('retry-image', image, index)"
+            @edit="openImageEditor(image, index)"
+            @preview="openImagePreview(image)"
+            @move="(delta) => requestImageReorder(index, index + delta)"
+          />
+
+          <button
+            v-if="postImages.length < maxPostImages"
+            type="button"
+            class="album-add-card"
+            :disabled="isPostBusy"
+            :aria-label="`添加照片，已添加 ${postImages.length} 张，最多 ${maxPostImages} 张`"
+            @click="handleImagePickerRequest"
+          >
+            <span class="album-add-plus" aria-hidden="true">
+              <Plus :size="20" :stroke-width="1.8" />
             </span>
-          </div>
+            <span class="album-add-label">
+              添加照片 · {{ postImages.length }} / {{ maxPostImages }}
+            </span>
+          </button>
 
-          <div class="album-parts-body">
-            <div class="album-parts-strip" role="group" aria-label="选择要配字的照片">
-              <button
-                v-for="(image, index) in postImages"
-                :key="image.uploadId || image.publicId || index"
-                type="button"
-                class="album-part-thumb"
-                :class="{
-                  'is-active': index === albumEditIndex,
-                  'is-filled': albumEntryFilled(index),
-                }"
-                :aria-pressed="index === albumEditIndex"
-                :aria-label="`第 ${index + 1} 张`"
-                @click="albumEditIndex = index"
-              >
-                <img :src="image.localPreviewUrl || image.url" alt="" loading="lazy" />
-                <span class="album-part-no">{{ String(index + 1).padStart(2, '0') }}</span>
-              </button>
-            </div>
-
-            <div class="album-part-fields">
-              <input
-                class="album-part-input album-part-title"
-                :value="currentAlbumEntry.title"
-                maxlength="16"
-                placeholder="这一张的标题"
-                aria-label="这一张的标题"
-                @input="updateAlbumEntry('title', $event.target.value)"
-              />
-              <div class="album-part-row">
-                <input
-                  class="album-part-input album-part-date"
-                  :value="currentAlbumEntry.date"
-                  maxlength="12"
-                  placeholder="日期"
-                  aria-label="日期"
-                  @input="updateAlbumEntry('date', $event.target.value)"
-                />
-                <input
-                  class="album-part-input album-part-place"
-                  :value="currentAlbumEntry.place"
-                  maxlength="16"
-                  placeholder="地点"
-                  aria-label="地点"
-                  @input="updateAlbumEntry('place', $event.target.value)"
-                />
-              </div>
-              <textarea
-                ref="albumBodyInputRef"
-                class="album-part-input album-part-body"
-                :value="currentAlbumEntry.body"
-                rows="3"
-                placeholder="写这一张字…（空一行分段）"
-                aria-label="这一张的正文"
-                @input="updateAlbumEntry('body', $event.target.value)"
-              ></textarea>
-            </div>
+          <!-- 尾部只在真有照片时出现：空态里「还没有照片」是废话 ——
+               上面那个虚线块自己就说清了（`0 / 10`），这里再说一遍只是噪音。 -->
+          <div v-if="postImages.length" class="album-flow-foot">
+            <span class="album-flow-summary">{{ albumFlowSummary }}</span>
+            <button
+              type="button"
+              class="album-flow-clear"
+              :disabled="isPostBusy"
+              @click="emit('clear-images', { cleanup: true })"
+            >
+              全部清空
+            </button>
           </div>
         </div>
 
@@ -2188,37 +2157,141 @@ onUnmounted(() => {
   color: var(--liquid-text-tertiary, #8a8a8e);
 }
 
-/* ── 逐张配字区（图文格式的核心）──────────────────────────────────────────────
-   版式 = **一层**书写面板 + 发丝分隔行。上一版是「外卡描边 + 缩略图灰槽 + 字段框描边
-   + 每个输入框描边」，四层边界套在一起，看起来像一张没排完的表（2026-11-16 截图复盘）。
+/* 篇名字段的一行说明：它是**篇名**（会出现在信息流卡片上），不是每张的标题。
+   两个层级靠位置分开，这行字只补一句「它会落在哪」。 */
+.album-name-hint {
+  margin: -6px 0 0;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--liquid-text-tertiary, #8a8a8e);
+}
+
+/* ── 图文卡片流（图文格式的主体）─────────────────────────────────────────────
+   一张照片一块，图在上、这一张的字在下，版式照抄阅读层 `.album-entry`
+   （文字 `30% / 1fr` 两栏）⇒「写完看到的就是发出去的」。
+
+   2026-11-16（第三版）在这一段里**删掉两样东西**，都是「同一批照片被看两遍」：
+   · 顶上那条 108px 缩略图条（照片已经是块里的主角，序号也在图角标过了）；
+   · 「缩略图选一张 + 下面填一张」的两段式（给三张配完字要连点四下）。
+   本段只管**块与块之间**的节奏；块内部的一切住在 AlbumEntryBlock.vue。
    材质一律从 --liquid-text-primary 现混：暗色它翻成浅色，此区一条覆盖都不用补。 */
-
-.album-parts {
-  /* 与上方图片区之间只留一条发丝线 —— 它不是「另一张卡片」，是同一个写作面的续行 */
-  padding-top: 14px;
-  border-top: 1px solid color-mix(in srgb, var(--liquid-text-primary, #1d1d1f) 8%, transparent);
-}
-
-.album-parts-head {
+.album-flow {
   display: flex;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: 2px 10px;
-  margin-bottom: 8px;
+  flex-direction: column;
+  /* 块间距：阅读层块间是 60px（纯阅读节奏），编辑态还要给「⋯」菜单留落点，
+     24px 够分块又不散 */
+  gap: 24px;
+  padding-top: 4px;
 }
 
-/* 标签不再是描边小药丸（那是第三层盒子）：纯文字 + 字距，安静但看得见 */
-.album-parts-kicker {
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
+/* 「＋ 添加照片」：图文格式**唯一**的图像入口，也是空态的第一块。
+   虚线而不是实心卡 —— 它表示「这里还空着」，不是「这里有一张图」。 */
+.album-add-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  width: 100%;
+  min-height: 104px;
+  padding: 16px;
+  border: 1px dashed color-mix(in srgb, var(--liquid-text-primary, #1d1d1f) 22%, transparent);
+  border-radius: 3px;
+  background: none;
+  color: var(--liquid-text-secondary, #6b6b70);
+  cursor: pointer;
+  transition:
+    border-color 0.18s ease,
+    color 0.18s ease,
+    background-color 0.18s ease;
+}
+
+.album-add-card:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--liquid-text-primary, #1d1d1f) 40%, transparent);
   color: var(--liquid-text-primary, #1d1d1f);
+  background: color-mix(in srgb, var(--liquid-text-primary, #1d1d1f) 3%, transparent);
 }
 
-.album-parts-hint {
+.album-add-card:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.album-add-plus {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 1px solid currentColor;
+  opacity: 0.7;
+}
+
+.album-add-label {
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 尾部：进度 ↔ 重置，成对出现（不再是一颗孤零零的灰药丸） */
+.album-flow-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: -6px;
+}
+
+.album-flow-summary {
   font-size: 11.5px;
   color: var(--liquid-text-tertiary, #8a8a8e);
   font-variant-numeric: tabular-nums;
+}
+
+.album-flow-clear {
+  padding: 4px 10px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--liquid-text-tertiary, #8a8a8e);
+  font-size: 11.5px;
+  cursor: pointer;
+  transition:
+    color 0.18s ease,
+    background-color 0.18s ease;
+}
+
+.album-flow-clear:hover:not(:disabled) {
+  color: var(--danger, #d93025);
+  background: color-mix(in srgb, var(--danger, #d93025) 8%, transparent);
+}
+
+.album-flow-clear:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── 宽屏 / 桌面：内容列收成 620px 居中 ─────────────────────────────────────
+   与阅读层 `.album-sheet { max-width: 620px }` 同宽 —— 编辑器和阅读页同一个度量，
+   写完搬过去不会「行宽变了」。顺带治掉一条实测故障：标题那边的字数计数是绝对
+   定位贴标题组右边缘，卡片铺满 1030px 时它会飘到内容右侧 1000px 外（2026-11-16）。 */
+@media (min-width: 900px) {
+  .is-album-flow .composer-content-scroll,
+  .is-album-flow .editor-footer {
+    /* ⚠️ `width: 100%` 不能省：`.editor-card` 是带 `align-items: center` 的列向 flex，
+       只有 `max-width` 时这个子项会**收缩到内容宽度**（实测只剩 180px，比手机还窄）——
+       `max-width` 只是上限，不是宽度。 */
+    width: 100%;
+    max-width: 620px;
+    margin-inline: auto;
+  }
+
+  /* 620px 宽的行在桌面上 24px 的块间距会「粘」在一起（阅读层是 60px）——
+     不是同一屏的两种密度，只是同一份内容在更宽的行里需要更长的呼吸。 */
+  .album-flow {
+    gap: 34px;
+  }
 }
 
 /* 常规格式写过的正文在图文格式里不该「凭空消失」：给一行说明 + 一键清空，
@@ -2244,235 +2317,11 @@ onUnmounted(() => {
   cursor: pointer;
 }
 
-.album-parts-body {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  min-width: 0;
-}
-
-/* 缩略图：不铺灰槽（灰槽就是第二层盒子），裸图 + 选中实心环 */
-.album-parts-strip {
-  display: flex;
-  gap: 9px;
-  overflow-x: auto;
-  padding: 2px;
-  scrollbar-width: none;
-}
-
-.album-parts-strip::-webkit-scrollbar {
-  display: none;
-}
-
-.album-part-thumb {
-  position: relative;
-  flex: 0 0 auto;
-  width: 54px;
-  height: 54px;
-  padding: 0;
-  border: 0;
-  border-radius: 10px;
-  overflow: hidden;
-  opacity: 0.42;
-  background: none;
-  cursor: pointer;
-  transition:
-    opacity 0.18s ease,
-    box-shadow 0.18s ease;
-}
-
-.album-part-thumb img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-
-/* 选中环用 box-shadow 而不是 border：border 会把里面的图挤小 2px，
-   一排缩略图里选中项看起来「缩了一下」（上一版实测）。 */
-.album-part-thumb[aria-pressed='true'] {
-  opacity: 1;
-  box-shadow: 0 0 0 2px var(--liquid-text-primary, #1d1d1f);
-}
-
-.album-part-thumb.is-filled::after {
-  content: '';
-  position: absolute;
-  right: 4px;
-  top: 4px;
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--apple-blue, #0071e3);
-}
-
-.album-part-no {
-  position: absolute;
-  left: 4px;
-  bottom: 3px;
-  font-size: 8.5px;
-  color: #fff;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
-}
-
-/* 书写面板：唯一一层填充。四个字段都在里面，不再各自描一圈框。 */
-.album-part-fields {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  padding: 2px 14px;
-  border-radius: 14px;
-  background: color-mix(in srgb, var(--liquid-text-primary, #1d1d1f) 4%, transparent);
-  /* ⚠️ 字体只在这一层写一次：`.editor-card input/textarea { font-family: inherit }`
-     的特异性是 (0,2,1)，比单个类高 —— 直接在字段上写 font-family 会被它盖掉（2026-11-16 实测）。
-     写在面板上，字段的 `inherit` 正好继承到这里；日期/地点也跟着走，
-     一篇图文一个声音，比「标题宋体、日期黑体」更整齐。
-     变量值来自 `ALBUM_FONT_STACK`（固定宋体，见 utils/forum-album.js）——
-     发帖器的预览必须和发出的卡片同字体，否则写完发现不一样。 */
-  font-family: var(--composer-album-font, inherit);
-}
-
-/* 字段的边界是**底边一条发丝线**；聚焦时那条线加深 ——
-   可访问性要求的「聚焦有反馈」由它承担，不必再加一层描边。 */
-.album-part-input {
-  width: 100%;
-  box-sizing: border-box;
-  padding: 11px 0;
-  border: 0;
-  border-bottom: 1px solid color-mix(in srgb, var(--liquid-text-primary, #1d1d1f) 10%, transparent);
-  border-radius: 0;
-  background: transparent;
-  color: var(--liquid-text-primary, #1d1d1f);
-  font-family: inherit;
-  outline: none;
-  transition: border-color 0.18s ease;
-}
-
-.album-part-input::placeholder {
-  color: var(--liquid-text-tertiary, #9a9a9f);
-}
-
-.album-part-input:focus {
-  border-bottom-color: color-mix(in srgb, var(--liquid-text-primary, #1d1d1f) 42%, transparent);
-}
-
-.album-part-title {
-  font-size: 16.5px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-}
-
-.album-part-row {
-  display: flex;
-  gap: 18px;
-}
-
-/* 日期给足宽度：上一版 84px 装不下「2026.11.09」，值被切在框外只剩「2026.11.」（实测） */
-.album-part-date {
-  flex: 0 0 auto;
-  width: 112px;
-  font-size: 12.5px;
-  color: var(--liquid-text-secondary, #6b6b70);
-  font-variant-numeric: tabular-nums;
-}
-
-.album-part-place {
-  flex: 1 1 auto;
-  min-width: 0;
-  font-size: 12.5px;
-  color: var(--liquid-text-secondary, #6b6b70);
-}
-
-.album-part-body {
-  border-bottom: 0;
-  font-size: 13.5px;
-  line-height: 1.75;
-  /* 3 行起步（rows=3）+ 自动增高；上限内不滚、超了框内滚，
-     永远不会把整块顶到比一屏还高 */
-  min-height: 84px;
-  max-height: 240px;
-  resize: none;
-}
-
-/* 影集模式下的图序角标（序号即阅读顺序，必须看得见） */
-.post-image-album-no {
-  position: absolute;
-  left: 6px;
-  top: 6px;
-  z-index: 2;
-  padding: 1px 5px;
-  border-radius: 5px;
-  font-size: 10px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  color: #fff;
-  background: rgba(0, 0, 0, 0.52);
-  backdrop-filter: blur(6px);
-  pointer-events: none;
-}
-
-/* ── 宽屏 / 横屏：缩略图立到左边当索引 ──────────────────────────────────────
-   这些档位缺的是**高度**、不缺宽度：横屏手机的内容区只有一百多像素，
-   照片条横占一行就是 60px，立起来之后整块从 ~380px 收到 ~210px。
-   阈值 640：最宽的竖屏手机（iPhone SE 横屏 568）仍走上下两段，不会挤成一条。 */
-@media (min-width: 640px) {
-  .album-parts-body {
-    flex-direction: row;
-    align-items: flex-start;
-    gap: 14px;
-  }
-
-  .album-parts-strip {
-    flex: 0 0 auto;
-    flex-direction: column;
-    width: 54px;
-    /* 张数多时索引自己滚，字段永远不会被它推下去 */
-    max-height: 236px;
-    padding: 3px;
-    overflow-x: hidden;
-    overflow-y: auto;
-    scrollbar-width: none;
-  }
-
-  .album-parts-strip::-webkit-scrollbar {
-    display: none;
-  }
-
-  .album-part-fields {
-    flex: 1 1 auto;
-    min-width: 0;
-    max-width: 720px;
-  }
-}
-
-@keyframes album-parts-fade-in {
-  from {
-    opacity: 0;
-  }
-
-  to {
-    opacity: 1;
-  }
-}
-
-/* 逐张配字区的暗色覆盖已删除
-
-@media (max-width: 380px) {
-  .album-part-date {
-    width: 104px;
-    font-size: 12px;
-  }
-
-  .album-part-place {
-    font-size: 12px;
-  }
-}
-
 /* ── 图文格式里让出「问候行」 ──────────────────────────────────────────────
-   图文一屏里要放 标题 / 配文 / 图片条 / 逐张配字，比常规帖多一整块；
-   「朋友 / 今天想和大家分享什么？」在这一屏没有信息量，却要占 105px
-   （2026-11-16 实测：390×844 因此把正文输入框压到折叠线以下）。
-   常规格式保留 —— 那里它是唯一的「这是发帖页」提示。 */
+   图文的开头是「格式切换 → 篇名 → 一块张照片」，问候行（头像 + 「今天想和大家
+   分享什么？」）在这里既没有信息量、又要占 105px（2026-11-16 实测：390×844 因此
+   把下面第一个输入框压到折叠线以下）。常规格式保留 —— 那里它是唯一的
+   「这是发帖页」提示。 */
 .is-album-flow .editor-header {
   display: none;
 }
