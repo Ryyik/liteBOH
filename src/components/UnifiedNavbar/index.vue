@@ -1557,10 +1557,52 @@ const isPointerOnSurface = (event) => {
   );
 };
 
+/**
+ * 指针是不是**冲着「登录」去的**（2026-11-16，用户口径「鼠标对着 mini 态的登录两个字去的时候，
+ * 优先保证他们可以点击到登录，其他区域则自动展开导航栏」）。
+ *
+ * 为什么必须单独判：mini 态胶囊 180 宽，展开成 720 时 `.nav-container` 的 padding 从 12 变 32、
+ * 菜单插进来，**登录按钮会横向平移约 500px**。用户瞄着「登录」两个字移过去、70ms 后岛撑开，
+ * 按钮从指针底下跑掉 ⇒ 点击落在空白处或别的元素上。这与当年汉堡那次是同一类问题，
+ * 但结论相反：汉堡是「唯一的展开把手」，所以 hover 它也要展开（见 handleNavPointerEnter
+ * 上方注释）；登录按钮本身就是这个位置唯一想点的东西，所以**它优先于展开**。
+ *
+ * 只读 `event.target`（`closest` 不触发布局）—— 上一版刚把 pointermove 里的 gBCR 清掉，
+ * 不要为了这个判据再加回来。盒外 4px 的容差走缓存 rect（每次进入胶囊量一次），
+ * 兜住「差一两个像素没压在按钮上」的情况，否则贴边移动仍会把按钮晃走。
+ */
+let loginBtnRect = null;
+
+const readLoginBtnRect = () => {
+  const el = navSurface.value?.querySelector('.nav-login-btn');
+  loginBtnRect = el ? el.getBoundingClientRect() : null;
+};
+
+const isPointerOnLoginBtn = (event) => {
+  if (!event) return false;
+  if (event.target?.closest?.('.nav-login-btn')) return true;
+  const r = loginBtnRect;
+  if (!r) return false;
+  const pad = 4;
+  return (
+    event.clientX >= r.left - pad &&
+    event.clientX <= r.right + pad &&
+    event.clientY >= r.top - pad &&
+    event.clientY <= r.bottom + pad
+  );
+};
+
 const handleNavPointerEnter = (event) => {
   if (!isPointerOnSurface(event)) return;
   miniPointerInside.value = true;
   if (!desktopMiniActive.value) return;
+  /* 冲登录来的：不排展开，并把可能已排上的那次撤掉（指针可以先进胶囊边缘、
+     70ms 内再滑到登录上，那时定时器已经在跑）。 */
+  if (isPointerOnLoginBtn(event)) {
+    clearMiniHoverTimer();
+    return;
+  }
+  loginBtnRect = null; // 缓存留给下一次「贴着按钮边」的判定，进入时先置空
   clearMiniHoverTimer();
   scheduleMiniExpand();
 };
@@ -1580,6 +1622,11 @@ const handleNavPointerMove = (event) => {
    */
   if (!desktopMiniActive.value || isExpandedLooking.value) return;
   if (!isPointerOnSurface(event)) return;
+  // 在「登录」上：撤掉待展开，且不要重排（否则按钮会在点击前跑掉）
+  if (isPointerOnLoginBtn(event)) {
+    clearMiniHoverTimer();
+    return;
+  }
   // 指针在胶囊内持续移动时不要再排一次 —— scheduleMiniExpand 会先 clearTimeout，
   // 每移动一像素就把 70ms 往后推，结果是「一直在动就永远不展开」。
   if (!miniHoverTimer) scheduleMiniExpand();
@@ -1587,6 +1634,7 @@ const handleNavPointerMove = (event) => {
 
 const handleNavPointerLeave = () => {
   miniPointerInside.value = false;
+  loginBtnRect = null;
   scheduleMiniCollapse();
 };
 
@@ -1655,6 +1703,19 @@ watch(expandedMenu, (open, prev) => {
   if (!miniPointerInside.value) scheduleMiniCollapse();
 });
 
+/* ⚠️ 2026-11-16：登录浮层必须算「展开态」。
+ *
+ * 登录浮层在横屏 ≥769 是**两半岛拼成一张岛**：导航做上半岛（720×64、圆角 30 30 0 0、
+ * 底边无描边），登录卡做下半岛（同宽、`margin-top: 72px` 与上半岛重叠 2px）。
+ * 这条形态只写在 `.unified-nav-surface.has-login-card` 上，而 mini 的收起规则
+ * `#id .surface.nav-mini-caps:not(.nav-expanded)`（1,3,0）**权重更高** ——
+ * 于是桌面上打开登录后，上半岛仍是 180×44 的小胶囊，下半岛却是 720 宽：
+ * 中间悬空、左右各差 270px，两个岛根本不接（用户报障「顶部导航栏对登录的适配不好」）。
+ *
+ * 与通知岛 / 任务岛 / 自定义岛同一条纪律：凡是「岛要长出来接内容」的状态，
+ * 都必须让 mini 让位 —— 这就是 `nav-expanded` 的语义，不要在 CSS 里另开一份
+ * `:not(.has-login-card)` 补丁（两处判定必然漂移）。
+ */
 const isExpandedLooking = computed(() =>
   immersiveNav.value
     ? immersiveExpanded.value ||
@@ -1670,7 +1731,17 @@ const isExpandedLooking = computed(() =>
       miniPinned.value ||
       statusCardItem.value.visible ||
       isTaskCardShown.value ||
-      !!islandCustomSlot.component,
+      !!islandCustomSlot.component ||
+      /* 2026-11-16 补的两条（同一次排查出来的「同类问题」）：
+         · showLoginModal —— 登录岛=导航上半岛 + 登录卡下半岛，mini 会让上半岛只有 180 宽；
+         · bohIsland.isOpen —— BOH 岛 docked 在 surface 里（自己的 width 用 !important 顶住了，
+           但 **高度** 是 `#id .surface.has-boh-island`(1,2,0)，输给 mini 的
+           `:not(.nav-expanded)`(1,3,0)：实测指针一离开，岛从 128 塌回 44，
+           卡片（y=68 / 高 64 / 底 132）整块漏在岛外面。
+         两者都属于「岛要长出来接内容」 ⇒ 必须让 mini 让位，不要在 CSS 里补
+         `:not(.has-login-card)` 那种第二份判定（两处必然漂移）。 */
+      showLoginModal.value ||
+      bohIsland.isOpen.value,
 );
 
 /* 「球态」写到 body 上供页面侧消费 —— 目前只有 AI 页用：

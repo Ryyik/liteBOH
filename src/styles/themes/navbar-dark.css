@@ -144,7 +144,11 @@
 /* hover 反色坑：vendor 的 hover 底是浅灰 #f5f5f5（.nav-submenu a:hover /
    .nav-submenu-group-title:hover / .nav-mobile-group-entry:hover /
    .nav-mobile-group-back:hover），暗色下白字落上去瞬间隐形。
-   悬停底统一改用与 .nav-link-wrapper:hover 同一款白色浮层。 */
+   ⚠️ 2026-11-16：浅色态已按用户口径**整体取消选项行 hover**（见
+   UnifiedNavbar/style.scoped.css「选项行不要 hover 反馈」那段），这里同步把悬停底
+   改成透明 —— 否则暗色下还剩一块白色浮层，两个主题行为不一致。
+   `color: #ffffff !important` 保留：这几行的 vendor 文字色在暗色下本来就要压成白色，
+   与 hover 无关，删了会连带白底/浅底时的可读性兜底一起丢掉。 */
 #unified-nav-container[data-theme="dark"] .nav-submenu a:hover,
 [data-theme="dark"] #unified-nav-container .nav-submenu a:hover,
 #unified-nav-container[data-theme="dark"] .nav-submenu-group-title:hover,
@@ -154,7 +158,7 @@
 #unified-nav-container[data-theme="dark"] .nav-mobile-group-back:hover,
 [data-theme="dark"] #unified-nav-container .nav-mobile-group-back:hover {
   color: #ffffff !important;
-  background: rgba(255, 255, 255, 0.1) !important;
+  background: transparent !important;
 }
 
 /* 描边坑：vendor 把 .nav-user-info 的边框钉成 #000 !important、.nav-hamburger

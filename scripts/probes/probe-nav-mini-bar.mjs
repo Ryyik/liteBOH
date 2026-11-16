@@ -16,6 +16,7 @@ import fs from 'node:fs';
 //     H 竖屏 600x900（>480 档）mini 宽 188
 //     I 横屏 900x600（700–1023 档）：mini 180 + hover 展开 720 居中 + 点开下拉
 //     J hover 热区 = 胶囊盒子（下方 120px / 右侧 24px 都不许展开）+ 展开态 pointermove 不量盒子
+//     L 未登录：hover「登录」不展开（保证能点中）+ 登录岛上半岛=下半岛同宽相接
 // =====================================================================
 const BASE = 'http://[::1]:5173';
 const OUT = 'debug-screenshots';
@@ -485,6 +486,68 @@ const gateNewContext = async (options = {}) => {
   await context.close();
 }
 
+/* ---------- L. 未登录 mini 态：hover「登录」不展开 + 登录岛两半同宽 ----------
+   L1 用户口径（2026-11-16）「鼠标对着 mini 态的登录两个字去的时候，优先保证他们可以
+     点击到登录，其他区域则自动展开导航栏」：mini 展开时 `.nav-container` padding 12→32、
+     菜单插进来，登录按钮会横向平移 ~500px ⇒ 瞄着它过去、70ms 后按钮从指针底下跑掉。
+     反证：删掉 handleNavPointerEnter/Move 里的 isPointerOnLoginBtn 分支 →
+     胶囊会撑到 720，L1 立刻红。
+   L2 登录浮层是「导航上半岛 + 登录卡下半岛」拼成的一张岛（横屏 ≥769）。上半岛几何只写在
+     `.has-login-card` 上，mini 的收起规则 `:not(.nav-expanded)`(1,3,0) 权重更高 ⇒
+     曾经上半岛只有 180×44、下半岛 720 宽，两个岛根本不接（用户报障「顶部导航栏对登录的
+     适配不好」）。修法是让登录也进 isExpandedLooking（与通知岛/任务岛同一条纪律）。 */
+{
+  const context = await gateNewContext({ viewport: { width: 1440, height: 900 } });
+  const page = await context.newPage();
+  page.on('pageerror', (e) => report.pageErrors.push('L: ' + String(e).slice(0, 160)));
+  await page.goto(`${BASE}/#/`, { waitUntil: 'domcontentloaded' });
+  // ⚠️ 刻意不 injectAuth：未登录才有「登录」按钮
+  await page.waitForSelector('#nav-login-btn', { state: 'visible', timeout: 20000 });
+  await page.waitForTimeout(1200);
+
+  const geo = () =>
+    page.evaluate(() => {
+      const s = document.querySelector('#unified-nav-container .unified-nav-surface');
+      const r = s.getBoundingClientRect();
+      const card = document.querySelector('.boh-login-modal-overlay .boh-login-modal-container');
+      const cr = card?.getBoundingClientRect();
+      return {
+        w: +r.width.toFixed(1),
+        h: +r.height.toFixed(1),
+        top: +r.top.toFixed(1),
+        bottom: +r.bottom.toFixed(1),
+        left: +r.left.toFixed(1),
+        cls: s.className.replace('unified-nav-surface ', ''),
+        card: cr
+          ? {
+              w: +cr.width.toFixed(1),
+              top: +cr.top.toFixed(1),
+              left: +cr.left.toFixed(1),
+            }
+          : null,
+      };
+    });
+
+  const before = await geo();
+  const lb = await page.locator('#nav-login-btn').boundingBox();
+  // 从下方移向「登录」并停留 900ms —— 必须仍是胶囊
+  await page.mouse.move(lb.x + lb.width / 2, 700);
+  await page.waitForTimeout(150);
+  await page.mouse.move(lb.x + lb.width / 2, lb.y + lb.height / 2, { steps: 8 });
+  await page.waitForTimeout(900);
+  const onLogin = await geo();
+
+  // 点它：登录浮层必须打开，且上半岛 = 720×64、与下半岛同宽相接
+  await page.mouse.down();
+  await page.mouse.up();
+  await page.waitForTimeout(1200);
+  const opened = await geo();
+
+  report.results.L_login = { before, onLogin, opened };
+  await page.screenshot({ path: `${OUT}/nav-mini-L-login-island.png` });
+  await context.close();
+}
+
 await browser.close();
 
 // ---------- 断言 ----------
@@ -504,6 +567,7 @@ const I = report.results.I_landscape_mid;
 const IH = report.results.I_hover;
 const IS = report.results.I_submenu;
 const J = report.results.J_hitzone;
+const L = report.results.L_login;
 
 const hasMini = (m) => /nav-mini-caps/.test(m.classes || '');
 const hasExpanded = (m) => /nav-expanded/.test(m.classes || '');
@@ -575,6 +639,17 @@ report.checks = {
   //     反证：把 handleNavPointerMove 里 `isExpandedLooking` 门控挪回几何判据之后
   //     → calls 变成 120 → 立刻红。
   J_move_no_layout_thrash: !!J.move && J.move.calls <= 2,
+  /* L1：hover「登录」不许展开（判据用「宽度没有明显变大」，不用精确 180 ——
+     收起动画尾巴上的中间值不是展开）。 */
+  L_login_hover_no_expand: !!L && L.onLogin.w < L.before.w + 40,
+  L_login_hover_keeps_h44: !!L && Math.abs(L.onLogin.h - L.before.h) <= 2,
+  // L2：点开登录后上半岛必须是 720×64 的宽岛，且与下半岛同宽
+  L_login_island_upper: !!L && Math.abs(L.opened.w - 720) <= 6 && Math.abs(L.opened.h - 64) <= 2,
+  L_login_island_same_width: !!L && !!L.opened.card && Math.abs(L.opened.card.w - L.opened.w) <= 2,
+  /* L2b：接缝 —— 下半岛 top 比上半岛底边高 2px（两半岛重叠 2px 防止采样缝）。
+     判据双向 ±2px，写死「高 2px」会被亚像素舍入打成假红。 */
+  L_login_island_seam:
+    !!L && !!L.opened.card && Math.abs(L.opened.card.top - (L.opened.bottom - 2)) <= 2,
 };
 
 report.pass = Object.values(report.checks).every(Boolean) && report.pageErrors.length === 0;

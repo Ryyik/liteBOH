@@ -520,48 +520,30 @@
     letter-spacing: normal;
   }
 
-  /* 行左侧的品牌竖条：hover 时从中间长出来。
-     单列宽行只有一个文字块，右侧空得多；竖条把视线重新锚在行首。 */
-  :global(#unified-nav-container .nav-submenu > li),
-  :global(#unified-nav-container .nav-submenu-pane > li) {
-    position: relative;
-    border-radius: 12px;
-  }
+  /* ⚠️ 2026-11-16 用户口径：**选项行不要 hover 反馈**（原话「去掉 hover」）。
+     这里原先有一整套「行底色 rgba(20,89,217,.075) + 行首 2px 蓝竖条 hover 时长出来」，
+     已整块删除：li 的 `::before` 伪元素、它的 `height: 15px` 悬停态、li 的悬停底色、
+     以及对应的 reduced-motion 静止规则。删除原因不只是"不好看"——
+     鼠标扫过列表时最后经过的那一行会长时间亮着（触控板/触屏的粘滞 hover），
+     看起来像"被选中了"，和真正的当前页 `.active` 抢语义。
 
-  :global(#unified-nav-container .nav-submenu > li::before),
-  :global(#unified-nav-container .nav-submenu-pane > li::before) {
-    content: '';
-    position: absolute;
-    left: 5px;
-    top: 50%;
-    width: 2px;
-    height: 0;
-    border-radius: 2px;
-    background: #1459d9;
-    transform: translateY(-50%);
-    transition: height 240ms var(--nav-open-ease);
-    pointer-events: none;
-    z-index: 1;
-  }
+     ⇒ 行的高亮语义只留 `.active`（当前页）；可点性靠整行热区（`.nav-submenu a` 是
+        flex + min-height:44px，铺满岛宽）与光标，不靠视觉高亮。
 
-  :global(#unified-nav-container .nav-submenu > li:hover::before),
-  :global(#unified-nav-container .nav-submenu-pane > li:hover::before) {
-    height: 15px;
-  }
-
-  /* ⚠️ 悬停底色必须写在 li 上，**不能**写在 a 上：
-     src/style.css:290 有一条全局 `a:hover { background-color: transparent !important }`
-     （它是为压 glass-ui-vue 的全局 hover 加的），任何 a 级的悬停底色都会被它吃掉。
-     实测特征：`a.matches(':hover')` 为真、`transform: translateX(4px)` 也生效，
-     但 computed background 仍是 rgba(0,0,0,0) —— 只看截图会误判成"没写 hover"。
-     暗色下之所以"看着正常"，是 navbar-dark.css 用 !important 另写了一份。 */
-  :global(#unified-nav-container:not([data-theme='dark']) .nav-submenu li:hover) {
-    background-color: rgba(20, 89, 217, 0.075);
-  }
-
-  /* 整行有了底色之后，vendor 的 translateX(4px) 会让文字在色块里"滑动"、看着像行裂开。 */
+     ⚠️ 下面这条**必须留着**：vendor 给 `.nav-submenu a:hover` 写了 `translateX(4px)`。
+        底色没了之后，残留的横移会变成"纯文字在行里乱动"，比高亮更明显。
+     ⚠️ vendor 的 `a:hover { background-color: #f5f5f5 }` 本该也被这条一并压掉，
+        但真正压住它的是 src/style.css:290 那条全局 `a:hover { background: transparent !important }`
+        （为 glass-ui-vue 加的）。别再往 a 上写悬停底色，会静默失效。 */
   :global(#unified-nav-container .nav-submenu a:hover) {
     transform: none;
+  }
+
+  /* vendor 的分组标题悬停是 #f5f5f5 实灰块，且写在 **div** 上 ⇒ 上面那条全局 `a:hover`
+     压不到它，和「无 hover」口径冲突（灰块没有 padding/圆角，贴在文字周围像个错位的补丁）。
+     坐标同上：只留 chevron 与分组本身的层级提示。 */
+  :global(#unified-nav-container .nav-submenu-group-title:hover) {
+    background-color: transparent;
   }
 
   /* 分组标题是"进下一层"，靠这个 chevron 说明"还有内容"（原先完全没有提示）。 */
@@ -573,6 +555,8 @@
     justify-content: flex-start;
   }
 
+  /* chevron 常驻 0.45，**不做 hover 变化**（旧版 hover 时 0.45 → 0.85 并右移 2px）。
+     它是「这一项还有下一层」的静态标记，不承担"鼠标在这行"的反馈 —— 后者已整体取消。 */
   :global(#unified-nav-container .nav-submenu-group-title::after) {
     content: '›';
     margin-left: auto;
@@ -580,23 +564,6 @@
     font-size: 15px;
     line-height: 1;
     opacity: 0.45;
-    transition:
-      opacity 200ms ease,
-      transform 240ms var(--nav-open-ease);
-  }
-
-  :global(#unified-nav-container .nav-submenu-group-title:hover::after) {
-    opacity: 0.85;
-    transform: translateX(2px);
-  }
-}
-
-/* 降动偏好：竖条的长高一律静止。 */
-@media (prefers-reduced-motion: reduce) {
-  :global(#unified-nav-container .nav-submenu > li::before),
-  :global(#unified-nav-container .nav-submenu-pane > li::before) {
-    transition: none;
-    height: 0;
   }
 }
 
@@ -625,8 +592,14 @@
    ⇒ 权重 (1,3,0)，与 `.has-boh-island.has-boh-island` 那条**同权重**，而它在文件里
    更靠后 ⇒ 静默压掉岛的 `border-color`（2026-11-05 实测：底部亮边 0.5 被刷回
    `--liquid-border` 的 0.12，肉眼就是「没有亮边」）。岛展开时自有一套黑色材质，
-   本来也不该被这条兜底管。 */
-#unified-nav-container[data-theme='dark'] .unified-nav-surface:not(.has-boh-island) {
+   本来也不该被这条兜底管。
+   ⚠️ 2026-11-16 又补 :not(.has-login-card)：登录岛是「导航上半岛 + 登录卡下半岛」拼成
+   一整张岛，两半必须同色（`--boh-login-island-bg` = 暗色 #1c1c1e 实色）。这条兜底把
+   上半岛刷成 `--liquid-bg`（rgba(28,28,36,.72) 半透明）⇒ 实测上半岛 0.72 透明、下半岛
+   实色，接缝处一道明显的色阶。与 `themes/navbar-dark.css` 里那条同款放行
+   （它早就写了 `:not(.has-login-card)`，本文件这条漏了）。 */
+#unified-nav-container[data-theme='dark']
+  .unified-nav-surface:not(.has-boh-island):not(.has-login-card) {
   border-color: var(--liquid-border);
   background-color: var(--liquid-bg);
 }
@@ -1094,6 +1067,15 @@
   max-height: none;
   padding: 10px;
   overflow: visible;
+}
+
+/* 汉堡菜单里的「分组入口 / 分组返回」也按**无 hover** 口径处理：
+   vendor 给这两条写了 `:hover { background-color: #f5f5f5 }`，触屏上点完会**粘住**
+   （移动浏览器没有 pointerleave 的可靠时机）⇒ 手指离开后那块灰底还挂在最后点过的那一行，
+   与桌面子菜单是同一个毛病。移除后移动端与桌面行为一致：只有点击，没有悬停态。 */
+:global(#unified-nav-container .nav-mobile-group-entry:hover),
+:global(#unified-nav-container .nav-mobile-group-back:hover) {
+  background-color: transparent;
 }
 
 @media (orientation: portrait) and (max-width: 699px) {
