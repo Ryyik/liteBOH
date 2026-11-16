@@ -184,11 +184,12 @@ A2b hover 卡 / A4 两胶囊互斥 / A5 选模式 / A6 工具四件）
 | `scripts/probes/probe-cloud-portrait.mjs` | 27 | 竖屏顶栏工具行（不折字/不溢出）、页头不吸顶、底栏与设置卡玻璃 |
 | `scripts/probes/probe-cloud-album.mjs` | 22 | iOS 图库式密铺（去月份分组、多图铺开、捏合切列、宽屏铺满） |
 | `scripts/probes/probe-cloud-motion.mjs` | 16 | 格子放大/缩小、详情从点中的格子放大展开并缩回、三档切换、切列落定回弹 |
+| `scripts/probes/probe-bottomnav-switch-timeline.mjs`（**必须带 `--slow`**） | 4 组逐帧 | 点底栏「图库」那一拍的**逐帧**时间线：底栏有没有消失、是不是两段式骨架、有没有长任务。改 `routes/user-space.ts` 的 `loadCloudPlusPage` 或底栏预取策略时必跑 |
 
 源码层守卫：`tests/unit/cloud-plus-upload-concurrency.test.js`（**15** 条：并发池与保序 +
 上传链路对齐 + 失败原因渲染 + 上传前压缩）、`tests/unit/cloud-album-order.test.js`（降序与列数单源）。
 
-⚠️ **六条硬约束**（改前先读，都有实测来源）：
+⚠️ **八条硬约束**（改前先读，都有实测来源）：
 
 1. **常驻按钮只许 4 个**（关闭 / 图片 / 心情 / 发布），9 个情绪胶囊必须收在 `.mood-tray` 抽屉里 ——
    改造前全量平铺：竖屏占 3 行 117px、横屏把发布按钮顶到 y=818（要滚 450px 才够得着）。
@@ -214,6 +215,15 @@ A2b hover 卡 / A4 两胶囊互斥 / A5 选模式 / A6 工具四件）
    （2026-10-19 实测：5.5MB PNG 原样上传是**正确行为**，别当 bug 修）；GIF 动图不可压缩，
    超限时报「请换成 JPG、PNG 或 WebP」。进度条压缩占前一半、上传占后一半
    （`compressPctByIndex`/`uploadPctByIndex` 各 0.5 加权），阶段文案「压缩中/上传中」随压缩段切换。
+8. **`/user-space/note` 的路由 loader 必须把内层 `CloudPlusMain` 一起 await**（2026-11-16，`loadCloudPlusPage`）。
+   路由入口 `Cloud+/index.vue` 只是薄壳，重面板在壳里再懒加载一次并套了 `<Suspense>`；
+   只等壳的话导航在壳到位的瞬间就 commit ⇒ **旧页连同它的底栏被卸载**，内层 chunk 还要再等一段，
+   这期间屏幕上只有 `cp-suspense` 骨架、底栏完全不存在。4G 限速实测（`--slow`）：
+   底栏缺失 **349ms**（179→512ms，21 帧只有骨架），用户原话「切图库卡一下，然后导航栏重新出现」。
+   改成 `Promise.all` 一次等齐后：导航是**原子的**，这 350ms 里屏幕停在旧页（内容 + 底栏都在），
+   底栏缺失降到 **16ms（1 帧）**。⚠️ 引的必须是**同一个模块**（ESM 缓存命中，chunk 分组不变）；
+   别改成在 `index.vue` 里静态 import —— 那会把两个 chunk 合并，图库入口 chunk 直接翻倍。
+   ⚠️ 这条探针**必须带 `--slow`**：本地 preview 读盘，不限速时两种实现都只缺 1 帧，断言等于没有牙。
 
 ⚠️ **两条反证没做成（如实记录，别照错的写法改回去）**：
 - 只删 `folder:` 参数时 R 仍绿 —— `cloudinary-client` 的 `DEFAULT_FOLDER` 也是同一个目录，

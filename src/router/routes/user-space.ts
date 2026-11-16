@@ -2,6 +2,37 @@ import type { RouteRecordRaw } from 'vue-router';
 
 const userSpaceMeta = { requiresLogin: true };
 
+/**
+ * 图库（Cloud+）的路由 loader —— **必须把内层面板一起 await**（2026-11-16）。
+ *
+ * `Cloud+/index.vue` 只是一层薄壳：真正的重面板 `CloudPlusMain.vue` 在壳里
+ * 再懒加载一次、并套了自己的 `<Suspense>`。只等壳会发生「两段式切换」：
+ * 壳到位的瞬间导航就 commit ⇒ 旧页（连同它的底栏）被卸载 ⇒ 内层 chunk 还要再等
+ * 一段，这段时间屏幕上只有 `cp-suspense` 骨架、**底栏完全不存在**。
+ *
+ * 实测（scripts/probes/probe-bottomnav-switch-timeline.mjs，4G 限速 1.6Mbps、
+ * 本次会话首次点「图库」）：底栏缺失 349ms（179ms → 512ms），其中 21 帧只有骨架、
+ * 整个页面最少时只剩 19 个字 —— 正是用户报障的「卡一下，然后导航栏重新出现」。
+ *
+ * 把内层一起 await 之后，导航变成**原子的**：vue-router 要等 loader 全部解析才
+ * commit，所以这 349ms 里屏幕停在旧页（内容 + 底栏都在），chunk 到齐再一次性切过去。
+ * 配合 RouteProgressBar（>120ms 才出现的顶部细线）和底栏按下即预取，用户看到的是
+ * 「点了 → 有反馈 → 切过去」，而不是「点了 → 页面被清空 → 底栏消失 → 又长回来」。
+ *
+ * ⚠️ 两个容易踩的点：
+ *   · 这里引的是**同一个模块**（与 index.vue 里的 `./CloudPlusMain.vue` 同一文件），
+ *     ESM 模块缓存命中 ⇒ 不会重复下载、chunk 分组也不变（构建产物逐字节可比对）。
+ *   · 别改成「在 index.vue 里静态 import CloudPlusMain」：那会把两个 chunk 合并，
+ *     图库入口 chunk 直接翻倍，代价比这里多等一跳更大。
+ */
+const loadCloudPlusPage = async () => {
+  const [page] = await Promise.all([
+    import('../../views/user-center/Cloud+/index.vue'),
+    import('../../views/user-center/Cloud+/CloudPlusMain.vue'),
+  ]);
+  return page;
+};
+
 /* ⚠️ `keepAliveName` 是 App.vue 的 <KeepAlive :include> 白名单（2026-11-05）。
    它必须与路由组件里 `defineOptions({ name })` 的字符串**逐字相同** —— include
    匹配的是组件名、不是路由名，写错/漏写不会报错，只会「默默不缓存」。
@@ -40,7 +71,8 @@ export const userSpaceRoutes: RouteRecordRaw[] = [
   {
     path: '/user-space/note',
     name: 'BOHCloudPlus',
-    component: () => import('../../views/user-center/Cloud+/index.vue'),
+    // 双层懒加载一次等齐，避免「壳先 commit、内层还在下」的空窗（见 loadCloudPlusPage）
+    component: loadCloudPlusPage,
     /* keepAlive（2026-11-04）：底栏「图库」与「我」是**相邻两席**，来回切是高频动作。
        不给缓存时，两页各自是独立路由：每次切都走「卸载一棵树 + 挂载另一棵」——
        App.vue 的 KeepAlive 容器还会随 meta 切换而销毁重建，把「我」的缓存一起带走。

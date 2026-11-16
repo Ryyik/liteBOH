@@ -138,20 +138,27 @@ export const scheduleBottomNavPrefetch = (router) => {
   if (shouldSkipBulkPrefetch()) return () => {};
 
   const targets = [...new Set(BOTTOM_NAV_ITEMS.map((item) => item.route).filter(Boolean))];
+  /* 当前落点不排进队列（2026-11-16）：这个函数只在首屏 `isReady()` 之后才排程，
+     也就是说**当前页的 chunk 已经下完了**，预取它纯属白占一格 —— 而队列是按
+     350ms 一席铺开的，白占一格等于把后面每一席都往后推 350ms。
+     实测（probe-bottomnav-switch-timeline --slow）：首页进入后立刻点「图库」，
+     修前图库排在第 4 位 ⇒ 1050ms 后才开始下，首切必然空窗。 */
+  const currentPath = String(router.currentRoute?.value?.path || '');
+  const queued = targets.filter((target) => String(target).split('?')[0] !== currentPath);
   let cancelled = false;
   let timerId = 0;
   let index = 0;
 
   const step = () => {
-    if (cancelled || index >= targets.length) return;
-    const target = targets[index];
+    if (cancelled || index >= queued.length) return;
+    const target = queued[index];
     index += 1;
     /* ⚠️ 不 await 上一席（2026-11-16 实测修正）：串行等下载完成会把队列堵死 ——
        首页 `/` 的 chunk 最大，Slow 4G 下要 3–4s，排在它后面的「图库」就迟迟不开始，
        实测点击时仍是 337ms 空窗。改成**按时间铺开**：每 350ms 开一席，
        并发自然被这个间隔限制在 2 席以内，不会把带宽一次抢光。 */
     void prefetchRoute(router, target);
-    if (index < targets.length) timerId = window.setTimeout(step, 350);
+    if (index < queued.length) timerId = window.setTimeout(step, 350);
   };
 
   const idle =

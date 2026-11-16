@@ -64,6 +64,13 @@
 - 底栏「内容/我」= user-space 内部 tab；「我/图库」等是**独立路由** = 整页重挂。
   判「应用内导航」用 `window.history.state?.back`（冷加载为 null ⇒ 保留首次入场）：
   UserSpaceMain → `.tab-no-replay`；ForumMain → `html[data-boh-nav-returning]`（卸载时摘）。
+- 🔴 **双层懒加载 = 两段式导航**（2026-11-16 用户报「切图库卡一下、导航栏重新出现」）：
+  路由入口只 await 薄壳、重面板在壳内 `createPanelAsync` + `Suspense` 再懒加载一次 ⇒
+  commit 时旧页（连它那份底栏）已卸载，内层 chunk 还要再等，中间只有骨架。
+  4G 实测底栏缺失 **349ms**（21 帧只有 `cp-suspense`）。修法：路由 loader 里 `Promise.all`
+  把内层一起 await（**同一模块**，ESM 缓存命中、chunk 分组不变）⇒ 屏幕停旧页、到齐一次切到位
+  （16ms）。别改成壳里静态 import（两 chunk 合并、入口翻倍）。当前只有 `/user-space/note` 是双层。
+  探针 `probe-bottomnav-switch-timeline.mjs`，**必须带 `--slow`**（否则两种实现都只缺 1 帧 = 无牙）。
 - ⚠️ UserSpaceMain 模板曾引用未声明的 `replayGuardTab` ⇒ `tab-no-replay` 恒 false、
   修复静默失效；类开关必须用 `<script setup>` 里真实声明的 ref（tabNoReplay）。
 - `SegmentTabs` 指示器初值 `{x:0,w:0}` + 常驻 transition ⇒ 重挂时「官方→最新」滑动；
