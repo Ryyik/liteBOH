@@ -282,16 +282,17 @@ export const ADMIN_ACTIONS = [
       },
       {
         key: 'is_community_visible',
-        label: '社区抽奖页展示',
+        label: '抽奖页展示（总开关）',
         type: 'switch',
         group: 'more',
+        hint: '默认开启；关掉等于前台全隐藏（抽奖页与首页都不会出现）',
       },
       {
         key: 'is_home_visible',
-        label: '首页轮播展示',
+        label: '首页展示',
         type: 'switch',
         group: 'more',
-        hint: '默认关闭；改成报名中后才会出现在首页',
+        hint: '默认关闭；与总开关独立，改成报名中后才会出现在首页',
       },
       {
         key: 'enforce_account_age_check',

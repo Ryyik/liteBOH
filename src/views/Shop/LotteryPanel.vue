@@ -57,7 +57,7 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, onActivated, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
@@ -190,6 +190,21 @@ const closeDetail = () => {
 onMounted(async () => {
   await load();
   consumeDeepLink();
+});
+
+/* KeepAlive 回来要重新取数（2026-11-16）：`/shop` 自 2026-11-14 进了路由缓存白名单
+   （router/routes/public.ts 的 `keepAliveName: 'ShopPage'`），本组件只在挂载时取一次
+   ⇒ 运营在后台新建 / 改了「抽奖页展示」再切回周边，看到的还是缓存里的旧列表 ——
+   用户报障「新建的抽奖不显示，是不是没刷新」就是这一层。刷新能好，但不该逼人刷新。
+   首次激活紧跟 onMounted（已经 load 过），用闩锁跳过，避免首屏发两次请求；
+   silent 是为了不亮骨架，回来时列表闪一下比数据旧更难受。 */
+let hasActivatedOnce = false;
+onActivated(() => {
+  if (!hasActivatedOnce) {
+    hasActivatedOnce = true;
+    return;
+  }
+  void load({ silent: true });
 });
 /* 就地编辑宿主删除抽奖后广播 dataRevision：列表归本组件持有，必须重新取数，
    否则已删卡片会留在页面上（再点开就是对不存在的行发请求）。前台没有编辑

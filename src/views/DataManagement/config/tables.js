@@ -17,6 +17,7 @@ import {
   BOHAI_MODEL_MIN_TIER_OPTIONS,
   LOTTERY_STATUS_OPTIONS,
   LOTTERY_COMMUNITY_VISIBLE_OPTIONS,
+  LOTTERY_HOME_VISIBLE_OPTIONS,
   LOTTERY_FULFILLMENT_STATUS_OPTIONS,
   LOTTERY_PITY_MODE_OPTIONS,
   CAMPAIGN_STAGE_OPTIONS,
@@ -1488,11 +1489,15 @@ export const dataConfig = {
       },
       {
         key: 'is_community_visible',
-        label: '社区展示',
+        label: '抽奖页展示（总开关）',
         type: 'select',
         required: true,
         options: LOTTERY_COMMUNITY_VISIBLE_OPTIONS,
-        hint: '首页会自动映射社区抽奖页中最新一条报名中的抽奖；关闭后不会出现在首页、社区抽奖页或历史抽奖。',
+        /* 旧文案写的是「首页会自动映射社区抽奖页中最新一条报名中的抽奖」——
+           跟线上函数对不上：`get_home_lottery` 是拿 `is_home_visible = true` 单独筛的，
+           社区那一列关掉并不影响首页。两句话都错位 ⇒ 运营以为改的是首页口径，
+           实际把这条从周边抽奖页里摘掉了（2026-11-16 用户报障的真因）。 */
+        hint: '关掉等于前台全隐藏：周边 → 抽奖页的「进行中」和「历史」都不会列出这条（刷新也不会），首页轮播里也不会出现。新建默认开启；只有内部测试或还没定稿的草稿才需要关。',
         group: 'rule',
       },
       {
@@ -1500,8 +1505,8 @@ export const dataConfig = {
         label: '首页展示',
         type: 'select',
         required: true,
-        options: LOTTERY_COMMUNITY_VISIBLE_OPTIONS,
-        hint: '独立控制是否在首页轮播展示。',
+        options: LOTTERY_HOME_VISIBLE_OPTIONS,
+        hint: '与上面的总开关互相独立：首页只取「报名中」优先、创建时间最新的一条。这里开、总开关关，结果是首页有、抽奖页没有。',
         group: 'rule',
       },
       {

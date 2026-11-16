@@ -386,9 +386,18 @@ export const POST_REWARD_STATUS_OPTIONS = [
   { value: 'inactive', label: '停用（inactive）' },
 ];
 
+/* 两个可见性开关是**互相独立**的两列，别共用一个选项表（2026-11-16）：
+   原来 `is_home_visible` 复用这里的「显示在社区抽奖页 / 不在社区抽奖页显示」，
+   下拉里写着「社区」、实际控制的是首页 —— 运营照着字面选，选完发现首页没变。
+   文案按各自真实作用域写死。 */
 export const LOTTERY_COMMUNITY_VISIBLE_OPTIONS = [
-  { value: true, label: '显示在社区抽奖页' },
-  { value: false, label: '不在社区抽奖页显示' },
+  { value: true, label: '显示（周边 → 抽奖页能看见）' },
+  { value: false, label: '隐藏（前台任何位置都不出现）' },
+];
+
+export const LOTTERY_HOME_VISIBLE_OPTIONS = [
+  { value: true, label: '显示（进首页那一块）' },
+  { value: false, label: '不显示（只在抽奖页）' },
 ];
 
 export const LOTTERY_FULFILLMENT_STATUS_OPTIONS = [
