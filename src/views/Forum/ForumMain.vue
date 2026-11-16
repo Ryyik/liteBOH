@@ -24,7 +24,7 @@ import {
   Sparkles,
   X,
 } from 'lucide-vue-next';
-import PostComposer from './components/PostComposer.vue';
+import { createPanelAsync } from '@/utils/async-component.js';
 import PostCard from './components/PostCard.vue';
 import AlbumPostCard from './components/AlbumPostCard.vue';
 import AlbumReader from './components/AlbumReader.vue';
@@ -166,6 +166,22 @@ const props = defineProps({
 // 必须知道它开没开 —— 一是切换落点前要先收掉，二是左栏「发布」项的选中态。
 // 真源只有本文件的 isMobileComposerOpen，外层一律经 ForumSectionShell 透传，别自己推。
 const emit = defineEmits(['island-message', 'composer-state']);
+
+/* ── 发帖面板按需加载 ────────────────────────────────────────────────
+   它只在 `isMobileComposerOpen` 为真时才渲染（模板里 <Transition> + v-if），
+   但此前是静态 import —— 首屏因此要多下 forum-feed-cache 的 23KB JS
+   + 13KB CSS（实测 36KB gzip / 约 180ms），而绝大多数访客只是来看帖子的。
+   顺带兑现：ImageEditModal 上一轮已改异步，但两者被合并进同一个 chunk，
+   只要本组件还是静态 import，那份异步就形同虚设。
+
+   silent 兜底的原因：面板自己有顶栏（返回 / 标题 / 发布），
+   chunk 失败时留在加载态会盖住整个视口，什么都不渲染反而能退回帖子流。
+   ⚠️ 不能在外层再包一层 v-if 或换掉 <Transition> 的 name ——
+   离场动画靠 `.mobile-composer-*` 那几个 class，改名即失效。 */
+const PostComposer = createPanelAsync(() => import('./components/PostComposer.vue'), {
+  label: 'forum-post-composer',
+  silent: true,
+});
 
 /* ── 底栏切回「内容」：整页重挂不重播入场（2026-10-31）────────────────
    底栏「内容 / 我 / 图库」是独立路由，来回切 = 本组件整页重挂，
