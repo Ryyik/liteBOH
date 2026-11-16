@@ -1291,6 +1291,12 @@ const userStats = shallowReactive({
 });
 let latestUserStatsFetchToken = 0;
 let userStatsRetryTimerId = null;
+/**
+ * fetchUserStats 的「最近一次尝试」时刻（**进入函数时同步写入**，不是成功后才写）。
+ * 与 lastFetchTime.stats 的区别：后者用于缓存回填（成功才更新），
+ * 前者用于拦住并发/近邻的重复调用 —— 见 fetchUserStats 顶部的同步闸注释。
+ */
+let lastStatsAttemptAt = 0;
 
 const PROFILE_POSTS_PAGE_SIZE = 15;
 const hasMoreProfilePosts = ref(true);
@@ -1482,11 +1488,20 @@ const fetchUserStats = async ({ retryCount = 0, force = false } = {}) => {
   const userId = String(userInfo.value.id || '').trim();
   if (!isLoggedIn.value || !userId) return;
 
+  // ⚠️ 这一道是**同步闸**，必须放在所有 await 之前。
+  // 两个来源会几乎同时进来：onMounted 的 runProfileCriticalFetches、以及
+  // scheduleUserSpaceWarmup 的 900ms 定时器 / onActivated 回访直调的 fetchUserStats。
+  // 它们在任何 await 之前就判断，所以用「成功后才写」的 lastFetchTime.stats 拦不住 ——
+  // 实测 2026-11-16：posts 计数 / points / 关注数三对查询在**同一毫秒**各发两遍。
+  // 语义：5s 内只放行第一次；force（换账号等）与 retryCount>0（失败重试）不受影响。
+  const now = Date.now();
+  if (!force && retryCount === 0 && now - lastStatsAttemptAt < 5000) return;
+  lastStatsAttemptAt = now;
+
   if (await fetchAggregatedUserSpaceSummary({ force })) return;
 
   const safeUsername = String(userInfo.value.username || '').trim();
   const cacheKey = `stats:${userId}:${safeUsername}`;
-  const now = Date.now();
 
   // ✅ 检查 lastFetchTime，避免频繁重复请求
   if (!force && retryCount === 0 && now - lastFetchTime.stats < 5000) {
@@ -3540,7 +3555,18 @@ watch(
     const { userId, isReady, points, birthMonth, joinYear, joinMonth } = newVal;
 
     // 处理用户 ID 变化
-    if (userId !== oldVal?.userId) {
+    //
+    // ⚠️ 必须排除「首轮」：本 watch 是 `immediate: true`，首次同步执行时 oldVal 为 undefined，
+    // `userId !== oldVal?.userId` 恒为 true —— 于是「首次挂载」被误判成「userId 变了」，
+    // 而在挂载链路里 onMounted（见下方 `void initUserData()` 那段）**已经做过同样的事**。
+    // 后果实测（2026-11-16，登录态 + Slow 4G，/user-space 首访 25 个数据请求）：
+    //   · 同一毫秒发出两份 `profiles` 全字段查询（两边各调一次 initUserData）；
+    //   · 这里走的是 `scheduleUserSpaceWarmup({ force: true })`，900ms 后定时器带着
+    //     force:true 再跑一次 fetchUserStats —— force 同时绕过 5s 合并窗口与 stats 缓存，
+    //     于是 posts 计数 / points / 排名 / 关注数 / 聚合 RPC 整套又发一遍（+901ms 实证）。
+    // 首轮跳过不影响任何初始化：onMounted 那条路径是 force:false，本来就是正确入口；
+    // 真正的「换账号」发生时 oldVal 一定存在，仍会走该分支。
+    if (oldVal && userId !== oldVal.userId) {
       if (userId) {
         await initUserData();
         if (currentTab.value === 'posts') {
