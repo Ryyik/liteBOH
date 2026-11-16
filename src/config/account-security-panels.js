@@ -12,6 +12,7 @@ export const ACCOUNT_SECURITY_PANELS = [
   { id: 'email', title: '更换邮箱' },
   { id: 'password', title: '修改密码' },
   { id: 'passkey', title: '通行密钥' },
+  { id: 'sessions', title: '登录设备' },
   { id: 'delete', title: '注销账号' },
 ];
 

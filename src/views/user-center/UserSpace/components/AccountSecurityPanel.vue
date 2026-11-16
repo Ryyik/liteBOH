@@ -94,6 +94,24 @@
                 </span>
               </button>
 
+              <button type="button" class="gs-row" @click="openSessionsPanel">
+                <span class="gs-icon is-blue">
+                  <MonitorSmartphone :size="16" :stroke-width="2" aria-hidden="true" />
+                </span>
+                <span class="gs-text">
+                  <span class="gs-label">登录设备</span>
+                  <span class="gs-desc">查看已登录的设备，逐台下线或一次清掉其他设备</span>
+                </span>
+                <span class="gs-side">
+                  <ChevronRight
+                    class="gs-chevron"
+                    :size="16"
+                    :stroke-width="2"
+                    aria-hidden="true"
+                  />
+                </span>
+              </button>
+
               <button type="button" class="gs-row" @click="openDeleteAccountPanel">
                 <span class="gs-icon is-red">
                   <TriangleAlert :size="16" :stroke-width="2" aria-hidden="true" />
@@ -375,6 +393,63 @@
           </section>
         </div>
 
+        <!-- 登录设备 -->
+        <div v-else-if="activePanel === 'sessions'" key="sessions" class="glass-settings">
+          <section class="gs-group">
+            <div class="gs-group-title">已登录的设备</div>
+            <div class="gs-rows">
+              <div v-if="sessionsLoading" class="gs-row is-static">
+                <span class="gs-text"><span class="gs-desc">加载中…</span></span>
+              </div>
+              <div v-else-if="!sessionsList.length" class="gs-row is-static">
+                <span class="gs-text">
+                  <span class="gs-desc">{{
+                    sessionsError || '暂时读不到登录记录，稍后再试。'
+                  }}</span>
+                </span>
+              </div>
+              <div v-for="item in sessionsList" :key="item.sessionId" class="gs-row is-static">
+                <span class="gs-icon is-blue">
+                  <MonitorSmartphone :size="16" :stroke-width="2" aria-hidden="true" />
+                </span>
+                <span class="gs-text">
+                  <span class="gs-label">{{ describeDeviceLabel(item.userAgent) }}</span>
+                  <span class="gs-desc">{{ sessionTimeLabel(item) }}</span>
+                </span>
+                <span class="gs-side">
+                  <span v-if="item.isCurrent" class="gs-value">本机</span>
+                  <button
+                    v-else
+                    type="button"
+                    class="gs-btn ghost"
+                    :disabled="sessionsBusy"
+                    @click="revokeSession(item)"
+                  >
+                    {{ pendingRevokeId === item.sessionId ? '确认下线' : '下线' }}
+                  </button>
+                </span>
+              </div>
+            </div>
+          </section>
+
+          <div v-if="sessionsError && sessionsList.length" class="gs-banner error">
+            <AlertCircle :size="16" :stroke-width="2" aria-hidden="true" />
+            <span>{{ sessionsError }}</span>
+          </div>
+          <div v-if="sessionsNotice" class="gs-banner success">
+            <CheckCircle2 :size="16" :stroke-width="2" aria-hidden="true" />
+            <span>{{ sessionsNotice }}</span>
+          </div>
+
+          <section class="gs-group">
+            <div class="gs-actions sec-actions is-card">
+              <button class="gs-btn primary" :disabled="sessionsBusy" @click="signOutOthers">
+                {{ sessionsBusy ? '处理中…' : '退出其他所有设备' }}
+              </button>
+            </div>
+          </section>
+        </div>
+
         <!-- 注销账号 -->
         <div v-else key="delete" class="glass-settings">
           <section class="gs-group">
@@ -498,7 +573,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref, watch } from 'vue';
+import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { storeToRefs } from 'pinia';
 import {
@@ -511,6 +586,7 @@ import {
   Keyboard,
   Lock,
   Mail,
+  MonitorSmartphone,
   ShieldCheck,
   TriangleAlert,
 } from 'lucide-vue-next';
@@ -526,6 +602,7 @@ import {
   deletePasskey,
   toPasskeyRegisterMessage,
   updateUserEmail,
+  signOutOtherDevices,
 } from '@/utils/api/auth-api.js';
 import { resolveSettingsBackLocation } from '@/utils/user-space-navigation.js';
 import {
@@ -538,6 +615,8 @@ import {
   validatePassword,
 } from '@/utils/auth-validation.js';
 import { logger } from '@/utils/logger.js';
+import { describeDeviceLabel } from '@/utils/device-label.js';
+import { listMyLoginSessions, revokeMyLoginSession } from '@/utils/api/login-sessions-api.js';
 
 const DELETE_ACCOUNT_CONFIRM_TEXT = '确认注销';
 
@@ -632,6 +711,128 @@ const refreshPasskeyList = async () => {
     passkeyListError.value = '通行密钥列表读取失败，请稍后再试。';
   } finally {
     isLoadingPasskeys.value = false;
+  }
+};
+
+/* ---------------- 登录设备（2026-11-16） ----------------
+ *
+ * 数据真源是 GoTrue 自己的 `auth.sessions`（每个会话本来就记录 user_agent /
+ * created_at / updated_at），经两个 SECURITY DEFINER 函数暴露给当前用户
+ * （见迁移 2026111601），**没有自建设备表** —— 自建等于同一件事两份真源。
+ *
+ * 边界（函数里已强制，UI 只是配合）：
+ *   · 只能看 / 只能删自己的会话；
+ *   · 不能删「当前会话」—— 那等价于退出登录，那条链路还要解绑推送、清本地 PII；
+ *   · 列表已过滤 Edge Function 产生的 Deno 会话。
+ */
+const sessionsLoading = ref(false);
+const sessionsBusy = ref(false);
+const sessionsError = ref('');
+const sessionsNotice = ref('');
+const sessionsList = ref([]);
+const pendingRevokeId = ref('');
+let pendingRevokeTimer = null;
+
+const formatSessionTime = (value) => {
+  const time = Date.parse(String(value || ''));
+  if (!Number.isFinite(time)) return '';
+  return new Date(time).toLocaleString('zh-CN', { hour12: false });
+};
+
+/** 当前会话看「登录时间」，其他设备看「最近活跃」——这两个问题不是同一个。 */
+const sessionTimeLabel = (item) => {
+  const time = formatSessionTime(item?.isCurrent ? item?.createdAt : item?.lastActiveAt);
+  const safe = time || '未知时间';
+  return item?.isCurrent ? `本次登录于 ${safe}` : `最近活跃 ${safe}`;
+};
+
+const loadSessions = async () => {
+  sessionsLoading.value = true;
+  sessionsError.value = '';
+  try {
+    const { ok, data, error } = await listMyLoginSessions();
+    if (!ok) {
+      sessionsError.value = error?.message || '登录设备读取失败，请稍后再试。';
+      sessionsList.value = [];
+      return;
+    }
+    sessionsList.value = data;
+  } catch (error) {
+    logger.warn('account-security', '登录设备读取失败:', error);
+    sessionsError.value = '登录设备读取失败，请稍后再试。';
+    sessionsList.value = [];
+  } finally {
+    sessionsLoading.value = false;
+  }
+};
+
+const openSessionsPanel = () => {
+  sessionsError.value = '';
+  sessionsNotice.value = '';
+  pendingRevokeId.value = '';
+  activePanel.value = 'sessions';
+  void loadSessions();
+};
+
+// 两次点击确认（与「删除通行密钥」同一手感）：下线会立刻让那台设备掉线，不能一点就走。
+const revokeSession = async (item) => {
+  if (!item || item.isCurrent || sessionsBusy.value) return;
+
+  if (pendingRevokeId.value !== item.sessionId) {
+    pendingRevokeId.value = item.sessionId;
+    if (pendingRevokeTimer) window.clearTimeout(pendingRevokeTimer);
+    pendingRevokeTimer = window.setTimeout(() => {
+      pendingRevokeId.value = '';
+      pendingRevokeTimer = null;
+    }, 4000);
+    return;
+  }
+
+  pendingRevokeId.value = '';
+  if (pendingRevokeTimer) {
+    window.clearTimeout(pendingRevokeTimer);
+    pendingRevokeTimer = null;
+  }
+
+  sessionsBusy.value = true;
+  sessionsError.value = '';
+  sessionsNotice.value = '';
+  try {
+    const { ok, error, data } = await revokeMyLoginSession(item.sessionId);
+    if (!ok) {
+      sessionsError.value = error?.message || '下线失败，请稍后再试。';
+      // 已经不在线（另一处先动手了）：刷一次列表，让界面回到真实状态
+      if (String(data?.code || '') === 'NOT_FOUND') await loadSessions();
+      return;
+    }
+    sessionsNotice.value = '该设备已下线。';
+    await loadSessions();
+  } catch (error) {
+    logger.warn('account-security', '下线登录失败:', error);
+    sessionsError.value = '下线失败，请稍后再试。';
+  } finally {
+    sessionsBusy.value = false;
+  }
+};
+
+const signOutOthers = async () => {
+  if (sessionsBusy.value) return;
+  sessionsBusy.value = true;
+  sessionsError.value = '';
+  sessionsNotice.value = '';
+  try {
+    const { ok, error } = await signOutOtherDevices();
+    if (!ok) {
+      sessionsError.value = error?.message || '操作失败，请稍后再试。';
+      return;
+    }
+    sessionsNotice.value = '其他设备上的登录已失效，这台设备不受影响。';
+    await loadSessions();
+  } catch (error) {
+    logger.warn('account-security', '退出其他设备失败:', error);
+    sessionsError.value = '操作失败，请稍后再试。';
+  } finally {
+    sessionsBusy.value = false;
   }
 };
 
@@ -760,6 +961,7 @@ const openPanelById = (panel) => {
   if (panel === 'email') openChangeEmailPanel();
   else if (panel === 'password') openChangePasswordPanel();
   else if (panel === 'passkey') openPasskeyPanel();
+  else if (panel === 'sessions') openSessionsPanel();
   else if (panel === 'delete') openDeleteAccountPanel();
   else activePanel.value = 'menu';
 };
@@ -999,6 +1201,13 @@ onMounted(async () => {
   resetEmailForm();
   resetDeleteAccountState();
   applyEntryPanel(props.inline ? props.initialPanel : route.query.panel);
+});
+
+onUnmounted(() => {
+  // 「确认下线」的 4s 自动复位计时器必须随组件销毁清掉，
+  // 否则面板关掉后它还会去改一个已卸载的 ref（Vue 警告 + 状态泄漏）。
+  if (pendingRevokeTimer) window.clearTimeout(pendingRevokeTimer);
+  pendingRevokeTimer = null;
 });
 
 // 内嵌：宿主换 initialPanel（设置页连点两行）时实例被复用，不重挂载也要换屏
