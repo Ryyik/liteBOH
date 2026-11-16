@@ -52,7 +52,7 @@ git status --porcelain | wc -l   # 工作区有多脏（并行会话判断依据
 
 ---
 
-## 3. 环境级坑（11 条，逐条给了正确做法）
+## 3. 环境级坑（10 条，逐条给了正确做法）
 
 | # | 坑 | 正确做法 | 已自动化 |
 | --- | --- | --- | --- |
@@ -66,7 +66,6 @@ git status --porcelain | wc -l   # 工作区有多脏（并行会话判断依据
 | 8 | macOS 无 `timeout`、BSD `find` 有/无 `-newermt` 因版本而异 | 别在脚本里用 `timeout`；用 `git ls-files` 替代时间过滤 | `env:doctor` 实测探测 |
 | 9 | `lint-staged` 卷进无关未暂存文件 | 提交后核对 `git show --stat HEAD`（见 §2） | ❌ 记在这里 |
 | 10 | **deno 不在 PATH**（装了也 command not found） | `npm run check:ef` 自动找 `~/.deno/bin/deno`。别再拿 esbuild 顶替 | `check:ef` |
-| 11 | **vite 没有 `strictPort`**：5173 被占（例如另一个会话/助手留着的 dev server）时，你的 `npm run dev` 会**静默漂到 5174**。之后那个进程一停，旧标签页加载路由 chunk 就报 `Failed to fetch dynamically imported module: http://localhost:5174/...`——**看起来像代码写坏了，其实是端口漂移**（2026-11-16 实际发生） | 先 `lsof -nP -iTCP:5173 -sTCP:LISTEN` 看 5173 有没有别人占着；报这个错时先 `curl` 一下报错里的**端口**，`000` = 没进程在听，与代码无关。想根治可加 `server.strictPort: true`（**未加**，属仓库决策） | ❌ 记在这里 |
 
 > ⚠️ **一条最重要的"本机事实"**：你 shell 里的 `grep` / `sed` / `find` 是 **WorkBuddy CLI 的
 > toybox shim**（`command -v` 会指到 `brokered-bin/codebuddy-toybox-dispatch`），**既不是 BSD

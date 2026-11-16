@@ -1,5 +1,5 @@
 # BOHLITE 分册规则：资源加载 / __vitePreload / CSS 自愈
-> 主文件是 `MEMORY.md`（常驻注入）。本册按需读取 —— 动「动态 CSS / 路由级样式 / 自愈链 / 部署竞态」时先读这里。
+> 主文件是 `MEMORY.md`（常驻注入）。本册按需读取 —— 动「动态 CSS / 路由级样式 / 自愈链 / 部署竞态」、或遇到「模块加载失败 / 页面出问题」这类报错时先读这里。
 > 2026-10-13 实测记录，全部数字有物证；细节长文见当日 `2026-10-13.md`。
 
 ## 机制事实（先读懂这个再动手）
@@ -36,3 +36,22 @@
 - node 22 `globalThis.navigator` 只读 ⇒ 测试用 `Object.defineProperty`。
 - `import.meta.env` 在模块顶层读取 ⇒ 想用 `vi.stubEnv` 驱动真行为就得**惰性读取**。
 - lint 的 `--max-warnings` 棘轮对**新增未用变量**当场红（探针里多一个变量即 116→117 失败）。
+
+## 开发态：端口静默漂移会被误认成「代码坏了」（2026-11-16 实际发生）
+
+- 现象：页面弹出错误边界「页面出了点问题 / Failed to fetch dynamically imported module:
+  `http://localhost:5174/src/views/Forum/components/PostComposer.vue?t=1794825527071`」。
+- 真因：`vite.config.js` **没写 `server.strictPort`**。5173 被占（另一会话/助手留着的
+  dev server）时，`npm run dev` **不报错**、直接跳到 5174。之后那个进程一停，已经加载过的
+  标签页再取路由 chunk 就在网络层失败 —— SFC 本身没坏（同一文件在 5173 上 `200` 且能正常
+  编译），SW 也没关系（`devOptions.enabled: false`，开发态本就没有 SW）。
+- 鉴别口径（30 秒）：`curl -s -o /dev/null -w "%{http_code}" <报错里的那个 URL>` ——
+  返回 `000` ＝ 没进程在监听，与代码无关；`lsof -nP -iTCP:5173 -sTCP:LISTEN` 看谁占着。
+  若是真编译错误，Vite 返 500 并在页面打语法栈，不会只说 "Failed to fetch"。
+- 错误页那三个按钮（重试 / 回首页 / 清除缓存后重载）都救不了：它们假设服务器还在。
+  唯一解是关掉旧标签页、打开**活着的那个端口**。多个会话并行时，动手前先确认自己连的是
+  谁的 server。
+- 想根治可加 `server.strictPort: true`（端口被占就直接失败、不再静默漂移）。
+  ⚠️ **未加**：属仓库决策，会影响并行会话的启动行为。
+- 为什么没进 `docs/AI-ENV.md`：那份是**必读面**，字节棘轮只许降不许涨（当时正好卡在
+  9600B 基线、零余量），所以细节放这里、必读面不动。
