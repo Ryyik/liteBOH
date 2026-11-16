@@ -19,6 +19,10 @@ const SENSITIVE_KEYS = [
   // ⇒ 同一台设备换账号后，新用户能直接复用上一任的共享链接。
   // key 真源在 `Cloud+/CloudPlusMain.vue` 的 SHARED_TOKEN_STORAGE_KEY，两处必须一致。
   'boh_cloud:last_shared_token',
+  // 2026-11-16（A4）：用户档位缓存（userId → free/plus/pro…），用于回访时直接染色。
+  // 换账号后新用户能看出上一任访问过谁 ⇒ 按身份残留清掉。
+  // key 真源在 `src/composables/useUserTier.js` 的 TIER_PERSIST_KEY，两处必须一致。
+  'boh_user_tier_cache_v1',
 ];
 
 export const clearSensitiveLocalStorage = () => {
