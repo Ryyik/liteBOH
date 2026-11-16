@@ -103,6 +103,23 @@ export function useImageStripDrag({ canDragIndex, isLocked, onReorder }) {
     }
   };
 
+  /* ── 拖拽期间独占触摸位移（2026-11-16）────────────────────────────────────
+     只在 phase === 'drag' 时 preventDefault：其余时间一律放手，条带的纵向滚动
+     与「横滑看更多」都照旧。'touchmove' 必须显式 { passive: false }，
+     否则浏览器忽略 preventDefault（默认是 passive）。 */
+  const blockTouchScroll = (event) => {
+    if (phase !== 'drag') return;
+    if (event.cancelable) event.preventDefault();
+  };
+  const addTouchBlock = () => {
+    if (typeof document === 'undefined') return;
+    document.addEventListener('touchmove', blockTouchScroll, { passive: false });
+  };
+  const removeTouchBlock = () => {
+    if (typeof document === 'undefined') return;
+    document.removeEventListener('touchmove', blockTouchScroll, { passive: false });
+  };
+
   /* 落点索引：数「指针越过了几张小卡的中心」。
      与 useForumDraftImagePipelines.reorderPostImage 的 splice(from,1)+splice(to,0)
      是同一套语义（先摘出自己再插入），所以松手后不需要二次换算。 */
@@ -183,6 +200,16 @@ export function useImageStripDrag({ canDragIndex, isLocked, onReorder }) {
     isReordering.value = true;
     clearPressed();
     dragEl.classList.add('is-lifted');
+    /* 长按成立之后，把后续 touchmove 的默认行为关掉。
+       ⚠️ 这是「拖不动」的真因修复（2026-11-16 实测）：
+       外层 `.composer-content-scroll` 是纵向滚动容器、条带自己是横向滚动容器，
+       卡片上的 `touch-action: pan-y` 并不能稳定地把这段手指位移留在 JS 手里 ——
+       浏览器会把位移判给某个滚动容器，然后发一个 `pointercancel`：
+       长按明明已经 `is-lifted`，第一次移动手指就被拆摊，顺序原样还原（用户口径
+       「图片不能拖动改变顺序」）。而且它是**间歇性**的：同一个手势有时能拖到底。
+       preventDefault 必须在 `{ passive: false }` 下调用才有效；只在 phase === 'drag'
+       时生效，所以条带平时的纵向滚动和横滑看更多都不受影响。 */
+    addTouchBlock();
     // 抬起后手指仍可能停在原处，先画一帧让"已拿起"立刻可见
     paint();
     stopEdgeScroll();
@@ -194,6 +221,7 @@ export function useImageStripDrag({ canDragIndex, isLocked, onReorder }) {
     clearPressTimer();
     clearPressed();
     removeWindowListeners();
+    removeTouchBlock();
     if (dragEl) dragEl.classList.remove('is-lifted');
     cards.forEach((el) => {
       el.style.transform = '';
@@ -310,6 +338,7 @@ export function useImageStripDrag({ canDragIndex, isLocked, onReorder }) {
         clearPressed();
         phase = 'idle';
         removeWindowListeners();
+        removeTouchBlock();
         return;
       }
       if (!isTouch && Math.hypot(dx, dy) > MOUSE_SLOP_PX) startDrag();
@@ -346,6 +375,7 @@ export function useImageStripDrag({ canDragIndex, isLocked, onReorder }) {
     clearPressTimer();
     clearPressed();
     removeWindowListeners();
+    removeTouchBlock();
     if (pointerId !== null) pointerId = null;
   };
 
@@ -359,6 +389,7 @@ export function useImageStripDrag({ canDragIndex, isLocked, onReorder }) {
     clearPressTimer();
     clearPressed();
     removeWindowListeners();
+    removeTouchBlock();
     pointerId = null;
   };
 

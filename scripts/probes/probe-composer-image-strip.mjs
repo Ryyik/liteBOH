@@ -293,9 +293,11 @@ assert(
 const cdp = await context.newCDPSession(page);
 await page.evaluate(() => {
   window.__probeEvents = [];
-  const strip = document.querySelector('.post-image-preview-grid');
+  // 挂在 window 上而不是条带上：手势被判给滚动容器之后，pointermove / pointercancel
+  // 的目标可能已经不是条带内的节点，只挂条带会看不到那两次关键事件（2026-11-16 实测：
+  // 只挂条带时整段拖动只记到 1 条 pointerdown）。
   ['pointerdown', 'pointermove', 'pointerup', 'pointercancel'].forEach((t) => {
-    strip.addEventListener(
+    window.addEventListener(
       t,
       (e) => window.__probeEvents.push(`${t}:${e.pointerType}:${Math.round(e.clientX)}`),
       true,
@@ -303,7 +305,6 @@ await page.evaluate(() => {
   });
 });
 const from = rects[0];
-const to = rects[2];
 const touch = (x, y) => ({
   x: Math.round(x),
   y: Math.round(y),
@@ -337,14 +338,18 @@ const probeEvents = await page.evaluate(() => window.__probeEvents.slice(0, 12))
 console.log('  手势事件：' + JSON.stringify(probeEvents));
 assert('C2 长按后卡片进入抬起态（is-lifted + scale）', /matrix/.test(lifted), lifted.slice(0, 60));
 
-// 分段移动：真实手指是一串 move，一次跳到目标位置会让「越过中心线」的判定失去意义
+// 分段移动：真实手指是一串 move，一次跳到目标位置会让「越过中心线」的判定失去意义。
+// ⚠️ 首步**必须是小位移（20px）** —— 2026-11-16 实测：首步就是 50px+ 时，浏览器
+// 很少把手势判给滚动容器；首步 20px 才会稳定复现「pointercancel 打断拖拽」。
+// 这条序列是那一轮复现出来的原样形态（含 45ms 间隔），改之前先看 C6 的注释。
+const MOVE_DX = [20, 60, 110, 170, 235];
 const moveTrace = [];
-for (let step = 1; step <= 6; step += 1) {
+for (const dx of MOVE_DX) {
   await cdp.send('Input.dispatchTouchEvent', {
     type: 'touchMove',
-    touchPoints: [touch(from.cx + ((to.cx - from.cx) * step) / 6 + 12, from.cy)],
+    touchPoints: [touch(from.cx + dx, from.cy)],
   });
-  await page.waitForTimeout(40);
+  await page.waitForTimeout(45);
   moveTrace.push(
     await page.evaluate(() => {
       const el = document.querySelector('.post-image-preview-item');
@@ -367,6 +372,23 @@ assert(
   'C1 长按拖动可以换序（第 1 张拖到第 3 位）',
   JSON.stringify(afterOrder) !== JSON.stringify(beforeOrder) && afterOrder.length === 4,
   `${beforeOrder.join(',')} → ${afterOrder.join(',')}`,
+);
+
+/* C6*（2026-11-16，用户报障「图片不能拖动改变顺序」）：
+   真因是拖拽期间浏览器把手势判给了滚动容器（外层纵向 + 条带横向），
+   发 pointercancel 把拖拽拆摊 —— 卡片明明已 is-lifted，第一次移动就还原。
+   它是**间歇性**的：同一段手势有时 6/6 成功、有时 2/6 成功，
+   所以只断言「顺序变了」会漏（旧探针 13/14 全绿就是这个原因）。
+   这里直接盯事件本身：拖拽全程不允许出现 pointercancel。
+   反证：注释掉 useImageStripDrag 的 addTouchBlock() → C6 与 C1 一起红
+   （实测 6 轮里 4 轮 cancel=3~6、顺序不变）。 */
+const cancelCount = await page.evaluate(
+  () => window.__probeEvents.filter((e) => e.startsWith('pointercancel')).length,
+);
+assert(
+  'C6 拖动全程没有 pointercancel（拖拽未被滚动仲裁打断）',
+  cancelCount === 0,
+  `cancel=${cancelCount}`,
 );
 
 const previewOpen = await page.evaluate(() => {
