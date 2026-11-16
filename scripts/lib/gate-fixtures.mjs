@@ -27,6 +27,10 @@
  */
 import { readFileSync, writeFileSync, rmSync, rmdirSync, existsSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
+import { scanDarkTokens } from './dark-token-counter.mjs';
+
+/** 暗色裸色基线文件（相对仓库根）。与 check-dark-tokens.mjs 指向同一份，勿各写一份。 */
+const BUDGET_FILE = 'scripts/dark-token-budget.json';
 
 /** doc-truth 的落点：必读面主文件（module 顶部声明一次，别在 fixture 里写第二份路径）。 */
 const AGENTS_DOC = 'AGENTS.md';
@@ -169,8 +173,33 @@ export const FIXTURES = [
   {
     gate: 'check:dark-tokens:strict',
     why: '暗色裸色值棘轮：新增裸色值意味着以后调色要改 N 处，只许降不许升',
-    prepare: () =>
-      editFile(
+    /*
+     * ⚠️ 为什么这条要比别的 fixture 多一步「压基线」（2026-11-16 修）：
+     *
+     * 该门禁 --strict 的判据是**总量 > 基线**，而基线是「只降不升」的棘轮 ——
+     * 存量被清掉后 `budget.total` 会高于实测值，中间那段余量是刻意留的（不让正常
+     * 迭代误红）。于是「注入 1 个裸色」在有余量时**根本越不了线**，这条 fixture
+     * 就会长期静默失效，被 check:gates-self-test 报成「check:dark-tokens:strict
+     * 假绿」—— 实测正是如此（total=2430，而实测已低于它）。
+     *
+     * 修法不是注更多裸色（余量大小会变，永远追不上），而是把基线临时压到
+     * **当前实测值**：此时 +1 必然越线，样本与判据的因果关系重新成立。
+     * 计数走 scripts/lib/dark-token-counter.mjs —— 与门禁同一份实现，不另写一份。
+     */
+    prepare: () => {
+      const { darkLiterals } = scanDarkTokens({ root: process.cwd() });
+      const budgetRaw = readFileSync(BUDGET_FILE, 'utf8');
+      const budget = JSON.parse(budgetRaw);
+      // 基线本来就等于实测时，+1 已经够用，不必动它（也别造一次「无改动」的注入）
+      const restoreBudget =
+        budget.total === darkLiterals
+          ? () => {}
+          : editFile(
+              BUDGET_FILE,
+              (s) => JSON.stringify({ ...JSON.parse(s), total: darkLiterals }, null, 2) + '\n',
+              '把暗色裸色基线压到当前实测值（保证 +1 必然越线）',
+            );
+      const restoreCss = editFile(
         'src/styles/themes/dark-mode.css',
         (s) =>
           s.replace(
@@ -178,7 +207,12 @@ export const FIXTURES = [
             '[data-theme="dark"] {\n  --gates-probe-naked-color: #ff00ff;',
           ),
         '暗色块内注入裸色值',
-      ),
+      );
+      return () => {
+        restoreCss();
+        restoreBudget();
+      };
+    },
   },
   {
     gate: 'check:layering',
