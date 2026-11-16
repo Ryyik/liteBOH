@@ -7,6 +7,7 @@ import { readFileSync, writeFileSync } from 'fs';
 import { visualizer } from 'rollup-plugin-visualizer';
 import cssnano from 'cssnano';
 import { resolveShellChunks } from './scripts/lib/shell-chunk-resolve.mjs';
+import { collectInitialRouteChunks } from './scripts/lib/initial-route-preload.mjs';
 
 // ============================================
 // 版本指纹生成插件
@@ -67,6 +68,93 @@ function bohVersionPlugin() {
         fileName: 'version.json',
         source: JSON.stringify(info, null, 2),
       });
+    },
+  };
+}
+
+// ============================================
+// 首页链路 chunk 预取插件（2026-11-16）
+// ============================================
+// ## 问题（Phase 0 实测，见 docs/2026-11-16-首访性能诊断与解决方案.md）
+//
+// 入口那 18 个文件由 preload scanner 在 ~193 ms 一次性发出，但**首页路由 chunk
+// 要等到挂载后（~1.75 s）Vue Router resolve 才被发现**（CSS 194 ms 发起 vs
+// 首页 chunk 1753 ms 发起 —— 差 1.5 s）。它再带出静态依赖，串行排一轮，
+// 首页主体到 3.2 s 才渲染出来。1.6 Mbps 下这一跳值 1.2–1.4 s。
+//
+// ## 做法
+//
+// 构建期算出首页 chunk 的**静态 import 闭包**（不含 dynamicImports 那层 —— 论坛流
+// 是动态导入，会在首页渲染到它时才触发，本插件不越界去抢），把文件名清单写进
+// `dist/boot.js` 的占位符；由 boot.js 在同步执行期按 `location.hash` 判断，
+// 只有本次真的落在首页才插 modulepreload。
+//
+// ## 三条边界
+//
+// ① 只收 `.js`：CSS 交给 Vite 的 `__vitePreload` 在模块执行时按正确顺序插，
+//    构建期抢先插 `<link rel=preload as=style>` 会和它抢顺序。
+// ② 找不到首页 chunk 时**只 warn 不 fail**：产物结构变了（改了目录 / 换了入口）
+//    不该让整个构建挂掉，但必须留痕，否则预取静默消失、没人发现。
+// ③ 清单写进 boot.js 而不是 index.html：index.html 是全站唯一文档，写死等于
+//    每个访问 /#/forum 的人也白下这一批。见 boot.js 第 0 段注释。
+// ============================================
+function bohInitialRoutePreloadPlugin() {
+  const PLACEHOLDER = /\/\*__BOH_INITIAL_ROUTE_CHUNKS__\*\/\s*\[\]/;
+  let chunkFiles = [];
+
+  return {
+    name: 'boh-initial-route-preload',
+    apply: 'build',
+
+    generateBundle(_options, bundle) {
+      // 纯计算在 scripts/lib/initial-route-preload.mjs，那里有单测守着两次静默失效
+      const result = collectInitialRouteChunks(bundle);
+      if (result.reason === 'no-home-chunk') {
+        this.warn(
+          '[boh-initial-route-preload] 产物里找不到 views/Home/index.vue 的 chunk，' +
+            '本次不做首页预取（首访会多等一跳）。检查 Home 路由是否还在、或改名了。',
+        );
+        return;
+      }
+      chunkFiles = result.files;
+    },
+
+    closeBundle() {
+      if (!chunkFiles.length) return;
+      const bootPath = resolve(__dirname, 'dist/boot.js');
+      let src;
+      try {
+        src = readFileSync(bootPath, 'utf8');
+      } catch {
+        console.warn('[boh-initial-route-preload] 读不到 dist/boot.js，跳过注入');
+        return;
+      }
+      if (!PLACEHOLDER.test(src)) {
+        // 占位符被 prettier 或人为改动后这里会走到：宁可留痕也不要静默失效
+        console.warn(
+          '[boh-initial-route-preload] dist/boot.js 里找不到 __BOH_INITIAL_ROUTE_CHUNKS__ 占位符，' +
+            '首页预取未生效。检查 public/boot.js 第 0 段是否被改写。',
+        );
+        return;
+      }
+      // 兜绝：Vue SFC 的 CSS 会以 `xxx.css_vue_type_style_…` 这种虚拟名出现在 imports 里，
+      // 实际产物是 .css 而非 .js。写进清单就是一个必然 404 的 modulepreload
+      // （控制台报错 + 白占一次连接），所以按磁盘实际存在与否过滤。
+      const existing = chunkFiles.filter((f) => {
+        try {
+          return readFileSync(resolve(__dirname, 'dist', f)) && true;
+        } catch {
+          console.warn(`[boh-initial-route-preload] 清单里的 ${f} 不在产物中，已剔除`);
+          return false;
+        }
+      });
+      if (!existing.length) return;
+      // base 是 './'：用相对路径，子路径部署也成立
+      const list = existing.map((f) => `'./${f}'`).join(', ');
+      writeFileSync(bootPath, src.replace(PLACEHOLDER, `[${list}]`), 'utf8');
+      console.log(
+        `[boh-initial-route-preload] 首页链路 ${existing.length} 个 chunk 已写入 dist/boot.js`,
+      );
     },
   };
 }
@@ -310,6 +398,8 @@ export default defineConfig({
   plugins: [
     nsfwjsTreeShakePlugin(),
     bohShellCssScopePlugin(),
+    // 首页链路预取：只读产物里已生成的 chunk 图，与插件顺序无关
+    bohInitialRoutePreloadPlugin(),
     vue({
       template: {
         compilerOptions: {

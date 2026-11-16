@@ -23,6 +23,41 @@
  */
 
 (() => {
+  // ── 0. 首页链路 chunk 预取（2026-11-16）─────────────────────────
+  // 为什么在这里、而不是 index.html 的 <link>：站点是 hash 路由，index.html 全站
+  // 只有一份。无条件写死 preload = 让每个直接访问 /#/forum 的人也白下约 185 KB。
+  // 本文件是同步脚本（早于 preload scanner 的 module 请求），此刻 location.hash
+  // 已经可读，所以能只对「本次真的落在首页」的访客注入。
+  //
+  // 为什么值得：入口那 18 个文件在 ~193ms 就全部发出了，但首页路由 chunk 要等到
+  // 挂载后（~1.75s）Vue Router resolve 才被发现，它再带出论坛流那条链（约 185 KB）
+  // 串行排一轮 —— 1.6 Mbps 下这一跳实测值 1.2–1.4 s。清单由构建期插件
+  // bohInitialRoutePreloadPlugin（vite.config.js）注入，不许手改。
+  //
+  // ⚠️ 只预取 JS：CSS 交给 Vite 的 __vitePreload 在模块执行时按正确顺序插，
+  // 构建期抢先插 <link rel=preload as=style> 会和它抢顺序。
+  try {
+    const chunks = /*__BOH_INITIAL_ROUTE_CHUNKS__*/ [];
+    const hash = window.location.hash || '';
+    // `#/forum` 与首页是同一个页面：routes/compat.ts 把它重定向到 `/?view=latest`，
+    // 而重定向发生在 Vue Router 起来之后 —— 那时本轮预取早已错过。分享链接 / 旧书签
+    // 大量是这个形态，实测（probe-preload-scope）从 `#/forum` 进首页链要等到 1726 ms，
+    // 比从 `/` 进慢 1.4 s。精确匹配，不用前缀：`#/forum/post/…` 是帖子详情，不能预取。
+    const onHome =
+      !hash || hash === '#' || hash === '#/' || hash === '#/forum' || hash.indexOf('#/?') === 0;
+    if (onHome) {
+      for (let i = 0; i < chunks.length; i += 1) {
+        const link = document.createElement('link');
+        link.rel = 'modulepreload';
+        link.crossOrigin = 'anonymous';
+        link.href = chunks[i];
+        document.head.appendChild(link);
+      }
+    }
+  } catch {
+    /* 预取是纯加速：任何异常（老浏览器 / 被插件改写）都不许影响启动 */
+  }
+
   // ── 1. 主题预置 ────────────────────────────────────────────────
   // 骨架样式与 body 兜底底色都依赖 html[data-theme]，而主题管理器
   // （src/utils/theme-manager.js）要等应用挂载后才 init，暗色主题 CSS 更是懒加载。

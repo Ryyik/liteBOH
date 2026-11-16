@@ -13,6 +13,11 @@ export default [
       'coverage/**',
       'output/**', // 产物/临时输出目录（.gitignore:48 已忽略、未被 git 跟踪），与 dist 同性质。
       //            不排除它 → `eslint .` 会扫进去，凭空多出 2 条幽灵警告（output/preview-html-v2.part.ts）。
+      'debug-screenshots/**', // 取证探针（.gitignore:51 已忽略、不入库）。与 dist/output 同性质：
+      //            本机脚本，写完就地跑、跑完就扔。它们为了吞掉 CDP/PerformanceObserver
+      //            的不支持分支，普遍写成 `catch {}`，正好撞上 no-empty —— 2026-11-16
+      //            实测因此让 `npm run verify` 报 7 个 error（全在本目录）。
+      //            不入库的东西不该卡门禁。
     ],
   },
   ...vue.configs['flat/base'],

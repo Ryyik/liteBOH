@@ -6,7 +6,13 @@
     aria-label="方块街开场"
   >
     <!-- 品牌兜底层（2026-09-24 起为「默认首屏」形态）：纯白底 + 居中红 logo。
-         没配街景图、或街景图加载失败时启用；配了图则完全不渲染，整层让位给照片。 -->
+         没配街景图、或街景图加载失败时启用；配了图则完全不渲染，整层让位给照片。
+         ⚠️ 这个 img 才是**当前真实的 LCP 元素**（home_heroes 的 image_portrait /
+         landscape 全为 NULL，线上首屏一直走这条兜底）。
+         2026-11-16 补 fetchpriority="high"：（1）它是 LCP，1.6 Mbps 下实测被排进
+         Low 队列、6 KB 的图要 1.3–1.6 s；（2）utils/image-optimizer.js 会给所有
+         「没有 fetchpriority=high」的 img 自动加 loading="lazy"，这条豁免等于顺带
+         关掉那个降级。慢网实测 LCP 4.2 s → 见 docs 同名方案的 Phase 0 复测。 -->
     <div v-if="!hasStreetImage" class="street-hero-brand" aria-hidden="true">
       <img
         class="street-hero-brand-logo"
@@ -14,6 +20,7 @@
         alt=""
         width="512"
         height="512"
+        fetchpriority="high"
         decoding="async"
         @error="onBrandLogoError"
       />
