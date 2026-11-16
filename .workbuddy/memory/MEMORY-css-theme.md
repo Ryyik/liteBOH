@@ -32,6 +32,11 @@
   `check:dark-tokens` 连 `var(--x,#hex)` fallback 也计数 ⇒ 想零增长别写 fallback。护栏 `probe:dark-surfaces`(36)。
 - ⚠️ 模态框底色用 `--card-solid` 不用 `--card`：后者是 62% 半透明（液态玻璃），底下是表格正文时
   字段标签会和背后文字叠在一起。
+- ⚠️ **白玻璃高光必须变量化**：`linear-gradient(rgba(255,255,255,.5), transparent)` 写死在亮色好看，
+  暗色会把面板顶糊成一块灰白（正文整行读不出）⇒ 收进 `--x-sheen`，暗色覆写成
+  `color-mix(in srgb, var(--liquid-text-primary) 7%, transparent)`（零裸色，棘轮不涨）。
+- ⚠️ **`background: var(--liquid-text-primary)` + `color:#fff` = 暗色白底白字**（底翻亮、字没翻）。
+  反色实心件一律 `color: var(--boh-bg-primary)`；Teleport 到 body 的弹层也拿得到（挂在 `:root`）。
 
 ## 暗色
 
