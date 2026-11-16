@@ -7,9 +7,13 @@
 - 🔵 **CLI 能力边界（2026-11-12 实测，别再笼统说「CLI 操作不了 Supabase」）**：
   · ✅ 走 `api.supabase.com` 的命令**全部可用**，且沙箱内直跑即可（`functions list/deploy/delete`、`projects list`、`secrets list` 均已实证）；
   · ❌ 走**数据库直连**的命令失败（`migration list/push`、`gen types` 报 `tls error (EOF)`）：`db.<ref>.supabase.co:5432` TCP 通但 TLS `unexpected eof`。
-    🔴 **归因是本机 Clash TUN + fake-ip，不是 GFW/Supabase 封**：`dig db.<ref>.supabase.co` → `198.18.0.64`（试过 11 个 utun）；
-    同一时刻 `aws-{0,1}-ap-southeast-1.pooler.supabase.com:5432` TLS `Verify return code: 0` 全通 ⇒ 同一进程、同一网络，差异只在**域名命中的分流规则**。
-    别再看到 `unexpected eof` 就写「域族被 reset」——先 `dig` 看是不是 198.18.x.x。
+    🔴 **真因（2026-11-16 定论）：该域名根本没有公网 A 记录，不是代理/GFW/分流规则。**
+    DoH 双查（AliDNS + Cloudflare）：`db.<ref>.supabase.co` = **NOERROR 但 Answer 为空**（只有 SOA）；
+    随机 ref 的 `db.<rand>.supabase.co` = **NXDOMAIN** ⇒ 名字在 zone 内、只是没配地址（Supabase 已不再给直连库域名）。
+    本机 fake-ip 把「无地址」答成 `198.18.0.x`，代理接住 TCP 后无处转发 → 才伪装成 `unexpected eof`。
+    ⚠️ **开 VPN / 调分流规则一律无效**（2026-11-16 实测：VPN 下 HTTP 401 正常、pooler 5432 回 `S`，直连仍 12s 无回包）。
+    ✅ 正确判据：`nc -z` 通 **不等于**可用；要发 PostgreSQL SSLRequest（8 字节：len=8 + code=80877103）看有无回包。
+    ❌ **`openssl s_client -connect host:5432` 是无效测法**（Postgres 要先收 SSLRequest 才进 TLS），它对正常库也回 `unexpected eof`。
   · ✅ **迁移根本不需要 DB 连接**：`POST https://api.supabase.com/v1/projects/<ref>/database/query` + `Authorization: Bearer <sbp_ token>`
     可直接执行任意 SQL（2026-11-12 实测 `select 1` → `[{"ok":1}]` HTTP 201）。配合**手写 `schema_migrations` 记号**即为完整迁移通道，
     比 pooler/`--db-url` 少一步密码。（pooler 方案仍有效，但需 DB 密码；`supabase/.temp/pooler-url` 只存无密码串。）
@@ -77,9 +81,12 @@
 ## 线上库「写」的可用通道（2026-11-02 实测，花了一轮才摸清）
 - ❌ **MCP supabase 是只读角色**：任何 UPDATE 直接 `25006 cannot execute UPDATE in a read-only transaction`。
   它只能查（`has_table_privilege` 那套假阴性坑另见 MEMORY.md）。
-- ❌ **`supabase db push` 在本机连不上库**：`db.<ref>.supabase.co` 被解析到 `198.18.0.132`（benchmark 保留段，
-  代理劫持特征）⇒ `i/o timeout` / `TLS EOF`；**沙箱内外一样**，别以为是沙箱拦的。
+- ❌ **`supabase db push` 在本机连不上库**：`db.<ref>.supabase.co` 被 fake-ip 解析到 `198.18.0.x`
+  ⇒ `i/o timeout` / `TLS EOF`；**沙箱内外一样**，别以为是沙箱拦的。**换 VPN 也没用**（2026-11-16 定论：该域名
+  公网**无 A 记录**，详见上方 Supabase/网络 条的 DoH 证据）。
   `supabase/.temp/pooler-url` 只有用户名没有密码，`~/.pgpass` 不存在，`SUPABASE_DB_PASSWORD` 未设。
+  ⚠️ 因此 `check:db-lint`（`db lint --linked`）在本机**结构性不可用**，它只是「告警 + exit 0」降级成"跳过"；
+  且线上 `plpgsql_check` 扩展**可装未装**（`pg_available_extensions` 有、`pg_extension` 无）⇒ 就算连接修好也会再撞一堵墙。
 - ✅ **Management API `/v1/projects/{ref}/database/query` 可用（2026-11-02 复测翻案）**：
   keychain 里 `security find-generic-password -s "Supabase CLI" -a supabase -w` 现在是**真 PAT**
   （`go-keyring-base64:` 解出来 44 字符 `sbp_` 开头）⇒ 直接复用 `scripts/lib/supabase-admin-api.mjs`
