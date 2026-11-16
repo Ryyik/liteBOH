@@ -207,6 +207,9 @@ export function useForumPublishQueue(deps) {
         location_name: queueItem.location?.name || queueItem.location?.cityName || '',
         images: queuedImages,
         cover_image_url: queuedImages[0]?.url || '',
+        /* 图文帖：乐观卡直接按图文卡渲染（否则刚发出去的图文会先显示成普通卡，
+           刷新后才变样 —— 用户以为发错了）。entries 来自队列快照。 */
+        album_entries: queueItem.albumEntries || [],
         like_count: 0,
         comment_count: 0,
         isLiked: false,

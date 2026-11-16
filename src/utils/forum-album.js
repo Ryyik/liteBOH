@@ -1,34 +1,35 @@
 /**
- * 影集帖（album post）—— 唯一真源。
+ * 图文帖（album post）—— 唯一真源。
  *
- * ## 形态：A 投影（2026-11-14 定稿，2026-11-15 补「一人一本」）
- * 影集帖**就是**一条普通帖子，不新建表、不复制图片：
- *   - `profiles.album_title/album_intro` → 影集名与简介（**一人一本，只在这存一次**）
- *   - `posts.title`        → 影集名（denormalized，供信息流卡片直接读；改名时回写）
- *   - `posts.content/body` → 这一篇的卷首配文（可空）
+ * ## 形态：A 投影 + 2026-11-16 降级为「发帖格式」
+ * 图文帖**就是**一条普通帖子，不新建表、不复制图片：
+ *   - `posts.title`        → 这一篇的标题（就是普通帖的标题，不再是「影集名」）
+ *   - `posts.content/body` → 这一篇的配文（可空）
  *   - `forum_post_images`  → 照片（与普通帖同一套上传/审核/画质管线，**必传**）
  *   - `posts.album_entries`→ **每张照片**的文字 `[{ title, date, place, body }]`，
  *                            **按 sort_order 与图片一一对齐，不存 url**
+ *   - 字体                 → **固定宋体**（`ALBUM_FONT_STACK`），不落库、不可选；
+ *                            普通帖不涉及
+ *   - `posts.is_album`     → 生成列（`album_entries` 非空），只用于「我的图文」筛选
  *
- * 发布流程：**初次创建**填名称 + 简介（`set_forum_album_book`）；
- * 之后每次只写配文 + 图。所以「一本影集」= 该用户的全部影集帖按时间倒序。
+ * ## 发布流程（2026-11-16 用户定稿）
+ * 没有「建本」、没有三步、没有开场动画：发帖器里一个**格式切换**（常规 ⇄ 图文），
+ * 选图文就是「多图 + 每张各写一段」，一屏写完，点一次「发布图文」。
+ * 切换格式不清空任何已填内容（标题 / 正文 / 图片 / 逐张配字全部保留）。
+ * `profiles.album_title / album_intro` 与 `set_forum_album_book` **不再使用**
+ * （老数据还在，读出来也不展示，留给以后可能的重建）。
  *
- * ## 用语（2026-11-15 用户纠正，改任何可见文案前必读）
- *   · **本** = 一个人的影集（一人一本）
- *   · **篇** = **一次发布**（= 一条 `posts` 行）。**「篇」绝不指单张照片**
+ * ## 用语（2026-11-16 更新）
+ *   · **图文** = 这个格式本身（界面上一律用这个词，不再叫「影集」）
+ *   · **条** = 一次发布（= 一条 `posts` 行）
  *   · **张** = 篇内的照片（1..10 张，每张各带一段文字）
- *   ⚠️ `album_entries` 的每个元素是「**一张**照片的文字」。内部命名沿用 DB 列名，
- *      但用户可见文案一律写「张」；界面上「篇数」= 影集里的帖子条数。
- *
- * 因此「个人影集」只需读 `album_entries` 非空的帖子即可（零复制、零漂移），
- * 想换成正式摄影集时再单向物化。
  *
  * ⚠️ 三条硬约束（改动前先读）：
  * 1. **不在 entries 里存图片地址**。存了就是第二份副本，删图/换图会立刻漂移
  *    （plans/039 §9.2 已实测过 forum_post_images ↔ boh_cloud_entries 的单向漂移）。
  * 2. **上限只在这里定义一次**（`ALBUM_MAX_ENTRIES`）。发帖器、校验、RPC 参数都读它，
  *    服务端另有一份 SQL 常量 —— 两处必须同时改（迁移里带注释标注）。
- * 3. 空 entries 一律视为「普通帖」，展示层靠 `isAlbumPost()` 分派，**不要**用
+ * 3. 空 entries 一律视为「常规帖」，展示层靠 `isAlbumPost()` 分派，**不要**用
  *    `post_kind === 'album'`：那会牵动 DB check 约束与 list RPC 的 kind 过滤器。
  */
 
@@ -40,6 +41,19 @@ export const ALBUM_ENTRY_TITLE_MAX = 16;
 export const ALBUM_ENTRY_PLACE_MAX = 16;
 export const ALBUM_ENTRY_DATE_MAX = 12;
 export const ALBUM_ENTRY_BODY_MAX = 2000;
+
+/**
+ * 图文帖的字体 —— **固定宋体**（2026-11-16 用户定稿：只保留一种，不再给选择）。
+ *
+ * 字体栈只在这里写一份：发帖器预览、信息流卡片、阅读层三处都读它，
+ * 任何一处另写一份都会让「编辑器是宋体、卡片却是别的字体」。
+ * 纯系统字体、零下载：macOS/iOS 落 Songti，Windows 落 SimSun。
+ *
+ * 不落库（原先的 `posts.album_font` 与迁移 2026111602 已撤销）：
+ * 只有一种字体时存一列恒等值，等于给自己留一个会漂移的第二真源。
+ */
+export const ALBUM_FONT_STACK =
+  "'Songti SC', 'Noto Serif SC', 'Source Han Serif SC', STSong, SimSun, serif";
 
 const toText = (value) => String(value ?? '').trim();
 
@@ -143,11 +157,10 @@ export function toAlbumEntriesRpcPayload(entries) {
 }
 
 /**
- * 影集帖是否可发布（2026-11-15 流程定稿）：
+ * 图文帖是否可发布：
  *   - **图必传**（1..10 张）
  *   - **配文可空**（"每次发布可以写配文" ⇒ 允许只传图）
- * 名称与简介不在这里校验：它们属于「影集本体」，初次创建时写入 profiles，
- * 之后的每次发布只写配文 + 图（见 utils/forum-album.js 顶部的形态说明）。
+ * 标题与配文都不强制：标题最终由发布链路统一兜（见 ForumMain.handlePost）。
  */
 export function validateAlbumDraft({ entries, imageCount } = {}) {
   const count = Number(imageCount) || 0;
@@ -161,22 +174,4 @@ export function validateAlbumDraft({ entries, imageCount } = {}) {
   }
   void entries;
   return { ok: true, code: 'OK', message: '' };
-}
-
-/** 影集名称 / 简介长度上限（与服务端 profiles_album_meta_shape 约束同值）。 */
-export const ALBUM_TITLE_MAX = 30;
-export const ALBUM_INTRO_MAX = 200;
-
-/** 影集本体元数据归一：`{ title, intro }`（一人一本，空 title = 还没建过）。 */
-export function normalizeAlbumBook(raw) {
-  const source = raw && typeof raw === 'object' ? raw : {};
-  return {
-    title: clip(source.title ?? source.album_title, ALBUM_TITLE_MAX),
-    intro: clip(source.intro ?? source.album_intro, ALBUM_INTRO_MAX),
-  };
-}
-
-/** 影集本体是否已创建（决定发帖器显示「名称/简介」还是「配文」）。 */
-export function hasAlbumBook(book) {
-  return Boolean(normalizeAlbumBook(book).title);
 }

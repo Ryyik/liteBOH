@@ -1,21 +1,18 @@
 <script setup>
 /**
- * MyAlbumBook.vue — 我的影集（一人一本）
+ * MyAlbumBook.vue — 我发过的「图文」帖
  *
- * 形态（2026-11-15 定稿）：**一个用户就一本影集**。
- *   · 不建「书」表、不加 album_book_id：这本 = `该 author_id 的全部影集帖按时间倒序`；
- *   · 所以「本内帖数无上限」是天然成立的，也没有书位配额/换架交互；
- *   · 数据仍是一条条普通帖子（A 投影），零复制、零漂移。
- *
- * 与 `/albums`（社区影集分区）的区别只是过滤条件不同：
- *   这里固定 author = 自己；社区那边读全部 is_album 的帖子。
+ * 2026-11-16：影集降级为发帖**格式**（常规 / 图文），「一人一本」取消。
+ * 所以这里不再读 `profiles.album_title/intro`，也没有书名与简介 ——
+ * 就是 `该 author_id 的全部图文帖（album_entries 非空）按时间倒序`。
+ * 数据仍是一条条普通帖子（A 投影），零复制、零漂移。
  *
  * 点开复用 AlbumReader（同一份 post，不发新请求）。
  */
 import { computed, onMounted, ref, watch } from 'vue';
 import { BookOpen, Loader2 } from 'lucide-vue-next';
 import { supabase } from '@/utils/supabase-client.js';
-import { getUserPosts, getAlbumBook, toggleLike } from '@/utils/api/forum-api.js';
+import { getUserPosts, toggleLike } from '@/utils/api/forum-api.js';
 import AlbumPostCard from './AlbumPostCard.vue';
 import AlbumReader from './AlbumReader.vue';
 
@@ -29,15 +26,12 @@ const posts = ref([]);
 const loading = ref(true);
 const errorText = ref('');
 const activePost = ref(null);
-/** 影集本体（一人一本）：名称 + 简介存在 profiles，只在这里回显，不由帖子推导。 */
-const bookTitle = ref('');
-const bookIntro = ref('');
 
 const authorName = computed(() => {
   const first = posts.value[0];
   return String(first?.author_username || first?.author?.username || '').trim();
 });
-/** 全书照片总数（「篇」按帖子数算，照片才是 album_entries 的长度）。 */
+/** 全部照片数（帖子数另算，照片才是 album_entries 的长度）。 */
 const totalPhotos = computed(() =>
   posts.value.reduce((sum, post) => {
     const list = post?.album_entries;
@@ -67,19 +61,13 @@ async function load() {
       albumOnly: true,
     });
     if (result?.error) {
-      errorText.value = '影集载入失败，请稍后重试';
+      errorText.value = '图文载入失败，请稍后重试';
       posts.value = [];
       return;
     }
     posts.value = Array.isArray(result?.data) ? result.data : [];
-    // 本子的名字与简介：初次创建时写进 profiles，这里只读
-    const book = await getAlbumBook(targetId);
-    if (book.ok && book.data) {
-      bookTitle.value = book.data.title;
-      bookIntro.value = book.data.intro;
-    }
   } catch (_error) {
-    errorText.value = '影集载入失败，请稍后重试';
+    errorText.value = '图文载入失败，请稍后重试';
     posts.value = [];
   } finally {
     loading.value = false;
@@ -107,17 +95,13 @@ watch(() => props.authorId, load);
   <div class="my-album">
     <header class="my-album-head">
       <h2 class="my-album-title">
-        <template v-if="bookTitle">{{ bookTitle }}</template>
-        <template v-else>{{
-          props.authorId ? `${authorName || 'TA'}的影集` : '我的影集'
-        }}</template>
+        {{ props.authorId ? `${authorName || 'TA'}的图文` : '我的图文' }}
       </h2>
-      <p v-if="bookIntro" class="my-album-intro">{{ bookIntro }}</p>
       <p class="my-album-sub">
         <template v-if="posts.length">
-          共 {{ posts.length }} 篇 · {{ totalPhotos }} 张照片
+          共 {{ posts.length }} 条 · {{ totalPhotos }} 张照片
         </template>
-        <template v-else>一人一本 · 发过的影集帖都会收在这里</template>
+        <template v-else>发过的图文都会收在这里</template>
       </p>
     </header>
 
@@ -130,10 +114,8 @@ watch(() => props.authorId, load);
 
     <div v-else-if="!posts.length" class="my-album-empty">
       <BookOpen :size="26" aria-hidden="true" />
-      <p class="my-album-empty-title">这一本还是空的</p>
-      <p class="my-album-empty-sub">
-        第一次发影集帖时给它起个名字，之后每次发都只写配文 + 图，会自动收进这一本。
-      </p>
+      <p class="my-album-empty-title">还没有发过图文</p>
+      <p class="my-album-empty-sub">发帖时把格式切到「图文」，照片和每张的配字会收在这里。</p>
     </div>
 
     <div v-else class="my-album-list">

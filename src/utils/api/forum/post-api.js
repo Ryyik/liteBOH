@@ -39,7 +39,6 @@ import { deriveForumPostKind } from '../../forum-post-format.js';
 // 影集帖数据契约（单篇照片数上限 / entries 归一）—— 单源在 utils/forum-album.js
 import {
   ALBUM_MAX_ENTRIES,
-  normalizeAlbumBook,
   toAlbumEntriesRpcPayload,
   validateAlbumDraft,
 } from '../../forum-album.js';
@@ -1076,6 +1075,7 @@ export async function createPostWithImages(
       insertedPost.tag = safeTag;
     }
   }
+
   invalidateByTags(['posts', 'profiles', 'boh-cloud']);
   // 发帖主流程仅等待核心 RPC；tag 回写、异步审核入队、pending 归属标记全部后台执行，
   // 减少 2~3 个串行 RTT，让「发帖成功」更快返回（失败均有日志/回退，不影响数据正确性）
@@ -1116,44 +1116,8 @@ export async function createPostWithImages(
  *
  * `options.albumEntries` 形如 `[{ image_index, title, date, place, body }]`
  * （由 utils/forum-album.js 的 `toAlbumEntriesRpcPayload` 生成）。
+ * 字体不参与发布：图文固定宋体（`ALBUM_FONT_STACK`），无可选项，也就没有要存的值。
  */
-/**
- * 读取本人的影集本体（名称 / 简介）。
- * 「一人一本」——存在 profiles 上，与 auth.users 1:1，公共可读、本人可写。
- * 返回值 `data: { title, intro }`，title 为空表示还没建过。
- */
-export async function getAlbumBook(userId) {
-  const id = String(userId || '').trim();
-  if (!id) {
-    return {
-      ok: false,
-      data: null,
-      error: normalizeDbError({ code: 'NO_USER', message: '请先登录' }),
-    };
-  }
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('album_title, album_intro')
-    .eq('id', id)
-    .maybeSingle();
-  if (error) return { ok: false, data: null, error: normalizeDbError(error) };
-  return {
-    ok: true,
-    data: normalizeAlbumBook({ title: data?.album_title, intro: data?.album_intro }),
-    error: null,
-  };
-}
-
-/** 创建 / 修改本人的影集名称与简介（初次发布前必须调用一次）。 */
-export async function setAlbumBook(title, intro = '') {
-  const { data, error } = await supabase.rpc('set_forum_album_book', {
-    p_title: String(title || ''),
-    p_intro: String(intro || ''),
-  });
-  if (error) return { ok: false, data: null, error: normalizeDbError(error) };
-  return { ok: true, data: normalizeAlbumBook(data), error: null };
-}
-
 export async function createAlbumPost(
   content,
   authorId,

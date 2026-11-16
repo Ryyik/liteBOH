@@ -1,6 +1,6 @@
 <script setup>
 /**
- * AlbumReader.vue — 影集帖的「翻开」阅读层
+ * AlbumReader.vue — 图文帖的「翻开」阅读层
  *
  * 与信息流卡片共用同一份数据（A 投影：帖子就是影集），不请求任何新接口。
  * 这里翻开的是**一篇**（= 一次发布）：篇内照片按顺序一张接一张竖排连读，
@@ -14,7 +14,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useBodyScrollLock } from '@/composables/useBodyScrollLock.js';
 import { Bookmark, Heart, MessageCircle, X } from 'lucide-vue-next';
-import { getAlbumEntry, getAlbumPhotoCount } from '@/utils/forum-album.js';
+import { ALBUM_FONT_STACK, getAlbumEntry, getAlbumPhotoCount } from '@/utils/forum-album.js';
 import { formatSmartTime } from '@/utils/time.js';
 
 const props = defineProps({
@@ -77,7 +77,13 @@ onBeforeUnmount(() => {
 
 <template>
   <Teleport to="body">
-    <div class="album-reader" role="dialog" aria-modal="true" :aria-label="`影集《${post.title}》`">
+    <div
+      class="album-reader"
+      role="dialog"
+      aria-modal="true"
+      :style="{ '--ap-font': ALBUM_FONT_STACK }"
+      :aria-label="`《${post.title}》，共 ${photoCount} 张照片`"
+    >
       <header class="album-reader-bar">
         <button type="button" class="album-reader-back" aria-label="返回" @click="close">
           <X :size="18" />
@@ -161,7 +167,7 @@ onBeforeUnmount(() => {
   --ap-ink-2: #45433d;
   --ap-ink-3: #8c887f;
   --ap-line: rgba(28, 27, 24, 0.1);
-  --ap-serif: 'Songti SC', 'Noto Serif SC', 'Source Han Serif SC', STSong, SimSun, serif;
+  /* `--ap-font` 由模板注入（= ALBUM_FONT_STACK，固定宋体）；这里不写第二份字体名。 */
 
   position: fixed;
   inset: 0;
@@ -220,7 +226,7 @@ onBeforeUnmount(() => {
   cursor: pointer;
 }
 .album-reader-title {
-  font-family: var(--ap-serif);
+  font-family: var(--ap-font, serif);
   font-size: 13.5px;
   letter-spacing: 0.14em;
   white-space: nowrap;
@@ -264,7 +270,7 @@ onBeforeUnmount(() => {
   margin: 0 0 28px;
   padding-bottom: 22px;
   border-bottom: 1px solid var(--ap-line);
-  font-family: var(--ap-serif);
+  font-family: var(--ap-font, serif);
   font-size: 13.5px;
   line-height: 2;
   color: var(--ap-ink-2);
@@ -304,7 +310,7 @@ onBeforeUnmount(() => {
 }
 .album-entry-title {
   margin: 0;
-  font-family: var(--ap-serif);
+  font-family: var(--ap-font, serif);
   font-weight: 400;
   font-size: 19px;
   line-height: 1.45;
@@ -324,7 +330,7 @@ onBeforeUnmount(() => {
 .album-entry-prose {
   margin: 0;
   min-width: 0;
-  font-family: var(--ap-serif);
+  font-family: var(--ap-font, serif);
   font-size: 14px;
   line-height: 2;
   color: var(--ap-ink-2);
@@ -333,7 +339,7 @@ onBeforeUnmount(() => {
 .album-end {
   margin: 56px 0 18px;
   text-align: center;
-  font-family: var(--ap-serif);
+  font-family: var(--ap-font, serif);
   font-size: 11px;
   letter-spacing: 0.3em;
   color: var(--ap-ink-3);

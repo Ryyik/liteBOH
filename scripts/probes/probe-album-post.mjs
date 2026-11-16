@@ -262,6 +262,19 @@ const forceLogin = async (page) => {
   });
   const darkRgb = (darkBg.match(/\d+/g) || []).slice(0, 3).map(Number);
   check('A6 暗色下卡片换成深纸底', darkRgb.length === 3 && darkRgb[0] < 60, darkBg);
+
+  /* 字体（2026-11-16 第二次定稿）：只留宋体，选项已撤销。
+     断言「渲染出来的确实是衬线宋体栈」—— 若哪天被改成无衬线，这条会红。 */
+  const cardFont = await page.evaluate(() => {
+    const el = document.querySelector('.album-card .album-prose, .album-card .album-name');
+    return el ? getComputedStyle(el).fontFamily : '';
+  });
+  check(
+    'A7 卡片固定宋体渲染',
+    /Songti|SimSun|serif/i.test(cardFont) && !/PingFang|sans-serif/i.test(cardFont),
+    cardFont,
+  );
+
   await shot(page, 'portrait-01b-feed-dark');
   await page.evaluate(() => {
     document.documentElement.setAttribute('data-theme', 'light');
@@ -294,6 +307,18 @@ const forceLogin = async (page) => {
   const firstEntryImg = await imgNotCropped(page, '.album-reader .album-entry:first-of-type img');
   check('B3 阅读层首图不裁切', firstEntryImg.ok, firstEntryImg.why);
 
+  const readerFont = await page.evaluate(() => {
+    /* ⚠️ 不能写成 `.album-entry-prose, .album-reader` —— querySelector 按**文档顺序**
+       返回首个命中，而根节点 `.album-reader` 在最前面，永远先命中它（拿到无衬线）。 */
+    const el = document.querySelector('.album-reader .album-entry-prose');
+    return el ? getComputedStyle(el).fontFamily : '';
+  });
+  check(
+    'B6 阅读层沿用同一款宋体',
+    /Songti|SimSun|serif/i.test(readerFont) && !/PingFang|sans-serif/i.test(readerFont),
+    readerFont,
+  );
+
   const ov2 = await overflow(page);
   check('B4 阅读层无横向溢出', ov2.scrollW <= ov2.clientW + 1, `${ov2.scrollW}/${ov2.clientW}`);
   await shot(page, 'portrait-02-reader');
@@ -303,259 +328,132 @@ const forceLogin = async (page) => {
   const readerAfterEsc = await page.locator('.album-reader').count();
   check('B5 Esc 关闭阅读层', readerAfterEsc === 0);
 
-  // C. 选择球
+  // C. 发帖格式（2026-11-16 降级：不再有外层选择球，格式在编辑器内切换）
   const fab = page.locator('.mobile-compose-fab');
   const fabVisible = (await fab.count()) > 0 && (await fab.isVisible());
   if (!fabVisible) {
-    skipped('C 组（选择球）', 'FAB 未出现：本档不是 feed 落点或已被分区隐藏');
+    skipped('C 组（发帖格式）', 'FAB 未出现：本档不是 feed 落点或已被分区隐藏');
   } else {
     await forceLogin(page);
     await fab.click();
-    await page.waitForTimeout(450);
-    const cluster = await page.locator('.compose-choice-cluster').count();
-    check('C1 点 + 浮出选择球', cluster === 1);
+    await page.waitForTimeout(850);
 
-    const balls = await page.locator('.compose-choice-ball').allInnerTexts();
-    check(
-      'C2 两颗球：帖子 / 影集',
-      balls.length === 2 && balls.join('').includes('帖子') && balls.join('').includes('影集'),
-      balls.join('|'),
-    );
-
-    const geo = await page.evaluate(() => {
-      const c = document.querySelector('.compose-choice-cluster');
-      const f = document.querySelector('.mobile-compose-fab');
-      if (!c || !f) return null;
-      const cr = c.getBoundingClientRect();
-      const fr = f.getBoundingClientRect();
-      return {
-        clusterBottom: cr.bottom,
-        fabTop: fr.top,
-        clusterRight: cr.right,
-        vw: window.innerWidth,
-      };
-    });
-    check(
-      'C3 球浮在 FAB 上方（不压住按钮）',
-      !!geo && geo.clusterBottom <= geo.fabTop + 2,
-      JSON.stringify(geo),
-    );
-    check('C4 球在视口内（右侧不越界）', !!geo && geo.clusterRight <= geo.vw, JSON.stringify(geo));
-    await shot(page, 'portrait-03-chooser');
-
-    await page.locator('.compose-choice-ball', { hasText: '影集' }).click();
-    await page.waitForTimeout(900);
     const overlay = await page.locator('.mobile-composer-overlay').count();
-    const label = (
+    const balls = await page.locator('.compose-choice-ball').count();
+    check(
+      'C1 点 + 直接打开编辑器（不再有「帖子 / 影集」选择球）',
+      overlay === 1 && balls === 0,
+      `overlay=${overlay} balls=${balls}`,
+    );
+
+    const modeLabels = (await page.locator('.composer-mode-btn').allInnerTexts())
+      .map((t) => t.trim())
+      .join('|');
+    check('C2 编辑器内有格式切换：常规 / 图文', modeLabels === '常规|图文', modeLabels);
+
+    const defaultMode = (
+      await page.locator('.composer-mode-btn[aria-selected="true"]').innerText()
+    ).trim();
+    check('C3 默认是常规格式', defaultMode === '常规', defaultMode);
+
+    const partsInPost = await page.locator('.album-parts').count();
+    check('C4 常规格式不显示逐张配字区', partsInPost === 0, `parts=${partsInPost}`);
+
+    /* 先写标题，再切图文：内容必须还在 —— 「随时可改格式、内容不丢」是这次降级的硬要求 */
+    await page.locator('.post-title-input').fill('切格式不丢内容');
+    await page.locator('.composer-mode-btn', { hasText: '图文' }).click();
+    await page.waitForTimeout(450);
+
+    const albumTitle = (await page.locator('.mobile-composer-title').innerText()).trim();
+    check('C5 切到图文：顶栏标题变「发布图文」', albumTitle === '发布图文', albumTitle);
+    const keptTitle = await page.locator('.post-title-input').inputValue();
+    check('C6 切格式保留已填标题', keptTitle === '切格式不丢内容', keptTitle);
+
+    /* 字体（2026-11-16 第二次定稿）：固定宋体，**不给选择** ——
+       「宋体/黑体/楷体」三颗按钮已按用户要求撤掉，这里守「别再被加回来」。 */
+    const fontBtns = await page.locator('.album-font-btn').count();
+    const hintText = (
       await page
-        .locator('.mobile-composer-submit-label')
+        .locator('.album-mode-hint')
         .innerText()
         .catch(() => '')
     ).trim();
-    check('C5 选「影集」打开发帖器', overlay === 1, `overlay=${overlay}`);
-    /* 2026-11-15 起影集发布拆成三步（建本 → 选照片 → 写第一篇），
-       顶栏那颗按钮在第 1/2 步是「下一步」，只有第 3 步才是「发布」。
-       原先断言的是「创建影集 / 发布」，流程一改就会假红。 */
-    check('C6 顶栏按钮在第 1 步是「下一步」', label === '下一步', `label=${label}`);
+    check(
+      'C6b 图文不给字体选择（固定宋体）',
+      fontBtns === 0 && hintText === '图文模式，每张照片可写一段文字。',
+      `btns=${fontBtns} hint=${hintText}`,
+    );
 
-    /* 步骤条与第一步面板：这条断言守的是「流程图形化」本身 ——
-       三个节点、当前节点是「建本」、第一步的书封与名称输入框在场、
-       且第 1 步不允许出现发布按钮（防止从建本屏直接发出去）。 */
-    const stepsOn = await page.locator('.album-steps').count();
-    if (!stepsOn) {
-      skipped('C7–C10 三步流程', '未进入登录态（假会话没生效）');
+    /* 真机上传要过压缩/审核链路；这里直接把假图塞进宿主的 postImages（只验版式） */
+    const seeded = await page.evaluate(
+      (urls) => {
+        const el = document.querySelector('.post-creation-section');
+        let c = el?.__vueParentComponent;
+        while (c && !c.setupState?.postImages) c = c.parent;
+        if (!c) return { ok: false, reason: 'no host component' };
+        c.setupState.postImages = urls.map((url, i) => ({
+          uploadId: `probe-album-${i}`,
+          localPreviewUrl: url,
+          url,
+          uploadedUrl: url,
+          uploadStatus: 'approved',
+          name: `probe-${i}.png`,
+          width: 900,
+          height: 1200,
+        }));
+        return { ok: true, count: urls.length };
+      },
+      SPECS.slice(0, 3).map((s) => svg(s.w, s.h, s.color, s.label)),
+    );
+    await page.waitForTimeout(600);
+
+    if (!seeded.ok) {
+      skipped('C7–C11 逐张配字', seeded.reason || '注入假图失败');
     } else {
-      const stepLabels = (await page.locator('.album-step .album-step-copy b').allInnerTexts())
-        .map((t) => t.trim())
-        .join('|');
-      check(
-        'C7 三步步骤条：建本 / 选照片 / 写第一篇',
-        stepLabels === '建本|选照片|写第一篇',
-        stepLabels,
-      );
-      const activeStep = (
-        await page
-          .locator('.album-step.is-active .album-step-copy b')
-          .innerText()
-          .catch(() => '')
-      ).trim();
-      const coverOn = await page.locator('.album-cover').count();
-      const nameInputOn = await page.locator('.album-book-input').count();
-      const photoPanelOn = await page.locator('.album-panel-photos').count();
-      check(
-        'C8 第 1 步只出现「建本」面板（书封 + 名称输入）',
-        activeStep === '建本' && coverOn === 1 && nameInputOn === 1 && photoPanelOn === 0,
-        `active=${activeStep} cover=${coverOn} input=${nameInputOn} photos=${photoPanelOn}`,
-      );
-      const publishOn = await page.locator('.editor-footer .post-btn').count();
-      check(
-        'C9 第 1 步没有发布按钮（不能从建本屏直接发出去）',
-        publishOn === 0,
-        `count=${publishOn}`,
-      );
-      await shot(page, 'portrait-04-composer-album');
-      /* 空名点「下一步」必须被拦住：父层 goAlbumStep 的硬校验，
-         没有这道闸门，用户能带着空名一路走到第三步再被 handlePost 拒一次。 */
-      await page.locator('.album-step-next').click();
-      await page.waitForTimeout(500);
-      const stillFirst = (
-        await page
-          .locator('.album-step.is-active .album-step-copy b')
-          .innerText()
-          .catch(() => '')
-      ).trim();
-      check(
-        'C10 空名点「下一步」被拦住（仍停在建本）',
-        stillFirst === '建本',
-        `active=${stillFirst}`,
-      );
-      await page
-        .locator('.alert-confirm-btn')
-        .click()
-        .catch(() => {});
-      await page.waitForTimeout(350);
+      const partsOn = await page.locator('.album-parts').count();
+      check('C7 图文格式 + 有图 ⇒ 出现逐张配字区', partsOn === 1, `parts=${partsOn}`);
 
-      /* 填个名字再推进：第 2 步必须只剩「选照片」，且发布按钮仍然不在场。 */
-      await page.locator('.album-book-input').fill('探针影集');
-      await page.locator('.album-step-next').click();
-      await page.waitForTimeout(600);
-      const secondActive = (
-        await page
-          .locator('.album-step.is-active .album-step-copy b')
-          .innerText()
-          .catch(() => '')
-      ).trim();
-      const emptyArt = await page.locator('.album-photo-empty').count();
-      const publishOn2 = await page.locator('.editor-footer .post-btn').count();
+      const bigPhoto = await page.locator('.album-part-photo').count();
+      check('C8 逐张配字区没有左侧大图（只留缩略图条 + 字段）', bigPhoto === 0, `big=${bigPhoto}`);
+
+      const partsH = await page.evaluate(() => {
+        const el = document.querySelector('.album-parts');
+        return el ? Math.round(el.getBoundingClientRect().height) : 0;
+      });
+      check('C9 逐张配字区 ≤460px（不再吃掉整屏）', partsH > 0 && partsH <= 460, `h=${partsH}`);
+
+      await page.locator('.album-part-title').first().fill('第一张的标题');
+      await page.waitForTimeout(300);
+
+      /* 配字字段的字体 = 发布后卡片的字体（同一份 ALBUM_FONT_STACK）。
+         ⚠️ 断言 computed fontFamily 而不是「有没有写某条规则」：
+         `.editor-card input/textarea { font-family: inherit }` 特异性更高，写错位置就静默不生效。 */
+      const previewFont = await page.evaluate(() => {
+        const el = document.querySelector('.album-part-title');
+        return el ? getComputedStyle(el).fontFamily : '';
+      });
       check(
-        'C11 填名后可进第 2 步（选照片空态 + 无发布按钮）',
-        secondActive === '选照片' && emptyArt === 1 && publishOn2 === 0,
-        `active=${secondActive} empty=${emptyArt} publish=${publishOn2}`,
+        'C9b 配字字段预览用宋体（与发布后同栈）',
+        /Songti|SimSun|serif/i.test(previewFont) && !/PingFang|sans-serif/i.test(previewFont),
+        previewFont,
       );
-      await shot(page, 'portrait-05-composer-album-photos');
 
-      /* 第三步要验「照片在左、字段在右」的对照版式，但真机上传要过压缩/审核链路。
-         这里直接把假图塞进宿主组件的 postImages（与列表注入同一思路，只验版式）。 */
-      const seeded = await page.evaluate(
-        (urls) => {
-          const el = document.querySelector('.post-creation-section');
-          let c = el?.__vueParentComponent;
-          while (c && !c.setupState?.postImages) c = c.parent;
-          if (!c) return { ok: false, reason: 'no host component' };
-          c.setupState.postImages = urls.map((url, i) => ({
-            uploadId: `probe-album-${i}`,
-            localPreviewUrl: url,
-            url,
-            uploadedUrl: url,
-            uploadStatus: 'approved',
-            name: `probe-${i}.png`,
-            width: 900,
-            height: 1200,
-          }));
-          return { ok: true, count: urls.length };
-        },
-        SPECS.slice(0, 3).map((s) => svg(s.w, s.h, s.color, s.label)),
+      await page.locator('.composer-mode-btn', { hasText: '常规' }).click();
+      await page.waitForTimeout(450);
+      const partsInPost2 = await page.locator('.album-parts').count();
+      const titleInPost = await page.locator('.post-title-input').inputValue();
+      check(
+        'C10 切回常规：配字区收起、标题仍在',
+        partsInPost2 === 0 && titleInPost === '切格式不丢内容',
+        `parts=${partsInPost2} title=${titleInPost}`,
       );
-      await page.waitForTimeout(500);
 
-      if (!seeded.ok) {
-        skipped('C13–C14 第 3 步版式', seeded.reason || '注入假图失败');
-      } else {
-        await page.locator('.album-step-next').click();
-        await page.waitForTimeout(600);
-        const thirdActive = (
-          await page
-            .locator('.album-step.is-active .album-step-copy b')
-            .innerText()
-            .catch(() => '')
-        ).trim();
-        const spread = await page.locator('.album-part-spread').count();
-        const bigPhoto = await page.locator('.album-part-photo img').count();
-        const publishLabel = (
-          await page
-            .locator('.mobile-composer-submit-label')
-            .innerText()
-            .catch(() => '')
-        ).trim();
-        /* 发布出口在顶栏（`.mobile-composer-overlay .editor-footer .post-btn` 被刻意隐藏），
-           所以读顶栏那颗 —— 读底栏的 post-btn 等于没验。 */
-        check(
-          'C13 有图后可进第 3 步（逐张配字 + 大图对照 + 顶栏切到发布）',
-          thirdActive === '写第一篇' && spread === 1 && bigPhoto === 1 && publishLabel === '发布',
-          `active=${thirdActive} spread=${spread} photo=${bigPhoto} publish=${publishLabel}`,
-        );
-        const stepNextGone = await page.locator('.album-step-next').count();
-        check(
-          'C14 第 3 步不再有「下一步」（只剩发布）',
-          stepNextGone === 0,
-          `count=${stepNextGone}`,
-        );
-        await shot(page, 'portrait-06-composer-album-write');
-
-        /* 同一个会话拉到横屏：第 3 步必须变成「照片左、字段右」，
-           这是三步流程里唯一真正用得上宽度的版式。 */
-        await page.setViewportSize({ width: 1280, height: 800 });
-        await page.waitForTimeout(700);
-        const spreadRow = await page.evaluate(() => {
-          const photo = document.querySelector('.album-part-photo');
-          const fields = document.querySelector('.album-part-fields');
-          const steps = document.querySelector('.album-steps');
-          if (!photo || !fields) return null;
-          const p = photo.getBoundingClientRect();
-          const f = fields.getBoundingClientRect();
-          return {
-            photoRight: Math.round(p.right),
-            fieldsLeft: Math.round(f.left),
-            sameRow: Math.abs(p.top - f.top) < 40,
-            stepsW: steps ? Math.round(steps.getBoundingClientRect().width) : 0,
-            vw: window.innerWidth,
-          };
-        });
-        check(
-          'C15 横屏第 3 步：照片在左、字段在右（并排）',
-          !!spreadRow &&
-            spreadRow.fieldsLeft >= spreadRow.photoRight - 2 &&
-            spreadRow.sameRow &&
-            spreadRow.stepsW <= spreadRow.vw,
-          JSON.stringify(spreadRow),
-        );
-        /* 横屏卡片是可滚动的一屏，先滚到对照区再截图 —— 不然截到的是配文区 */
-        await page
-          .locator('.album-part-spread')
-          .scrollIntoViewIfNeeded()
-          .catch(() => {});
-        await page.waitForTimeout(400);
-        /* 「上一步」不能因为底栏变成 inline-flex 就被挤出去（实测过一版横屏看不见它） */
-        const backBox = await page
-          .locator('.album-step-back')
-          .boundingBox()
-          .catch(() => null);
-        const rowBox = await page.evaluate(() => {
-          const row = document.querySelector('.composer-submit-row');
-          const btn = document.querySelector('.composer-submit-row .post-btn');
-          if (!row || !btn) return null;
-          const r = row.getBoundingClientRect();
-          const b = btn.getBoundingClientRect();
-          return {
-            rowLeft: Math.round(r.left),
-            rowRight: Math.round(r.right),
-            btnLeft: Math.round(b.left),
-            btnRight: Math.round(b.right),
-            vw: window.innerWidth,
-          };
-        });
-        check(
-          'C16 横屏底栏「上一步」仍在视口内（没被发布按钮挤掉）',
-          !!backBox &&
-            backBox.width > 0 &&
-            backBox.x >= 0 &&
-            backBox.x + backBox.width <= (rowBox?.vw || 1280) + 1,
-          `back=${JSON.stringify(backBox && { x: Math.round(backBox.x), w: Math.round(backBox.width) })} row=${JSON.stringify(rowBox)}`,
-        );
-        await shot(page, 'landscape-03-composer-album-write');
-      }
+      await page.locator('.composer-mode-btn', { hasText: '图文' }).click();
+      await page.waitForTimeout(450);
+      const entryBack = await page.locator('.album-part-title').first().inputValue();
+      check('C11 再切回图文：逐张配字原样恢复', entryBack === '第一张的标题', entryBack);
     }
-    skipped('C12 分篇编辑区（.album-parts）', '需要真实上传照片；本探针用注入假图验版式');
+    await shot(page, 'portrait-03-format');
   }
 
   check('D0 竖屏无 JS 报错', errors.length === 0, errors.join(' | ').slice(0, 240));
@@ -593,7 +491,7 @@ const forceLogin = async (page) => {
       .innerText()
       .catch(() => '')
   ).replace(/\s+/g, ' ');
-  check('D2b 横屏卡片底部「共 5 张照片 · 翻开阅读」', /共 5 张照片/.test(moreText), moreText);
+  check('D2b 横屏卡片底部「共 5 张照片 · 查看」', /共 5 张照片/.test(moreText), moreText);
 
   await page.locator('.album-card').click();
   await page.waitForSelector('.album-reader', { timeout: 8000 }).catch(() => {});

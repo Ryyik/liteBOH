@@ -1,5 +1,5 @@
 /**
- * forum-album.test.js — 锁影集帖的「A 投影」数据契约
+ * forum-album.test.js — 锁图文帖的「A 投影」数据契约
  *
  * 事故/动机：影集帖最容易走成「再存一份图片地址」的第三份副本（plans/039 §9.2
  * 实测过 forum_post_images ↔ boh_cloud_entries 的单向漂移）。本文件锁三件事：
@@ -8,15 +8,14 @@
  *   3. 空 entries = 普通帖（`isAlbumPost` 是唯一判据，不认 post_kind）。
  */
 import { describe, expect, it } from 'vitest';
+import * as mod from '../../src/utils/forum-album.js';
 import {
-  ALBUM_INTRO_MAX,
+  ALBUM_FONT_STACK,
   ALBUM_MAX_ENTRIES,
   buildEmptyAlbumEntries,
   getAlbumEntry,
   getAlbumPhotoCount,
-  hasAlbumBook,
   isAlbumPost,
-  normalizeAlbumBook,
   normalizeAlbumEntries,
   syncAlbumEntriesToCount,
   toAlbumEntriesRpcPayload,
@@ -95,7 +94,7 @@ describe('影集帖 —— 数据契约', () => {
 
   it('发布校验：图必传（1..10），配文可空（2026-11-15 流程）', () => {
     expect(validateAlbumDraft({ entries: [], imageCount: 0 }).code).toBe('NO_IMAGE');
-    // 只传图、一句字都不写也允许 —— 名称/简介在初次建本时已经写过
+    // 只传图、一句字都不写也允许（配文可空）
     expect(validateAlbumDraft({ entries: buildEmptyAlbumEntries(2), imageCount: 2 }).ok).toBe(true);
     expect(validateAlbumDraft({ entries: [], imageCount: 2 }).ok).toBe(true);
     expect(
@@ -103,12 +102,21 @@ describe('影集帖 —— 数据契约', () => {
     ).toBe('TOO_MANY_IMAGES');
     expect(validateAlbumDraft({ entries: [{ title: 'A' }], imageCount: 1 }).ok).toBe(true);
   });
+});
 
-  it('影集本体：名称决定「是否已建本」，简介裁剪到上限', () => {
-    expect(hasAlbumBook({ title: '', intro: 'x' })).toBe(false);
-    expect(hasAlbumBook({ title: '山河有信' })).toBe(true);
-    const book = normalizeAlbumBook({ album_title: '  山河有信  ', album_intro: 'a'.repeat(400) });
-    expect(book.title).toBe('山河有信');
-    expect(book.intro.length).toBe(ALBUM_INTRO_MAX);
+/** 字体（2026-11-16 第二次定稿）：图文帖只留宋体，不给选择、不落库。
+ * 锁住「渲染层读的那份栈确实是宋体」—— 卡片、阅读层、发帖器预览三处都读它，
+ * 谁把这一行改成黑体，这条断言就该红。 */
+describe('图文帖 —— 字体固定宋体', () => {
+  it('字体栈里有宋体族，且不以无衬线收尾', () => {
+    expect(ALBUM_FONT_STACK).toMatch(/Songti SC|SimSun/);
+    expect(ALBUM_FONT_STACK.trim().endsWith('serif')).toBe(true);
+  });
+
+  it('不再导出可选项 / 选择器（防止「只留宋体」被悄悄加回三档）', () => {
+    expect(mod.ALBUM_FONTS).toBeUndefined();
+    expect(mod.normalizeAlbumFont).toBeUndefined();
+    expect(mod.getAlbumFont).toBeUndefined();
+    expect(mod.getAlbumFontStack).toBeUndefined();
   });
 });

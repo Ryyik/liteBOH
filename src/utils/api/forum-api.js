@@ -6,8 +6,6 @@ export {
   createPostWithImages,
   createPost,
   createAlbumPost,
-  getAlbumBook,
-  setAlbumBook,
   getForumPostDraft,
   upsertForumPostDraft,
   deleteForumPostDraft,

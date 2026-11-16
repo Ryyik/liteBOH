@@ -35,9 +35,10 @@ export interface ForumSectionItem {
 export const FORUM_SECTION_ITEMS: ForumSectionItem[] = [
   { id: 'official', label: '官方' },
   { id: 'latest', label: '最新' },
-  /* 2026-11-15：影集与帖子平级 —— 影集是一个普通功能（不是付费权益），
-     分区只筛 `posts.is_album`，不另建表。一人一本、本内帖数无上限。 */
-  { id: 'album', label: '影集' },
+  /* 2026-11-16：**影集不再是分类** —— 图文降级为发帖格式（常规 / 图文），
+     图文帖照常混在「最新」里，点开才看出是多图配字。
+     id 'album' 仍留在 FORUM_SECTION_IDS 里（旧深链 `?view=album` 仍能渲染，
+     只筛 `posts.is_album`），与已撤席的 activity 同一口径 —— 别删那个 id。 */
   { id: 'following', label: '关注' },
   /* 2026-10-22：「新闻」「活动」两席合并为「资讯」——
      **指的是论坛里官方的新闻 + 活动内容**，不是跳去 /newsroom 资讯页。
