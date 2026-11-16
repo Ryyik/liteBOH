@@ -149,6 +149,7 @@ import {
   FORUM_TAG_OPTIONS,
   LIST_REPLY_PREVIEW_COUNT,
   POSTS_PER_PAGE,
+  buildForumFeedParams,
 } from './forum-config.js';
 import { applyPoints, readPoints } from './forum-points.js';
 import { getBohAIModelStatus } from '@/utils/bohai-model-client.js';
@@ -2468,9 +2469,11 @@ const fetchForumData = async (isLoadMore = false, { background = false } = {}) =
         return;
       }
     }
-    const pagination = {
+    /* 参数走 buildForumFeedParams() 单源 —— 首页开场画期间的预发
+       （views/Forum/forum-feed-prefetch.js）要靠**逐字一致**的 params 才能命中
+       request-core 的在途去重。改这里的任何一项，预发那边会变成多发一笔请求。 */
+    const pagination = buildForumFeedParams({
       page: pageToLoad,
-      pageSize: POSTS_PER_PAGE,
       sortMode: sortMode.value,
       searchQuery: searchKeyword.value.trim(),
       tagFilter: selectedTagFilter.value,
@@ -2478,14 +2481,13 @@ const fetchForumData = async (isLoadMore = false, { background = false } = {}) =
       kindFilter: selectedContentType.value,
       // 影集分区：只取 is_album 的帖子（走直连表，RPC 的返回体没有 album_entries）
       albumOnly: albumOnlyFeed.value,
-      cursorMode: 'keyset',
       cursor: isLoadMore ? nextPageCursor.value : '',
       signal: abortController.signal,
       // 旧版降级查询会使用 overfetch 判断 hasMore；RPC 路径会忽略该值避免翻页错位。
       limit: POSTS_PER_PAGE + 1,
       includeUnapprovedForAuthor: viewMode.value === 'my',
       followingUserIds,
-    };
+    });
 
     if (viewMode.value === 'my' && isLoggedIn.value) {
       dataResult = await getUserPosts(userInfo.id, currentUserId, pagination);

@@ -30,3 +30,48 @@ export const FORUM_TAG_OPTIONS = [
   { value: 'question', label: '#提问' },
 ];
 export const FORUM_TAG_MAP = Object.fromEntries(FORUM_TAG_OPTIONS.map((tag) => [tag.value, tag]));
+
+/* ============================================================
+ * 首屏 feed 请求参数 —— 唯一真源（2026-11-16，A1 预发的配套）
+ *
+ * 为什么必须是单源：`getPosts` 最终走 `executeRead('posts.getPosts', {…})`，
+ * 而 request-core 的 in-flight 去重与缓存命中**只认 params 的稳定序列化**
+ * （`buildRequestKey` 按键名排序后 JSON.stringify）。所以「开场画期间预发一份」
+ * 和「ForumMain 挂载后再要一份」只有**逐字一致**才是"命中在途"，差一个字段
+ * 就变成"多发一笔请求" —— 那比不预发还糟。
+ *
+ * ⚠️ 默认值必须等于 ForumMain 首次进入时的状态（`viewMode='all'` / `sortMode='latest'`
+ *    / 无搜索无标签 / 非影集 / keyset 游标首页）。它**不是**通用默认值工厂，
+ *    别拿它拼筛选态请求 —— 那种情况请把对应的 reactive 值显式传进来。
+ * ⚠️ `cursorMode: 'keyset'` 不是可选项：RPC 路径与直连表路径的返回结构不同，
+ *    首页默认走 keyset 直连表（见 post-api 的 useCursorMode 判定）。
+ * ============================================================ */
+export function buildForumFeedParams({
+  page = 1,
+  sortMode = 'latest',
+  searchQuery = '',
+  tagFilter = '',
+  kindFilter = '',
+  albumOnly = false,
+  cursor = '',
+  signal,
+  limit = POSTS_PER_PAGE + 1,
+  includeUnapprovedForAuthor = false,
+  followingUserIds,
+} = {}) {
+  return {
+    page,
+    pageSize: POSTS_PER_PAGE,
+    sortMode,
+    searchQuery,
+    tagFilter,
+    kindFilter,
+    albumOnly,
+    cursorMode: 'keyset',
+    cursor,
+    signal,
+    limit,
+    includeUnapprovedForAuthor,
+    followingUserIds,
+  };
+}

@@ -65,6 +65,7 @@ import {
   resolveExternalFeed,
   resolveForumSection,
 } from '@/config/forum-sections';
+import { prefetchForumFirstPage } from '@/views/Forum/forum-feed-prefetch.js';
 
 const props = defineProps({
   /** 当前分区（v-model:section） */
@@ -88,6 +89,14 @@ const externalFeed = computed(() => resolveExternalFeed(section.value));
 const forumViewRef = ref(null);
 // 官方分区惰性挂载：访问过才渲染插槽（英雄区渲染层因此不进首屏）
 const officialVisited = ref(false);
+
+/* 首屏 feed 预发（A1，2026-11-16）：本壳是首页 `/` 与 user-space「方块」两个宿主的
+   **共同父级**，在这里（setup 同步体）发，等于「宿主 chunk 一到就发」，比等
+   AsyncForum chunk 下载 + 解析完、ForumMain 挂载之后才发，早一整段。
+   实测第一条数据请求与 ForumMain chunk 完成只差 30–40ms ⇒ 提前的正是那段空窗。
+   只在默认分区（最新）预发：关注 / 新闻 / 活动 / 影集会带不同筛选参数，key 不一致，
+   预发等于白打一笔（`buildForumFeedParams` 的默认值只覆盖默认分区）。 */
+if (section.value === FORUM_DEFAULT_SECTION) prefetchForumFirstPage();
 
 // 最新/关注/新闻/活动互切：内容做一次轻淡入脉冲（配合页签弹性指示条）
 const feedSwitchPulse = ref(false);
