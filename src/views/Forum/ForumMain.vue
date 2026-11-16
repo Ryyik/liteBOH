@@ -13,6 +13,7 @@ import {
 } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { invalidateByTags } from '@/utils/request-core.js';
+import { runWhenIdle } from '@/utils/idle-task.js';
 import {
   ArrowUpRight,
   BookOpen,
@@ -394,6 +395,11 @@ const {
 
 // ===== 广告：列表信息流（当前落地订阅计划广告）=====
 const { ads: activeAds, load: loadActiveAds } = useActiveAds('list_feed');
+/** 右栏周报 + 信息流广告的「延后取数」状态（见 startDeferredSidebarLoad） */
+let cancelDeferredSidebarLoad = null;
+let deferredSidebarFallbackTimer = null;
+let stopDeferredSidebarWatch = null;
+let deferredSidebarStarted = false;
 
 // 在可见帖子流中按 feed_interval 间隔插入广告卡片；广告项不带 data-forum-virtual-index，
 // 因此不影响虚拟滚动的窗口观测与滚动位置对齐
@@ -1631,11 +1637,29 @@ onMounted(() => {
   // 草稿跨实例同步：另一个宿主实例保存/清空草稿时，本实例跟着收敛（见 draftHostId 区块）
   window.addEventListener(FORUM_POST_DRAFT_CHANGE_EVENT, applyExternalDraftChange);
 
+  /* 周报（右栏）与广告（第 5 条之后）都不在首屏可见区，却原本和 feed 同一 tick 发请求。
+     实测（2026-11-16，本地 dev 探针）：挂载后 6 条请求同时在空中 ——
+     avatar_frames / news / activities / posts / forum_weekly_reports / advertisements，
+     request-core 的 6 个并发槽正好被占满，紧随其后的 get_user_subscription_tiers 与
+     comments 只能排队等槽位。
+     ⇒ 改成「首屏 feed 落地（isLoading 由真变假）之后再取」。
+       ⚠️ 只用 requestIdleCallback 不够：主线程空闲时它 5ms 就会触发（实测周报 823ms
+         与 posts 818ms 几乎同时），必须挂在「feed 落地」这个真实信号上。
+       ⚠️ 必须先建 watch 再调 initializeForumData：命中会话快照的分支会**同步**把
+         isLoading 置假，晚建 watch 就永远收不到这次状态变化（只剩 6s 兜底）。
+     isWeeklyReportLoading 先置真 ⇒ 骨架屏高度不变，延后不会引起布局位移；
+     广告插在第 5 条帖子之后（feed_interval 默认 5，最少 2），落在首屏折叠线以下，
+     晚到也不会顶动可见内容。
+     6000ms 兜底：feed 请求挂死时不能让周报永远停在骨架屏。 */
+  isWeeklyReportLoading.value = true;
+  stopDeferredSidebarWatch = watch(isLoading, (loading) => {
+    if (!loading) startDeferredSidebarLoad();
+  });
+  deferredSidebarFallbackTimer = window.setTimeout(startDeferredSidebarLoad, 6000);
+
   void initializeForumData();
   setupForumLoadMoreObserver();
   setupForumWindowObserver();
-  loadForumWeeklyReport();
-  loadActiveAds();
   if (isLoggedIn.value) {
     loadWeeklyCheckinStatus();
     scheduleForumImageModerationPreload();
@@ -1705,6 +1729,14 @@ onDeactivated(() => {
 
 onUnmounted(() => {
   cancelIdleReplyPrefetch();
+  cancelDeferredSidebarLoad?.();
+  cancelDeferredSidebarLoad = null;
+  stopDeferredSidebarWatch?.();
+  stopDeferredSidebarWatch = null;
+  if (deferredSidebarFallbackTimer) {
+    clearTimeout(deferredSidebarFallbackTimer);
+    deferredSidebarFallbackTimer = null;
+  }
   stopForumVirtualFeed();
   anniversaryObserver?.disconnect();
   anniversaryObserver = null;
@@ -2567,6 +2599,29 @@ const loadForumWeeklyReport = async () => {
   } finally {
     isWeeklyReportLoading.value = false;
   }
+};
+
+/**
+ * 首屏 feed 落地后，再把右栏周报与信息流广告放进空闲队列取。
+ * 幂等：watch(isLoading) 与 6s 兜底定时器都会调它，只会真正跑一次。
+ */
+const startDeferredSidebarLoad = () => {
+  if (deferredSidebarStarted) return;
+  deferredSidebarStarted = true;
+  stopDeferredSidebarWatch?.();
+  stopDeferredSidebarWatch = null;
+  if (deferredSidebarFallbackTimer) {
+    clearTimeout(deferredSidebarFallbackTimer);
+    deferredSidebarFallbackTimer = null;
+  }
+  cancelDeferredSidebarLoad = runWhenIdle(
+    () => {
+      cancelDeferredSidebarLoad = null;
+      void loadForumWeeklyReport();
+      void loadActiveAds();
+    },
+    { timeout: 2000 },
+  );
 };
 
 const formatReportPeriod = (report) => {

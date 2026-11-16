@@ -523,6 +523,8 @@ watch(
               alt="作者头像"
               class="avatar-image"
               loading="lazy"
+              decoding="async"
+              fetchpriority="low"
             />
             <span v-else>{{
               post.author_username ? post.author_username.charAt(0).toUpperCase() : 'U'
@@ -825,6 +827,8 @@ watch(
                   alt="回复者头像"
                   class="avatar-image"
                   loading="lazy"
+                  decoding="async"
+                  fetchpriority="low"
                 />
                 <span v-else>{{
                   reply.author_username ? reply.author_username.charAt(0).toUpperCase() : 'U'
