@@ -34,7 +34,6 @@ const mockSupabase = {
 vi.mock('@/utils/auth.js', () => ({
   supabase: mockSupabase,
   signIn: vi.fn(),
-  signInWithOAuth: vi.fn(),
   signOut: vi.fn(),
   resetPassword: vi.fn(),
   verifyPasswordRecovery: vi.fn(),

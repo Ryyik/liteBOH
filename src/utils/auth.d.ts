@@ -53,9 +53,13 @@ export function signIn(
   } | null>
 >;
 
-export function signInWithOAuth(provider: string): Promise<{ error: AuthApiError | null }>;
-
-export function resetPassword(email: string): Promise<{ error: AuthApiError | null }>;
+export function resetPassword(email: string): Promise<{
+  ok: boolean;
+  data?: unknown;
+  error: AuthApiError | null;
+  /** 429 频控剩余秒数（登录页「忘记密码」倒计时用） */
+  retryAfterSeconds?: number;
+}>;
 
 export function verifyPasswordRecovery(tokenHash: string): Promise<{ error: AuthApiError | null }>;
 
@@ -68,7 +72,10 @@ export function deleteMyAccount(
   password: string,
 ): Promise<AuthApiResult<{ message?: string; code?: string }>>;
 
-export function signOut(): Promise<SignOutResult>;
+export function signOut(scope?: 'local' | 'global' | 'others'): Promise<SignOutResult>;
+
+/** 退出其他所有设备（保留当前会话），用于「账户安全 → 登录设备」 */
+export function signOutOtherDevices(): Promise<SignOutResult>;
 
 export function getCurrentUser(): Promise<{ id: string; [key: string]: unknown } | null>;
 

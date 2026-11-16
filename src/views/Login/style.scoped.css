@@ -151,6 +151,14 @@
   color: #0071e3;
 }
 
+/* 「忘记密码」频控倒计时（2026-11-16）：a 没有 disabled，用 aria-disabled 表达
+   「现在点不动」，同时保留可见文案（N 秒后可重试）—— 直接隐藏会让用户以为功能没了。 */
+.boh-form-links a[aria-disabled='true'] {
+  opacity: 0.45;
+  pointer-events: none;
+  cursor: default;
+}
+
 /* 邮箱输入容器样式 */
 .email-input-container {
   position: relative;

@@ -50,6 +50,8 @@ export interface AsyncOpResult {
   success: boolean;
   message: string;
   code?: string;
+  /** 服务端频控剩余秒数（忘记密码 429 时给出），用于按钮倒计时 */
+  retryAfterSeconds?: number;
 }
 
 // --- Bag Store ---

@@ -9,6 +9,7 @@ import {
 import { logger } from '../utils/logger.js';
 import { reportUnknownRoute } from '../utils/monitoring.js';
 import { recallRouteScroll, rememberRouteScroll } from '../utils/route-scroll-memory.js';
+import { rememberLoginTarget } from '../utils/login-redirect.js';
 import { adminRoutes } from './routes/admin';
 import { communityRoutes } from './routes/community';
 import { compatRoutes } from './routes/compat';
@@ -165,6 +166,8 @@ router.beforeEach(async (to, from, next) => {
 
   if (requiresLogin && !isLoggedIn) {
     // 受保护路由也使用全局登录灵动岛；保留当前页面，登录成功后用户无需重新寻找入口。
+    // 同时记下目标地址：登录成功后由 views/Login 消费一次并回跳（2026-11-16 B3）。
+    rememberLoginTarget(to.fullPath);
     authStore.showLoginModal = true;
     return from.name ? next(false) : next('/');
   }
@@ -187,6 +190,7 @@ router.beforeEach(async (to, from, next) => {
 
   if (requiresAdmin) {
     if (!isLoggedIn) {
+      rememberLoginTarget(to.fullPath);
       authStore.showLoginModal = true;
       return from.name ? next(false) : next('/');
     }

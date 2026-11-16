@@ -2,6 +2,7 @@
 import { watch, onMounted, onUnmounted, ref, computed } from 'vue';
 import { createPanelAsync, AsyncPanelNotice } from '@/utils/async-component.js';
 import { useRoute, useRouter } from 'vue-router';
+import { registerAuthSoftResetHandler } from '@/composables/use-auth-soft-reset.js';
 import Footer from './components/Footer.vue';
 import { isGlobalNavbarVisible } from '@/utils/global-navbar-visibility.js';
 import { homeGateScreening } from '@/composables/useHomeGate.js';
@@ -213,6 +214,22 @@ const handleBoundaryRecover = () => {
   boundaryErrored.value = false;
   boundaryKey.value += 1;
 };
+
+/**
+ * 退出登录的软重置入口（2026-11-16 C1）
+ *
+ * `logoutAndReload` 清完 pinia 后不再 `location.reload()`，而是走到这里：
+ * 把页面树整体重挂一次（连带销毁路由级 KeepAlive 缓存），再回到 `/`。
+ * 组件因此以游客身份重新取数 —— 与整页刷新等价，但省掉 HTML/JS/CSS 的重新下载和白屏。
+ *
+ * 注意：**不需要**在这里清 request 缓存，`signOut()` 已经 `invalidateByTags` 了
+ * auth/notifications/profiles/posts/comments/messages/weekly-checkin 七个 tag。
+ */
+registerAuthSoftResetHandler(({ redirect }) => {
+  boundaryErrored.value = false;
+  boundaryKey.value += 1;
+  if (redirect && route.path !== redirect) void router.replace(redirect);
+});
 const { showLoginModal, isLoggedIn, isInitialized } = storeToRefs(authStore);
 const userInfo = authStore.userInfo;
 const notificationStoreRef = getNotificationStoreRef();

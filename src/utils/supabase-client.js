@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { authStorage } from './auth-storage.js';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -16,7 +17,6 @@ function resolveTimeout(method, input) {
   const upper = String(method || '').toUpperCase();
   return READ_METHODS.has(upper) ? SUPABASE_READ_TIMEOUT_MS : SUPABASE_WRITE_TIMEOUT_MS;
 }
-const authStorage = typeof window !== 'undefined' ? window.localStorage : undefined;
 
 function normalizeSupabaseImplicitHashCallback() {
   if (typeof window === 'undefined') return;

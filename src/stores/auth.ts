@@ -120,6 +120,7 @@ const loadResetStores = async () => {
       import('@/stores/notifications'),
       import('@/stores/bag'),
       import('@/stores/products'),
+      import('@/stores/homeHeroes'),
     ]);
   }
   return resetStoresPromise;
@@ -439,6 +440,12 @@ export const useAuthStore = defineStore(
 
       sessionHeartbeatTimer = setInterval(async () => {
         if (!isLoggedIn.value) return;
+        // 页面隐藏时挂起（2026-11-16）：后台标签每 2 分钟一次 getSession + profiles
+        // （30 列）+ 每日签到状态 RPC，纯浪费流量和电量，浏览器的后台节流也让它
+        // 变成「随机延迟的请求」。切回可见时 handleVisibilityChange 已经会立刻补跑
+        // 一次 syncAuthState + updateOnlineStatus（见 ensureBrowserLifecycleSync），
+        // 且「离开时把 last_active_at 顶到 now」是另一条独立逻辑，不受这里影响。
+        if (document.visibilityState === 'hidden') return;
         void syncAuthState({ reason: 'heartbeat', force: false });
         void updateOnlineStatus();
       }, SESSION_HEARTBEAT_INTERVAL_MS);
@@ -918,17 +925,22 @@ export const useAuthStore = defineStore(
       return { success: true, message: '登录成功' };
     };
 
-    const loginWithOAuth = async (provider: string): Promise<AsyncOpResult> => {
-      const { signInWithOAuth } = await loadAuthApi();
-      const { error } = await signInWithOAuth(provider);
-      if (error) return { success: false, message: error.message };
-      return { success: true, message: '' };
-    };
+    // 第三方 OAuth 登录已整体移除（2026-11-16）：理由与将来启用前置条件写在
+    // `utils/api/auth-api.js` 的 signInWithOAuth 原位置注释里。别在这里恢复包装层。
 
     const resetPassword = async (email: string): Promise<AsyncOpResult> => {
       const { resetPassword: supabaseResetPassword } = await loadAuthApi();
-      const { error } = await supabaseResetPassword(email);
-      if (error) return { success: false, message: error.message };
+      // retryAfterSeconds 必须透传：登录页据此做「N 秒后可重试」倒计时，
+      // 否则用户只会对着同一句 429 提示反复点。
+      const { error, retryAfterSeconds } = await supabaseResetPassword(email);
+      if (error) {
+        return {
+          success: false,
+          message: error.message,
+          code: error.code,
+          retryAfterSeconds,
+        };
+      }
       return { success: true, message: '重置链接已发送到您的邮箱' };
     };
 
@@ -985,9 +997,10 @@ export const useAuthStore = defineStore(
      * 退出登录。
      *
      * @param {{ reset?: boolean }} [options]
-     *   reset=false：**跳过多余的 pinia 清理**。只有「登录页外那条先退出再整页重载」的路径
-     *   （utils/logout-and-reload.js）该用它 —— reload 会把整张 pinia 连同组件树一起重建，
-     *   清理那三个 store（还带动态 import）纯属白等。不重载的退出（如路由守卫里那次）保持默认 true。
+     *   `reset=false` 只在「反正马上整页重载、由 reload 重建 pinia」时成立。
+     *   ⚠️ 2026-11-16 C1 起 `utils/logout-and-reload.js` 已改为**软重置**（不再 reload），
+     *   它必须传 `true` —— 否则上一个账号的 store 会活在下一个访客的页面上。
+     *   不重载的退出（如路由守卫里那次）本来就是默认 true。
      */
     const logout = async ({ reset = true }: { reset?: boolean } = {}): Promise<void> => {
       try {
@@ -1200,13 +1213,21 @@ export const useAuthStore = defineStore(
       profileCacheMeta.fetchedAt = 0;
 
       // 同步清理其他会话相关 store，避免退出后残留旧状态。
+      // ⚠️ 2026-11-16 起退出走「软重置」（不再整页 reload），这些 store 不会被
+      //   reload 顺手清掉 —— 漏一个就会让上一个账号的数据活在下一个访客的页面上。
+      //   homeHeroes 原先有 resetState 却没人调用，是软重置引入后必须补上的一个。
       try {
-        const [notificationStoreModule, bagStoreModule, productsStoreModule] =
-          await loadResetStores();
+        const [
+          notificationStoreModule,
+          bagStoreModule,
+          productsStoreModule,
+          homeHeroesStoreModule,
+        ] = await loadResetStores();
         await Promise.all([
           notificationStoreModule.useNotificationStore().resetState(),
           bagStoreModule.useBagStore().resetState(),
           productsStoreModule.useProductsStore().resetState(),
+          homeHeroesStoreModule.useHomeHeroesStore().resetState(),
         ]);
       } catch (error) {
         logger.warn('auth-store', '清理关联状态失败', error);
@@ -1377,7 +1398,6 @@ export const useAuthStore = defineStore(
       updateLocalState,
       login,
       loginWithPasskey,
-      loginWithOAuth,
       resetPassword,
       verifyPasswordRecovery,
       updatePassword,

@@ -78,6 +78,32 @@ const isSamePasswordError = (errorLike) => {
  */
 const EDGE_FUNCTION_UNAVAILABLE_STATUSES = new Set([0, 404, 501]);
 
+/**
+ * 登录请求的**客户端上限**（2026-11-16）。
+ *
+ * 为什么必须单独加：`supabase.functions.invoke` 走的是 `timeoutFetch` 里的
+ * `SUPABASE_FUNCTION_TIMEOUT_MS`（默认 180000ms，见 utils/supabase-client.js）。
+ * 那是"给大模型流式接口留的"上限，对登录来说意味着：网络半死时按钮会卡在
+ * 「登录中...」整整 3 分钟，用户只会以为页面坏了、反复刷新。
+ *
+ * 超时语义与「凭据错误」「闸门限流」都不同：它**不能**计入失败次数
+ * （UI 的 failedLoginAttempts 只认 INVALID_CREDENTIALS），所以单独给一个 code。
+ */
+const LOGIN_INVOKE_TIMEOUT_MS = 10000;
+const LOGIN_TIMEOUT_SENTINEL = Symbol('auth-login-timeout');
+
+const invokeWithTimeout = (promise, timeoutMs, sentinel) => {
+  let timer = null;
+  return Promise.race([
+    Promise.resolve(promise).finally(() => {
+      if (timer !== null) clearTimeout(timer);
+    }),
+    new Promise((resolve) => {
+      timer = setTimeout(() => resolve(sentinel), timeoutMs);
+    }),
+  ]);
+};
+
 const invokeAuthLoginEdge = async (loginId, password, security = {}) => {
   let response;
   // 风控字段按需携带：服务端只在 requireAltcha 为真时才校验 payload，
@@ -89,12 +115,20 @@ const invokeAuthLoginEdge = async (loginId, password, security = {}) => {
   if (deviceIdHash) body.deviceIdHash = deviceIdHash;
 
   try {
-    response = await supabase.functions.invoke('auth-login', {
-      body,
-    });
+    response = await invokeWithTimeout(
+      supabase.functions.invoke('auth-login', {
+        body,
+      }),
+      LOGIN_INVOKE_TIMEOUT_MS,
+      LOGIN_TIMEOUT_SENTINEL,
+    );
   } catch (invokeError) {
     // FunctionsFetchError / FunctionsRelayError / 网络中断
     return { unavailable: true, status: 0, reason: invokeError?.message || 'invoke_failed' };
+  }
+
+  if (response === LOGIN_TIMEOUT_SENTINEL) {
+    return { unavailable: true, status: 0, reason: 'timeout' };
   }
 
   const { data, error } = response || {};
@@ -372,6 +406,18 @@ export async function signIn(loginId, password, security = {}) {
       status: edge.status,
       reason: edge.reason,
     });
+
+    // 超时与「服务不可用」分开报：前者是网络/上游慢（重试有意义），后者是网关真的没了。
+    if (edge.reason === 'timeout') {
+      return {
+        ok: false,
+        data: null,
+        error: normalizeDbError({
+          code: 'LOGIN_GATEWAY_TIMEOUT',
+          message: '登录请求超时，请检查网络后重试。',
+        }),
+      };
+    }
 
     return {
       ok: false,
@@ -686,22 +732,48 @@ export async function resendSignupConfirmation(email) {
   return { ok: !error, data, error: normalizeDbError(error) };
 }
 
-export async function signInWithOAuth(provider) {
-  const { data, error } = await supabase.auth.signInWithOAuth({
-    provider,
-    options: {
-      redirectTo: window.location.origin,
-    },
-  });
-  return { ok: !error, data, error: normalizeDbError(error) };
-}
+/**
+ * 第三方 OAuth 登录：**刻意不提供**（2026-11-16 决策，原 `signInWithOAuth` 已删除）。
+ *
+ * 删掉而不是留着的三个理由：
+ *   1. 风控旁路 —— 密码登录全部收口在 `auth-login` EF（失败计数 / Altcha / 封禁都在那里），
+ *      OAuth 走 GoTrue 的 /token，等于第二条入口；`docs/2026-11-03-安全整改外部审查.md:69` 已点名。
+ *   2. 首登无身份 —— OAuth 用户没有 profiles 行、没有方块 ID，而社区全链路依赖
+ *      `profiles.username`，接上必须先有「首登设置方块 ID」的流程。
+ *   3. 从未接线 —— UI 里没有任何入口（`docs/2026-09-22-注册页改版方案.md:139` 已记录），
+ *      留着只会让下一个人以为「开箱即用」。
+ * 将来若要启用：先定风控口径（是否并入 auth-login），再补首登引导与回跳落地，别只加两个按钮。
+ */
 
 export async function resetPassword(email) {
   const redirectBase = `${window.location.origin}/#/reset-password`;
   const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
     redirectTo: redirectBase,
   });
-  return { ok: !error, data, error: normalizeDbError(error) };
+
+  // 频控秒数（2026-11-16）：GoTrue 的 429 文案是
+  // "For security purposes, you can only request this after N seconds."，
+  // 但版本/语言变化时可能只剩 status=429。两条都兜住 —— 登录页要把「忘记密码」
+  // 做成倒计时，否则用户只会反复点、反复看到同一句英文错误。
+  if (error) {
+    const matched = String(error.message || '').match(/after\s+(\d+)\s+seconds?/i);
+    const retryAfterSeconds = Number(matched?.[1] || 0) || (Number(error.status) === 429 ? 60 : 0);
+    if (retryAfterSeconds > 0) {
+      return {
+        ok: false,
+        data: null,
+        error: normalizeDbError({
+          ...error,
+          code: 'EMAIL_RATE_LIMIT',
+          message: `邮件发送过于频繁，请 ${retryAfterSeconds} 秒后再试。`,
+        }),
+        retryAfterSeconds,
+      };
+    }
+    return { ok: false, data: null, error: normalizeDbError(error), retryAfterSeconds: 0 };
+  }
+
+  return { ok: true, data, error: null, retryAfterSeconds: 0 };
 }
 
 export async function verifyPasswordRecovery(tokenHash) {
@@ -929,19 +1001,53 @@ export async function deleteMyAccount(password, reason = '') {
   return { ok: true, data: rpcData || { ok: true, code: 'ACCOUNT_DELETED' }, error: null };
 }
 
-export async function signOut() {
+/**
+ * 退出登录。
+ *
+ * ⚠️ `scope` 的默认值从 `global` 改成 `local`（2026-11-16）：
+ *   supabase-js 的默认值是 `{ scope: 'global' }`（GoTrueClient.js 的 signOut），
+ *   意思是**吊销该账号在所有设备上的刷新令牌** —— 在电脑上点一次退出，手机也掉线。
+ *   这个行为对用户完全不可见，而「账户安全 → 登录设备」里又有显式的
+ *   「退出其他所有设备」（scope: 'others'）供需要时使用，所以普通退出按本机处理。
+ *
+ *   scope 语义：
+ *     local  —— 只清本机（令牌到期自然失效），其他设备不受影响
+ *     others —— 吊销其他所有设备，保留当前
+ *     global —— 吊销全部（含当前）
+ */
+export async function signOut(scope = 'local') {
   // 先解绑这台设备的 Web Push 订阅，再登出。
   // 顺序不能反：解绑 RPC 内部用 auth.uid() 判定归属，登出后就没有身份了，
   // 会留下一个「已登出但仍在收上一个账号推送」的设备。
+  let signOutError = null;
   try {
-    const { unbindDeviceOnLogout } = await import('./push-api.js');
-    await unbindDeviceOnLogout();
-  } catch (error) {
-    logger.warn('auth-api', '解绑推送设备失败（忽略）', error);
-  }
+    try {
+      const { unbindDeviceOnLogout } = await import('./push-api.js');
+      await unbindDeviceOnLogout();
+    } catch (error) {
+      logger.warn('auth-api', '解绑推送设备失败（忽略）', error);
+    }
 
-  const { error } = await supabase.auth.signOut();
-  if (!error) {
+    const { error } = await supabase.auth.signOut({ scope });
+    signOutError = error || null;
+  } finally {
+    // ⚠️ 清理必须与「请求是否成功」解耦（2026-11-16）：
+    //   supabase-js 的 `_signOut` 在**请求失败分支**里同样会 `_removeSession()`
+    //   （见 GoTrueClient.js 的 _signOut：非 404/401/403 的错误也会删本地会话）。
+    //   此前只有 `!error` 才 `clearSensitiveLocalStorage()` ⇒ 网络抖动时用户已经被登出，
+    //   `boh_remember_email` / `username` / Cloud+ 共享相册令牌却留在 localStorage，
+    //   共享设备上的下一个人能直接读到。
+    //   判据用「本地是否真的没有会话了」而不是「请求成没成功」：只有极端的
+    //   storage 读取异常才会在失败后仍保留会话，那种情况不清（宁可留着也不误删）。
+    let localSessionGone = false;
+    try {
+      const { data } = await supabase.auth.getSession();
+      localSessionGone = !data?.session;
+    } catch (sessionError) {
+      logger.warn('auth-api', '退出后读取本地会话失败，跳过 PII 清理', sessionError);
+    }
+
+    // 缓存失效本身无副作用，无条件执行：宁可能少用一次缓存，也不要让下一个账号读到上一个账号的数据。
     invalidateByTags([
       'auth',
       'notifications',
@@ -951,9 +1057,24 @@ export async function signOut() {
       'messages',
       'weekly-checkin',
     ]);
-    // 清理本地敏感数据(邮箱/草稿/偏好等),防止共享设备泄露
-    clearSensitiveLocalStorage();
+    if (localSessionGone) clearSensitiveLocalStorage();
   }
+
+  return { ok: !signOutError, error: normalizeDbError(signOutError) };
+}
+
+/**
+ * 退出其他所有设备（**保留当前这台**）。
+ *
+ * 为什么不用 global：`global` 会把当前会话一起吊销 —— 用户点完还得重新登录一次，
+ * 这不是「清理其他设备」该有的行为。`others` 是 GoTrue 为此场景专门提供的 scope。
+ *
+ * 注意：GoTrue 没有「用户侧会话列表」API（只有 service_role 的 /admin/users/:id/sessions），
+ * 所以这里只能做到「一次踢掉其他全部」，做不到「看到列表并逐台下线」——
+ * 后者需要自建设备表 + 吊销 EF，见 docs 里的待办。
+ */
+export async function signOutOtherDevices() {
+  const { error } = await supabase.auth.signOut({ scope: 'others' });
   return { ok: !error, error: normalizeDbError(error) };
 }
 

@@ -11,6 +11,9 @@ import { getLoginDeviceIdHash } from '@/utils/device-trust.js';
 import { canRenderAltcha, getAltchaChallengeUrl } from '@/utils/altcha.js';
 import { getImageUrl } from '@/utils/asset-helper.js';
 import { isPasskeySupported } from '@/utils/api/auth-api.js';
+import { useConfirmDialog } from '@/composables/useConfirmDialog.js';
+import { REMEMBER_ME_STORAGE_KEY, setPersistentSessionEnabled } from '@/utils/auth-storage.js';
+import { consumeLoginTarget } from '@/utils/login-redirect.js';
 import { logger } from '@/utils/logger.js';
 import { Fingerprint } from 'lucide-vue-next';
 import { normalizeLoginId, validateEmail } from '@/utils/auth-validation.js';
@@ -54,6 +57,12 @@ const authError = ref('');
 // 用户看到一串圆点会以为是自己输入的（2026-11-15 实证：同一账号 3 次「密码错」
 // 之后用令牌登录、手打同一个密码却命中 same_password，说明手打是对的）。
 const failedLoginAttempts = ref(0);
+// 「忘记密码」的频控倒计时：服务端 429 会告诉我们还要等几秒（见 auth-api.resetPassword），
+// 这里只负责把它显示成按钮上的倒计时，避免用户反复点、反复失败。
+const forgotCooldownLeft = ref(0);
+const forgotCooldownUntil = ref(0);
+let forgotCooldownTimer = null;
+const { alert: showAlert } = useConfirmDialog();
 const emailInvalid = ref(false);
 const passwordInvalid = ref(false);
 const altchaChallengeUrl = computed(() => getAltchaChallengeUrl('login'));
@@ -106,12 +115,13 @@ const closeAgreementModal = () => {
   showAgreementModal.value = false;
 };
 
-const REMEMBER_ME_STORAGE_KEY = 'boh_remember_me';
 const AGREED_TO_TERMS_KEY = 'boh_agreed_to_terms';
 let loginDeviceIdHashPromise = null;
 
 // 邮箱后缀相关
 const showEmailSuffixes = ref(false);
+// 后缀顺序按使用频率排；**不能有重复项** —— 重复会让 v-for 的 :key 撞车，
+// 同一个后缀渲染成两个按钮（2026-11-16 移除了一处重复的 @qq.com）。
 const emailSuffixes = ref([
   '@qq.com',
   '@163.com',
@@ -122,7 +132,6 @@ const emailSuffixes = ref([
   '@sina.com',
   '@sohu.com',
   '@aliyun.com',
-  '@qq.com',
 ]);
 
 const warmLoginDeviceIdHash = () => {
@@ -207,7 +216,9 @@ const handleClose = () => {
     // 重置表单
     loginForm.loginId = '';
     loginForm.password = '';
-    loginForm.rememberMe = false;
+    // ⚠️ 不要在这里把 rememberMe 置 false（2026-11-16）：它是用户偏好，不是表单内容。
+    // 旧代码这么做，导致「关掉弹窗再打开」就悄悄变成不记住 —— 本次登录会把会话写进
+    // sessionStorage，用户下次开浏览器发现又没登录，却以为自己勾过。
     mobileFormOpen.value = false;
     mobileSuccess.value = false;
     mobileClosing.value = false;
@@ -242,12 +253,20 @@ const handleMobileInputFocus = (event) => {
 };
 
 const finishLoginSuccess = () => {
+  // 登录前被守卫拦下时记过目标地址（router/index.ts 的 rememberLoginTarget）。
+  // 消费即删：下次主动点「登录」不该再跳回上一回的页面。
+  const target = consumeLoginTarget();
+
   if (props.isModal) {
     emit('success');
     handleClose();
-  } else {
-    router.push('/');
   }
+
+  if (target) {
+    void router.replace(target);
+    return;
+  }
+  if (!props.isModal) router.push('/');
 };
 
 // 令牌登录成功：会话已由面板建立（面板 emit('success')），收尾统一在此处理 ——
@@ -324,7 +343,25 @@ const togglePassword = () => {
   showPassword.value = !showPassword.value;
 };
 
+const startForgotCooldown = (seconds) => {
+  const total = Math.max(0, Math.trunc(Number(seconds) || 0));
+  if (!total) return;
+  forgotCooldownUntil.value = Date.now() + total * 1000;
+  forgotCooldownLeft.value = total;
+  if (forgotCooldownTimer) window.clearInterval(forgotCooldownTimer);
+  forgotCooldownTimer = window.setInterval(() => {
+    const left = Math.ceil((forgotCooldownUntil.value - Date.now()) / 1000);
+    forgotCooldownLeft.value = left > 0 ? left : 0;
+    if (left <= 0 && forgotCooldownTimer) {
+      window.clearInterval(forgotCooldownTimer);
+      forgotCooldownTimer = null;
+    }
+  }, 1000);
+};
+
 const handleForgotPassword = async () => {
+  if (forgotCooldownLeft.value > 0) return;
+
   const normalizedLoginId = normalizeLoginId(loginForm.loginId);
   const emailValidationMessage = validateEmail(normalizedLoginId);
   if (emailValidationMessage) {
@@ -336,9 +373,16 @@ const handleForgotPassword = async () => {
   try {
     const result = await resetPassword(normalizedLoginId);
     if (result.success) {
-      alert('重置密码链接已发送至您的邮箱，请查收。');
+      // 用全局对话框而不是原生 alert()：原生弹窗会阻塞主线程、样式与本产品完全不一致，
+      // 在移动端还会挡住状态栏（2026-11-16 统一收口）。
+      await showAlert({
+        title: '重置密码',
+        message: '重置密码链接已发送至您的邮箱，请查收。',
+        tone: 'success',
+      });
     } else {
       authError.value = result.message;
+      if (Number(result.retryAfterSeconds) > 0) startForgotCooldown(result.retryAfterSeconds);
     }
   } catch (_error) {
     authError.value = '发送重置邮件失败，请稍后再试';
@@ -373,6 +417,11 @@ const handleLogin = async () => {
     return;
   }
 
+  // ⚠️ 必须先于 login() 设置：EF 返回后 adoptEdgeSession 会走 supabase.auth.setSession，
+  // 那一步就会把令牌写进 storage —— 晚设一步就写到错误位置，「记住我」等于没生效。
+  // 语义见 utils/auth-storage.js：勾选=localStorage（关浏览器仍登录），不勾=sessionStorage。
+  setPersistentSessionEnabled(loginForm.rememberMe);
+
   // 快照必须在 await 之前取：下面 `await warmLoginDeviceIdHash()` 会让出事件循环，
   // 期间任何对 altchaPayload 的清理都会让真正发出去的证明变成空串。
   const altchaPayloadSnapshot = altchaPayload.value;
@@ -390,7 +439,6 @@ const handleLogin = async () => {
       deviceIdHash: loginDeviceIdHash.value,
     });
     if (result.success) {
-      localStorage.setItem(REMEMBER_ME_STORAGE_KEY, loginForm.rememberMe ? '1' : '0');
       failedLoginAttempts.value = 0;
       showMobileSuccess();
     } else {
@@ -438,9 +486,10 @@ const handlePasskeyLogin = async () => {
   passkeyError.value = '';
 
   try {
+    // 通行密钥没有「记住我」勾选：沿用历史语义 —— 这台设备上的通行密钥登录即视为记住本机。
+    setPersistentSessionEnabled(true);
     const result = await authStore.loginWithPasskey();
     if (result.success) {
-      localStorage.setItem(REMEMBER_ME_STORAGE_KEY, '1');
       showMobileSuccess();
     } else {
       passkeyError.value = result.message || '通行密钥登录失败，请使用密码登录。';
@@ -544,10 +593,18 @@ onUnmounted(() => {
   document.documentElement.style.removeProperty('--boh-visual-height');
   if (mobileSuccessTimer) window.clearTimeout(mobileSuccessTimer);
   if (mobileClosingTimer) window.clearTimeout(mobileClosingTimer);
+  if (forgotCooldownTimer) window.clearInterval(forgotCooldownTimer);
+  forgotCooldownTimer = null;
 });
 </script>
 
 <template>
+  <!-- ⚠️ 两套外壳（模态框 / 独立页）各有一份几乎相同的表单模板 —— 2026-11-16 C3 **未完成**。
+       硬约束：这两份必须**成对修改**，它们已经漂移过一次（弹窗有「注册 BOH ID」，独立页没有，
+       2026-11-16 补齐）。
+       单源化的正确做法是抽 `LoginForm.vue`（模板 + 表单状态一起搬），但
+       `style.scoped.css` 有 1802 行、表单规则与外壳规则高度交织（模态块 522-970 混着两者），
+       拆 CSS 必须配合 390×844 与 1280 两档截图肉眼验收 ⇒ 留给独立一轮，别在改别的功能时顺手搬。 -->
   <div
     v-if="!isModal || show"
     :class="[
@@ -695,7 +752,13 @@ onUnmounted(() => {
               <span>记住我</span>
             </label>
             <div class="boh-links-group">
-              <a href="#" @click.prevent="handleForgotPassword">忘记密码？</a>
+              <a
+                href="#"
+                :aria-disabled="forgotCooldownLeft > 0"
+                @click.prevent="handleForgotPassword"
+              >
+                {{ forgotCooldownLeft > 0 ? `${forgotCooldownLeft} 秒后可重试` : '忘记密码？' }}
+              </a>
               <a href="#" @click.prevent="tokenPanelOpen = !tokenPanelOpen">令牌登录</a>
               <a href="/join" @click.prevent="handleRegister">注册 BOH ID</a>
             </div>
@@ -879,8 +942,17 @@ onUnmounted(() => {
                   <span>记住我</span>
                 </label>
                 <div class="boh-links-group">
-                  <a href="#" @click.prevent="handleForgotPassword">忘记密码？</a>
+                  <a
+                    href="#"
+                    :aria-disabled="forgotCooldownLeft > 0"
+                    @click.prevent="handleForgotPassword"
+                  >
+                    {{ forgotCooldownLeft > 0 ? `${forgotCooldownLeft} 秒后可重试` : '忘记密码？' }}
+                  </a>
                   <a href="#" @click.prevent="tokenPanelOpen = !tokenPanelOpen">令牌登录</a>
+                  <!-- 与模态框那份对齐（2026-11-16）：此前只有弹窗里有「注册 BOH ID」，
+                       独立登录页缺这一条 —— 两份模板已经漂移过一次，见文件头说明。 -->
+                  <a href="/join" @click.prevent="handleRegister">注册 BOH ID</a>
                 </div>
               </div>
 
