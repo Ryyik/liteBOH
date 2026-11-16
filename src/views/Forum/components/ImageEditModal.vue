@@ -375,7 +375,16 @@
  *  · 滤镜是**纯 CSS**：预览把它挂在 img 上、导出时同一根串喂 ctx.filter ⇒
  *    切滤镜零重渲染。这样也保证「所见即所得」不会因为两次编码跑偏。
  */
-import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
+import {
+  computed,
+  defineAsyncComponent,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  reactive,
+  ref,
+  watch,
+} from 'vue';
 import {
   ChevronDown,
   ChevronLeft,
@@ -386,8 +395,6 @@ import {
   Sticker,
   Undo2,
 } from 'lucide-vue-next';
-import { Cropper } from 'vue-advanced-cropper';
-import 'vue-advanced-cropper/dist/style.css';
 import ImageEditorFilmFx from './ImageEditorFilmFx.vue';
 import { useBodyScrollLock } from '@/composables/useBodyScrollLock.js';
 import {
@@ -429,6 +436,56 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['close', 'confirm', 'save']);
+
+/* ── 裁剪器按需加载（2026-11-16）────────────────────────────────────
+ *
+ * 为什么动它：`vue-advanced-cropper` 打包 79 KB raw / **19.2 KB gzip**，而它只在
+ * 用户点「编辑」、且当前工具是 crop 时才渲染。但它原先是以
+ * `import { Cropper } from 'vue-advanced-cropper'` 静态引入的，于是被
+ * ForumMain → PostComposer → 本组件一路静态带进首屏闭包 —— 首访就想看看论坛、
+ * 根本不发帖的人也要为它付带宽（实测它在 3212 ms 随论坛流同批到达）。
+ *
+ * 改成按需 + 预热：
+ *   · loader 走到才下载（首屏不再包含）；
+ *   · `visible` 一打开就 fire 一次（见下方 watch）—— 那时用户还在确认页横滑挑图，
+ *     19.2 KB 在慢网也是 100 ms 级，等切到编辑页通常已就绪；
+ *   · 失败要**忘掉** promise，否则本次会话里永远不再重试（同 utils/route-prefetch.js）。
+ *
+ * ⚠️ 样式必须和组件同批：只到组件不到 CSS 会先渲染出一个无样式的裁切框。
+ * ⚠️ 不能在外层给 <ImageEditModal> 加 v-if 来延迟组件 —— 它内部靠
+ *    `<Transition>` + `v-if="visible"` 做离场淡出，外层一卸载就没动画了。
+ */
+let cropperModulePromise = null;
+const loadCropper = () => {
+  if (!cropperModulePromise) {
+    cropperModulePromise = Promise.all([
+      import('vue-advanced-cropper'),
+      import('vue-advanced-cropper/dist/style.css'),
+    ])
+      .then(([mod]) => mod.Cropper)
+      .catch((error) => {
+        cropperModulePromise = null;
+        throw error;
+      });
+  }
+  return cropperModulePromise;
+};
+
+/* delay 120ms：慢网下先不亮任何占位，避免「闪一下空框再出图」；
+   超过 120ms 仍未就绪则交给 Vue 的异步边界处理（此时画面上是原来的照片层）。
+   onError 走项目统一约定（见 async-loaders.js）：前两次退避重试，之后 fail。
+   这里是「用户正在编辑器里」的弹层，静默空白比报错更糟，所以重试而非直接降级。 */
+const Cropper = defineAsyncComponent({
+  loader: loadCropper,
+  delay: 120,
+  onError(error, retry, fail, attempts) {
+    if (attempts <= 2) {
+      setTimeout(() => retry(), attempts * 300);
+      return;
+    }
+    fail(error);
+  },
+});
 
 const filters = IMAGE_EDITOR_FILTERS;
 const stickers = EDITOR_STICKERS;
@@ -617,6 +674,9 @@ watch(
       editorError.value = '';
       // 贴纸位图必须先解码好：canvas 合成是同步的，导出时再加载就来不及
       void preloadEditorStickers();
+      // 裁剪器预热：此刻用户还在确认页横滑挑图，等切到 crop 工具通常已就绪。
+      // 失败不阻断任何流程 —— 真进 crop 时 <Cropper> 会自己再走一次 loader。
+      void loadCropper().catch(() => {});
       if (props.mode === 'edit') {
         void openEditorForEntry(entries.value[0]);
       }
