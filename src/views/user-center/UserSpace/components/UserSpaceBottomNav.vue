@@ -27,6 +27,7 @@
         type="button"
         @pointerenter="$emit('preload-tab', item.id)"
         @focus="$emit('preload-tab', item.id)"
+        @pointerdown="prefetchNavTarget(item)"
         @click.stop="handleNavClick(item.id)"
       >
         <component
@@ -76,8 +77,9 @@ import {
   ref,
   watch,
 } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { useKeyboardInset } from '@/composables/useKeyboardInset.js';
+import { prefetchRoute } from '@/utils/route-prefetch.js';
 import {
   beginBottomNavHandoff,
   consumeBottomNavHandoff,
@@ -89,6 +91,16 @@ import {
    与滚动隐藏取 OR —— 键盘收起后自动回到原有滚动状态。 */
 const { isKeyboardOpen } = useKeyboardInset();
 const route = useRoute();
+const router = useRouter();
+
+/* 按下即预取目标页 chunk（2026-11-16）：pointerdown 比 click 早约 80–120ms，
+   把「点击后才开始下载」提前到这里。Slow 4G 实测「我 → 图库」点击后 497ms
+   目标页才出现，预取后这段空窗被挪到用户手指还没抬起的时刻。
+   失败静默（见 utils/route-prefetch.js：失败会忘掉标记，允许下次重试）。 */
+const prefetchNavTarget = (item) => {
+  if (!item?.route) return;
+  void prefetchRoute(router, item.route);
+};
 
 /* 入场动画（2026-09-23 加，2026-09-24 调慢调柔）：底栏首次出现时从下方缓慢滑入 ——
    首页下滑进入论坛、UserSpace 首次进入都走这里。用 keyframes 而非 transition：

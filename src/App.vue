@@ -9,6 +9,8 @@ import { shouldMarkBootReady } from '@/utils/boot-readiness.js';
 import UnifiedNavbar from '@/components/UnifiedNavbar/index.vue';
 import BohIsland from '@/components/BohIsland.vue';
 import GlobalErrorBoundary from '@/components/GlobalErrorBoundary.vue';
+import RouteProgressBar from '@/components/RouteProgressBar.vue';
+import { scheduleBottomNavPrefetch } from '@/utils/route-prefetch.js';
 import { useAuthStore } from '@/stores/auth';
 import { storeToRefs } from 'pinia';
 import { ensureNotificationStore, getNotificationStoreRef } from '@/stores/notification-loader';
@@ -86,12 +88,18 @@ const bootTimedOut = ref(false);
 const bootRecovering = ref(false);
 let bootTimeoutId = 0;
 let bootRecoveryStarted = false;
+/** 底栏 chunk 预取的取消函数（见 utils/route-prefetch.js） */
+let cancelBottomNavPrefetch = () => {};
 
 router
   .isReady()
   .then(() => {
     bootReady.value = true;
     window.clearTimeout(bootTimeoutId);
+    /* 底栏五席的 chunk 预取（2026-11-16）：空闲逐席预热，切页时不再等下载。
+       ⚠️ 只在**首屏就绪之后**排程 —— 首屏自己那条链上的 chunk 优先级更高，
+       提前预取会跟它抢带宽（Slow 4G 下首屏会明显变慢）。 */
+    cancelBottomNavPrefetch = scheduleBottomNavPrefetch(router);
   })
   .catch(() => {
     // 导航失败（如路由 chunk 拿不到）：保持加载态，交给下面的超时提示
@@ -146,6 +154,7 @@ bootTimeoutId = window.setTimeout(() => {
 
 onUnmounted(() => {
   window.clearTimeout(bootTimeoutId);
+  cancelBottomNavPrefetch();
 });
 
 // 邮箱验证回跳（?token_hash=...&type=signup|email_change）：在壳层一次性消费，
@@ -399,6 +408,11 @@ const showGlobalNavbar = computed(() => isGlobalNavbarVisible(route, homeGateScr
 </script>
 
 <template>
+  <!-- 路由切换的 2px 细进度条（2026-11-16）：底栏切页要等目标页 chunk，
+       Slow 4G 实测 497ms 内屏幕上毫无变化，用户读成「点了没反应 / 卡一下」。
+       这条只在导航超过 120ms 时才出现，快导航不留残影。 -->
+  <RouteProgressBar />
+
   <!-- 2026-11-04 硬切审计 P1-1：hideNavbar 路由往返时导航条瞬现瞬失，补滑入滑出
        （过渡类在 UnifiedNavbar/style.scoped.css 的 .unified-nav-slide-*） -->
   <Transition name="unified-nav-slide">
