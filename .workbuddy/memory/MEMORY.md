@@ -12,7 +12,7 @@
 > · `MEMORY-css-loading.md` —— 资源加载 / `__vitePreload` / CSS 自愈 / 部署竞态
 > · `MEMORY-ai-config.md` —— AI 配置页 / 密钥与模型
 > · `MEMORY-bohai-liquid.md` —— BOH分镜 / 液态玻璃 / BOHAI 材质地图
-> · `docs/AI-ENV.md` —— **必读通道**：环境坑 10 条 + 并行会话纪律
+> · `docs/AI-ENV.md` —— **必读通道**：环境坑 11 条 + 并行会话纪律
 > · `docs/gate-matrix.md` —— 门禁自证纪律 + 事故级坑记录
 >
 > 2026-10-31 第二次瘦身（16.5KB → 约 5KB）：CSS/主题、门禁/测试、路由/交互三段整体外置成分册。
