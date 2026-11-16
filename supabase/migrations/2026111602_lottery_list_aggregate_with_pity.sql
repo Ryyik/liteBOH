@@ -26,10 +26,18 @@
 -- 返回契约其余字段与旧版逐一对齐；`pity_mode` 用 coalesce 收口成 'none'，
 -- 否则前端 `!item.pity_mode` 仍会判定需要 enrich（见 normalizeLottery）。
 --
--- ⚠️ 本迁移**尚未 apply**（2026-11-16 只落文件）。应用前请：
---   · 先 `npm run check:db-lint` 拿当前基线，apply 后再跑一次确认没有新增；
---   · `psql -f scripts/regression/rpc-regression-check.sql` 或等价方式跑 RPC 回归；
---   · 前端探针 `node scripts/probes/probe-lottery-join-rpc.py`（报名链路）。
+-- ✅ 已 apply（2026-11-16 15:36，Management API 单事务执行）。应用后实测：
+--   · `pg_get_functiondef` 里 `for v_lottery in` 已消失，`winner_lists` 与 `pity_mode` 都在
+--     ⇒ 聚合版真的生效，不是又被人覆盖回去；
+--   · anon 调 `get_community_lotteries`：9 条、29 个字段，每条都带 `pity_mode` 与 `entry_count`，
+--     drawn 样本 winners=1 ⇒ 前端 `lottery-api.js` 的 pity enrich 不再触发；
+--   · `scripts/regression/rpc-regression-check.sql`：抽奖三函数（get_home_lottery /
+--     get_community_lotteries / join_community_lottery）全 PASS。唯一 FAIL 是既有的
+--     `create_shop_order_with_points` 缺失，与本次无关；
+--   · `check:db-advisors` 三项持平（searchPathMutable 0 / rlsDisabled 0 / rlsNoPolicy 5）；
+--   · `check:db-lint` 本机拿不到 lint 结果（降级跳过）—— **这条还没验，有环境时补跑**。
+--
+-- 以后再改这个函数，仍然要跑：db-lint（能跑时）+ rpc-regression-check + 报名探针。
 -- ============================================
 
 begin;
