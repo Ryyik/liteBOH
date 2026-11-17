@@ -216,4 +216,28 @@ describe('「一个平台的一种用途只能一个密钥」—— 不能静默
     );
     expect(page).not.toContain("keyDialog.form.fetchAfterSave ? '保存并拉取' : '保存'");
   });
+
+  it('拉取勾选对话框有一键全选 / 全不选（2026-11-17 用户要求）', () => {
+    const page = read(PAGE);
+    // 两个按钮都在模板里，且带稳定 data 钩子（探针/回归定位用）
+    expect(page).toContain('data-km="pick-select-all"');
+    expect(page).toContain('data-km="pick-clear-all"');
+    // 逻辑真源：全选覆盖清单全部（含已在库中的，导入时靠去重跳过）；全不选清空集合
+    const squeezed = sq(PAGE);
+    expect(squeezed).toContain('function selectAllPicks()');
+    expect(squeezed).toContain('function clearAllPicks()');
+    expect(sq(PAGE)).toContain(
+      squeezeSource(`dialog.models.forEach((m) => dialog.selected.add(m.id));`),
+    );
+    expect(sq(PAGE)).toContain(squeezeSource(`dialog.selected.clear();`));
+    // 导入进行中必须禁用（防重复点击），全不选在零勾选时禁用（与主按钮口径一致）
+    expect(sq(PAGE)).toContain(
+      squeezeSource(`:disabled="pickDialog.importing" @click="selectAllPicks"`),
+    );
+    expect(sq(PAGE)).toContain(
+      squeezeSource(
+        `:disabled="pickDialog.importing || !pickDialog.selected.size" @click="clearAllPicks"`,
+      ),
+    );
+  });
 });
