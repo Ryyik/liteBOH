@@ -440,6 +440,14 @@
 </template>
 
 <script setup>
+/* 横屏左栏的定位 / 内容让位 / 条目状态色（body.page-shop 段）。与 Home / BOHAI /
+   Cloud+ / UserSpace 共用同一份真源，断点与栏宽档位只在那里改。
+   ⚠️ 必须用 JS import，不能写 `<style src>`：同一份 CSS 只要同时存在「JS import」
+   与「<style src>」两种引入形态，CSS 去重后 vite-plugin-pwa 的 buildEnd 会拿到
+   undefined descriptor（`Cannot read properties of undefined (reading 'scoped')`）
+   随机崩构建 —— 2026-11-17 CI run 44039482216 复现，Home 侧同款修法见 7d3aa314。
+   ⚠️ 非 scoped 是必须的：规则按 body 级 page class 命中，scoped 的 data-v 会把它废掉。 */
+import '@/views/user-center/UserSpace/styles/landscape-rail.css';
 import {
   computed,
   nextTick,
@@ -1534,7 +1542,3 @@ onBeforeUnmount(() => {
 
 <style src="./store-tokens.css"></style>
 <style scoped src="./style.scoped.css"></style>
-<!-- 横屏左栏的定位 / 内容让位 / 条目状态色（body.page-shop 段）。
-     ⚠️ 必须非 scoped：它按 body 级 page class 命中，scoped 的 data-v 会把它废掉。
-     ⚠️ 与 Cloud+ / BOHAI / 首页共用同一份真源 —— 断点与栏宽档位只在那里改。 -->
-<style src="@/views/user-center/UserSpace/styles/landscape-rail.css"></style>

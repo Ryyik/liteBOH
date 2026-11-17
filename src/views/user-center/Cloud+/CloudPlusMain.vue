@@ -1231,6 +1231,13 @@
 </template>
 
 <script setup>
+/* 左栏的定位 / 内容让位 / 条目状态色（body.page-bohcloudplus 段）。与 Home / BOHAI /
+   UserSpace / Shop 共用同一份真源。
+   ⚠️ 必须用 JS import，不能写 `<style src>`：同一份 CSS 只要同时存在「JS import」
+   与「<style src>」两种引入形态，CSS 去重后 vite-plugin-pwa 的 buildEnd 会拿到
+   undefined descriptor（`reading 'scoped'`）随机崩构建 —— 2026-11-17 CI run 44039482216 复现。
+   ⚠️ 非 scoped 是必须的：规则按 body 级 page class 命中，scoped 的 data-v 会把它废掉。 */
+import '@/views/user-center/UserSpace/styles/landscape-rail.css';
 import {
   computed,
   ref,
@@ -4123,7 +4130,3 @@ watch(
 <style scoped>
 @import './style.scoped.css';
 </style>
-
-<!-- 左栏的定位 / 内容让位 / 条目状态色（body.page-bohcloudplus 段）。
-     ⚠️ 必须非 scoped：它按 body 级 page class 命中，scoped 的 data-v 会把它废掉。 -->
-<style src="@/views/user-center/UserSpace/styles/landscape-rail.css"></style>

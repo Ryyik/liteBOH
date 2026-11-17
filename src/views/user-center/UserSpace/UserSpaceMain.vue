@@ -492,6 +492,13 @@
 </template>
 
 <script setup>
+/* 横屏左栏的页面级规则（body.page-userspace 段）。与 Home / BOHAI / Cloud+ / Shop /
+   Profile 共用同一份真源，断点与栏宽档位只在那里改。
+   ⚠️ 必须用 JS import，不能写 `<style src>`：同一份 CSS 只要同时存在「JS import」
+   与「<style src>」两种引入形态，CSS 去重后 vite-plugin-pwa 的 buildEnd 会拿到
+   undefined descriptor（`reading 'scoped'`）随机崩构建 —— 2026-11-17 CI run 44039482216 复现。
+   ⚠️ 非 scoped 是必须的：规则按 body 级 page class 命中，scoped 的 data-v 会把它废掉。 */
+import '@/views/user-center/UserSpace/styles/landscape-rail.css';
 import {
   ref,
   computed,
@@ -3983,8 +3990,6 @@ watch(unreadCount, (count) => {
 </script>
 
 <style src="./styles/shell-community.css"></style>
-
-<style src="./styles/landscape-rail.css"></style>
 
 <style scoped>
 /* 资产内嵌进设置右栏（2026-11-10）：它自己的 .ah-page 顶部避让是为独立 tab 写的，

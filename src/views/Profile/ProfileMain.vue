@@ -843,6 +843,13 @@
 </template>
 
 <script setup>
+/* 横屏左右分栏的页面级规则（他人空间段落，body.page-userprofile 前缀）。与
+   UserSpaceMain / Home / BOHAI / Cloud+ / Shop 共用同一份真源，判据单源。
+   ⚠️ 必须用 JS import，不能写 `<style src>`：同一份 CSS 只要同时存在「JS import」
+   与「<style src>」两种引入形态，CSS 去重后 vite-plugin-pwa 的 buildEnd 会拿到
+   undefined descriptor（`reading 'scoped'`）随机崩构建 —— 2026-11-17 CI run 44039482216 复现。
+   ⚠️ 非 scoped 是必须的：规则按 body 级 page class 命中，scoped 的 data-v 会把它废掉。 */
+import '@/views/user-center/UserSpace/styles/landscape-rail.css';
 import { ref, computed, onMounted, onUnmounted, reactive, watch, nextTick } from 'vue';
 import { useImageLoaded } from '@/composables/useImageLoaded.js';
 
@@ -2434,7 +2441,3 @@ onUnmounted(() => {
 @import './style.scoped.css';
 @import '@/styles/helpers/function.css';
 </style>
-
-<!-- 横屏左右分栏页面级规则（他人空间段落）：必须非 scoped —— body.page-userprofile
-     前缀的规则会被 scoped 属性选择器作废；与 UserSpaceMain 引入同一文件，判据单源 -->
-<style src="@/views/user-center/UserSpace/styles/landscape-rail.css"></style>
