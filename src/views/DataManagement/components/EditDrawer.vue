@@ -949,11 +949,11 @@ const bohaiApiKeys = ref([]);
 const bohaiSelectedKeyId = ref('');
 const bohaiKeysLoading = ref(false);
 
-// 仅展示可用作模型来源的 Key（chat 类 + custom/openrouter/siliconflow/zhipu）
+// 仅展示可用作模型来源的 Key（chat 类 + custom/openrouter/modelscope/siliconflow/zhipu）
 const bohaiAvailableKeys = computed(() => {
   return bohaiApiKeys.value.filter((k) => {
     if (k.status !== 'active') return false;
-    return ['siliconflow', 'openrouter', 'zhipu', 'custom'].includes(k.provider);
+    return ['siliconflow', 'openrouter', 'modelscope', 'zhipu', 'custom'].includes(k.provider);
   });
 });
 

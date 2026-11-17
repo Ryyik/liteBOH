@@ -61,6 +61,17 @@ export const PROVIDER_META = {
     supportsChatTest: true,
     purposes: [{ value: 'chat', label: '聊天模型' }],
   },
+  modelscope: {
+    label: '魔搭 ModelScope',
+    group: 'model',
+    defaultPurpose: 'chat',
+    defaultLabel: '魔搭 ModelScope Chat',
+    defaultModel: 'deepseek-ai/DeepSeek-V4.1-Flash',
+    defaultApiUrl: 'https://api-inference.modelscope.cn/v1/chat/completions',
+    supportsDiscovery: true,
+    supportsChatTest: true,
+    purposes: [{ value: 'chat', label: '聊天模型' }],
+  },
   zhipu: {
     label: '智谱 AI',
     group: 'model',

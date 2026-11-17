@@ -328,6 +328,7 @@ export const BOHAI_MODEL_PROVIDER_OPTIONS = [
   { value: 'siliconflow', label: 'SiliconFlow' },
   { value: 'zhipu', label: '智谱 AI' },
   { value: 'openrouter', label: 'OpenRouter' },
+  { value: 'modelscope', label: '魔搭 ModelScope' },
   { value: 'custom', label: '自定义兼容接口' },
 ];
 
@@ -335,6 +336,7 @@ export const FREEMODEL_PROVIDER_OPTIONS = [
   { value: 'siliconflow', label: 'SiliconFlow' },
   { value: 'zhipu', label: '智谱 AI' },
   { value: 'openrouter', label: 'OpenRouter' },
+  { value: 'modelscope', label: '魔搭 ModelScope' },
   { value: 'custom', label: '自定义' },
 ];
 

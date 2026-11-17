@@ -95,6 +95,7 @@ const PROVIDER_OPTIONS = new Set([
   'siliconflow',
   'zhipu',
   'openrouter',
+  'modelscope',
   'tavily',
   'cloudinary',
   'turnstile',
@@ -763,6 +764,37 @@ const testOpenRouter = async (apiKey: string, metadata: Record<string, unknown>)
   return 'OpenRouter 连接正常。';
 };
 
+// 魔搭 ModelScope API-Inference（2026-11-17）：OpenAI 兼容，每日免费额度由平台侧发放。
+const testModelScope = async (apiKey: string, metadata: Record<string, unknown>) => {
+  const apiUrl = validateRuntimeApiUrl(
+    toText(metadata.apiUrl, 240),
+    'https://api-inference.modelscope.cn/v1/chat/completions',
+  );
+  const model = toText(metadata.model, 120) || 'deepseek-ai/DeepSeek-V4.1-Flash';
+  const response = await safeUpstreamFetch(apiUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model,
+      messages: [{ role: 'user', content: 'ping' }],
+      max_tokens: 8,
+      temperature: 0,
+      stream: false,
+    }),
+    signal: AbortSignal.timeout(15000),
+  });
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    throw new Error(
+      String(payload?.error?.message || payload?.message || `HTTP ${response.status}`),
+    );
+  }
+  return '魔搭 ModelScope 连接正常。';
+};
+
 const testTavily = async (apiKey: string) => {
   const response = await fetch('https://api.tavily.com/search', {
     method: 'POST',
@@ -796,6 +828,7 @@ const DEFAULT_MODELS_URL: Record<string, string> = {
   siliconflow: 'https://api.siliconflow.cn/v1/models',
   zhipu: 'https://open.bigmodel.cn/api/paas/v4/models',
   openrouter: 'https://openrouter.ai/api/v1/models',
+  modelscope: 'https://api-inference.modelscope.cn/v1/models',
 };
 
 const deriveModelsUrl = (provider: string, metadata: Record<string, unknown>): string => {
@@ -1013,7 +1046,7 @@ const discoverModels = async (
       ...baseResult,
     };
   }
-  const supported = ['siliconflow', 'zhipu', 'openrouter', 'custom'];
+  const supported = ['siliconflow', 'zhipu', 'openrouter', 'modelscope', 'custom'];
   if (!supported.includes(row.provider)) {
     return {
       ok: false,
@@ -1262,6 +1295,8 @@ const runtimeChatCompletion = async (
       defaultApiUrl = 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
     } else if (provider === 'openrouter') {
       defaultApiUrl = 'https://openrouter.ai/api/v1/chat/completions';
+    } else if (provider === 'modelscope') {
+      defaultApiUrl = 'https://api-inference.modelscope.cn/v1/chat/completions';
     }
     // 安全修复 C-3：对 body.apiUrl（用户可篡改）和 metadata.apiUrl 均做 SSRF 校验，
     // 非法 URL（私有 IP/localhost/非 http 协议）回退到安全默认值。
@@ -1388,6 +1423,8 @@ const runtimeChatCompletionStream = async (
       defaultApiUrl = 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
     } else if (provider === 'openrouter') {
       defaultApiUrl = 'https://openrouter.ai/api/v1/chat/completions';
+    } else if (provider === 'modelscope') {
+      defaultApiUrl = 'https://api-inference.modelscope.cn/v1/chat/completions';
     }
     // 安全修复 C-3：对 body.apiUrl（用户可篡改）和 metadata.apiUrl 均做 SSRF 校验，
     // 非法 URL（私有 IP/localhost/非 http 协议）回退到安全默认值。
@@ -1807,6 +1844,8 @@ const testKey = async (
       message = await testZhipu(apiKey, row.metadata || {});
     } else if (row.provider === 'openrouter') {
       message = await testOpenRouter(apiKey, row.metadata || {});
+    } else if (row.provider === 'modelscope') {
+      message = await testModelScope(apiKey, row.metadata || {});
     } else if (row.provider === 'tavily') {
       message = await testTavily(apiKey);
     } else {
