@@ -66,7 +66,9 @@ export const PROVIDER_META = {
     group: 'model',
     defaultPurpose: 'chat',
     defaultLabel: '魔搭 ModelScope Chat',
-    defaultModel: 'deepseek-ai/DeepSeek-V4.1-Flash',
+    // ⚠️ 必须用 -1017 快照：基础快照 V4.1-Flash 在魔搭没有推理节点
+    // （实测报 "has no provider supported"，2026-11-17）。
+    defaultModel: 'deepseek-ai/DeepSeek-V4.1-Flash-1017',
     defaultApiUrl: 'https://api-inference.modelscope.cn/v1/chat/completions',
     supportsDiscovery: true,
     supportsChatTest: true,

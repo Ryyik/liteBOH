@@ -765,12 +765,14 @@ const testOpenRouter = async (apiKey: string, metadata: Record<string, unknown>)
 };
 
 // 魔搭 ModelScope API-Inference（2026-11-17）：OpenAI 兼容，每日免费额度由平台侧发放。
+// ⚠️ 默认测试模型用 -1017 快照 —— 基础快照 V4.1-Flash 无推理节点（实测
+// "has no provider supported"），别改回去。
 const testModelScope = async (apiKey: string, metadata: Record<string, unknown>) => {
   const apiUrl = validateRuntimeApiUrl(
     toText(metadata.apiUrl, 240),
     'https://api-inference.modelscope.cn/v1/chat/completions',
   );
-  const model = toText(metadata.model, 120) || 'deepseek-ai/DeepSeek-V4.1-Flash';
+  const model = toText(metadata.model, 120) || 'deepseek-ai/DeepSeek-V4.1-Flash-1017';
   const response = await safeUpstreamFetch(apiUrl, {
     method: 'POST',
     headers: {
