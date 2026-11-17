@@ -32,7 +32,7 @@ import {
   TREEHOLE_SPACE_COLUMNS,
   TREEHOLE_CANDIDATE_COLUMNS,
 } from '../treehole-helpers.js';
-import { SILICON_CLOUD_CHAT_URL } from '../../bohai-constants.js';
+import { BOH_MEMORY_MODE_ID, SILICON_CLOUD_CHAT_URL } from '../../bohai-constants.js';
 import {
   invalidateTreeholeCache,
   getMyTreeholeMemoriesForAI,
@@ -56,6 +56,9 @@ const invalidateTreeholeCandidateCache = (userId) => {
 const requestTreeholeCompletion = async ({
   messages = [],
   model = '',
+  // ⚠️ 必须显式带 mode：不带时 EF 会兜底到 `fast`（游客默认模式 / 周报等后台任务共用那一行），
+  //    换模型会连带影响它们。记忆抽取专用行见 bohai-constants 的 BOH_MEMORY_MODE_ID。
+  mode = BOH_MEMORY_MODE_ID,
   temperature = 0.4,
   maxTokens = 900,
   timeoutMs = 28000,
@@ -115,6 +118,7 @@ const requestTreeholeCompletion = async ({
 
     const vaultResult = await callVaultSiliconChat({
       purpose: 'chat',
+      mode,
       payload,
       apiUrl: SILICON_CLOUD_CHAT_URL,
       timeoutMs: safeTimeout,
@@ -213,6 +217,8 @@ const buildStrictTreeholeMemoryContext = async (memories = [], { signal = null }
     const chunk = chunks[i];
     const summaryResult = await requestTreeholeCompletion({
       model: '',
+      // mode 走 requestTreeholeCompletion 的默认值（BOH_MEMORY_MODE_ID）：长记忆分块摘要
+      // 与记忆抽取是同一类后台任务，必须同一个模型，否则同一条记忆的两种表述会漂。
       temperature: 0.2,
       maxTokens: 1200,
       signal,
@@ -498,6 +504,7 @@ export async function extractMemoryCandidatesFromDialogue({
   messages = [],
   maxCandidates = TREEHOLE_AUTO_MEMORY_MAX_CANDIDATES,
   model = '',
+  mode = BOH_MEMORY_MODE_ID,
 } = {}) {
   const context = buildDialogueContextForMemoryCapture(messages);
   if (context.userTurns.length === 0 || !context.turnText) {
@@ -567,6 +574,7 @@ export async function extractMemoryCandidatesFromDialogue({
 
   const result = await requestTreeholeCompletion({
     model,
+    mode,
     temperature: 0.2,
     maxTokens: 1200,
     messages: [
@@ -615,6 +623,7 @@ export async function captureTreeholeMemoriesFromDialogue({
   autoSaveConfidence = TREEHOLE_AUTO_MEMORY_AUTOSAVE_CONFIDENCE,
   writeToTreehole = false,
   writeToShared = true,
+  mode = BOH_MEMORY_MODE_ID,
 } = {}) {
   const safeUserId = toTrimmedText(userId, 64);
   if (!safeUserId) {
@@ -670,6 +679,7 @@ export async function captureTreeholeMemoriesFromDialogue({
   const extractionResult = await extractMemoryCandidatesFromDialogue({
     messages: safeMessages,
     maxCandidates,
+    mode,
   });
   if (!extractionResult.ok) {
     return extractionResult;

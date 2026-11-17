@@ -34,6 +34,21 @@ export const MODERATION_IMAGE_MODE_ID = 'moderation-image';
 export const INTERNAL_MODE_PREFIX = 'moderation-';
 
 /**
+ * 内部**任务行**的 mode_id 前缀（2026-11-17，记忆抽取行 `internal-memory`）。
+ *
+ * 与 `moderation-` 的差别只有一条：**不做 EF 的 purpose 硬拦**。
+ *   · `moderation-`：后台列表隐藏 + `list_public_bohai_modes` 排除 + EF 按 purpose 返回 403（三道）；
+ *   · `internal-`  ：只有前两道。原因是这类行服务的是普通 `purpose='chat'` 调用
+ *     （记忆抽取走的就是它），EF 拦了等于把功能自己关掉。
+ * ⚠️ 因此这类行倍率必须保持 0（不计量）且不要挂明显贵于 fast 的模型 ——
+ *    知道 mode_id 的登录用户能直连 EF 白嫖它。现状：deepseek V4.1 Flash，与 fast 同类问题。
+ *
+ * SQL 侧（迁移 `2026111702` 重建的 list_public_bohai_modes）硬编码一份前缀字面量，
+ * 两边同步由 tests/unit/bohai-internal-modes.test.js 锁死。
+ */
+export const INTERNAL_TASK_MODE_PREFIX = 'internal-';
+
+/**
  * 给 bohai_model_configs 的查询套上「排除内部模式」的过滤。
  * **列表查询与计数查询必须共用这一处口径**，否则会出现「列表 8 行、计数 10 条」。
  */

@@ -5,8 +5,10 @@ import {
   MODERATION_TEXT_MODE_ID,
   MODERATION_IMAGE_MODE_ID,
   INTERNAL_MODE_PREFIX,
+  INTERNAL_TASK_MODE_PREFIX,
   excludeInternalBohaiModes,
 } from '@/views/DataManagement/config/bohai-internal-modes.js';
+import { BOH_MEMORY_MODE_ID } from '@/utils/bohai-constants.js';
 import { squeezeSource, stripComments } from '../helpers/source.js';
 
 // =====================================================================
@@ -84,6 +86,28 @@ describe('审核专用模式与用户侧模式列表的隔离', () => {
     const sql = stripSqlComments(readFileSync(resolve(dir, latest), 'utf8'));
     // 断言「排除条件」而不是「某个文件名」：谁重建这个函数都要带上这一条
     expect(squeezeSource(sql)).toContain(`mode_id not like '${INTERNAL_MODE_PREFIX}%'`);
+    // 2026-11-17：内部**任务**行（记忆抽取 internal-memory）同样不能进用户侧选择器。
+    // 与审核行不同，这类行**不做** EF 的 purpose 硬拦（记忆抽取走普通 chat 调用）
+    expect(squeezeSource(sql)).toContain(`mode_id not like '${INTERNAL_TASK_MODE_PREFIX}%'`);
+  });
+
+  it('记忆抽取模式行落在内部任务前缀下（RPC 的第三条排除才拦得住它）', () => {
+    expect(BOH_MEMORY_MODE_ID.startsWith(INTERNAL_TASK_MODE_PREFIX)).toBe(true);
+    // 别把它挪进 moderation- 前缀：那会让 EF 按 purpose 返回 403，记忆抽取当场失效
+    expect(BOH_MEMORY_MODE_ID.startsWith(INTERNAL_MODE_PREFIX)).toBe(false);
+  });
+
+  it('后台「BOHAI 模型」列表**不**隐藏内部任务行（与审核行不同：它没有专用页面）', () => {
+    const calls = [];
+    const fakeQuery = {
+      not: (...args) => {
+        calls.push(args);
+        return 'QUERY';
+      },
+    };
+    excludeInternalBohaiModes(fakeQuery);
+    // 只排除 moderation-：internal-memory 要留在后台可见可改（kill switch）
+    expect(calls).toEqual([['mode_id', 'like', `${INTERNAL_MODE_PREFIX}%`]]);
   });
 
   it('api-key-vault 按 purpose 拦住直连伪造的审核 mode', () => {

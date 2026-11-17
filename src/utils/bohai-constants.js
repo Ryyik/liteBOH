@@ -5,6 +5,21 @@
 export const SILICON_CLOUD_CHAT_URL =
   import.meta.env.VITE_SILICON_CLOUD_URL || 'https://api.siliconflow.cn/v1/chat/completions';
 
+/**
+ * BOHAI「自动记忆沉淀」用的模式行（`bohai_model_configs.mode_id`）。
+ *
+ * 为什么单独一行，而不是复用 fast / deepseek：
+ *   · `fast` 是游客默认模式，还被 lab_ai_model_configs 的周报/文档排版/PPT 三个后台任务绑定
+ *     —— 改它会连带换掉游客对话和那三个功能；
+ *   · `deepseek` 行倍率 1.00，而记忆抽取是每轮回复后自动跑的后台任务，复用它会静默扣用户额度
+ *     （free 档 50000/日，单次抽取约 3k ⇒ 十几轮就撞额度墙）。
+ * 本行倍率 0（不扣费）、min_tier='free'（只服务登录用户），模型 = 魔搭 DeepSeek-V4.1-Flash。
+ *
+ * 迁移：`supabase/migrations/2026111702_bohai_memory_mode_internal.sql`
+ * ⚠️ 它是内部行，不进用户侧模式选择器（RPC 排除 `internal-%`）。
+ */
+export const BOH_MEMORY_MODE_ID = 'internal-memory';
+
 export const CONNECTOR_TIMEOUT_MS = 8000;
 
 export const ACTION_RETRY_DELAY_MS = 1000;
