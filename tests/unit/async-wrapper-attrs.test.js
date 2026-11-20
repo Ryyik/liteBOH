@@ -42,6 +42,11 @@ const entries = [
     path: 'src/views/PostDetail/index.vue',
     mainFile: 'PostDetailMain.vue',
     mainVar: 'PostDetailMain',
+    // 2026-11-20（429ef110）单源化：动态 import 收进 usePostDetailModal.js 的
+    // loadPostDetailPanel（弹窗 / 整页路由 / 列表卡片预取共用同一 loader）。
+    // 守卫改验「入口用 loader 工厂 + loader 里有主件的动态 import」——
+    // 要守的懒加载语义不变，只是 import 的位置换成了单源。
+    loaderFile: 'src/composables/usePostDetailModal.js',
   },
   {
     name: 'DataManagement',
@@ -88,6 +93,14 @@ describe('async wrapper attrs pass-through', () => {
       it(`imports ${entry.mainFile} via dynamic import`, () => {
         if (!isAsync) return;
         const escapedFile = entry.mainFile.replace(/\./g, '\\.');
+        if (entry.loaderFile) {
+          // loader 单源形态：入口文件不再直接写 import('./Main.vue')，
+          // 动态 import 落在 loader 里（可带 @/ 别名前缀）。loader 里找不到 = 单源被拆散
+          expect(readEntryFile(entry.loaderFile)).toMatch(
+            new RegExp(`import\\(['"]@/[^'"]*/${escapedFile}['"]\\)`),
+          );
+          return;
+        }
         const importPattern = new RegExp(`import\\(['"]\\.\\/${escapedFile}['"]\\)`);
         expect(script).toMatch(importPattern);
       });
