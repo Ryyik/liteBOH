@@ -119,6 +119,7 @@ import { motionEase, motionMs } from '@/utils/motion.js';
 import { resolveDbDetailImage } from '@/utils/db-image-url.js';
 import { useImageFailure } from '@/composables/useImageFailure.js';
 import { acquireBodyScrollLock } from '@/composables/useBodyScrollLock.js';
+import { buildSharePayload } from '@/composables/useShareTarget.js';
 
 /* 抽奖详情：窗口逻辑与 ProductDetailSheet **完全一致**（2026-11-01 用户口径
    「抽奖卡片支持点进去看详情，窗口逻辑与商品要求一样」）：
@@ -304,13 +305,18 @@ const shareLottery = async () => {
   if (!url) return;
   const title = String(props.lottery?.title || '方块之家抽奖');
   const prize = String(props.lottery?.prize_title || '').trim();
-  /* ⚠️ text 必须自带 URL（2026-11-20 手机端「复制只有文字没链接」的真因）：
-     系统分享面板/部分机型的「复制」只取 text、丢 url，所以两条通道都要把链接塞进正文。 */
-  const text = prize ? `${title} · 奖品：${prize}\n${url}` : `${title}\n${url}`;
+  /* ⚠️ 正文必须自带 URL（手机端「复制只有文字没链接」的真因）：系统分享面板/部分机型的
+     「复制」只取 text、丢 url。文案组装统一走 buildSharePayload（见 useShareTarget.js），
+     站内不要再各写一份。 */
+  const payload = buildSharePayload({
+    title,
+    text: prize ? `${title} · 奖品：${prize}` : title,
+    url,
+  });
   /* ⚠️ share() 必须在用户手势里**同步**发起，前面不能先 await 复制之类的东西 */
   if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
     try {
-      await navigator.share({ title, text, url });
+      await navigator.share(payload);
       return; // 系统面板自带反馈
     } catch (error) {
       if (error?.name === 'AbortError') return; // 用户划走面板，不算失败

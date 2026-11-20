@@ -25,9 +25,10 @@ export const setShareTarget = (ctx = {}) => {
     summary: String(ctx.summary || '').trim(),
     image: String(ctx.image || '').trim(),
     path: String(ctx.path || '').trim(),
-    forward: ctx.forward && (ctx.forward.postId || (ctx.forward.sourceType && ctx.forward.sourceId))
-      ? { ...ctx.forward }
-      : null
+    forward:
+      ctx.forward && (ctx.forward.postId || (ctx.forward.sourceType && ctx.forward.sourceId))
+        ? { ...ctx.forward }
+        : null,
   };
 };
 
@@ -55,4 +56,33 @@ export const buildShareUrl = (target = null) => {
   }
   if (typeof window !== 'undefined') return window.location.href;
   return '';
+};
+
+/**
+ * 组装 `navigator.share` 的 payload —— **分享正文必须自带链接**，单一真源。
+ *
+ * ⚠️ 为什么必须有这一层（2026-11-20 手机端实测报障）：
+ *   系统分享面板里部分目标（微信「发送给朋友」、部分安卓机型的「复制」、
+ *   少数浏览器实现）**只读 `text` 字段、把 `url` 丢掉**。于是用户点「复制」
+ *   拿到的只有一句标题，没有地址 —— 复制了也没法发给别人。
+ *   所以 `text` 里必须自己带上 URL；`url` 字段仍然照传（标准通道 / 系统面板
+ *   会自动把它渲染成卡片），两条路径都成立。
+ *
+ * 站内所有文字类分享都必须走这里，不要各自手拼 `text`（手拼的版本一定会漏）。
+ *
+ * @param {{ title?: string, text?: string, url?: string, summary?: string }} payload
+ *        `text` 是「除链接以外的正文」（如标题 + 奖品/摘要）；不传则退回 title。
+ * @returns {{ title: string, text: string, url: string }}
+ */
+export const buildSharePayload = ({ title = '', text = '', url = '', summary = '' } = {}) => {
+  const safeTitle = String(title || '').trim();
+  const safeUrl = String(url || '').trim();
+  /* 正文优先级：显式 text → summary → title；末尾统一补链接 */
+  const body = String(text || summary || safeTitle || '').trim();
+  const safeText = safeUrl ? (body ? `${body}\n${safeUrl}` : safeUrl) : body;
+  return {
+    title: safeTitle || 'BOHLITE',
+    text: safeText,
+    url: safeUrl,
+  };
 };

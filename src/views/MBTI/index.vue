@@ -7,8 +7,13 @@
     <nav class="mbti-nav">
       <button @click="goBackToHome" class="back-btn">
         <svg viewBox="0 0 24 24" fill="none" class="back-icon">
-          <path d="M15 18L9 12L15 6" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"
-            stroke-linejoin="round" />
+          <path
+            d="M15 18L9 12L15 6"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
         </svg>
         返回首页
       </button>
@@ -23,7 +28,9 @@
           <header class="card-header">
             <span class="header-tag">BLOCK MBTI</span>
             <h1 class="page-title">探索您的<br /><span class="text-highlight">方块人格</span></h1>
-            <p class="page-subtitle">基于深度学习与 Minecraft 游戏机制改编，揭示您在方块世界中的独特身份。</p>
+            <p class="page-subtitle">
+              基于深度学习与 Minecraft 游戏机制改编，揭示您在方块世界中的独特身份。
+            </p>
           </header>
 
           <div class="info-grid">
@@ -57,9 +64,7 @@
           </div>
 
           <div class="action-area">
-            <button class="primary-btn" @click="startTest">
-              立即开始测试
-            </button>
+            <button class="primary-btn" @click="startTest">立即开始测试</button>
           </div>
         </div>
 
@@ -77,14 +82,26 @@
               <p class="q-text">{{ q.text }}</p>
 
               <div class="likert-group">
-                <div class="likert-options" role="radiogroup" :aria-label="`题目 ${q.id} 的作答选项`">
-                  <button v-for="score in likertOptions" :key="score" class="likert-btn" :class="{
-                    'is-selected': answers[q.id] === score,
-                    'size-lg': score === 5 || score === 1,
-                    'size-md': score === 4 || score === 2,
-                    'size-sm': score === 3
-                  }" :aria-label="getLikertLabel(score)" role="radio" :aria-checked="answers[q.id] === score"
-                    @click="selectOption(q.id, score)">
+                <div
+                  class="likert-options"
+                  role="radiogroup"
+                  :aria-label="`题目 ${q.id} 的作答选项`"
+                >
+                  <button
+                    v-for="score in likertOptions"
+                    :key="score"
+                    class="likert-btn"
+                    :class="{
+                      'is-selected': answers[q.id] === score,
+                      'size-lg': score === 5 || score === 1,
+                      'size-md': score === 4 || score === 2,
+                      'size-sm': score === 3,
+                    }"
+                    :aria-label="getLikertLabel(score)"
+                    role="radio"
+                    :aria-checked="answers[q.id] === score"
+                    @click="selectOption(q.id, score)"
+                  >
                     <div class="dot"></div>
                     <span class="likert-label">{{ getLikertLabel(score) }}</span>
                   </button>
@@ -97,9 +114,12 @@
             <button class="secondary-btn" @click="changePage(-1)" :disabled="currentPage === 0">
               上一页
             </button>
-            <button class="primary-btn" :disabled="!isCurrentPageComplete"
-              @click="currentPage === totalPages - 1 ? calculateResult() : changePage(1)">
-              {{ currentPage === totalPages - 1 ? "查看结果" : "下一页" }}
+            <button
+              class="primary-btn"
+              :disabled="!isCurrentPageComplete"
+              @click="currentPage === totalPages - 1 ? calculateResult() : changePage(1)"
+            >
+              {{ currentPage === totalPages - 1 ? '查看结果' : '下一页' }}
             </button>
           </div>
           <p v-if="!isCurrentPageComplete" class="pagination-hint">请先完成本页所有题目再继续</p>
@@ -136,8 +156,11 @@
                 </div>
                 <div class="dim-track">
                   <div class="dim-center"></div>
-                  <div class="dim-bar" :class="{ 'is-right': dim.isRight }" :style="{ width: dim.percentage + '%' }">
-                  </div>
+                  <div
+                    class="dim-bar"
+                    :class="{ 'is-right': dim.isRight }"
+                    :style="{ width: dim.percentage + '%' }"
+                  ></div>
                 </div>
               </div>
             </div>
@@ -155,50 +178,55 @@
       <p>© 2026 BlockOfHome · 方块人格 MBTI 专业测试</p>
     </footer>
 
-    <CommonAlertModal v-model:visible="alertState.visible" :type="alertState.type" :title="alertState.title"
-      :message="alertState.message" />
+    <CommonAlertModal
+      v-model:visible="alertState.visible"
+      :type="alertState.type"
+      :title="alertState.title"
+      :message="alertState.message"
+    />
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, watch } from "vue";
-import { useRouter } from "vue-router";
-import CommonAlertModal from "@/components/CommonAlertModal.vue";
-import { MBTI_QUESTIONS, MBTI_TYPES } from "@/data/mbti-data";
+import { ref, reactive, computed, onMounted, watch } from 'vue';
+import { useRouter } from 'vue-router';
+import CommonAlertModal from '@/components/CommonAlertModal.vue';
+import { MBTI_QUESTIONS, MBTI_TYPES } from '@/data/mbti-data';
+import { buildSharePayload } from '@/composables/useShareTarget.js';
 import {
   createEmptyScores,
   calculateScores,
   deriveMbtiType,
   buildMbtiDimensions,
   getFirstUnansweredQuestionId,
-} from "@/utils/mbti-scoring";
+} from '@/utils/mbti-scoring';
 
 const router = useRouter();
-const STORAGE_KEY = "boh_mbti_progress_v1";
+const STORAGE_KEY = 'boh_mbti_progress_v1';
 const questionsPerPage = 6;
 const likertOptions = [5, 4, 3, 2, 1];
 const likertLabelMap = {
-  5: "非常同意",
-  4: "同意",
-  3: "中立",
-  2: "不同意",
-  1: "非常不同意",
+  5: '非常同意',
+  4: '同意',
+  3: '中立',
+  2: '不同意',
+  1: '非常不同意',
 };
 
 const alertState = reactive({
   visible: false,
-  type: "info",
-  title: "提示",
-  message: "",
+  type: 'info',
+  title: '提示',
+  message: '',
 });
 
 const currentPage = ref(0);
 const answers = ref({});
 const testStarted = ref(false);
 const showResult = ref(false);
-const resultType = ref("");
-const resultName = ref("");
-const resultDesc = ref("");
+const resultType = ref('');
+const resultName = ref('');
+const resultDesc = ref('');
 const scores = ref(createEmptyScores());
 
 const totalQuestions = MBTI_QUESTIONS.length;
@@ -210,11 +238,9 @@ const currentPageQuestions = computed(() => {
   return MBTI_QUESTIONS.slice(start, start + questionsPerPage);
 });
 const isCurrentPageComplete = computed(() =>
-  currentPageQuestions.value.every((q) => answers.value[q.id] !== undefined)
+  currentPageQuestions.value.every((q) => answers.value[q.id] !== undefined),
 );
-const dimensions = computed(() =>
-  showResult.value ? buildMbtiDimensions(scores.value) : []
-);
+const dimensions = computed(() => (showResult.value ? buildMbtiDimensions(scores.value) : []));
 
 const goBackToHome = () => {
   if (window.history.length > 1) {
@@ -231,7 +257,7 @@ const showAlert = (type, title, message) => {
   alertState.visible = true;
 };
 
-const getLikertLabel = (score) => likertLabelMap[score] || "未知选项";
+const getLikertLabel = (score) => likertLabelMap[score] || '未知选项';
 
 const persistProgress = () => {
   const payload = {
@@ -265,7 +291,7 @@ const restoreProgress = () => {
     testStarted.value = Boolean(saved?.testStarted) || Object.keys(restoredAnswers).length > 0;
     currentPage.value = Math.min(
       Math.max(Number(saved?.currentPage) || 0, 0),
-      totalPages.value - 1
+      totalPages.value - 1,
     );
 
     const allAnswered = getFirstUnansweredQuestionId(MBTI_QUESTIONS, restoredAnswers) === null;
@@ -280,7 +306,7 @@ const restoreProgress = () => {
       showResult.value = true;
     }
   } catch (error) {
-    console.warn("[MBTI] 恢复进度失败，已忽略损坏缓存。", error);
+    console.warn('[MBTI] 恢复进度失败，已忽略损坏缓存。', error);
     localStorage.removeItem(STORAGE_KEY);
   }
 };
@@ -291,12 +317,12 @@ const selectOption = (qid, score) => {
 
 const startTest = () => {
   testStarted.value = true;
-  window.scrollTo({ top: 0, behavior: "smooth" });
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 };
 
 const changePage = (direction) => {
   if (direction > 0 && !isCurrentPageComplete.value) {
-    showAlert("warning", "请先完成本页", "当前页所有题目都需要作答后才能继续。");
+    showAlert('warning', '请先完成本页', '当前页所有题目都需要作答后才能继续。');
     return;
   }
 
@@ -304,7 +330,7 @@ const changePage = (direction) => {
   if (targetPage < 0 || targetPage > totalPages.value - 1) return;
 
   currentPage.value = targetPage;
-  window.scrollTo({ top: 0, behavior: "smooth" });
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 };
 
 const calculateResult = () => {
@@ -312,11 +338,11 @@ const calculateResult = () => {
   if (firstUnansweredId !== null) {
     currentPage.value = Math.floor((firstUnansweredId - 1) / questionsPerPage);
     showAlert(
-      "warning",
-      "还有题目未完成",
-      `第 ${firstUnansweredId} 题尚未作答，请补充后再查看结果。`
+      'warning',
+      '还有题目未完成',
+      `第 ${firstUnansweredId} 题尚未作答，请补充后再查看结果。`,
     );
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
     return;
   }
 
@@ -329,7 +355,7 @@ const calculateResult = () => {
   resultName.value = typeData.name;
   resultDesc.value = typeData.description;
   showResult.value = true;
-  window.scrollTo({ top: 0, behavior: "smooth" });
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 };
 
 const restartTest = () => {
@@ -337,41 +363,43 @@ const restartTest = () => {
   currentPage.value = 0;
   testStarted.value = false;
   showResult.value = false;
-  resultType.value = "";
-  resultName.value = "";
-  resultDesc.value = "";
+  resultType.value = '';
+  resultName.value = '';
+  resultDesc.value = '';
   scores.value = createEmptyScores();
   localStorage.removeItem(STORAGE_KEY);
-  window.scrollTo({ top: 0, behavior: "smooth" });
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 };
 
 const shareResult = async () => {
   const text = `我在方块之家的专业MBTI测试中是：${resultType.value} - ${resultName.value}！快来测测你的方块人格吧！`;
   const url = location.href;
+  /* ⚠️ 正文自带链接（2026-11-20）：部分系统分享面板目标只读 text、丢 url。
+     文案统一由 buildSharePayload 组装，原生通道与剪贴板降级拿到的是同一份。 */
+  const payload = buildSharePayload({ title: '方块之家MBTI测试', text, url });
 
   if (navigator.share) {
     try {
-      await navigator.share({ title: "方块之家MBTI测试", text, url });
+      await navigator.share(payload);
     } catch (error) {
-      if (error?.name !== "AbortError") {
-        showAlert("error", "分享失败", "系统分享暂不可用，请稍后重试。");
+      if (error?.name !== 'AbortError') {
+        showAlert('error', '分享失败', '系统分享暂不可用，请稍后重试。');
       }
     }
     return;
   }
 
-  const fallbackText = `${text}\n${url}`;
   if (navigator.clipboard?.writeText) {
     try {
-      await navigator.clipboard.writeText(fallbackText);
-      showAlert("success", "已复制分享文案", "分享文案和链接已复制到剪贴板。");
+      await navigator.clipboard.writeText(payload.text);
+      showAlert('success', '已复制分享文案', '分享文案和链接已复制到剪贴板。');
       return;
     } catch (error) {
-      console.warn("[MBTI] 剪贴板复制失败，回退到弹窗提示。", error);
+      console.warn('[MBTI] 剪贴板复制失败，回退到弹窗提示。', error);
     }
   }
 
-  showAlert("info", "分享我的结果", fallbackText);
+  showAlert('info', '分享我的结果', payload.text);
 };
 
 // answers 需要 deep（selectOption 中 answers.value[qid] = score 是属性赋值）
@@ -379,11 +407,11 @@ watch([answers], persistProgress, { deep: true });
 // 其余 7 个源只需浅监听（基础类型 + 整体替换）
 watch(
   [currentPage, testStarted, showResult, resultType, resultName, resultDesc, scores],
-  persistProgress
+  persistProgress,
 );
 
 onMounted(() => {
-  document.body.classList.add("is-loaded");
+  document.body.classList.add('is-loaded');
   restoreProgress();
 });
 </script>

@@ -45,12 +45,13 @@ describe('独立详情页路由', () => {
 });
 
 describe('分享链接：文案必须自带 URL（手机端「只有文字没链接」的根因）', () => {
-  it('text 里拼上了 url，而不是只给 title / prize', () => {
+  it('正文经 buildSharePayload 组装（单一真源），而不是就地手拼', () => {
     const source = flattenSource(sheet());
-    // 两处 text 赋值都必须带 ${url}
-    expect(source).toMatch(/text\s*=\s*prize\s*\?[^;]*\$\{url\}/);
-    // 兜底：整段 script 内出现 `${url}`（防止被简化成只传 url 字段）
-    expect(source).toContain('${url}');
+    /* 手拼版一定会漏（2026-11-20 就是这样漏掉的）：正文与链接的拼接只许在
+       useShareTarget.js 里做一次，这里只允许调用它。
+       行为正确性由 share-payload-link.test.js 直接调函数锁（不靠字符匹配）。 */
+    expect(source).toContain('buildSharePayload(');
+    expect(source).toContain("from'@/composables/useShareTarget.js'");
   });
 
   it('落点是独立页 /lottery/:id，且经 router.resolve 取（改名不废链）', () => {
