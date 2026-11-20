@@ -24,3 +24,12 @@
 - ⚠️ **`provider` ≠ 平台名**：provider 是接入方式枚举，平台名在 `api_key_vault.label` ⇒ 左栏/列表**对 custom 必须用 label**，写 `providerLabel(provider)` 会把用户配的「公司内网网关」藏起来。
 - ⚠️ **`api_key_vault` 唯一键＝`(provider, purpose)`**（迁移 `2026061001:17`；EF 亦 `upsert(onConflict:'provider,purpose')`）⇒ 同平台同用途**只能一行**，再保存＝**替换**。预设平台是预期的，`custom` 则是灾难（以为在加第二个网关，实际覆盖第一个，界面还提示「已加密保存」）⇒ 保存前必须点名「将被覆盖的是哪一行」+ 二次确认 + 按钮写「覆盖保存」。守卫 `keys-models-merge.test.js` 的「不能静默覆盖」组。
 - ⚠️ `freemodels` 只记 provider、不记「属于哪个自定义网关」⇒ 多网关**共用同一份模型清单**（界面明说，不假装分得清）。要真拆分需动唯一键 + 加平台标识（破坏性，先确认）。
+
+## 魔搭 ModelScope 接入（2026-11-17）
+
+- **provider 枚举五处同步**才是一个完整平台：前端 `PROVIDER_META` / `fields.js` 两个 OPTIONS 表 / `saveStrategies.js` 白名单 / 两处 Key 来源过滤（FreemodelsConfig+EditDrawer）+ EF `PROVIDER_OPTIONS` / test 分支 / `DEFAULT_MODELS_URL` / discover supported / 运行时 chat 两处 defaultApiUrl + DB CHECK 约束（迁移 2026111701）。
+- 🔴 **魔搭「在清单里」≠「能调」**：`/v1/models` 返回 200 只代表收录，调用时报 `Model id : X , has no provider supported` = 该快照**没部署推理节点**。实测只有 `deepseek-ai/DeepSeek-V4.1-Flash-1017` 可用，`V4.1-Flash` 基础快照、`V4-Flash-0731`、`V4-Pro` 全都不行。选模型必须先拿真实 Token 打一发验证。
+- 🔴 **浏览器「复制」按钮在后台标签页会静默失败**（`navigator.clipboard.writeText` 需要前台焦点）——自动化代点复制前必须先 `tab_focus`；且合成按键**带不了剪贴板**，往页面粘贴 Token 只能请用户亲手 `Cmd+V`（验证剪贴板用 `pbpaste | head -c 3` 查前缀、`wc -c` 查长度，不回显内容）。
+- 管理页「0 个密钥」+ 红横幅 `Edge Function returned a non-2xx` = 浏览器会话过期（EF `requireAdmin` 的 `auth.getUser` 401），**刷新页面自愈**，别急着查代码。
+
+- ⚠️ **记忆沉淀的模型行＝`internal-memory`（2026-11-17）**：`bohai_model_configs` 里 modelscope/DeepSeek-V4.1-Flash-1017、倍率 **0**、min_tier=free、fallback=['fast']。前端真源 `BOH_MEMORY_MODE_ID`（`src/utils/bohai-constants.js`），由 `requestTreeholeCompletion` 默认传入。**换模型只改这一行**：别改 `fast`（游客默认模式 + 周报/文档排版/PPT 三个 `lab_ai_model_configs` 绑定它），也别把调用改成复用 `deepseek` 行（倍率 1.00 ⇒ 每轮自动抽取静默扣用户 ~3k，free 档 50k/日 十几轮撞额度墙）。内部行靠 RPC `mode_id not like 'internal-%'` 挡在选择器外，但**不做** EF 的 purpose 硬拦（它走普通 chat），所以倍率必须留在 0 且别挂更贵的模型。

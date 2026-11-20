@@ -55,3 +55,9 @@
   ⚠️ **未加**：属仓库决策，会影响并行会话的启动行为。
 - 为什么没进 `docs/AI-ENV.md`：那份是**必读面**，字节棘轮只许降不许涨（当时正好卡在
   9600B 基线、零余量），所以细节放这里、必读面不动。
+
+## 🔴 同一份 CSS 不许混用「JS import」与「<style src>」两种引入形态（2026-11-17）
+- 症状：`npm run build` 随机崩在 `[vite-plugin-pwa:build] ... .css?vue&type=style&index=N&src=true`，报 `Cannot read properties of undefined (reading 'scoped')`。**构建与页面都看不出规律**，容易误判成"环境问题"。
+- 根因：CSS 去重后 `buildEnd` 拿到 `undefined` 的 descriptor（同一个文件既被 `import 'x.css'` 又被 `<style src="x.css">` 引用时最易触发；宿主越多越容易撞）。
+- 现状（2026-11-17 全量收口）：`UserSpace/styles/landscape-rail.css` 的 6 个宿主（Home / BOHAI / Shop / Cloud+ / UserSpaceMain / ProfileMain）**一律 JS import**。新增宿主要照抄，别写 `<style src>`。
+- ⚠️ 别用「本地构建过没过」判这个坑：它是随机的（本地连过两次、CI 照样红）。判绿以 CI deploy run 为准。
