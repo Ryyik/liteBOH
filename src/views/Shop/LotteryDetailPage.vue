@@ -65,7 +65,6 @@ const load = async ({ silent = false, force = false } = {}) => {
     return;
   }
   if (!silent) loading.value = true;
-  loadError.value = '';
   try {
     const { data, error, fromCache } = await getCommunityLotteries({
       cacheKey: cacheKey(),
@@ -74,6 +73,9 @@ const load = async ({ silent = false, force = false } = {}) => {
     if (error) throw error;
     const list = Array.isArray(data) ? data : [];
     lottery.value = list.find((item) => String(item.id) === id) || null;
+    /* ⚠️ 失败态只在**成功**时清空：静默重取（登录切换）期间若提前清掉，首屏无数据会
+       掉到「没有找到这个抽奖」，在请求还没回来前就谎报活动被撤下。 */
+    loadError.value = '';
     applyMeta(lottery.value);
     if (fromCache) void load({ silent: true, force: true });
   } catch (error) {

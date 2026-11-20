@@ -87,6 +87,38 @@ describe('抽奖列表：周边页空闲预取', () => {
   });
 });
 
+describe('抽奖页：失败态只在成功时清空', () => {
+  /* 2026-11-20 实测（Playwright + 延迟 1200ms 的 mock RPC）：首屏失败后切换登录作用域
+     会触发 silent 强刷，旧实现一进 load 就 `loadError = ''` ⇒ 请求还没回来，模板就从
+     「抽奖加载失败」掉到「没有找到这个抽奖 / 还没有抽奖活动」，等于在重试途中谎报结果。 */
+  const loadBlock = (source, marker) => {
+    const start = source.indexOf('const load =');
+    expect(start, '找不到 load 定义').toBeGreaterThan(-1);
+    const end = source.indexOf(marker, start);
+    const block = source.slice(start, end > start ? end : start + 1600);
+    const tryAt = block.indexOf('try {');
+    expect(tryAt, 'load 里找不到 try 块').toBeGreaterThan(-1);
+    return block.slice(tryAt);
+  };
+
+  it('LotteryPanel：清空 loadError 必须在列表赋值成功之后', () => {
+    const block = loadBlock(panel(), 'const openDetail');
+    const assigned = block.indexOf('lotteries.value =');
+    const cleared = block.indexOf("loadError.value = ''");
+    expect(assigned).toBeGreaterThan(-1);
+    expect(cleared).toBeGreaterThan(assigned);
+  });
+
+  it('LotteryDetailPage：清空 loadError 必须在详情赋值成功之后', () => {
+    const source = stripComments(read('src/views/Shop/LotteryDetailPage.vue'));
+    const block = loadBlock(source, 'const join =');
+    const assigned = block.indexOf('lottery.value = list.find');
+    const cleared = block.indexOf("loadError.value = ''");
+    expect(assigned).toBeGreaterThan(-1);
+    expect(cleared).toBeGreaterThan(assigned);
+  });
+});
+
 describe('数据管理台：两个可见性开关各说各的，不许再互相借文案', () => {
   it('is_home_visible 有自己的一组选项', () => {
     expect(fields()).toMatch(/export\s+const\s+LOTTERY_HOME_VISIBLE_OPTIONS\s*=/);

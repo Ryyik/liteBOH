@@ -82,7 +82,6 @@ const applyField = (item, { field, value }) => {
 const load = async ({ silent = false, force = false } = {}) => {
   // silent：后台刷新 / 就地编辑删除后重取用；不亮骨架，避免整块列表闪一下
   if (!silent) loading.value = true;
-  loadError.value = '';
   try {
     const { data, error, fromCache } = await getCommunityLotteries({
       cacheKey: cacheKey(),
@@ -90,6 +89,9 @@ const load = async ({ silent = false, force = false } = {}) => {
     });
     if (error) throw error;
     lotteries.value = Array.isArray(data) ? data : [];
+    /* ⚠️ 失败态只在**成功**时清空：静默重取（登录切换 / KeepAlive 回来）期间若提前清掉，
+       模板会从「加载失败」掉到「还没有抽奖活动」，等于在重试途中谎报空列表。 */
+    loadError.value = '';
     /* 缓存命中先立刻渲染，再静默拉一次最新的：既不空等，也不让运营刚建的抽奖消失。 */
     if (fromCache) void load({ silent: true, force: true });
   } catch (error) {
