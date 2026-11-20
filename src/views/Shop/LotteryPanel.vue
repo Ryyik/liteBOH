@@ -39,56 +39,26 @@
         <p>还没有抽奖活动</p>
       </div>
     </Transition>
-
-    <LotteryDetailSheet
-      v-if="selectedLottery"
-      :lottery="selectedLottery"
-      :origin-key="selectedOriginKey"
-      :joining="joiningId === selectedLottery.id"
-      @close="closeDetail"
-      @join="join(selectedLottery)"
-      @notify="showMessage"
-    />
-
-    <transition name="lottery-toast">
-      <p v-if="message" class="lottery-toast">{{ message }}</p>
-    </transition>
   </div>
 </template>
 
 <script setup>
-import { computed, onActivated, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { storeToRefs } from 'pinia';
+import { computed, onActivated, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { useAuthStore } from '@/stores/auth';
-import { getCommunityLotteries, joinCommunityLottery } from '@/utils/api/lottery-api.js';
+import { getCommunityLotteries } from '@/utils/api/lottery-api.js';
 import { captureOrigin } from '@/utils/motion-origin.js';
 import { logger } from '@/utils/logger.js';
 import LotteryCard from './LotteryCard.vue';
-import LotteryDetailSheet from './LotteryDetailSheet.vue';
 import { useInlineEditor } from '@/composables/useInlineEditor.js';
 
-const authStore = useAuthStore();
 const route = useRoute();
 const router = useRouter();
-const { isLoggedIn, showLoginModal } = storeToRefs(authStore);
 
 /** 后台「就地编辑」上下文；前台没有注入 ⇒ null（见下方 dataRevision watch） */
 const inlineEditor = useInlineEditor();
 
 const lotteries = ref([]);
 const loading = ref(true);
-const joiningId = ref('');
-const message = ref('');
-let messageTimer = null;
-
-/* 详情：只存 id，对象从 lotteries 里现取 —— 报名成功后 load() 会换掉整份列表，
-   存快照的话弹层里的「已报名」会停留在旧值（按钮看着还能再点一次）。 */
-const selectedId = ref('');
-const selectedOriginKey = ref('');
-const selectedLottery = computed(
-  () => lotteries.value.find((item) => String(item.id) === selectedId.value) || null,
-);
 
 const activeLotteries = computed(() => lotteries.value.filter((item) => item.status === 'open'));
 const historyLotteries = computed(() => lotteries.value.filter((item) => item.status !== 'open'));
@@ -97,14 +67,6 @@ const historyLotteries = computed(() => lotteries.value.filter((item) => item.st
 const applyField = (item, { field, value }) => {
   if (!item || !field) return;
   item[field] = value;
-};
-
-const showMessage = (text) => {
-  message.value = text;
-  if (messageTimer) clearTimeout(messageTimer);
-  messageTimer = setTimeout(() => {
-    message.value = '';
-  }, 2600);
 };
 
 const load = async ({ silent = false } = {}) => {
@@ -121,76 +83,39 @@ const load = async ({ silent = false } = {}) => {
   }
 };
 
-const join = async (item) => {
-  if (!isLoggedIn.value) {
-    showLoginModal.value = true;
-    return;
-  }
-  if (joiningId.value) return;
-  joiningId.value = item.id;
-  try {
-    const { data, error } = await joinCommunityLottery(item.id);
-    if (error) {
-      showMessage(String(error.message || '报名失败，请稍后重试'));
-      return;
-    }
-    if (data && data.success === false) {
-      showMessage(String(data.message || '报名失败，请稍后重试'));
-      return;
-    }
-    showMessage('报名成功');
-    await load();
-  } catch (error) {
-    logger.warn('shop-lottery', '报名失败', error);
-    showMessage('报名失败，请稍后重试');
-  } finally {
-    joiningId.value = '';
-  }
-};
-
-/* 卡片 → 详情：与商品卡同一套（点击时采集卡片矩形，详情用 clip-path 从这一格推开）
-   ⚠️ 滚动锁不在这里：`/shop` 的页面滚动发生在 html 上（见 useBodyScrollLock 文件头），
-   本组件原来的 `document.body.style.overflow` 直写是空操作。锁已交给 LotteryDetailSheet
-   自己在挂载/卸载时取还（它只在 selectedLottery 存在时挂载）。 */
+/* 卡片 → 独立详情页（2026-11-20 用户口径「我想要独立页」）：
+   以前点卡片是在本页叠一个弹层，地址栏拿不到链接、刷新即丢。现在改成真实路由
+   `/lottery/:id` —— 可分享 / 可刷新 / 可前进后退。
+   ⚠️ 仍是「从哪一格推开」的手感来源：点击时把卡片矩形采集成 origin（key 里带 id，
+   防止点到 A 卡却从 B 卡位置展开），详情页若将来接跨路由形变可直接复用；
+   当前详情页按自身入场播（没有跨路由 shared-element 通道）。 */
 const openDetail = (item, event) => {
   if (!item?.id) return;
-  selectedId.value = String(item.id);
-  selectedOriginKey.value = `shop-lottery:${item.id}`;
   const card = event?.currentTarget;
-  if (card) captureOrigin(selectedOriginKey.value, card, { radius: 16 });
+  if (card) captureOrigin(`shop-lottery:${item.id}`, card, { radius: 16 });
+  router.push({ name: 'LotteryDetail', params: { id: String(item.id) } });
 };
 
-/* ── 分享深链（2026-11-09）──
-   详情里的「分享」发出去的是 `#/shop?tab=lottery&lottery=<id>`：
-   · `lottery` 存在 ⇒ 列表加载完后直接展开这一条（对方点开就看到，不用自己在列表里找）；
-   · 找不到（活动已删 / 已归档）⇒ 静默清参数，不留一条指不到实体的深链；
-   · 关闭详情时也一并清掉，否则刷新一次又弹出来。 */
-const clearDeepLinkQuery = () => {
-  if (!route.query.lottery) return;
-  const query = { ...route.query };
-  delete query.lottery;
-  router.replace({ path: '/shop', query });
-};
-
-const consumeDeepLink = () => {
+/* ── 旧分享深链兼容（2026-11-09 引入，2026-11-20 改落点）──
+   旧版分享出去的是 `#/shop?tab=lottery&lottery=<id>`（历史链接还在别人手机上）。
+   现在统一转到独立页 `/lottery/<id>`，旧链接不会失效。
+   · 用 replace 不留中间态历史，点返回直接回到来处；
+   · 只在列表分区渲染（activeTab==='lottery'）时生效，避免在「产品」分区抢跳。 */
+const redirectLegacyDeepLink = () => {
   const id = String(route.query.lottery || '').trim();
   if (!id) return;
-  const target = lotteries.value.find((item) => String(item.id) === id);
-  /* 无 originKey：不是从卡片点起来的，morphWindow 返回 null，详情按自身入场播，
-     不要为了深链伪造一次卡片矩形 */
-  if (target) openDetail(target, null);
-  else clearDeepLinkQuery();
+  router.replace({ name: 'LotteryDetail', params: { id } });
 };
 
-const closeDetail = () => {
-  selectedId.value = '';
-  clearDeepLinkQuery();
-};
-
-onMounted(async () => {
-  await load();
-  consumeDeepLink();
+onMounted(() => {
+  redirectLegacyDeepLink();
 });
+/* KeepAlive 缓存住本组件后，「同页内再点一条旧深链」时路由 query 变了、组件却不重挂
+   （这正是 2026-11-09 版深链在新版失效的根因）⇒ 必须 watch query 变化，不能只靠 onMounted。 */
+watch(
+  () => route.query.lottery,
+  () => redirectLegacyDeepLink(),
+);
 
 /* KeepAlive 回来要重新取数（2026-11-16）：`/shop` 自 2026-11-14 进了路由缓存白名单
    （router/routes/public.ts 的 `keepAliveName: 'ShopPage'`），本组件只在挂载时取一次
@@ -216,9 +141,6 @@ watch(
     void load({ silent: true });
   },
 );
-onBeforeUnmount(() => {
-  if (messageTimer) clearTimeout(messageTimer);
-});
 </script>
 
 <style scoped>
@@ -274,31 +196,5 @@ onBeforeUnmount(() => {
 
 .lottery-empty {
   padding: 64px 0;
-}
-
-.lottery-toast {
-  position: fixed;
-  bottom: 120px;
-  left: 50%;
-  /* 要高过详情弹层（2147482400）：报名是在弹层里点的，提示必须浮在它之上，
-     否则「报名成功 / 报名失败」被遮罩吃掉，用户以为没反应 */
-  z-index: 2147482500;
-  margin: 0;
-  padding: 9px 16px;
-  transform: translateX(-50%);
-  border-radius: 999px;
-  background: rgba(29, 29, 31, 0.9);
-  color: #fff;
-  font-size: 13px;
-}
-
-.lottery-toast-enter-active,
-.lottery-toast-leave-active {
-  transition: opacity 0.2s ease;
-}
-
-.lottery-toast-enter-from,
-.lottery-toast-leave-to {
-  opacity: 0;
 }
 </style>

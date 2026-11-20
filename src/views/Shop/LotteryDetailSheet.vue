@@ -1,8 +1,12 @@
 <template>
-  <Teleport to="body">
+  <!-- `standalone`（2026-11-20）：本组件同时被「周边页里的弹层」和「独立详情页
+       （/lottery/:id）」复用。独立页没有 body 级 Teleport 的必要（它自己就是一个
+       路由页），关掉 Teleport 原地渲染；视觉与弹层完全一致 —— 竖屏全屏、横屏分栏，
+       只是没有来源卡片可形变（originKey 为空，进场走自身 keyframe）。 -->
+  <Teleport to="body" :disabled="standalone">
     <div
       class="detail-root shop-sheet-tokens"
-      :class="isLandscape ? 'is-landscape' : 'is-portrait'"
+      :class="[isLandscape ? 'is-landscape' : 'is-portrait', { 'is-standalone': standalone }]"
     >
       <div class="detail-scrim" @click="requestClose"></div>
       <article
@@ -102,6 +106,7 @@
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
+import { useRouter } from 'vue-router';
 import { Check, ChevronLeft, Share2, X } from 'lucide-vue-next';
 import {
   animateMorph,
@@ -135,9 +140,14 @@ const props = defineProps({
   /* 来源卡片 key（`shop-lottery:<id>`）：点击时由列表 captureOrigin 采集，用于形变 */
   originKey: { type: String, default: '' },
   joining: { type: Boolean, default: false },
+  /* 独立页模式（/lottery/:id）：不 Teleport、不形变、不需要页面滚动锁（页面自己就是
+     一屏），关闭键改为「返回上一页」语义由宿主决定（宿主监听 close 自行 router.back）。 */
+  standalone: { type: Boolean, default: false },
 });
 
 const emit = defineEmits(['close', 'join', 'notify']);
+
+const router = useRouter();
 
 const surfaceRef = ref(null);
 const scrollRef = ref(null);
@@ -226,20 +236,34 @@ const requestJoin = () => {
   emit('join');
 };
 
-/* ── 分享（2026-11-09 用户口径「新版的抽奖页面没有分享，请添加一个」）──
-   落点是「周边页的抽奖分区 + 这条活动的深链参数」：
-     `#/shop?tab=lottery&lottery=<id>`
-   只给 `#/shop?tab=lottery` 等于把对方丢进列表里自己找；带 id 由 LotteryPanel
-   加载完后自动展开这一条（见那边的 consumeDeepLink）。
-   通道与 ContentDetailIsland 一致：原生分享面板优先，不支持或失败才降级复制，
-   复制成功按钮自身切成「已复制」2.2s —— 弹层里没有第二个 toast 位，按钮态最直接。 */
+/* ── 分享 ──
+   落点统一改成**独立详情页** `/lottery/<id>`（2026-11-20 用户口径「我想要独立页」）：
+   以前发的是 `#/shop?tab=lottery&lottery=<id>` —— 依赖列表加载完再展开弹层，同页内
+   再点第二次时 KeepAlive 根本不会重新挂载（深链静默失效），而且地址栏里拿不到链接。
+   独立页天然可分享 / 可刷新 / 可前进后退，也不再受列表缓存影响。
+   路径经 `router.resolve` 取，不手拼字符串：将来路由改名不会让已发出去的链接全废。
+
+   ⚠️ 手机上「复制出来只有文字没有链接」的真因（2026-11-20 报障）：系统分享面板里
+   部分目标（微信「发送给朋友」、部分安卓机型的「复制」）只取 `text` 字段，`url`
+   被丢掉。所以 `text` 里必须自带链接 —— 任何一个通道拿到的文本都包含 URL。 */
 const shareState = ref('idle');
 let shareResetTimer = null;
 
 const resolveShareUrl = () => {
   if (typeof window === 'undefined') return '';
-  const id = encodeURIComponent(String(props.lottery?.id ?? ''));
-  return `${window.location.origin}${window.location.pathname}#/shop?tab=lottery&lottery=${id}`;
+  const id = String(props.lottery?.id ?? '').trim();
+  if (!id) return '';
+  let href = '';
+  try {
+    href = router.resolve({ name: 'LotteryDetail', params: { id } }).href;
+  } catch {
+    href = `/lottery/${encodeURIComponent(id)}`;
+  }
+  /* resolve 对 hash 路由返回 `#/lottery/<id>`；补齐 origin 才能发出去 */
+  if (href.startsWith('#')) {
+    return `${window.location.origin}${window.location.pathname}${href}`;
+  }
+  return new URL(href, window.location.href).toString();
 };
 
 const showCopiedHint = () => {
@@ -280,14 +304,13 @@ const shareLottery = async () => {
   if (!url) return;
   const title = String(props.lottery?.title || '方块之家抽奖');
   const prize = String(props.lottery?.prize_title || '').trim();
+  /* ⚠️ text 必须自带 URL（2026-11-20 手机端「复制只有文字没链接」的真因）：
+     系统分享面板/部分机型的「复制」只取 text、丢 url，所以两条通道都要把链接塞进正文。 */
+  const text = prize ? `${title} · 奖品：${prize}\n${url}` : `${title}\n${url}`;
   /* ⚠️ share() 必须在用户手势里**同步**发起，前面不能先 await 复制之类的东西 */
   if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
     try {
-      await navigator.share({
-        title,
-        text: prize ? `${title} · 奖品：${prize}` : title,
-        url,
-      });
+      await navigator.share({ title, text, url });
       return; // 系统面板自带反馈
     } catch (error) {
       if (error?.name === 'AbortError') return; // 用户划走面板，不算失败
@@ -307,6 +330,8 @@ const surfaceRadius = () => {
 
 const morphWindow = () => {
   const el = surfaceRef.value;
+  /* 独立页没有「来源卡片」：不做形变，进场交给 CSS keyframe（与弹层降级路径同观感） */
+  if (props.standalone) return null;
   if (!el || !canMorph() || !props.originKey) return null;
   const source = peekOrigin(props.originKey);
   if (!source) return null;
@@ -372,8 +397,12 @@ onMounted(() => {
   mql.addEventListener('change', onOrientationChange);
   document.addEventListener('keydown', onKeydown);
   /* 本层是盖在 /shop 长文档流上的整页层，不锁页面时滚轮会滚到背后的抽奖列表
-     （2026-11-10 商品详情同一类报障）。只在 selectedLottery 存在时挂载 ⇒ 挂载即上锁。 */
-  releaseScrollLock = acquireBodyScrollLock('shop-lottery-detail');
+     （2026-11-10 商品详情同一类报障）。只在 selectedLottery 存在时挂载 ⇒ 挂载即上锁。
+     ⚠️ 独立页（standalone）不锁：它自己就是一屏路由页，锁住反而让 iOS 回弹/滚动异常，
+     而且没有「背后的列表」会被穿透。 */
+  if (!props.standalone) {
+    releaseScrollLock = acquireBodyScrollLock('shop-lottery-detail');
+  }
   void playOpen();
 });
 
@@ -467,6 +496,14 @@ onBeforeUnmount(() => {
   background: rgba(15, 23, 42, 0.32);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
+}
+
+/* 独立页没有「背后的列表 / 页面」可压暗：横屏保留遮罩会变成一整片灰底铺在空白上，
+   看起来像没加载完。这里把遮罩清成页面底色，分栏面板本身不变（尺寸 / 圆角 / 阴影都同源）。 */
+.is-standalone .detail-scrim {
+  background: var(--boh-page-bg, var(--boh-bg-primary, #fff));
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 .is-landscape .detail-surface {

@@ -55,6 +55,18 @@ export const publicRoutes: RouteRecordRaw[] = [
     meta: { keepAlive: true, keepAliveName: 'ShopPage' },
   },
   {
+    // 抽奖独立详情页（2026-11-20）：真实 URL，可分享 / 刷新 / 前进后退 + OG meta。
+    // 与 /news/:id 同口径 —— 视觉与「周边页抽奖分区」的详情弹层完全一致（同一组件
+    // LotteryDetailSheet 的 standalone 模式），只是不需要从卡片形变进来。
+    // 不放 keepAlive：详情页数据少、且进来即应看到最新报名数，缓存反而会展示旧值。
+    path: '/lottery/:id',
+    name: 'LotteryDetail',
+    component: () => import('../../views/Shop/LotteryDetailPage.vue'),
+    /* bodyClass 复用 `page-shop`：独立页与周边页共用同一套左右栏让位/宽度规则，
+       否则同一个详情在弹层里和独立页里会长成两个宽度。 */
+    meta: { bodyClass: 'page-shop' },
+  },
+  {
     path: '/shop/account',
     name: 'ShopAccount',
     component: () => import('../../views/Shop/ShopAccountPage.vue'),
