@@ -151,6 +151,20 @@ describe('统一导航：语义与直接动作目标', () => {
     expect(css).toContain('var(--nav-mobile-h, 0px)');
   });
 
+  it('一级触发器按钮在 ≤1024 档与锚点同级（锚点专属规则必须并列 .nav-link-wrapper）', () => {
+    /* 2026-11-20 实测（744 / 900 / 1024 三档）：触发器从 <a> 换成 <button> 后，
+       vendor 里 `.nav-menu a` 的平板档尺寸不再命中 —— 触发器 14px/8px 0、高 42.6，
+       同级链接 13px/8px 14px、高 44，且页面色规则里的 #000 也漏掉它。 */
+    const css = stripCssComments(read('src/styles/vendor/unified-nav.css'));
+    expect(css).toMatch(
+      /\.unified-nav \.nav-menu a,\s*\.unified-nav \.nav-menu \.nav-link-wrapper\s*\{\s*padding: 8px 14px;\s*font-size: 13px;/,
+    );
+    expect(css).toMatch(
+      /\.unified-nav \.nav-menu > \.nav-menu-item > a,\s*\.unified-nav \.nav-menu > \.nav-menu-item > \.nav-link-wrapper\s*\{\s*min-height: 44px;/,
+    );
+    expect(css).toMatch(/body\.page-home \.unified-nav \.nav-link-wrapper/);
+  });
+
   it('has-boh-island 由 Vue 绑定，避免响应式 class 重算抹掉命令式停靠类', () => {
     expect(navTemplate).toContain(flattenSource("'has-boh-island': bohIsland.docked.value"));
     expect(read('src/composables/useBohIsland.js')).toContain('const docked = ref(false);');
