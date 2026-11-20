@@ -810,6 +810,51 @@ export async function getPosts(userId = null, pagination = {}) {
   );
 }
 
+/**
+ * 单帖详情（详情页 / 横屏详情弹窗）。
+ *
+ * 2026-11-20：这条查询原先写在 `PostDetailMain.vue` 里直连 `posts`，绕过了
+ * `executeRead` 的去重 / 超时 / 重试 —— 同一帖关掉再打开会各取一遍，
+ * 而从列表点进来时列表那一行早在内存里。现在收口到这里。
+ *
+ * ⚠️ 缓存口径刻意是 **只做 in-flight 去重（`ttlMs` 不传 = 0）**：
+ * 详情展示的点赞数 / 评论数是秒级会变的状态，挂 30s 的 `LIST_DATA`
+ * 会让人看到过期计数，那属于数据新鲜度缺陷，不是提速。
+ *
+ * 可见性过滤与原实现逐字一致：普通用户看不到别人未过审的帖子，
+ * 管理员不加过滤（保留审核入口）。
+ */
+export async function getPostDetail(postId, { currentUserId = null, isAdmin = false } = {}) {
+  const safePostId = String(postId || '').trim();
+  if (!safePostId) {
+    return { ok: false, data: null, error: normalizeDbError({ message: '缺少帖子 ID' }) };
+  }
+  const viewerId = String(currentUserId || '').trim();
+  const adminView = Boolean(isAdmin);
+
+  return executeRead(
+    'posts.getPostDetail',
+    { postId: safePostId, viewerId, adminView },
+    async () => {
+      let query = supabase
+        .from('posts')
+        .select('*, author:author_id(avatar_url, avatar_frame_url)')
+        .eq('id', safePostId);
+
+      if (!adminView) {
+        const statusFilter = viewerId
+          ? `status.is.null,status.eq.approved,and(status.eq.limited,author_id.eq.${viewerId}),and(status.eq.rejected,author_id.eq.${viewerId})`
+          : 'status.is.null,status.eq.approved';
+        query = query.or(statusFilter);
+      }
+
+      const { data, error } = await query.single();
+      return { data, error };
+    },
+    { timeoutMs: 8000, retry: 1 },
+  );
+}
+
 export async function getForumTagStats() {
   const { data, error, ok } = await executeRead(
     'posts.getForumTagStats',

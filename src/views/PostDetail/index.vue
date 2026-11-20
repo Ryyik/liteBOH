@@ -4,8 +4,10 @@
  * Suspense fallback 使用与主组件同构的轻量骨架，避免空白与简陋的"加载中..."文字。
  */
 import { createPanelAsync } from '@/utils/async-component.js';
+import { loadPostDetailPanel } from '@/composables/usePostDetailModal.js';
 
-const PostDetailMain = createPanelAsync(() => import('./PostDetailMain.vue'), {
+// loader 单源：横屏弹窗、卡片 pointerdown 预取与这里共用同一份（usePostDetailModal）
+const PostDetailMain = createPanelAsync(loadPostDetailPanel, {
   label: 'PostDetailMain',
 });
 </script>

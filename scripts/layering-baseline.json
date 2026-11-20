@@ -1,6 +1,6 @@
 {
-  "total": 133,
-  "updatedAt": "2026-11-14",
+  "total": 132,
+  "updatedAt": "2026-11-20",
   "files": {
     "src/views/DataManagement/DataAdmin.vue": 23,
     "src/views/DataManagement/composables/useDataAdminMutations.js": 20,
@@ -8,7 +8,7 @@
     "src/components/AddressManager.vue": 9,
     "src/views/DataManagement/components/FreemodelsConfig.vue": 7,
     "src/views/DataManagement/composables/useLotteryOperations.js": 7,
-    "src/views/PostDetail/PostDetailMain.vue": 7,
+    "src/views/PostDetail/PostDetailMain.vue": 6,
     "src/views/Shop/ShopAccountPanel.vue": 6,
     "src/composables/useLabQuota.js": 4,
     "src/views/DataManagement/components/LabAiModelConfig.vue": 4,

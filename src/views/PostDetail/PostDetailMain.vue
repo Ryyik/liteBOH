@@ -36,6 +36,7 @@ import {
   getLikedCommentIds,
   deletePost,
   deleteComment,
+  getPostDetail,
   getPostEngagementStats,
   getForumPostImages,
   updatePost,
@@ -975,6 +976,28 @@ const handleToggleCommentLike = async ({ comment, parentId } = {}) => {
   }
 };
 
+/* 把一批顶层评论写回状态（2026-11-20 抽出）。
+   抽出原因：首屏这批评论现在与帖子查询**并发**发出（见 fetchPostDetail），
+   拿到结果时帖子可能刚落地、也可能还在路上 —— 应用结果这一步必须能被
+   「预取路径」和「翻页/重排路径」共用，否则会写出第二份合并逻辑。 */
+const applyTopLevelComments = async (result, { reset = false, page = 1 } = {}) => {
+  const incoming = Array.isArray(result?.data) ? result.data : [];
+  if (reset) {
+    topComments.value = incoming;
+    childRepliesMap.value = {};
+    await preloadChildReplyPreviews(incoming);
+  } else {
+    const existing = new Set(topComments.value.map((item) => item.id));
+    const merged = incoming.filter((item) => !existing.has(item.id));
+    topComments.value = [...topComments.value, ...merged];
+    await preloadChildReplyPreviews(merged);
+  }
+
+  hasMoreTopComments.value = Boolean(result?.hasMore);
+  topCommentsPage.value = page + 1;
+  void hydrateCommentLikeState();
+};
+
 const loadTopComments = async ({ reset = false } = {}) => {
   if (!post.value?.id) return;
   if (isTopCommentsLoading.value) return;
@@ -991,21 +1014,7 @@ const loadTopComments = async ({ reset = false } = {}) => {
       order: commentSortMode.value,
     });
 
-    const incoming = Array.isArray(result?.data) ? result.data : [];
-    if (reset) {
-      topComments.value = incoming;
-      childRepliesMap.value = {};
-      await preloadChildReplyPreviews(incoming);
-    } else {
-      const existing = new Set(topComments.value.map((item) => item.id));
-      const merged = incoming.filter((item) => !existing.has(item.id));
-      topComments.value = [...topComments.value, ...merged];
-      await preloadChildReplyPreviews(merged);
-    }
-
-    hasMoreTopComments.value = Boolean(result?.hasMore);
-    topCommentsPage.value = pageToLoad + 1;
-    void hydrateCommentLikeState();
+    await applyTopLevelComments(result, { reset, page: pageToLoad });
   } catch (error) {
     logger.error('post-detail', '加载顶层评论失败:', error);
   } finally {
@@ -1495,37 +1504,36 @@ const fetchPostDetail = async () => {
   isLoading.value = true;
   officialContent.value = { type: '', html: '', paragraphs: [] };
   quotedPost.value = null;
+  const targetPostId = String(postId.value || '').trim();
   try {
     const currentUserId = getCurrentUserId();
     const isAdmin = Boolean(isLoggedIn.value && userInfo.role === 'admin');
 
-    let query = supabase
-      .from('posts')
-      .select(
-        `
-        *,
-        author:author_id(avatar_url, avatar_frame_url)
-      `,
-      )
-      .eq('id', postId.value);
+    /* P0（2026-11-20）：下面三条的入参**只依赖 postId**，原先却全部排在
+       帖子查询 `await` 之后 ⇒ 首屏要串 4 个往返（帖子 → 图片/点赞 → 评论
+       → 回复预览）。现在与帖子查询并发发出，串行波次压到 2。
+       代价：帖子不存在 / 无权限时这三条会白跑一次，失败态本来就更慢，接受。
+       ⚠️ 评论结果必须走 applyTopLevelComments（与翻页/重排共用同一份合并
+       逻辑），不要在这里再写一遍合并。 */
+    const preloadedSortMode = commentSortMode.value;
+    const commentsPromise = getComments(targetPostId, currentUserId, {
+      topLevelOnly: true,
+      page: 1,
+      pageSize: TOP_LEVEL_PAGE_SIZE,
+      order: preloadedSortMode,
+    }).catch(() => null);
+    const imagesPromise = getForumPostImages(targetPostId);
+    const isLikedPromise = currentUserId
+      ? checkIfLiked(targetPostId, currentUserId)
+      : Promise.resolve(false);
 
-    if (!isAdmin) {
-      const safeCurrentUserId = String(currentUserId || '').trim();
-      const statusFilter = safeCurrentUserId
-        ? `status.is.null,status.eq.approved,and(status.eq.limited,author_id.eq.${safeCurrentUserId}),and(status.eq.rejected,author_id.eq.${safeCurrentUserId})`
-        : 'status.is.null,status.eq.approved';
-      query = query.or(statusFilter);
-    }
+    const detailRes = await getPostDetail(targetPostId, { currentUserId, isAdmin });
 
-    const { data, error } = await query.single();
-
-    if (error) throw error;
+    if (!detailRes.ok) throw detailRes.error;
+    const data = detailRes.data;
 
     if (data) {
-      const [isLiked, imagesRes] = await Promise.all([
-        currentUserId ? checkIfLiked(data.id, currentUserId) : Promise.resolve(false),
-        getForumPostImages(data.id),
-      ]);
+      const [isLiked, imagesRes] = await Promise.all([isLikedPromise, imagesPromise]);
 
       if (requestSeq !== detailFetchSeq) return;
 
@@ -1569,7 +1577,15 @@ const fetchPostDetail = async () => {
 
       resetCommentState();
       void (async () => {
-        await loadTopComments({ reset: true });
+        const commentsResult = await commentsPromise;
+        if (requestSeq !== detailFetchSeq) return;
+        /* 并发发出后到落地前，用户可能已切换评论排序（会自行 loadTopComments）。
+           此时预取的这批属于旧排序，直接丢掉重取，避免「看到的顺序和选中项不一致」。 */
+        if (commentSortMode.value !== preloadedSortMode) {
+          await loadTopComments({ reset: true });
+        } else if (commentsResult) {
+          await applyTopLevelComments(commentsResult, { reset: true, page: 1 });
+        }
         if (requestSeq !== detailFetchSeq) return;
         await handleCommentDeepLink();
       })();

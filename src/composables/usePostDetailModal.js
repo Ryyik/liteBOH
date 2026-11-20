@@ -28,6 +28,29 @@ let offLandscape = null;
 
 const buildDetailHash = (id) => `#/forum/post/${id}`;
 
+/* 详情面板 chunk 的单源加载器（2026-11-20）。
+ *
+ * 横屏弹窗与竖屏整页路由用的是**同一个模块** `PostDetailMain.vue`，它不在首屏闭包里：
+ * 首次点帖才下载（实测产物 84KB raw / 24.8KB gzip + 79KB CSS）。于是「点开详情」要
+ * 先付一次下载再开始取数。
+ *
+ * 这里把 loader 收成一处，供两条路径共用：
+ *   · `PostDetailModal.vue` 的 defineAsyncComponent.loader；
+ *   · 列表卡片的 pointerdown 预取（用户已表达意图，见 ForumMain）。
+ * 失败必须忘掉 promise —— 否则那次会话里连重试都拿不到（同 utils/route-prefetch.js）。
+ */
+let detailPanelChunkPromise = null;
+
+export function loadPostDetailPanel() {
+  if (!detailPanelChunkPromise) {
+    detailPanelChunkPromise = import('@/views/PostDetail/PostDetailMain.vue').catch((error) => {
+      detailPanelChunkPromise = null;
+      throw error;
+    });
+  }
+  return detailPanelChunkPromise;
+}
+
 const syncScrollLock = () => {
   if (typeof document === 'undefined') return;
   document.body.style.overflow = isOpen.value ? 'hidden' : '';

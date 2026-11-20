@@ -10,7 +10,7 @@
  *   编辑器等 fixed 子层在 panel 的 stacking context 内自然置顶，无需改其 z-index。
  */
 import { computed, defineAsyncComponent, h, ref, watch, nextTick } from 'vue';
-import { usePostDetailModal } from '@/composables/usePostDetailModal.js';
+import { usePostDetailModal, loadPostDetailPanel } from '@/composables/usePostDetailModal.js';
 import {
   animateMorph,
   canMorph,
@@ -52,7 +52,8 @@ const PdModalError = {
 };
 
 const PostDetailMain = defineAsyncComponent({
-  loader: () => import('./PostDetailMain.vue'),
+  // loader 单源在 usePostDetailModal（列表卡片的 pointerdown 预取共用它）
+  loader: loadPostDetailPanel,
   delay: 200,
   loadingComponent: PdModalLoading,
   errorComponent: PdModalError,

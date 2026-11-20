@@ -32,7 +32,7 @@ const readConnection = () => {
   return navigator.connection || navigator.mozConnection || navigator.webkitConnection || null;
 };
 
-const shouldSkipPrefetch = () => {
+export const shouldSkipPrefetch = () => {
   const connection = readConnection();
   if (!connection) return false;
   if (connection.saveData) return true;

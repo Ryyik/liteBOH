@@ -1,5 +1,5 @@
 import { supabase } from '../supabase-client.js';
-import { normalizeDbError } from '../request-core.js';
+import { executeRead, normalizeDbError } from '../request-core.js';
 import { logger } from '../logger.js';
 import { CLOUD_UPLOAD_MAX_CONCURRENCY } from '../cloud-upload-guard.js';
 import {
@@ -217,16 +217,27 @@ export async function getForumPostImages(postId) {
     return { ok: false, data: [], error: normalizeDbError({ message: '缺少帖子 ID' }) };
   }
 
-  const { data, error } = await supabase
-    .from('forum_post_images')
-    .select('id, url, public_id, width, height, format, sort_order')
-    .eq('post_id', safePostId)
-    .eq('moderation_status', APPROVED_STATUS)
-    .order('sort_order', { ascending: true });
+  const result = await executeRead(
+    'forum.images.getForumPostImages',
+    { postId: safePostId },
+    async () => {
+      const { data, error } = await supabase
+        .from('forum_post_images')
+        .select('id, url, public_id, width, height, format, sort_order')
+        .eq('post_id', safePostId)
+        .eq('moderation_status', APPROVED_STATUS)
+        .order('sort_order', { ascending: true });
+
+      return { data, error };
+    },
+    // 只做在途去重（ttlMs 0）：列表与详情会同时请求同一帖的图，
+    // 去重省一条；但图片状态（审核/替换）会变，不挂 TTL 缓存。
+    { timeoutMs: 8000, retry: 1 },
+  );
 
   return {
-    ok: !error,
-    data: normalizeForumImages(data || []),
-    error: normalizeDbError(error),
+    ok: result.ok,
+    data: normalizeForumImages(result.data || []),
+    error: result.error,
   };
 }

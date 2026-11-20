@@ -71,7 +71,8 @@ import { ensureNotificationStore } from '@/stores/notification-loader';
 import { isForumLandscape } from '@/utils/forum-viewport.js';
 import { isForumFeedSection } from '@/config/forum-sections';
 import { acquireBodyScrollLock } from '@/composables/useBodyScrollLock.js';
-import { openForumPost } from '@/composables/usePostDetailModal.js';
+import { openForumPost, loadPostDetailPanel } from '@/composables/usePostDetailModal.js';
+import { shouldSkipPrefetch } from '@/utils/route-prefetch.js';
 import CommonAlertModal from '../../components/CommonAlertModal.vue';
 import HomeCatMascot from '@/components/HomeCatMascot.vue';
 import {
@@ -3561,6 +3562,22 @@ const askBohai = async () => {
   }
 };
 
+/* 按下卡片即预取详情面板 chunk（2026-11-20）。
+ *
+ * 详情面板（`views/PostDetail/PostDetailMain.vue`）不在首屏闭包里，点开才下载
+ * ⇒ 首次打开要「先等下载，才开始取数」。这里在 pointerdown（比 click 早约
+ * 80–120ms；移动端没有 hover，所以不用 pointerenter）就开拉，失败由 loader 自己忘掉。
+ *
+ * ⚠️ 刻意**不进 idle 批量预取队列**：仓库实测过慢网下批量预取会和首屏数据请求
+ * 抢带宽（见 utils/route-prefetch.js 里 587ms → 947ms 的记录）。按下是用户已表达
+ * 意图，把带宽花在他马上要用的地方；省流 / 2G 仍然跳过。
+ * 已知代价：触屏「按下即开始滚动」也会触发一次（一次会话仅一次、25KB gzip，
+ * 换来的是真正点开时零下载等待，划算；不要为此加延时/取消逻辑）。 */
+const prefetchDetailPanel = () => {
+  if (shouldSkipPrefetch()) return;
+  void loadPostDetailPanel().catch(() => {});
+};
+
 const openPostDetail = (postId, event) => {
   // 采集「从哪张卡点开的」：详情页首屏主卡要从这个矩形长出来（plans/035 §L1）。
   // key 里必须带 postId —— 只存「最近一张卡」会让 A 卡点开、B 卡位置展开。
@@ -4122,6 +4139,7 @@ const {
                     :is-logged-in="isLoggedIn"
                     :user-info="userInfo"
                     :loaded-image-keys="loadedForumImageKeys"
+                    @pointerdown="prefetchDetailPanel"
                     @click="openPostDetail"
                     @go-to-profile="goToProfile"
                     @toggle-like="handleToggleLike"
