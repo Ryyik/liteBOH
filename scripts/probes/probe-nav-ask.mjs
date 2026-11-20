@@ -51,6 +51,24 @@ const islandOpen = (page) =>
 
 const answerInput = (page) => page.locator('.boh-answer-input');
 
+/**
+ * 点导航栏搜索按钮。
+ * ⚠️ 桌面默认是 180×44 mini 胶囊，收起态 `.nav-search-btn` 被样式隐藏（宽度精算后
+ *    装不下，见 style.scoped.css 的 mini 块）。若按钮不可见，先 hover 胶囊内空白处
+ *    展开再点 —— 否则 locator 会一直等「不可见」超时（2026-11-20 探针随 mini 形态校正）。
+ */
+const clickNavSearch = async (page) => {
+  const button = page.locator('.nav-search-btn');
+  if (!(await button.isVisible())) {
+    const box = await page.locator('.unified-nav-surface').boundingBox();
+    if (box) {
+      await page.mouse.move(box.x + box.width * 0.25, box.y + box.height / 2);
+      await button.waitFor({ state: 'visible', timeout: 3000 }).catch(() => null);
+    }
+  }
+  await button.click();
+};
+
 const withPage = async (fn, { viewport = { width: 1440, height: 900 }, setupPage } = {}) => {
   const context = await browser.newContext({ viewport });
   await context.addInitScript(() => {
@@ -160,8 +178,8 @@ await withPage(
     await page.waitForTimeout(600);
     check('⑦ Esc 直接关岛（无分层）', (await islandOpen(page)) === false);
 
-    // 导航栏搜索按钮 = 同一个入口
-    await page.locator('.nav-search-btn').click();
+    // 导航栏搜索按钮 = 同一个入口（mini 收起态会先展开，见 clickNavSearch）
+    await clickNavSearch(page);
     await page.waitForTimeout(600);
     check(
       '⑧ 导航栏按钮唤起同一颗岛（对话面）',
@@ -361,7 +379,7 @@ await withPage(
 // 组 4：材质与主题跟随（与公共导航栏同色）
 // ============================================================
 await withPage(async (page) => {
-  await page.locator('.nav-search-btn').click();
+  await clickNavSearch(page);
   await page.waitForTimeout(500);
   await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'light'));
   await page.waitForTimeout(400);
@@ -400,7 +418,7 @@ await withPage(async (page) => {
 // 组 5：开/退场过渡 + 快速会话闭环
 // ============================================================
 await withPage(async (page, errs) => {
-  await page.locator('.nav-search-btn').click();
+  await clickNavSearch(page);
   await page.waitForTimeout(600);
   // 退场过渡：关岛后 surface 高度应逐帧回落（不是硬切）
   const timeline = await page.evaluate(async () => {
@@ -425,7 +443,7 @@ await withPage(async (page, errs) => {
 
   // 快速会话 origin 落账（岛内问答归「在搜索里问过」）
   await page.waitForTimeout(300);
-  await page.locator('.nav-search-btn').click();
+  await clickNavSearch(page);
   await page.waitForTimeout(500);
   await answerInput(page).fill('八周年庆典什么时候');
   await page.keyboard.press('Enter');

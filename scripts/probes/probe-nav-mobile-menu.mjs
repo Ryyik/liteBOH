@@ -146,7 +146,9 @@ const MEASURE_INNER = () => {
   const subWrap = q('.nav-mobile-submenu-container');
   const back = q('.nav-mobile-back');
   const items = [
-    ...document.querySelectorAll('.nav-menu-mobile a, .nav-mobile-group-entry'),
+    ...document.querySelectorAll(
+      '.nav-menu-mobile a, .nav-menu-mobile button.nav-mobile-link, .nav-mobile-group-entry',
+    ),
   ].filter((el) => el.offsetParent !== null && el.getBoundingClientRect().height > 0);
   const last = items[items.length - 1];
   const cb = box(card);
@@ -189,7 +191,7 @@ const MEASURE_DEEP = () => {
   const card = q('.nav-menu-mobile');
   const items = [
     ...document.querySelectorAll(
-      '.nav-menu-mobile a, .nav-mobile-group-entry, .nav-mobile-group-back',
+      '.nav-menu-mobile a, .nav-menu-mobile button.nav-mobile-link, .nav-mobile-group-entry, .nav-mobile-group-back',
     ),
   ].filter((el) => el.offsetParent !== null && el.getBoundingClientRect().height > 0);
   const last = items[items.length - 1];

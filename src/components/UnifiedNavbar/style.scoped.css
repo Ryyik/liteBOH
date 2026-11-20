@@ -4,6 +4,19 @@
 /* @import url("../styles/vendor/unified-nav.css"); - 已在 main.js 中全局引入，此处移除冗余引用 */
 
 /* 外层只负责固定定位，内部 surface 负责形态切换，避免宽度变化造成跳位。 */
+/* 导航触发项现在是原生 button（disclosure 语义），去掉 UA 默认外观；
+   排版/颜色仍由 vendor 的 .nav-link-wrapper / .nav-mobile-link 提供。 */
+#unified-nav-container button.nav-link-wrapper,
+#unified-nav-container button.nav-mobile-link {
+  appearance: none;
+  -webkit-appearance: none;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  font-family: inherit;
+  text-align: left;
+}
+
 #unified-nav-container {
   left: 0 !important;
   right: 0 !important;
@@ -126,7 +139,9 @@
 .unified-nav-surface.has-task-card,
 .unified-nav-surface.has-custom-card {
   max-width: min(920px, calc(100% - 20px));
-  height: var(--global-nav-open-height) !important;
+  /* 高度走变量间接：菜单展开时只需在下方改写 `--nav-open-height`，
+     不必再补一条 `!important`（棘轮只许降）。 */
+  height: var(--nav-open-height, var(--global-nav-open-height)) !important;
   border-radius: 30px !important;
   /* ⚠️ §21.13（2026-10-15）：此处**原本**还有 `background-color` 与两层 `box-shadow`
      （想让展开态比常态更淡：`--liquid-bg-subtle` 0.58 + overlay 投影 + inset 高光）。
@@ -157,9 +172,12 @@
 /* 自定义岛高度独立上报（--global-nav-custom-card-height）：
    与状态卡高度隔离 —— 否则岛关闭后 has-status-card 会沿用被详情卡撑大的高度，导航无法复原。 */
 .unified-nav-surface.has-custom-card {
-  height: calc(
-    var(--global-nav-status-top) + var(--global-nav-custom-card-height) +
-      var(--global-nav-status-bottom-gap)
+  height: var(
+    --nav-open-height,
+    calc(
+      var(--global-nav-status-top) + var(--global-nav-custom-card-height) +
+        var(--global-nav-status-bottom-gap)
+    )
   ) !important;
 }
 
@@ -169,6 +187,36 @@
   position: relative;
   z-index: 2;
   height: var(--global-nav-rest-height);
+}
+
+/* ============================================
+   导航菜单展开时，surface 上的其它岛/卡片让位
+
+   `has-status-card` / `has-task-card` / `has-custom-card` 都把 height 写成了
+   `!important` 的固定展开高度（状态岛 = status-top + 卡片高 + gap）。菜单展开时
+   如果这些卡片还在，表面高度就会被卡片锁死：下拉菜单按 rest 高度开始画，却只有
+   128px 的玻璃可裁 ⇒ 菜单被截断、搜索岛与菜单叠在同一块区域（2026-11-20 用户截图）。
+
+   菜单打开期间把这些卡片暂时藏起来（状态保留，关菜单后原样回来），并让 surface
+   的 height 改跟菜单实测高度。height 不在这里再写一条 `!important`：它走上面
+   `.has-status-card` 那组规则已读的 `--nav-open-height` 变量，这里只改值 ——
+   既压得过 (0,3,0) 的固定高度，又不新增 !important（棘轮只许降）。
+   ============================================ */
+:global(#unified-nav-container .unified-nav-surface.has-submenu > .global-nav-status-card),
+:global(#unified-nav-container .unified-nav-surface.has-submenu > .global-nav-task-card),
+:global(#unified-nav-container .unified-nav-surface.has-submenu > .island-custom-host),
+:global(#unified-nav-container .unified-nav-surface.has-mobile-menu > .global-nav-status-card),
+:global(#unified-nav-container .unified-nav-surface.has-mobile-menu > .global-nav-task-card),
+:global(#unified-nav-container .unified-nav-surface.has-mobile-menu > .island-custom-host) {
+  display: none;
+}
+
+.unified-nav-surface.has-submenu {
+  --nav-open-height: calc(var(--global-nav-rest-height) + var(--nav-submenu-h, 0px));
+}
+
+.unified-nav-surface.has-mobile-menu {
+  --nav-open-height: calc(var(--global-nav-rest-height) + var(--nav-mobile-h, 0px));
 }
 
 /* BOHAI 岛（BohIsland）：与任务岛/通知岛/自定义岛同一套写法 ——
@@ -426,7 +474,7 @@
          等于一根细条上顶着一圈 44px 的浓阴影 —— 展开瞬间「糊一下」再长大。
          代价是这 180ms 内每帧要重绘一次模糊投影（约 800×250 区域），
          实测对帧时间无可测影响（4× CPU 降速下仍是满帧），所以保留渐变。 */
-      box-shadow 180ms ease;
+        box-shadow 180ms ease;
   }
 
   /* 展开态补一道顶部内高光：没有模糊之后，这层细亮边是「玻璃」质感的主要来源，
@@ -1169,7 +1217,6 @@
   :global(#unified-nav-container[data-theme='dark'] .nav-menu-mobile) {
     box-shadow: 0 20px 48px rgba(0, 0, 0, 0.42);
   }
-
 }
 
 /* ============================================

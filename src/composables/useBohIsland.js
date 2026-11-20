@@ -21,6 +21,16 @@ const isHomeGateActive = () =>
 // ---------------- 单例状态 ----------------
 
 const isOpen = ref(false);
+/**
+ * 岛是否停靠在导航 surface 里（BohIsland 的 `.docked` 根类 + surface 的
+ * `has-boh-island` 共用这一份状态）。
+ *
+ * ⚠️ 必须能被导购并进 UnifiedNavbar 的 `:class` 绑定：surface 上的
+ * `has-boh-island` 此前只靠 BohIsland `classList.add()` 命令式写入，而 Vue 每次
+ * 重算 `:class`（打开下拉、出现通知卡等）都会把未知类一起抹掉 —— 结果岛卡还在，
+ * 停靠却没了，卡片悬浮在展开后的菜单上面（2026-11-20 用户截图报障）。
+ */
+const docked = ref(false);
 /** 岛内面：'search' = 搜索/列表；'answer' = 回答（§3.5）。输入条在两面间 top 恒定。 */
 const face = ref('search');
 /** 搜索面 → 回答面的种子问题（一次性，由 BohIslandAnswer 挂载后消费） */
@@ -122,6 +132,7 @@ export function useBohIsland() {
 
   return {
     isOpen,
+    docked,
     face,
     pendingAsk,
     canOpen,

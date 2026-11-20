@@ -54,7 +54,7 @@ const BohIslandAnswer = createPanelAsync(() => import('@/components/BohIslandAns
  * 落位：top = 导航栏底边 + 12（导航栏在场时实测其 bottom，缺席时退 safe-area + 12）；
  * 水平居中悬浮（plans/038 §3.1）。
  */
-const { isOpen, canOpen, open, close, toggle } = useBohIsland();
+const { isOpen, canOpen, open, close, toggle, docked } = useBohIsland();
 const route = useRoute();
 
 /* ---------------- 跳页即关岛（2026-11-05 用户报障） ---------------- */
@@ -114,7 +114,7 @@ const measureSafeAreaTop = () => {
 const islandTop = ref(84);
 const islandWidth = ref(0);
 const islandLeft = ref(0);
-const docked = ref(false);
+// docked 由 useBohIsland 单例提供（surface 的 has-boh-island 也要读它，见模块头注释）
 
 /**
  * 落位：**照抄任务岛/通知岛/自定义岛的写法** —— 导航 surface 自己向下长高

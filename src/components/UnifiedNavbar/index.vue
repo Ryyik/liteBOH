@@ -1,7 +1,8 @@
 <template>
-  <div
+  <nav
     id="unified-nav-container"
     class="unified-nav"
+    aria-label="全局导航"
     :class="{
       'mobile-menu-open': isMobileMenuOpen,
       'nav-immersive-on': immersiveNav,
@@ -18,6 +19,9 @@
         'has-login-card': showLoginModal,
         'has-task-card': isTaskCardShown,
         'has-custom-card': !!islandCustomSlot.component,
+        // BOH 岛停靠：必须由 Vue 绑定（而不是只靠 BohIsland 的 classList.add）——
+        // 否则任何 :class 重算（打开下拉 / 通知卡）都会把命令式类名抹掉，岛卡悬浮在菜单上。
+        'has-boh-island': bohIsland.docked.value,
         // 桌面下拉打开 = surface 自己长成宽岛（内容坐在长出来的玻璃里，与 has-status-card 同一套机制）
         'has-submenu': !!expandedMenu,
         // 移动端菜单（汉堡）同理：竖屏/桌面的汉堡菜单也坐在长出来的那块玻璃里，
@@ -67,18 +71,18 @@
             :class="{ 'has-dropdown': hasChildren(item) }"
           >
             <template v-if="hasChildren(item)">
-              <a
-                href="javascript:;"
+              <button
+                type="button"
                 class="nav-link-wrapper"
-                role="button"
                 :class="{ active: item.isActive, expanded: item.isExpanded }"
                 :aria-expanded="item.isExpanded"
-                aria-haspopup="true"
+                :aria-controls="`nav-submenu-${item.name}`"
                 @click.stop="toggleSubMenu(item.name)"
               >
                 <span>{{ item.label }}</span>
-              </a>
+              </button>
               <ul
+                :id="`nav-submenu-${item.name}`"
                 :ref="(el) => setSubmenuEl(item.name, el)"
                 class="nav-submenu"
                 :class="{ active: item.isExpanded }"
@@ -102,6 +106,7 @@
                           v-if="grand.path"
                           :to="grand.path"
                           :class="{ active: isActive(grand.path) }"
+                          :aria-current="isActive(grand.path) ? 'page' : undefined"
                           @click="expandedMenu = null"
                         >
                           {{ grand.label }}
@@ -128,6 +133,7 @@
                           v-if="child.path"
                           :to="child.path"
                           :class="{ active: isActive(child.path) }"
+                          :aria-current="isActive(child.path) ? 'page' : undefined"
                           @click="expandedMenu = null"
                         >
                           {{ child.label }}
@@ -164,6 +170,7 @@
                       v-if="child.path"
                       :to="child.path"
                       :class="{ active: isActive(child.path) }"
+                      :aria-current="isActive(child.path) ? 'page' : undefined"
                       @click="expandedMenu = null"
                     >
                       {{ child.label }}
@@ -186,6 +193,7 @@
               <router-link
                 :to="item.path"
                 :class="{ active: item.isActive }"
+                :aria-current="item.isActive ? 'page' : undefined"
                 active-class=""
                 exact-active-class=""
                 @pointerenter="prefetchRoute(item.path)"
@@ -226,6 +234,11 @@
               class="nav-user-info nav-user-profile"
               id="nav-user-info"
               title="进入我的方块"
+              :aria-label="
+                hasUnreadMessages
+                  ? `我的方块，${unreadCount > 99 ? '99+' : unreadCount} 条未读消息`
+                  : '我的方块'
+              "
               @click="handleMyBlockClick"
               @pointerenter="prefetchRoute('/user-space')"
             >
@@ -240,8 +253,8 @@
                     decoding="async"
                   />
                   <span v-else>{{ username ? username.charAt(0).toUpperCase() : 'U' }}</span>
-                  <!-- 未读消息红点 -->
-                  <div v-if="hasUnreadMessages" class="unread-badge-nav">
+                  <!-- 未读消息红点：数字已并入父链路的 aria-label，避免重复朗读 -->
+                  <div v-if="hasUnreadMessages" class="unread-badge-nav" aria-hidden="true">
                     {{ unreadCount > 99 ? '99+' : unreadCount }}
                   </div>
                 </div>
@@ -271,11 +284,12 @@
 
         <button
           type="button"
+          ref="navHamburger"
           class="nav-hamburger"
           id="nav-hamburger"
           :class="{ active: isMobileMenuOpen }"
           :aria-expanded="isMobileMenuOpen || (desktopMiniActive && isExpandedLooking)"
-          aria-controls="nav-menu-mobile"
+          :aria-controls="desktopMiniActive ? undefined : 'nav-menu-mobile'"
           :aria-label="
             isMobileMenuOpen ? '关闭导航菜单' : desktopMiniActive ? '展开导航' : '打开导航菜单'
           "
@@ -302,23 +316,23 @@
             <template v-for="item in navItems" :key="item.name">
               <template v-if="hasChildren(item)">
                 <div class="nav-mobile-item has-children">
-                  <a
-                    href="javascript:;"
+                  <button
+                    type="button"
                     class="nav-mobile-link"
-                    role="button"
                     :class="{ active: item.isActive }"
                     :aria-expanded="item.isExpanded"
-                    aria-haspopup="true"
+                    aria-controls="nav-menu-mobile-submenu"
                     @click="toggleSubMenu(item.name)"
                   >
                     <span>{{ item.label }}</span>
-                  </a>
+                  </button>
                 </div>
               </template>
               <template v-else>
                 <router-link
                   class="nav-mobile-link"
                   :class="{ active: item.isActive }"
+                  :aria-current="item.isActive ? 'page' : undefined"
                   :to="item.path"
                   @click="closeMobileMenu"
                 >
@@ -328,6 +342,7 @@
             </template>
           </div>
           <div
+            id="nav-menu-mobile-submenu"
             class="nav-mobile-submenu-container"
             :class="{ active: expandedMenu && isMobileMenuOpen }"
             data-panel-variant="glass"
@@ -358,6 +373,7 @@
                           v-if="grand.path"
                           :to="grand.path"
                           :class="{ active: isActive(grand.path) }"
+                          :aria-current="isActive(grand.path) ? 'page' : undefined"
                           @click="closeMobileMenu"
                         >
                           {{ grand.label }}
@@ -380,6 +396,7 @@
                           v-if="child.path"
                           :to="child.path"
                           :class="{ active: isActive(child.path) }"
+                          :aria-current="isActive(child.path) ? 'page' : undefined"
                           @click="closeMobileMenu"
                         >
                           {{ child.label }}
@@ -415,6 +432,7 @@
                         v-if="child.path"
                         :to="child.path"
                         :class="{ active: isActive(child.path) }"
+                        :aria-current="isActive(child.path) ? 'page' : undefined"
                         @click="closeMobileMenu"
                       >
                         {{ child.label }}
@@ -460,7 +478,7 @@
         <component :is="islandCustomSlot.component" v-bind="islandCustomSlot.props || {}" />
       </div>
     </div>
-  </div>
+  </nav>
 </template>
 
 <script setup>
@@ -747,6 +765,7 @@ const { isSearchOpen, toggleSearch } = useGlobalSearch({
 // ============================================
 
 const navSurface = ref(null);
+const navHamburger = ref(null);
 const bohIsland = useBohIsland();
 
 /**
@@ -1078,6 +1097,13 @@ const activeGroupChildren = (item) => {
  * @param {string} menuName - 一级菜单名称
  */
 const toggleSubMenu = (menuName) => {
+  /* 下拉菜单与 BOH 岛共用 surface 同一块「向下长出来」的区域，不能同时展开。
+     一次点击只做一件事（与竖屏汉堡同一条口径）：岛开着时，这一下先收岛，
+     再点才是打开菜单；否则菜单与岛卡会叠在同一高度上（2026-11-20 截图报障）。 */
+  if (bohIsland.isOpen.value) {
+    bohIsland.close();
+    return;
+  }
   if (expandedMenu.value === menuName) {
     expandedMenu.value = null;
   } else {
@@ -1558,51 +1584,36 @@ const isPointerOnSurface = (event) => {
 };
 
 /**
- * 指针是不是**冲着「登录」去的**（2026-11-16，用户口径「鼠标对着 mini 态的登录两个字去的时候，
- * 优先保证他们可以点击到登录，其他区域则自动展开导航栏」）。
+ * 指针是不是落在导航胶囊里的**直接动作目标**上（2026-11-16，2026-11-20 泛化）。
  *
- * 为什么必须单独判：mini 态胶囊 180 宽，展开成 720 时 `.nav-container` 的 padding 从 12 变 32、
- * 菜单插进来，**登录按钮会横向平移约 500px**。用户瞄着「登录」两个字移过去、70ms 后岛撑开，
- * 按钮从指针底下跑掉 ⇒ 点击落在空白处或别的元素上。这与当年汉堡那次是同一类问题，
- * 但结论相反：汉堡是「唯一的展开把手」，所以 hover 它也要展开（见 handleNavPointerEnter
- * 上方注释）；登录按钮本身就是这个位置唯一想点的东西，所以**它优先于展开**。
+ * 登录按钮是最早暴露这个问题的位置：mini 态胶囊 180 宽，展开成 720 时 `.nav-container`
+ * 的 padding 从 12 变 32、菜单插进来，按钮会横向平移约 500px。用户瞄着「登录」两个字
+ * 移过去、70ms 后岛撑开，按钮从指针底下跑掉 ⇒ 点击落在空白处或别的元素上。
  *
- * 只读 `event.target`（`closest` 不触发布局）—— 上一版刚把 pointermove 里的 gBCR 清掉，
- * 不要为了这个判据再加回来。盒外 4px 的容差走缓存 rect（每次进入胶囊量一次），
- * 兜住「差一两个像素没压在按钮上」的情况，否则贴边移动仍会把按钮晃走。
+ * 但这不是登录独有的：同一几何下 logo 会向左移、头像会向右移（按 180→720 算约 270px）。
+ * 所以这里收成一组「直接动作目标」—— 指针压在这些元素上时**优先保证点击命中**，
+ * 不排 hover 展开；汉堡不在名单里，它是唯一的展开把手，hover 它仍要展开
+ * （见 handleNavPointerEnter 上方注释）。
+ *
+ * 只读 `event.target`（`closest` 不触发布局）—— pointermove 每秒可触发 100+ 次，
+ * 不要为了这个判据再加 gBCR。指针从胶囊空白移向目标时，pointermove 会把已排的
+ * 展开定时器撤掉，足以覆盖「先进胶囊、再滑到按钮上」的路径。
  */
-let loginBtnRect = null;
+const DIRECT_ACTION_SELECTOR = '.nav-logo, .nav-user-profile, .nav-login-btn';
 
-const readLoginBtnRect = () => {
-  const el = navSurface.value?.querySelector('.nav-login-btn');
-  loginBtnRect = el ? el.getBoundingClientRect() : null;
-};
-
-const isPointerOnLoginBtn = (event) => {
-  if (!event) return false;
-  if (event.target?.closest?.('.nav-login-btn')) return true;
-  const r = loginBtnRect;
-  if (!r) return false;
-  const pad = 4;
-  return (
-    event.clientX >= r.left - pad &&
-    event.clientX <= r.right + pad &&
-    event.clientY >= r.top - pad &&
-    event.clientY <= r.bottom + pad
-  );
-};
+const isPointerOnDirectAction = (event) =>
+  Boolean(event?.target?.closest?.(DIRECT_ACTION_SELECTOR));
 
 const handleNavPointerEnter = (event) => {
   if (!isPointerOnSurface(event)) return;
   miniPointerInside.value = true;
   if (!desktopMiniActive.value) return;
-  /* 冲登录来的：不排展开，并把可能已排上的那次撤掉（指针可以先进胶囊边缘、
-     70ms 内再滑到登录上，那时定时器已经在跑）。 */
-  if (isPointerOnLoginBtn(event)) {
+  /* 冲直接动作目标来的：不排展开，并把可能已排上的那次撤掉（指针可以先进胶囊边缘、
+     70ms 内再滑到目标上，那时定时器已经在跑）。 */
+  if (isPointerOnDirectAction(event)) {
     clearMiniHoverTimer();
     return;
   }
-  loginBtnRect = null; // 缓存留给下一次「贴着按钮边」的判定，进入时先置空
   clearMiniHoverTimer();
   scheduleMiniExpand();
 };
@@ -1622,8 +1633,8 @@ const handleNavPointerMove = (event) => {
    */
   if (!desktopMiniActive.value || isExpandedLooking.value) return;
   if (!isPointerOnSurface(event)) return;
-  // 在「登录」上：撤掉待展开，且不要重排（否则按钮会在点击前跑掉）
-  if (isPointerOnLoginBtn(event)) {
+  // 在直接动作目标上：撤掉待展开，且不要重排（否则目标会在点击前跑掉）
+  if (isPointerOnDirectAction(event)) {
     clearMiniHoverTimer();
     return;
   }
@@ -1634,7 +1645,6 @@ const handleNavPointerMove = (event) => {
 
 const handleNavPointerLeave = () => {
   miniPointerInside.value = false;
-  loginBtnRect = null;
   scheduleMiniCollapse();
 };
 
@@ -1876,7 +1886,7 @@ watch(
   { flush: 'pre' },
 );
 
-// 任意岛唤起时收起移动菜单（岛需要全宽 surface，菜单与岛互斥）
+// 任意岛唤起时收起导航菜单（岛与菜单共用 surface 的展开区，必须互斥）
 // ⚠️ 必须把 bohIsland 也算进来：它不占 statusCard/isTaskCard/custom 这三个槽位，
 //    漏掉的话 ⌘K / 下拉手势 / 外部 showIsland.ai() 唤起时会和已展开的菜单叠在一起。
 watch(
@@ -1886,7 +1896,10 @@ watch(
     !!islandCustomSlot.component ||
     bohIsland.isOpen.value,
   (anyIsland) => {
-    if (anyIsland && isMobileMenuOpen.value) closeMobileMenu();
+    if (!anyIsland) return;
+    if (isMobileMenuOpen.value) closeMobileMenu();
+    // 桌面下拉同样要收：`/` 或 ⌘K 唤起岛时不会经过 handleClickOutside。
+    if (expandedMenu.value) closeSubMenu();
   },
 );
 
@@ -1951,9 +1964,13 @@ const handleMiniCollapseScroll = (event) => {
  * 点击外部关闭下拉菜单和二级菜单
  */
 const handleClickOutside = (event) => {
+  const target = event.target;
   // 点击目标在事件冒泡期间已被 Vue 重新渲染移除（如点击分组标题后 v-if 切换 DOM）
-  // 说明点击发生在菜单内部，不应触发关闭
-  if (!event.target || event.target.isConnected === false) {
+  // 说明点击发生在菜单内部，不应触发关闭。
+  // ⚠️ 还必须守住「target 不是 Element」：`document.dispatchEvent(new MouseEvent('click'))`
+  // 的 target 是 Document（没有 closest）—— 探针用它模拟空白点击，实测会抛
+  // `target.closest is not a function` 并中断后续清理。
+  if (!target || target.isConnected === false || typeof target.closest !== 'function') {
     return;
   }
   if (
@@ -1994,14 +2011,25 @@ const handleClickOutside = (event) => {
 };
 
 /**
- * Esc：先收二级菜单，再退出 mini 钉住态。
+ * Esc：先收二级菜单，再依次退出移动菜单 / 沉浸展开 / mini 钉住态。
  * 键盘用户在展开的二级菜单里没有别的出口 —— 只能靠点页面另一处，
  * 而对纯键盘操作来说「点外部」根本不存在（2026-11-14 实测：Esc 后菜单仍是 active）。
+ * 2026-11-20：补上竖屏菜单与沉浸展开两个出口；从移动菜单退出时把焦点还给汉堡，
+ * 否则焦点停在已被 visibility:hidden 的菜单节点上，Tab 会从文档起点重新开始。
  */
 const handleNavEsc = (event) => {
   if (event.key !== 'Escape') return;
   if (expandedMenu.value) {
     closeSubMenu();
+    return;
+  }
+  if (isMobileMenuOpen.value) {
+    closeMobileMenu();
+    nextTick(() => navHamburger.value?.focus());
+    return;
+  }
+  if (immersiveExpanded.value) {
+    immersiveExpanded.value = false;
     return;
   }
   if (miniPinned.value) {

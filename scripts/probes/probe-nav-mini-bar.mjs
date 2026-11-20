@@ -17,6 +17,8 @@ import fs from 'node:fs';
 //     I 横屏 900x600（700–1023 档）：mini 180 + hover 展开 720 居中 + 点开下拉
 //     J hover 热区 = 胶囊盒子（下方 120px / 右侧 24px 都不许展开）+ 展开态 pointermove 不量盒子
 //     L 未登录：hover「登录」不展开（保证能点中）+ 登录岛上半岛=下半岛同宽相接
+//     M 登录态：hover 头像 / logo 也不展开（它们与登录同属直接动作目标）
+//     N 资讯页搜索岛（状态卡）在场时打开下拉：卡片让位、surface 按菜单长高、菜单不被裁
 // =====================================================================
 const BASE = 'http://[::1]:5173';
 const OUT = 'debug-screenshots';
@@ -320,8 +322,11 @@ const gateNewContext = async (options = {}) => {
   await page.screenshot({ path: `${OUT}/nav-mini-G-landscape.png` });
 
   // hover 展开
+  // ⚠️ 不能点几何中心：mini 的 logo / 头像 / 汉堡三个热区里，中心点大概率落在头像上；
+  //    头像自 2026-11-20 起是「直接动作目标」（hover 不展开，保证点击命中）。
+  //    这里取 logo 与头像之间的空白间隙（约 25% 宽），才是真正代表「其他区域」的热区。
   const gBox = await page.locator('.unified-nav-surface').boundingBox();
-  await page.mouse.move(gBox.x + gBox.width / 2, gBox.y + gBox.height / 2);
+  await page.mouse.move(gBox.x + gBox.width * 0.25, gBox.y + gBox.height / 2);
   await page.waitForTimeout(700);
   report.results.G_hover = await evalRetry(page, MEASURE_FN);
   await page.screenshot({ path: `${OUT}/nav-mini-G-hover.png` });
@@ -367,7 +372,8 @@ const gateNewContext = async (options = {}) => {
   report.results.I_landscape_mid = await evalRetry(page, MEASURE_FN);
 
   const ibox = await page.locator('.unified-nav-surface').boundingBox();
-  await page.mouse.move(ibox.x + ibox.width / 2, ibox.y + ibox.height / 2);
+  // 同 G：避开 logo / 头像 / 汉堡，取胶囊内空白间隙，验证「其他区域 hover 展开」。
+  await page.mouse.move(ibox.x + ibox.width * 0.25, ibox.y + ibox.height / 2);
   await page.waitForTimeout(700);
   report.results.I_hover = await evalRetry(page, MEASURE_FN);
   await page.screenshot({ path: `${OUT}/nav-mini-I-hover.png` });
@@ -377,9 +383,10 @@ const gateNewContext = async (options = {}) => {
     const li = [...document.querySelectorAll('.nav-menu > .nav-menu-item')].find((x) =>
       x.textContent.includes('社区'),
     );
-    const a = li?.querySelector('a');
-    if (!a) return null;
-    const r = a.getBoundingClientRect();
+    // 2026-11-20：一级下拉触发器由 <a> 改为原生 <button>（disclosure 语义）。
+    const trigger = li?.querySelector('a, button');
+    if (!trigger) return null;
+    const r = trigger.getBoundingClientRect();
     return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
   });
   if (comm) {
@@ -445,9 +452,9 @@ const gateNewContext = async (options = {}) => {
   await page.mouse.move(g.x + g.width + 24, g.y + g.height / 2, { steps: 2 });
   await wait(500);
   const rightW = await widthOf();
-  // ③ 盒内
+  // ③ 盒内空白间隙（不是几何中心：中心落点在头像上，属于直接动作目标，不会展开）
   await reset();
-  await page.mouse.move(g.x + g.width / 2, g.y + g.height / 2, { steps: 2 });
+  await page.mouse.move(g.x + g.width * 0.25, g.y + g.height / 2, { steps: 2 });
   await wait(600);
   const insideW = await widthOf();
 
@@ -490,8 +497,8 @@ const gateNewContext = async (options = {}) => {
    L1 用户口径（2026-11-16）「鼠标对着 mini 态的登录两个字去的时候，优先保证他们可以
      点击到登录，其他区域则自动展开导航栏」：mini 展开时 `.nav-container` padding 12→32、
      菜单插进来，登录按钮会横向平移 ~500px ⇒ 瞄着它过去、70ms 后按钮从指针底下跑掉。
-     反证：删掉 handleNavPointerEnter/Move 里的 isPointerOnLoginBtn 分支 →
-     胶囊会撑到 720，L1 立刻红。
+     反证：删掉 handleNavPointerEnter/Move 里的 isPointerOnDirectAction 分支 →
+     胶囊会撑到 720，L1 立刻红（M 组把头像 / logo 也纳入同一判据）。
    L2 登录浮层是「导航上半岛 + 登录卡下半岛」拼成的一张岛（横屏 ≥769）。上半岛几何只写在
      `.has-login-card` 上，mini 的收起规则 `:not(.nav-expanded)`(1,3,0) 权重更高 ⇒
      曾经上半岛只有 180×44、下半岛 720 宽，两个岛根本不接（用户报障「顶部导航栏对登录的
@@ -548,6 +555,108 @@ const gateNewContext = async (options = {}) => {
   await context.close();
 }
 
+/* ---------- M. 桌面 mini 态：头像 / logo 也是直接动作目标（2026-11-20） ----------
+   登录按钮之外，logo 与头像在 180→720 的展开中间样会横向移动（约 270px）。
+   用户瞄着它们移过去、70ms 后岛撑开，点击就会落空。
+   反证：删掉 handleNavPointerEnter/Move 里的 isPointerOnDirectAction 分支 →
+   胶囊会撑到 720，M1/M2 立刻红。 */
+{
+  const context = await gateNewContext({ viewport: { width: 1440, height: 900 } });
+  const page = await context.newPage();
+  page.on('pageerror', (e) => report.pageErrors.push('M: ' + String(e).slice(0, 160)));
+  await page.goto(`${BASE}/#/`, { waitUntil: 'domcontentloaded' });
+  await injectAuth(page);
+  await page.waitForSelector('.unified-nav-surface', { state: 'attached', timeout: 20000 });
+  await page.waitForTimeout(1200);
+
+  const widthOf = () =>
+    page.evaluate(() => {
+      const s = document.querySelector('#unified-nav-container .unified-nav-surface');
+      return +s.getBoundingClientRect().width.toFixed(1);
+    });
+  const reset = async () => {
+    await page.mouse.move(720, 820);
+    await page.waitForTimeout(500);
+  };
+
+  await reset();
+  const baseW = await widthOf();
+  const avatarBox = await page.locator('.nav-avatar').boundingBox();
+  await page.mouse.move(avatarBox.x + avatarBox.width / 2, avatarBox.y + avatarBox.height / 2, {
+    steps: 8,
+  });
+  await page.waitForTimeout(900);
+  const onAvatarW = await widthOf();
+
+  await reset();
+  const logoBox = await page.locator('.nav-logo').boundingBox();
+  await page.mouse.move(logoBox.x + logoBox.width / 2, logoBox.y + logoBox.height / 2, {
+    steps: 8,
+  });
+  await page.waitForTimeout(900);
+  const onLogoW = await widthOf();
+
+  report.results.M_direct_targets = { baseW, onAvatarW, onLogoW, avatarBox, logoBox };
+  await page.screenshot({ path: `${OUT}/nav-mini-M-direct-targets.png` });
+  await context.close();
+}
+
+/* ---------- N. 资讯页搜索岛（状态卡）在场时打开下拉（2026-11-20） ----------
+   用户截图报障：`/newsroom` 的搜索岛常驻在 nav 下方，点开「探索」后菜单按 rest 高度
+   开始画，而 surface 被 has-status-card 的 `!important` 高度锁在 128px ⇒ 菜单只露出
+   前两项、搜索岛与菜单叠在一起。
+   修法（style.scoped.css）：菜单展开期间状态卡 `display:none`，surface 高度改跟
+   `--nav-submenu-h`，并带 ID + !important 压过 has-status-card。
+   反证：删掉那组 height 覆盖 → surfaceH 回到 128、subBottom 超出 surfaceBottom。 */
+{
+  const context = await gateNewContext({ viewport: { width: 1440, height: 900 } });
+  const page = await context.newPage();
+  page.on('pageerror', (e) => report.pageErrors.push('N: ' + String(e).slice(0, 160)));
+  await page.goto(`${BASE}/#/newsroom`, { waitUntil: 'domcontentloaded' });
+  await injectAuth(page);
+  await page.waitForSelector('.unified-nav-surface', { state: 'attached', timeout: 20000 });
+  await page.waitForSelector('.global-nav-status-card.is-news-tools', {
+    state: 'visible',
+    timeout: 20000,
+  });
+  await page.waitForTimeout(700);
+
+  const measureHybrid = () =>
+    page.evaluate(() => {
+      const s = document.querySelector('#unified-nav-container .unified-nav-surface');
+      const r = s.getBoundingClientRect();
+      const card = document.querySelector('.global-nav-status-card.is-news-tools');
+      const sub = document.querySelector('.nav-submenu.active');
+      const sr = sub?.getBoundingClientRect();
+      return {
+        surfaceH: +r.height.toFixed(1),
+        surfaceBottom: +r.bottom.toFixed(1),
+        cardDisplay: card ? getComputedStyle(card).display : null,
+        subActive: !!sub,
+        subBottom: sr ? +sr.bottom.toFixed(1) : null,
+      };
+    });
+
+  const before = await measureHybrid();
+  const explore = await page.evaluate(() => {
+    const trigger = [...document.querySelectorAll('.nav-link-wrapper')].find(
+      (el) => el.textContent.trim() === '探索',
+    );
+    const r = trigger.getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  });
+  await page.mouse.click(explore.x, explore.y);
+  await page.waitForTimeout(800);
+  const opened = await measureHybrid();
+  await page.screenshot({ path: `${OUT}/nav-mini-N-status-island-menu.png` });
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(700);
+  const restored = await measureHybrid();
+
+  report.results.N_status_hybrid = { before, opened, restored };
+  await context.close();
+}
+
 await browser.close();
 
 // ---------- 断言 ----------
@@ -568,6 +677,8 @@ const IH = report.results.I_hover;
 const IS = report.results.I_submenu;
 const J = report.results.J_hitzone;
 const L = report.results.L_login;
+const M = report.results.M_direct_targets;
+const N = report.results.N_status_hybrid;
 
 const hasMini = (m) => /nav-mini-caps/.test(m.classes || '');
 const hasExpanded = (m) => /nav-expanded/.test(m.classes || '');
@@ -650,6 +761,17 @@ report.checks = {
      判据双向 ±2px，写死「高 2px」会被亚像素舍入打成假红。 */
   L_login_island_seam:
     !!L && !!L.opened.card && Math.abs(L.opened.card.top - (L.opened.bottom - 2)) <= 2,
+  /* M：头像 / logo 与登录同属「直接动作目标」—— hover 停留不许把胶囊撑开，
+     否则目标会在点击前横向移走。判据与 L1 同一口径（宽度没有明显变大）。 */
+  M_avatar_hover_no_expand: !!M && M.onAvatarW < M.baseW + 40,
+  M_logo_hover_no_expand: !!M && M.onLogoW < M.baseW + 40,
+  /* N：资讯页搜索岛在场时打开下拉 —— 卡片让位、surface 按菜单长高、菜单不被裁；
+     关菜单后搜索岛原样回来。 */
+  N_status_island_present: !!N && N.before.cardDisplay !== 'none',
+  N_status_yields_menu: !!N && N.opened.subActive && N.opened.cardDisplay === 'none',
+  N_surface_grows_for_menu: !!N && N.opened.surfaceH > 200,
+  N_menu_not_clipped: !!N && N.opened.subActive && N.opened.subBottom <= N.opened.surfaceBottom + 2,
+  N_status_restored: !!N && !N.restored.subActive && N.restored.cardDisplay !== 'none',
 };
 
 report.pass = Object.values(report.checks).every(Boolean) && report.pageErrors.length === 0;
