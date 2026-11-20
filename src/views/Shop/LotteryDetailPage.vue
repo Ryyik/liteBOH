@@ -30,12 +30,15 @@ const route = useRoute();
 const router = useRouter();
 const authStore = useAuthStore();
 const { isLoggedIn, showLoginModal } = storeToRefs(authStore);
+const { userInfo } = authStore;
 
 const lottery = ref(null);
 const loading = ref(true);
 const joining = ref(false);
+const loadError = ref('');
 
 const lotteryId = computed(() => String(route.params.id || '').trim());
+const cacheKey = () => String(userInfo?.id || 'guest');
 
 const notify = (text) => {
   const ok = showIsland.notify({ title: String(text || ''), icon: 'info', durationMs: 3000 });
@@ -53,24 +56,32 @@ const applyMeta = (item) => {
   });
 };
 
-const load = async () => {
+const load = async ({ silent = false, force = false } = {}) => {
   const id = lotteryId.value;
   if (!id) {
     loading.value = false;
     lottery.value = null;
+    loadError.value = '';
     return;
   }
-  loading.value = true;
+  if (!silent) loading.value = true;
+  loadError.value = '';
   try {
-    const { data } = await getCommunityLotteries();
+    const { data, error, fromCache } = await getCommunityLotteries({
+      cacheKey: cacheKey(),
+      force,
+    });
+    if (error) throw error;
     const list = Array.isArray(data) ? data : [];
     lottery.value = list.find((item) => String(item.id) === id) || null;
     applyMeta(lottery.value);
+    if (fromCache) void load({ silent: true, force: true });
   } catch (error) {
     logger.warn('lottery-detail-page', '加载抽奖失败', error);
-    lottery.value = null;
+    /* 后台刷新失败时保留已渲染的详情；只有首屏无数据才切失败态。 */
+    if (!lottery.value) loadError.value = '网络或服务暂时不可用，请稍后重试。';
   } finally {
-    loading.value = false;
+    if (!silent) loading.value = false;
   }
 };
 
@@ -93,7 +104,7 @@ const join = async () => {
       return;
     }
     notify('报名成功');
-    await load();
+    await load({ force: true });
   } catch (error) {
     logger.warn('lottery-detail-page', '报名失败', error);
     notify('报名失败，请稍后重试');
@@ -108,8 +119,15 @@ const goBack = () => {
   router.push({ path: '/shop', query: { tab: 'lottery' } });
 };
 
-onMounted(load);
-watch(lotteryId, load);
+onMounted(() => load());
+watch(lotteryId, () => load());
+watch(
+  () => String(userInfo?.id || ''),
+  (next, prev) => {
+    if (next === prev) return;
+    void load({ silent: true, force: true });
+  },
+);
 </script>
 
 <template>
@@ -118,6 +136,16 @@ watch(lotteryId, load);
       <span class="ldp-sk-cover"></span>
       <span class="ldp-sk-line"></span>
       <span class="ldp-sk-line short"></span>
+    </div>
+
+    <div v-else-if="loadError" class="ldp-empty">
+      <EmptyState
+        variant="search"
+        title="抽奖加载失败"
+        :description="loadError"
+        action-text="重试"
+        @action="load()"
+      />
     </div>
 
     <div v-else-if="!lottery" class="ldp-empty">

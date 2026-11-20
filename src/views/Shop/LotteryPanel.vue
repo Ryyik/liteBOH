@@ -1,8 +1,12 @@
 <template>
   <div class="lottery-panel">
-    <section v-if="activeLotteries.length || loading" class="lottery-group">
+    <section v-if="activeLotteries.length || loading || loadError" class="lottery-group">
       <h3 class="group-title">进行中</h3>
       <p v-if="loading" class="lottery-hint">正在加载抽奖…</p>
+      <div v-else-if="loadError" class="lottery-error">
+        <p>抽奖加载失败</p>
+        <button type="button" class="lottery-retry" @click="load()">重试</button>
+      </div>
       <TransitionGroup v-else name="shop-card" tag="div" class="lt-grid">
         <!-- 卡片本体在 LotteryCard.vue：原来「进行中 / 历史」两份模板逐行重复，
              改一处必漏一处；抽出去之后就地编辑的字段绑定也只有一份 -->
@@ -33,7 +37,7 @@
 
     <Transition name="shop-fade">
       <div
-        v-if="!loading && !activeLotteries.length && !historyLotteries.length"
+        v-if="!loading && !loadError && !activeLotteries.length && !historyLotteries.length"
         class="lottery-empty"
       >
         <p>还没有抽奖活动</p>
@@ -45,12 +49,15 @@
 <script setup>
 import { computed, onActivated, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import { useAuthStore } from '@/stores/auth';
 import { getCommunityLotteries } from '@/utils/api/lottery-api.js';
 import { captureOrigin } from '@/utils/motion-origin.js';
 import { logger } from '@/utils/logger.js';
 import LotteryCard from './LotteryCard.vue';
 import { useInlineEditor } from '@/composables/useInlineEditor.js';
 
+const authStore = useAuthStore();
+const { userInfo } = authStore;
 const route = useRoute();
 const router = useRouter();
 
@@ -59,6 +66,9 @@ const inlineEditor = useInlineEditor();
 
 const lotteries = ref([]);
 const loading = ref(true);
+const loadError = ref('');
+
+const cacheKey = () => String(userInfo?.id || 'guest');
 
 const activeLotteries = computed(() => lotteries.value.filter((item) => item.status === 'open'));
 const historyLotteries = computed(() => lotteries.value.filter((item) => item.status !== 'open'));
@@ -69,15 +79,25 @@ const applyField = (item, { field, value }) => {
   item[field] = value;
 };
 
-const load = async ({ silent = false } = {}) => {
-  // silent：就地编辑删除后重取用；不亮骨架，避免整块列表闪一下
+const load = async ({ silent = false, force = false } = {}) => {
+  // silent：后台刷新 / 就地编辑删除后重取用；不亮骨架，避免整块列表闪一下
   if (!silent) loading.value = true;
+  loadError.value = '';
   try {
-    const { data } = await getCommunityLotteries();
+    const { data, error, fromCache } = await getCommunityLotteries({
+      cacheKey: cacheKey(),
+      force,
+    });
+    if (error) throw error;
     lotteries.value = Array.isArray(data) ? data : [];
+    /* 缓存命中先立刻渲染，再静默拉一次最新的：既不空等，也不让运营刚建的抽奖消失。 */
+    if (fromCache) void load({ silent: true, force: true });
   } catch (error) {
     logger.warn('shop-lottery', '加载抽奖失败', error);
-    lotteries.value = [];
+    /* 后台刷新失败时保留已有列表；只有首屏真的没有数据才切失败态。 */
+    if (!lotteries.value.length) {
+      loadError.value = String(error?.message || '抽奖加载失败，请稍后重试');
+    }
   } finally {
     if (!silent) loading.value = false;
   }
@@ -108,6 +128,7 @@ const redirectLegacyDeepLink = () => {
 };
 
 onMounted(() => {
+  void load();
   redirectLegacyDeepLink();
 });
 /* KeepAlive 缓存住本组件后，「同页内再点一条旧深链」时路由 query 变了、组件却不重挂
@@ -117,28 +138,39 @@ watch(
   () => redirectLegacyDeepLink(),
 );
 
+/* 登录 / 登出会在同一页内换出不同的「我的报名」数据：作用域变了就不能沿用旧缓存。 */
+watch(
+  () => String(userInfo?.id || ''),
+  (next, prev) => {
+    if (next === prev) return;
+    void load({ silent: true, force: true });
+  },
+);
+
 /* KeepAlive 回来要重新取数（2026-11-16）：`/shop` 自 2026-11-14 进了路由缓存白名单
    （router/routes/public.ts 的 `keepAliveName: 'ShopPage'`），本组件只在挂载时取一次
    ⇒ 运营在后台新建 / 改了「抽奖页展示」再切回周边，看到的还是缓存里的旧列表 ——
    用户报障「新建的抽奖不显示，是不是没刷新」就是这一层。刷新能好，但不该逼人刷新。
    首次激活紧跟 onMounted（已经 load 过），用闩锁跳过，避免首屏发两次请求；
-   silent 是为了不亮骨架，回来时列表闪一下比数据旧更难受。 */
+   silent 是为了不亮骨架，回来时列表闪一下比数据旧更难受。
+   force 是因为 activate 场景必须越过 30s 短缓存，否则运营刚改的内容仍可能被挡住。 */
 let hasActivatedOnce = false;
 onActivated(() => {
   if (!hasActivatedOnce) {
     hasActivatedOnce = true;
     return;
   }
-  void load({ silent: true });
+  void load({ silent: true, force: true });
 });
 /* 就地编辑宿主删除抽奖后广播 dataRevision：列表归本组件持有，必须重新取数，
    否则已删卡片会留在页面上（再点开就是对不存在的行发请求）。前台没有编辑
-   上下文 ⇒ inlineEditor 为 null，watch 的 getter 恒为 undefined，永不触发。 */
+   上下文 ⇒ inlineEditor 为 null，watch 的 getter 恒为 undefined，永不触发。
+   删除后必须 force，缓存命中会让已删卡片继续留在页面上。 */
 watch(
   () => inlineEditor?.dataRevision,
   (next, prev) => {
     if (next === undefined || next === prev) return;
-    void load({ silent: true });
+    void load({ silent: true, force: true });
   },
 );
 </script>
@@ -196,5 +228,40 @@ watch(
 
 .lottery-empty {
   padding: 64px 0;
+}
+
+/* 失败态与空态分开：请求失败时不能伪装成「还没有抽奖活动」。 */
+.lottery-error {
+  display: grid;
+  place-items: center;
+  gap: 10px;
+  padding: 40px 0;
+  text-align: center;
+}
+
+.lottery-error p {
+  margin: 0;
+  color: var(--boh-text-secondary);
+  font-size: 13px;
+}
+
+.lottery-retry {
+  padding: 6px 14px;
+  border: 1px solid var(--boh-border-primary);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--boh-text-primary);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.lottery-retry:hover {
+  background: var(--boh-bg-secondary);
+}
+
+.lottery-retry:focus-visible {
+  outline: 2px solid var(--boh-brand-blue);
+  outline-offset: 2px;
 }
 </style>

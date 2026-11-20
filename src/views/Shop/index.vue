@@ -481,6 +481,7 @@ import { useAuthStore } from '@/stores/auth';
 import { useBagStore } from '@/stores/bag';
 import { useProductsStore } from '@/stores/products';
 import { createNotification } from '@/utils/api/notifications-api.js';
+import { getCommunityLotteries } from '@/utils/api/lottery-api.js';
 import { getAllProfiles } from '@/utils/api/auth-api.js';
 import {
   createShopOrderWithPoints,
@@ -1455,6 +1456,52 @@ const syncNavHeight = () => {
    守：tests/unit/keep-alive-names.test.js */
 defineOptions({ name: 'ShopPage' });
 
+/* ── 抽奖列表空闲预取（2026-11-20）──
+   抽奖 Tab 只在点开时挂载，之前用户要空等一次 500–700ms 的 RPC。首屏商品请求落定后
+   用空闲帧预取，等真正切过去时直接命中 `lottery-api` 的短缓存 / 在途请求。
+   ⚠️ 必须等商品请求 settle 再排：首屏带宽先给商品，不为了看不见的 Tab 抢资源；
+   ⚠️ 直接落在 `?tab=lottery` 时不预取 —— 面板自己会取，预取只会多排一个无意义定时器。 */
+let lotteryPrefetchIdle = null;
+let lotteryPrefetchTimer = null;
+
+const cancelLotteryPrefetch = () => {
+  if (typeof window === 'undefined') return;
+  if (lotteryPrefetchIdle !== null && typeof window.cancelIdleCallback === 'function') {
+    window.cancelIdleCallback(lotteryPrefetchIdle);
+  }
+  if (lotteryPrefetchTimer !== null) {
+    window.clearTimeout(lotteryPrefetchTimer);
+  }
+  lotteryPrefetchIdle = null;
+  lotteryPrefetchTimer = null;
+};
+
+const scheduleLotteryPrefetch = () => {
+  if (typeof window === 'undefined') return;
+  if (activeTab.value === 'lottery') return;
+  if (navigator.connection?.saveData) return;
+  cancelLotteryPrefetch();
+
+  const run = async () => {
+    lotteryPrefetchIdle = null;
+    lotteryPrefetchTimer = null;
+    try {
+      const { error } = await getCommunityLotteries({
+        cacheKey: String(userInfo?.id || 'guest'),
+      });
+      if (error) logger.warn('shop', '抽奖预取失败', error);
+    } catch (error) {
+      logger.warn('shop', '抽奖预取失败', error);
+    }
+  };
+
+  if (typeof window.requestIdleCallback === 'function') {
+    lotteryPrefetchIdle = window.requestIdleCallback(run, { timeout: 2000 });
+  } else {
+    lotteryPrefetchTimer = window.setTimeout(run, 800);
+  }
+};
+
 onMounted(() => {
   syncTabFromRoute();
   /* 商品拿到之后就给购物袋对一次账（2026-11-04）：袋里存的是加购时的快照，
@@ -1470,7 +1517,8 @@ onMounted(() => {
         showOperationToast('购物袋价格已按最新信息更新');
       }
     })
-    .catch((error) => logger.error('shop', '商品加载失败', error));
+    .catch((error) => logger.error('shop', '商品加载失败', error))
+    .finally(() => scheduleLotteryPrefetch());
 
   window.addEventListener('theme-changed', handleThemeChanged);
   // Esc 退出抖动排序：拖拽是「模式」，必须有一个不依赖鼠标的出口
@@ -1491,6 +1539,7 @@ onMounted(() => {
      · 弹层滚动锁 / 抖动排序态 / 拖拽监听会跨页残留。
    onBeforeUnmount 仍然复用同一份（真正卸载时也要收干净）。 */
 const teardownTransient = () => {
+  cancelLotteryPrefetch();
   if (toastTimer) clearTimeout(toastTimer);
   unlockPageScroll();
   bagStore.flushShoppingBag();
@@ -1528,6 +1577,7 @@ onActivated(() => {
   }
   // 用户刚点完一次导航，见到的应该是整条底栏而不是一颗球
   resetBottomNavAutoHide();
+  scheduleLotteryPrefetch();
 });
 
 onBeforeUnmount(() => {

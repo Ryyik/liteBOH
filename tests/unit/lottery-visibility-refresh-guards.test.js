@@ -36,14 +36,27 @@ const fields = () => stripComments(read('src/views/DataManagement/config/fields.
 const tables = () => stripComments(read('src/views/DataManagement/config/tables.js'));
 
 describe('抽奖列表：KeepAlive 激活时必须重新取数', () => {
+  it('首次挂载必须取数（否则 loading 永久为 true）', () => {
+    const source = panel();
+    const start = source.indexOf('onMounted(');
+    expect(start, 'LotteryPanel 里找不到 onMounted').toBeGreaterThan(-1);
+    const end = source.indexOf('onActivated(');
+    const mountedBlock = source.slice(start, end > start ? end : start + 400);
+    /* 2026-11-20 回归：改独立详情页时把 onMounted 里的 load() 一起删了，
+       而首次 onActivated 又被闩锁跳过 ⇒ 列表从未发请求，永远停在「正在加载抽奖…」。 */
+    expect(mountedBlock).toMatch(/load\s*\(/);
+  });
+
   it('LotteryPanel 注册了 onActivated（不是只有 onMounted）', () => {
     const source = panel();
     expect(source).toMatch(/onActivated/);
     expect(source).toMatch(/onActivated\s*\(/);
   });
 
-  it('激活回调里走静默重取，而不是再亮一次骨架', () => {
-    expect(panel()).toMatch(/load\s*\(\s*\{\s*silent:\s*true\s*\}\s*\)/);
+  it('激活回调里走静默 + 强刷，而不是再亮一次骨架', () => {
+    const source = panel();
+    expect(source).toMatch(/load\s*\([^)]*silent:\s*true/);
+    expect(source).toMatch(/load\s*\([^)]*force:\s*true/);
   });
 
   it('首次激活不重复请求（闩锁在，避免首屏双取）', () => {
@@ -52,6 +65,25 @@ describe('抽奖列表：KeepAlive 激活时必须重新取数', () => {
     // 闩锁必须真的拦住第一次：出现 early return 才算数
     const activatedBlock = source.slice(source.indexOf('onActivated('));
     expect(activatedBlock).toMatch(/if\s*\(\s*!hasActivatedOnce\s*\)\s*\{[\s\S]*?return;/);
+  });
+});
+
+describe('抽奖列表：周边页空闲预取', () => {
+  const shop = () => stripComments(read('src/views/Shop/index.vue'));
+
+  it('商品请求 settle 后调度预取，且直接落在抽奖 Tab 时不重复预取', () => {
+    const source = shop();
+    expect(source).toContain('getCommunityLotteries');
+    expect(source).toMatch(/\.finally\(\s*\(\)\s*=>\s*scheduleLotteryPrefetch\(\)\s*\)/);
+    expect(source).toMatch(/requestIdleCallback/);
+    expect(source).toMatch(/activeTab\.value === 'lottery'/);
+    expect(source).toMatch(/cancelLotteryPrefetch/);
+  });
+
+  it('面板按用户作用域读缓存，避免把「我的报名」串给下一个账号', () => {
+    const source = panel();
+    expect(source).toMatch(/cacheKey:\s*cacheKey\(\)/);
+    expect(source).toMatch(/userInfo\?\.id/);
   });
 });
 

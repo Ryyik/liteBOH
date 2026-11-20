@@ -18,6 +18,7 @@
 import { listActivityCampaigns } from '@/utils/api/activities-platform-api.js';
 import { getCommunityLotteries } from '@/utils/api/lottery-api.js';
 import { getCreatorShows } from '@/utils/api/shows-api.js';
+import { useAuthStore } from '@/stores/auth';
 
 const MAX_ACTIVITIES = 6;
 const MAX_LOTTERIES = 4;
@@ -105,9 +106,10 @@ const buildShowsBlock = (rows) =>
   });
 
 export const getActivitiesContext = async () => {
+  const authStore = useAuthStore();
   const [activities, lotteries, shows] = await Promise.allSettled([
     listActivityCampaigns({ limit: MAX_ACTIVITIES }),
-    getCommunityLotteries(),
+    getCommunityLotteries({ cacheKey: String(authStore.userInfo?.id || 'guest') }),
     getCreatorShows({ limit: MAX_SHOWS }),
   ]);
 

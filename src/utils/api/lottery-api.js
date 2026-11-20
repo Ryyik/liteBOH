@@ -5,15 +5,24 @@ const normalizeLottery = (value) => {
   const drawAt = value.draw_at || value.drawAt || value.draw_time || value.drawTime || null;
   const drawnAt = value.drawn_at || value.drawnAt || null;
   const winners = Array.isArray(value.winners)
-    ? value.winners.map((winner, index) => ({
-      position: Number(winner?.position ?? index + 1),
-      entry_id: winner?.entry_id || null,
-      user_id: winner?.user_id || null,
-      username: String(winner?.username || '')
-    })).filter((winner) => winner.user_id || winner.username)
+    ? value.winners
+        .map((winner, index) => ({
+          position: Number(winner?.position ?? index + 1),
+          entry_id: winner?.entry_id || null,
+          user_id: winner?.user_id || null,
+          username: String(winner?.username || ''),
+        }))
+        .filter((winner) => winner.user_id || winner.username)
     : [];
-  const rawPityMode = String(value.pity_mode || value.pityMode || '').trim().toLowerCase();
-  const pityMode = rawPityMode === 'eligible' || rawPityMode === 'count_only' ? rawPityMode : (rawPityMode === 'none' ? 'none' : null);
+  const rawPityMode = String(value.pity_mode || value.pityMode || '')
+    .trim()
+    .toLowerCase();
+  const pityMode =
+    rawPityMode === 'eligible' || rawPityMode === 'count_only'
+      ? rawPityMode
+      : rawPityMode === 'none'
+        ? 'none'
+        : null;
   return {
     id: String(value.id || ''),
     title: String(value.title || ''),
@@ -23,9 +32,16 @@ const normalizeLottery = (value) => {
     cover_image_url: String(value.cover_image_url || ''),
     status: String(value.status || 'open'),
     is_community_visible: value.is_community_visible !== false,
-    enforce_account_age_check: value.enforce_account_age_check === true || value.enforce_account_age_check === 'true',
-    max_entries: value.max_entries === null || value.max_entries === undefined ? null : Number(value.max_entries),
-    winner_count: value.winner_count === null || value.winner_count === undefined ? 1 : Number(value.winner_count),
+    enforce_account_age_check:
+      value.enforce_account_age_check === true || value.enforce_account_age_check === 'true',
+    max_entries:
+      value.max_entries === null || value.max_entries === undefined
+        ? null
+        : Number(value.max_entries),
+    winner_count:
+      value.winner_count === null || value.winner_count === undefined
+        ? 1
+        : Number(value.winner_count),
     entry_count: Number(value.entry_count || 0),
     entry_deadline_at: value.entry_deadline_at || null,
     draw_at: drawAt,
@@ -35,17 +51,21 @@ const normalizeLottery = (value) => {
     winners,
     current_user_entry_id: value.current_user_entry_id || null,
     current_user_entry_created_at: value.current_user_entry_created_at || null,
-    current_user_entry_number: value.current_user_entry_number === null || value.current_user_entry_number === undefined
-      ? null
-      : Number(value.current_user_entry_number),
+    current_user_entry_number:
+      value.current_user_entry_number === null || value.current_user_entry_number === undefined
+        ? null
+        : Number(value.current_user_entry_number),
     created_at: value.created_at || null,
     updated_at: value.updated_at || null,
     pity_mode: pityMode,
-    pity_winner_count: value.pity_winner_count === null || value.pity_winner_count === undefined ? null : Number(value.pity_winner_count),
+    pity_winner_count:
+      value.pity_winner_count === null || value.pity_winner_count === undefined
+        ? null
+        : Number(value.pity_winner_count),
     pity_reward_title: String(value.pity_reward_title || value.pityRewardTitle || ''),
     pity_reward_description: String(value.pity_reward_description || ''),
     pity_overflow_reward_title: String(value.pity_overflow_reward_title || ''),
-    pity_overflow_reward_description: String(value.pity_overflow_reward_description || '')
+    pity_overflow_reward_description: String(value.pity_overflow_reward_description || ''),
   };
 };
 
@@ -65,7 +85,9 @@ const getHomeLotteryFallback = async () => {
   try {
     const { data, error } = await supabase
       .from('lotteries')
-      .select('id, title, description, prize_title, prize_description, cover_image_url, status, max_entries, winner_count, entry_deadline_at, draw_at, drawn_at, winner_user_id, winner_username, fulfillment_status, created_at, updated_at')
+      .select(
+        'id, title, description, prize_title, prize_description, cover_image_url, status, max_entries, winner_count, entry_deadline_at, draw_at, drawn_at, winner_user_id, winner_username, fulfillment_status, created_at, updated_at',
+      )
       .eq('is_home_visible', true)
       .in('status', ['open', 'drawn'])
       .order('created_at', { ascending: false })
@@ -85,12 +107,12 @@ export const joinHomeLottery = async (lotteryId) => {
   if (!safeLotteryId) {
     return {
       data: null,
-      error: new Error('抽奖 ID 不能为空')
+      error: new Error('抽奖 ID 不能为空'),
     };
   }
 
   const { data, error } = await supabase.rpc('join_home_lottery', {
-    p_lottery_id: safeLotteryId
+    p_lottery_id: safeLotteryId,
   });
 
   if (error) {
@@ -100,7 +122,26 @@ export const joinHomeLottery = async (lotteryId) => {
   return { data, error: null };
 };
 
-export const getCommunityLotteries = async () => {
+/**
+ * 社区抽奖列表的短时缓存（2026-11-20）。列表含 `current_user_entry_id` 等
+ * 按人数据，所以缓存**必须带调用方作用域**（通常是 `auth user.id`，游客用 `guest`）；
+ * 不传 `cacheKey` 的调用点不读也不写缓存，避免测试 / 新调用方意外串号。
+ * TTL 只负责「重复切 Tab 不重新等 500–700ms」，数据新鲜度仍由 force 刷新兜底。
+ */
+export const COMMUNITY_LOTTERIES_CACHE_TTL_MS = 30 * 1000;
+
+let communityLotteriesCache = null;
+let communityLotteriesInflight = null;
+let communityLotteriesGeneration = 0;
+
+export const invalidateCommunityLotteriesCache = () => {
+  communityLotteriesCache = null;
+  /* 让「失效前已发出、失效后才回来」的旧请求不能把旧列表写回缓存。 */
+  communityLotteriesGeneration += 1;
+  communityLotteriesInflight = null;
+};
+
+const fetchCommunityLotteries = async () => {
   const { data, error } = await supabase.rpc('get_community_lotteries');
   if (error) {
     const fallback = await getCommunityLotteriesFallback();
@@ -117,7 +158,9 @@ export const getCommunityLotteries = async () => {
       const ids = normalized.map((item) => item.id).filter(Boolean);
       const { data: pityRows } = await supabase
         .from('lotteries')
-        .select('id, pity_mode, pity_winner_count, pity_reward_title, pity_reward_description, pity_overflow_reward_title, pity_overflow_reward_description')
+        .select(
+          'id, pity_mode, pity_winner_count, pity_reward_title, pity_reward_description, pity_overflow_reward_title, pity_overflow_reward_description',
+        )
         .in('id', ids);
       if (Array.isArray(pityRows) && pityRows.length) {
         const pityMap = new Map(pityRows.map((row) => [String(row.id), row]));
@@ -125,33 +168,89 @@ export const getCommunityLotteries = async () => {
           if (!item.pity_mode) {
             const row = pityMap.get(item.id);
             if (row) {
-              const m = String(row.pity_mode || '').trim().toLowerCase();
+              const m = String(row.pity_mode || '')
+                .trim()
+                .toLowerCase();
               item.pity_mode = m === 'eligible' || m === 'count_only' ? m : 'none';
               item.pity_reward_title = String(row.pity_reward_title || '');
               item.pity_reward_description = String(row.pity_reward_description || '');
               item.pity_overflow_reward_title = String(row.pity_overflow_reward_title || '');
-              item.pity_overflow_reward_description = String(row.pity_overflow_reward_description || '');
-              item.pity_winner_count = row.pity_winner_count == null ? null : Number(row.pity_winner_count);
+              item.pity_overflow_reward_description = String(
+                row.pity_overflow_reward_description || '',
+              );
+              item.pity_winner_count =
+                row.pity_winner_count == null ? null : Number(row.pity_winner_count);
             } else {
               item.pity_mode = 'none';
             }
           }
         });
       } else {
-        normalized.forEach((item) => { if (!item.pity_mode) item.pity_mode = 'none'; });
+        normalized.forEach((item) => {
+          if (!item.pity_mode) item.pity_mode = 'none';
+        });
       }
     } catch {
-      normalized.forEach((item) => { if (!item.pity_mode) item.pity_mode = 'none'; });
+      normalized.forEach((item) => {
+        if (!item.pity_mode) item.pity_mode = 'none';
+      });
     }
   }
   return { data: normalized, error: null };
+};
+
+export const getCommunityLotteries = async ({ force = false, cacheKey = '' } = {}) => {
+  const scope = String(cacheKey || '').trim();
+  if (
+    scope &&
+    !force &&
+    communityLotteriesCache?.cacheKey === scope &&
+    Date.now() - communityLotteriesCache.cachedAt <= COMMUNITY_LOTTERIES_CACHE_TTL_MS
+  ) {
+    return { data: communityLotteriesCache.data, error: null, fromCache: true };
+  }
+
+  /* 同作用域共用同一个在途请求：列表页预取 + 面板首屏不会各发一次。 */
+  if (scope && communityLotteriesInflight?.cacheKey === scope) {
+    return communityLotteriesInflight.promise;
+  }
+
+  const generation = communityLotteriesGeneration;
+  const request = fetchCommunityLotteries().then((result) => {
+    if (
+      scope &&
+      !result.error &&
+      Array.isArray(result.data) &&
+      result.data.length > 0 &&
+      generation === communityLotteriesGeneration
+    ) {
+      communityLotteriesCache = {
+        cacheKey: scope,
+        cachedAt: Date.now(),
+        data: result.data,
+      };
+    }
+    return { ...result, fromCache: false };
+  });
+
+  if (!scope) return request;
+
+  const entry = { cacheKey: scope, promise: request };
+  communityLotteriesInflight = entry;
+  const clear = () => {
+    if (communityLotteriesInflight === entry) communityLotteriesInflight = null;
+  };
+  request.then(clear, clear);
+  return request;
 };
 
 const getCommunityLotteriesFallback = async () => {
   try {
     const { data, error } = await supabase
       .from('lotteries')
-      .select('id, title, description, prize_title, prize_description, cover_image_url, status, is_community_visible, enforce_account_age_check, max_entries, winner_count, entry_deadline_at, draw_at, drawn_at, winner_user_id, winner_username, fulfillment_status, pity_mode, pity_winner_count, pity_reward_title, pity_reward_description, pity_overflow_reward_title, pity_overflow_reward_description, created_at, updated_at')
+      .select(
+        'id, title, description, prize_title, prize_description, cover_image_url, status, is_community_visible, enforce_account_age_check, max_entries, winner_count, entry_deadline_at, draw_at, drawn_at, winner_user_id, winner_username, fulfillment_status, pity_mode, pity_winner_count, pity_reward_title, pity_reward_description, pity_overflow_reward_title, pity_overflow_reward_description, created_at, updated_at',
+      )
       .eq('is_community_visible', true)
       .in('status', ['open', 'drawn', 'closed'])
       .order('status', { ascending: false })
@@ -159,7 +258,10 @@ const getCommunityLotteriesFallback = async () => {
 
     if (error) throw error;
     const items = Array.isArray(data) ? data.filter(Boolean) : [];
-    return { data: items.map((item) => normalizeLottery({ ...item, entry_count: 0 })).filter(Boolean), error: null };
+    return {
+      data: items.map((item) => normalizeLottery({ ...item, entry_count: 0 })).filter(Boolean),
+      error: null,
+    };
   } catch (fallbackError) {
     return { data: [], error: fallbackError };
   }
@@ -170,17 +272,19 @@ export const joinCommunityLottery = async (lotteryId) => {
   if (!safeLotteryId) {
     return {
       data: null,
-      error: new Error('抽奖 ID 不能为空')
+      error: new Error('抽奖 ID 不能为空'),
     };
   }
 
   const { data, error } = await supabase.rpc('join_community_lottery', {
-    p_lottery_id: safeLotteryId
+    p_lottery_id: safeLotteryId,
   });
 
   if (error) {
     return { data: null, error };
   }
 
+  /* 报名会改变 entry_count / 我的报名态：让列表下一次读取强制走网络。 */
+  invalidateCommunityLotteriesCache();
   return { data, error: null };
 };
