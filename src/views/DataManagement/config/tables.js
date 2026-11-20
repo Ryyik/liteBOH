@@ -2186,6 +2186,9 @@ export const dataConfig = {
       { key: 'id', label: 'ID', defaultVisible: false, maxLength: 12, copyable: true },
       { key: 'order_no', label: '订单号', maxLength: 20 },
       { key: 'username', label: '用户名' },
+      // 订单来源（2026-11-20）：shop=商城下单，lottery=抽奖中奖自动生成。
+      // 列表沿用 contact_type 的既有口径 —— badge 列直接显示原始值。
+      { key: 'source', label: '来源', type: 'badge', defaultVisible: false },
       { key: 'contact_type', label: '联系方式', type: 'badge' },
       { key: 'contact_value', label: '联系账号', maxLength: 20 },
       { key: 'total_points', label: '积分总额', type: 'number' },
@@ -2199,6 +2202,14 @@ export const dataConfig = {
       { key: 'order_no', label: '订单号', type: 'text', disabled: true, group: 'basic' },
       { key: 'user_id', label: '用户ID', type: 'text', disabled: true, group: 'basic' },
       { key: 'username', label: '用户名', type: 'text', disabled: true, group: 'basic' },
+      {
+        key: 'source',
+        label: '来源',
+        type: 'text',
+        disabled: true,
+        group: 'basic',
+        hint: 'shop=商城下单；lottery=抽奖中奖自动生成（0 元单，直接推 preparing→shipped→completed 即完成履约）',
+      },
       {
         key: 'contact_type',
         label: '联系方式',
@@ -2246,9 +2257,17 @@ export const dataConfig = {
       },
       stats: [
         {
+          label: '来源',
+          key: 'source',
+          values: { shop: '商城下单', lottery: '抽奖奖品' },
+        },
+        {
           label: '支付',
           key: 'payment_mode',
-          values: { points: '积分', rmb: 'RMB', mixed: '混合' },
+          /* 单一真源 = DB 约束 shop_points_orders_payment_mode_check。
+             原来写的 points/rmb/mixed 三个键与线上值对不上 ⇒ 一直走 String(raw)
+             兜底显示英文原值；2026-11-20 随 lottery 档一起修正。 */
+          values: { points_only: '积分', rmb_only: 'RMB', combined: '混合', lottery: '抽奖' },
         },
         { label: '积分', key: 'total_points' },
         { label: 'RMB', key: 'rmb_total', format: 'price' },

@@ -106,14 +106,20 @@ const normalizeShopOrder = (row) => {
     status: String(row?.status || 'preparing'),
     statusLabel: shopStatusLabel(row?.status || 'preparing'),
     paymentMode,
+    /* 抽奖自动单（2026-11-20 迁移 2026112001）：source='lottery' + lottery_id 指回活动。
+       老库没这两列时 select 会走 fallback ⇒ 两者都是 ''，虚拟中奖卡照常显示。 */
+    source: String(row?.source || 'shop'),
+    lotteryId: String(row?.lottery_id || ''),
     points,
     rmb,
     priceText:
-      paymentMode === 'rmb_only'
-        ? formatRmb(rmb) || '—'
-        : paymentMode === 'combined'
-          ? [points ? `${points} 积分` : '', formatRmb(rmb)].filter(Boolean).join(' + ')
-          : `${points} 积分`,
+      paymentMode === 'lottery'
+        ? '中奖奖品'
+        : paymentMode === 'rmb_only'
+          ? formatRmb(rmb) || '—'
+          : paymentMode === 'combined'
+            ? [points ? `${points} 积分` : '', formatRmb(rmb)].filter(Boolean).join(' + ')
+            : `${points} 积分`,
     items,
     /* 下单当时的收货快照（2026-11-04）。历史订单没有这三列，前端按 null 处理并
        回落到「当前资料」—— 但要说清那是"当前"，不是"当时"。 */
@@ -132,6 +138,9 @@ const normalizeLotteryOrder = (entry, lottery) => {
   return {
     kind: 'lottery',
     id: String(entry?.id || ''),
+    /* lottery_id：与真实抽奖单（source='lottery'）的 lotteryId 对齐用 ——
+       同一场活动已有真实订单时，虚拟卡要让位（见 preferRealLotteryOrders）。 */
+    lotteryId: String(entry?.lottery_id || ''),
     orderNo: String(entry?.id || '')
       .slice(0, 8)
       .toUpperCase(),
@@ -175,7 +184,8 @@ const normalizeGiftOrder = (row) => {
    一旦迁移完成，第一次查询就命中，不再多打一次请求。 */
 const SHOP_ORDER_BASE_COLUMNS =
   'id, order_no, items, total_points, points_used, rmb_total, payment_mode, status, created_at, updated_at';
-const SHOP_ORDER_SNAPSHOT_COLUMNS = 'shipping_recipient, shipping_phone, shipping_address, remark';
+const SHOP_ORDER_SNAPSHOT_COLUMNS =
+  'shipping_recipient, shipping_phone, shipping_address, remark, source, lottery_id';
 
 export async function fetchMyShopOrders(userId) {
   if (!userId) return { data: [], error: null };
@@ -283,6 +293,29 @@ export function buildWinningLotteryOrders({ entries, lotteries, winnerIndex, use
   return orders;
 }
 
+/**
+ * 纯函数：真实抽奖单（source='lottery'）就位后，替换同一场活动的虚拟中奖卡。
+ *
+ * 2026-11-20 起中奖会在库里落一张真订单（迁移 2026112001），虚拟卡
+ * （buildWinningLotteryOrders 合成）与真订单会同时出现 ⇒ 同一个奖品两张卡。
+ * 规则：
+ *   1. 只按 lotteryId 对齐 —— 真实订单的 lotteryId 非空才参与替换；
+ *   2. 被替换的虚拟卡直接丢弃：真订单自带准备中/已寄出/已送达状态机，
+ *      虚拟卡的「已中奖」只是开奖快照，没有寄送信息；
+ *   3. 没有真实订单的中奖（历史数据 / 库还没迁移）虚拟卡原样保留。
+ */
+export function preferRealLotteryOrders(shopOrders, lotteryOrders) {
+  const realLotteryIds = new Set(
+    (Array.isArray(shopOrders) ? shopOrders : [])
+      .filter((order) => order?.source === 'lottery' && order?.lotteryId)
+      .map((order) => String(order.lotteryId)),
+  );
+  if (realLotteryIds.size === 0) return Array.isArray(lotteryOrders) ? lotteryOrders : [];
+  return (Array.isArray(lotteryOrders) ? lotteryOrders : []).filter(
+    (order) => !realLotteryIds.has(String(order?.lotteryId || '')),
+  );
+}
+
 export async function fetchMyLotteryOrders(userId) {
   if (!userId) return { data: [], error: null };
 
@@ -362,9 +395,12 @@ export async function fetchMyOrders(userId) {
     fetchMyLotteryOrders(userId),
     fetchMyGiftOrders(userId),
   ]);
-  const data = [...shop.data, ...lottery.data, ...gifts.data].sort(
-    (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime(),
-  );
+  /* 已有真实抽奖单的活动，虚拟中奖卡让位（preferRealLotteryOrders 有单测） */
+  const data = [
+    ...shop.data,
+    ...preferRealLotteryOrders(shop.data, lottery.data),
+    ...gifts.data,
+  ].sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
   // 礼物读失败不该拖垮购物/中奖两块（它是后加的一路），错误只做记录
   return { data, error: shop.error || lottery.error || null };
 }
@@ -509,7 +545,7 @@ export async function fetchAllShopOrders({ limit = ADMIN_ORDER_LIMIT } = {}) {
     const { data, error } = await supabase
       .from('shop_points_orders')
       .select(
-        'id, order_no, user_id, items, points_used, total_points, rmb_total, payment_mode, status, created_at, updated_at, shipping_recipient, shipping_phone, shipping_address, remark',
+        'id, order_no, user_id, items, points_used, total_points, rmb_total, payment_mode, status, created_at, updated_at, shipping_recipient, shipping_phone, shipping_address, remark, source, lottery_id',
       )
       .order('created_at', { ascending: false })
       .limit(take);
