@@ -60,6 +60,66 @@
   background: #181a20;
 }
 
+/* ── 自定义主题（plans/043 阶段 2）────────────────────────────────────
+   Profile 是一套独立的页面级变量体系，不读 tokens.css 的 --boh-*；
+   所以这里必须把局部变量整体接上，否则 token 层只会改 body 底色，
+   页面根、hero、作品卡、tab 仍是硬编码白。
+   颜色与 tokens.css 的 :root[data-theme] 块保持同源，改一处要两处一起改。 */
+.profile-page[data-theme="home-cat"] {
+  --bg: #fffdf8;
+  --text-primary: #2f2f2f;
+  --text-secondary: #6f6960;
+  --text-tertiary: #726c63;
+  --text-muted: #756f66;
+  --surface: #fffdf8;
+  --surface-soft: #f8f2ea;
+  --surface-elevated: #ffffff;
+  --stroke: rgba(124, 96, 61, 0.18);
+  --stroke-strong: rgba(124, 96, 61, 0.3);
+  --shadow-sm: rgba(124, 96, 61, 0.07);
+  --shadow-md: rgba(124, 96, 61, 0.1);
+  --shadow-lg: rgba(124, 96, 61, 0.14);
+  --accent-soft: rgba(47, 47, 47, 0.08);
+  --accent: #2f2f2f;
+  --glass-border-strong: rgba(232, 222, 209, 0.95);
+  background:
+    radial-gradient(680px 280px at 12% 0%, rgba(255, 216, 168, 0.2), transparent 62%),
+    radial-gradient(520px 240px at 100% 0%, rgba(255, 232, 239, 0.22), transparent 60%),
+    #fffdf8;
+}
+
+.profile-page[data-theme="anniversary-mc"] {
+  --bg: #e9eee3;
+  --text-primary: #292923;
+  --text-secondary: #5f5b50;
+  --text-tertiary: #6d6b60;
+  --text-muted: #6d6b60;
+  --surface: #fbf7e9;
+  --surface-soft: #eee6cf;
+  --surface-elevated: #fffdf4;
+  --stroke: rgba(57, 51, 41, 0.24);
+  --stroke-strong: rgba(57, 51, 41, 0.42);
+  --shadow-sm: rgba(65, 55, 47, 0.08);
+  --shadow-md: rgba(65, 55, 47, 0.1);
+  --shadow-lg: rgba(65, 55, 47, 0.14);
+  --accent-soft: rgba(95, 125, 73, 0.12);
+  --accent: #5f7d49;
+  --glass-border-strong: rgba(57, 51, 41, 0.42);
+  background-color: #e9eee3;
+  background-image:
+    linear-gradient(rgba(72, 91, 59, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(72, 91, 59, 0.045) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+/* 作品卡在 profile-base.css 里是硬编码 #ffffff，局部变量接不住，单点补一条。
+   用 surface-elevated 而不是 surface：浅色主题下要和页面底拉开一档。 */
+.profile-page[data-theme="home-cat"] .profile-post-card,
+.profile-page[data-theme="anniversary-mc"] .profile-post-card {
+  background: var(--surface-elevated);
+  border-color: var(--stroke);
+}
+
 .profile-page[data-theme="dark"] .tier-badge.tier-plus {
   background: rgba(106, 143, 201, 0.15);
   color: #8ab4f8;

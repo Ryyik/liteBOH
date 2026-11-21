@@ -22,6 +22,7 @@
 | 评论/回复输入框「多字扩展」（竖屏不随内容长高） | `probe-reply-autogrow.mjs` | 19 |
 | **移动端发帖选图反馈口径**（选图→发布保持安静、4s 卡顿观察器一次性提示、blob 首帧 / 无 lazy、徽章仅 failed；入口在首页 `/#/`，`/#/forum` 已被 IA 改版重定向） | `probe-composer-image-stall.mjs` | 6 |
 | **Cloud+ 图库竖屏顶栏 + 设置页玻璃**（工具行不折字/不溢出、页头不吸顶、底栏玻璃、卡片玻璃材质） | `probe-cloud-portrait.mjs` | 27 |
+| **自定义主题全站 token**（home-cat / anniversary-mc × 首页/论坛/资讯/商城：body 底、`--boh-page-bg`、`--liquid-bg`、玻璃面 computed、零 pageerror） | `probe-theme-adaptation.mjs`（`npm run probe:theme-adaptation`） | 54 |
 | **Cloud+ 相册形态**（iOS 图库式密铺：去月份分组、多图铺开、捏合切列、宽屏铺满） | `probe-cloud-album.mjs` | 22 |
 | **影集「笔记版式」阅读页**（白纸单页、图在上/左标题右正文、竖图左图右文、两图上下堆叠、宋体栈、无书脊与品牌蓝） | `probe-album-note.mjs` | 32 |
 | **Cloud+ 动效**（格子放大/缩小、详情从点中的格子放大展开并缩回、三档切换过渡、切列落定回弹） | `probe-cloud-motion.mjs` | 16 |

@@ -17,6 +17,15 @@
   color: var(--liquid-text-primary, #1d1d1f);
 }
 
+/* 独立设置路由（账户安全 / 通知设置等）的页面底（plans/043 阶段 3）。
+   卡片 / 行 / 描边已经全部读 --liquid-*，只有这层灰底是硬编码；
+   自定义主题下直接换成站点页面底，避免「卡片是暖的、页底还是冷灰」。
+   选择器带 html[data-theme]：这些独立页的根不挂 data-theme，真源在 html。 */
+html[data-theme="home-cat"] .settings-page:not(.is-inline),
+html[data-theme="anniversary-mc"] .settings-page:not(.is-inline) {
+  background: var(--boh-page-bg);
+}
+
 .settings-page-container {
   width: 100%;
   max-width: 680px;

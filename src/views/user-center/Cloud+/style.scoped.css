@@ -98,6 +98,46 @@
   --apple-shimmer-base-b: color-mix(in srgb, var(--apple-text) 10%, var(--apple-bg-secondary));
 }
 
+/* ── 自定义主题（plans/043 阶段 3）────────────────────────────────────
+   Cloud+ 的整套亮色表面都由 .cloud-page 的 --apple-* 变量驱动，
+   暗色块已经证明「只重映射变量、不写组件级覆盖」可行；这里沿用同一结构，
+   把值全部指向阶段 1 的站点 token。选择器用 html[data-theme] 而不是
+   .cloud-page[data-theme]：cloud-page 本身不挂 data-theme，真源在 html。
+   ⚠️ 本块刻意不写裸色值：值要么是 var()，要么是 color-mix 派生。 */
+html[data-theme='home-cat'] .cloud-page,
+html[data-theme='anniversary-mc'] .cloud-page {
+  --apple-bg: var(--boh-page-bg);
+  --apple-bg-secondary: var(--boh-bg-secondary);
+  --apple-bg-tertiary: var(--boh-bg-tertiary);
+  --apple-text: var(--boh-text-primary);
+  --apple-text-secondary: var(--boh-text-secondary);
+  --apple-text-tertiary: var(--boh-text-tertiary);
+  --apple-blue: var(--boh-brand-blue);
+  --apple-blue-hover: var(--boh-brand-blue);
+  --apple-gray: color-mix(in srgb, var(--apple-text) 18%, var(--apple-bg));
+  --apple-border: var(--boh-border-primary);
+  --apple-border-light: var(--boh-divider);
+  --apple-red: var(--boh-brand-red, #ff3b30);
+  --apple-text-hover: color-mix(in srgb, var(--apple-text) 78%, var(--apple-bg));
+  --apple-warning-text: color-mix(in srgb, var(--apple-warning-hue) 45%, var(--apple-text));
+  --apple-error-text: color-mix(in srgb, var(--apple-error-hue) 55%, var(--apple-text));
+  --shadow-sm: var(--boh-shadow-sm);
+  --shadow-md: var(--boh-shadow-md);
+  --shadow-lg: var(--boh-shadow-lg);
+  --shadow-xl: var(--boh-shadow-lg);
+  --apple-glass-bar: var(--liquid-bg);
+  --apple-glass-input: var(--liquid-bg);
+  --apple-glass-panel: var(--liquid-bg-strong);
+  --apple-glass-badge: var(--liquid-bg-strong);
+  --apple-nav-border: var(--liquid-border);
+  --apple-sheen: color-mix(in srgb, var(--liquid-text-primary) 8%, transparent);
+  --apple-shimmer-a: color-mix(in srgb, var(--apple-text) 8%, var(--apple-bg-secondary));
+  --apple-shimmer-b: color-mix(in srgb, var(--apple-text) 13%, var(--apple-bg-secondary));
+  --apple-shimmer-sweep: var(--apple-sheen);
+  --apple-shimmer-base-a: color-mix(in srgb, var(--apple-text) 6%, var(--apple-bg-secondary));
+  --apple-shimmer-base-b: color-mix(in srgb, var(--apple-text) 10%, var(--apple-bg-secondary));
+}
+
 * {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;

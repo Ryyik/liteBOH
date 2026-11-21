@@ -5,10 +5,13 @@
 .newsroom-page {
   --spring: cubic-bezier(0.32, 0.72, 0, 1);
   --nav-h: var(--bohai-standalone-nav-height, 64px);
-  --text-1: #1d1d1f;
-  --text-2: #6e6e73;
-  --text-3: #98a2b3;
-  --line: #e4e7ec;
+  /* 页面级变量接站点 token（plans/043 阶段 5 覆盖盘点）：
+     亮色走 fallback（与旧值一致），自定义主题跟随 --boh-*。 */
+  --text-1: var(--boh-text-primary, #1d1d1f);
+  --text-2: var(--boh-text-secondary, #6e6e73);
+  --text-3: var(--boh-text-tertiary, #98a2b3);
+  --line: var(--boh-border-primary, #e4e7ec);
+  --brand: var(--boh-brand-blue, #0071e3);
 
   /* ── 排版阶梯（2026-10-20 Apple 化）────────────────────────────────
    * 为什么字距要分档：字越大，字间距在视觉上越"散"，所以要收紧；
@@ -48,7 +51,7 @@
   --news-glass-filter-sm: blur(var(--liquid-blur-sm, 18px)) saturate(var(--liquid-saturate, 180%)) brightness(1.02);
   margin: 0;
   padding: 0;
-  background: #f7f8fa;
+  background: var(--boh-page-bg, #f7f8fa);
   font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   position: relative;
   opacity: 0;
@@ -683,13 +686,13 @@ html[data-theme="dark"] .secondary-news-item:hover {
 .load-more-btn {
   margin-top: 16px;
   padding: 12px 28px;
-  background: #0071e3; border: none; border-radius: 999px;
+  background: var(--brand, #0071e3); border: none; border-radius: 999px;
   color: #fff; cursor: pointer;
   transition: all 300ms var(--spring);
   font-size: 14px; font-weight: 600;
-  box-shadow: 0 8px 24px rgba(0, 113, 227, 0.28);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--brand, #0071e3) 28%, transparent);
 }
-.load-more-btn:hover { background: #0077ed; transform: translateY(-1px) scale(1.02); box-shadow: 0 12px 32px rgba(0, 113, 227, 0.32); }
+.load-more-btn:hover { background: var(--brand, #0077ed); transform: translateY(-1px) scale(1.02); box-shadow: 0 12px 32px color-mix(in srgb, var(--brand, #0071e3) 32%, transparent); }
 .load-more-btn:active { transform: scale(0.98); }
 
 .fade-enter-active, .fade-leave-active { transition: opacity 0.22s ease, transform 0.28s var(--spring); }

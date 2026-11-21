@@ -3047,3 +3047,74 @@
   background: rgba(28, 30, 38, 0.95);
   color: #f4f6f8;
 }
+
+/* ── 自定义主题（plans/043 阶段 3）────────────────────────────────────
+   消息页的列表/详情/动作条主体已经读 --liquid-*，不需要复制整套 dark 规则；
+   这里只补仍写死亮色的三处：页面底、空态、蓝色强调。
+   选择器用 html[data-theme]：.x-notifications-container 是路由挂载后才出现的，
+   theme-manager 初始化时扫不到它，不能依赖容器自身带 data-theme。 */
+html[data-theme="home-cat"] .x-notifications-container,
+html[data-theme="anniversary-mc"] .x-notifications-container {
+  --x-accent: var(--boh-brand-blue);
+  --x-item-ring: var(--boh-bg-elevated);
+  background: var(--boh-page-bg);
+}
+
+html[data-theme="home-cat"] .x-notifications-container .empty-icon-circle,
+html[data-theme="anniversary-mc"] .x-notifications-container .empty-icon-circle {
+  background: var(--boh-bg-elevated);
+  color: var(--boh-text-secondary);
+}
+
+html[data-theme="home-cat"] .x-notifications-container .x-empty h3,
+html[data-theme="anniversary-mc"] .x-notifications-container .x-empty h3 {
+  color: var(--boh-text-primary);
+}
+
+html[data-theme="home-cat"] .x-notifications-container .x-empty p,
+html[data-theme="anniversary-mc"] .x-notifications-container .x-empty p {
+  color: var(--boh-text-secondary);
+}
+
+html[data-theme="home-cat"] .x-notifications-container .refresh-btn,
+html[data-theme="anniversary-mc"] .x-notifications-container .refresh-btn {
+  background: var(--x-accent);
+  color: var(--boh-bg-elevated);
+}
+
+html[data-theme="home-cat"] .x-notifications-container .x-mark-all-btn,
+html[data-theme="anniversary-mc"] .x-notifications-container .x-mark-all-btn {
+  background: color-mix(in srgb, var(--x-accent) 10%, transparent);
+  border-color: color-mix(in srgb, var(--x-accent) 18%, transparent);
+  color: var(--x-accent);
+}
+
+html[data-theme="home-cat"] .x-notifications-container .x-item.active-detail,
+html[data-theme="anniversary-mc"] .x-notifications-container .x-item.active-detail {
+  background: color-mix(in srgb, var(--x-accent) 7%, transparent);
+  box-shadow: inset 3px 0 0 var(--x-accent);
+}
+
+html[data-theme="home-cat"] .x-notifications-container .x-item.active-detail .x-action-type,
+html[data-theme="anniversary-mc"] .x-notifications-container .x-item.active-detail .x-action-type {
+  background: color-mix(in srgb, var(--x-accent) 12%, transparent);
+  color: var(--x-accent);
+}
+
+html[data-theme="home-cat"] .x-notifications-container .x-item.unread,
+html[data-theme="anniversary-mc"] .x-notifications-container .x-item.unread {
+  background: color-mix(in srgb, var(--x-accent) 5%, transparent);
+}
+
+html[data-theme="home-cat"] .x-notifications-container .x-unread-dot,
+html[data-theme="anniversary-mc"] .x-notifications-container .x-unread-dot {
+  background: var(--x-accent);
+  border-color: var(--x-item-ring);
+}
+
+html[data-theme="home-cat"] .x-notifications-container .x-item.unread .x-date,
+html[data-theme="home-cat"] .x-notifications-container .x-item.unread .inline-date,
+html[data-theme="anniversary-mc"] .x-notifications-container .x-item.unread .x-date,
+html[data-theme="anniversary-mc"] .x-notifications-container .x-item.unread .inline-date {
+  color: var(--x-accent);
+}

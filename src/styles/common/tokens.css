@@ -235,6 +235,112 @@
   --boh-heat-4: #4fd8b3;
 }
 
+/* ── 自定义主题 token 层（2026-11-20，plans/043 §5 阶段 1）────────────────────
+   两套自定义主题不再只做论坛页面皮肤：这里先接住全站页面底、玻璃面、文字和
+   基础语义 token，未写专属规则的页面也不会再掉回纯白。
+
+   ⚠️ 选择器必须带 `:root`：
+   · `dark-mode.css` 是懒加载的，里面有一份 `:root` 亮色默认值。用户从暗色切到
+     自定义主题时那份 CSS 仍在文档里，裸 `[data-theme="home-cat"]` 与它同特异性、
+     且加载更晚 ⇒ 会把这里的值静默盖回亮色默认。`:root[data-theme=…]` 多一层特异性。
+   · 组件级容器上的 `data-theme` 不在这里重复覆写：它们从 html 继承这组 token；
+     论坛 / 详情已有更高特异性的页面级覆盖，继续由各自文件负责。
+
+   不新增暗色变体：theme-manager 切换自定义主题时会移除 `.dark` 类，两套主题
+   按设计互斥（plans/043 §4.7）。 */
+:root[data-theme="home-cat"] {
+  --boh-page-bg: #fffdf8;
+  --boh-login-island-bg: #fffdf8;
+
+  --liquid-bg: rgba(255, 255, 255, 0.78);
+  --liquid-bg-strong: rgba(255, 255, 255, 0.9);
+  --liquid-bg-subtle: rgba(255, 253, 248, 0.66);
+  --liquid-bg-nested: rgba(255, 253, 248, 0.48);
+  --liquid-bg-overlay: rgba(255, 250, 244, 0.74);
+  --liquid-border: rgba(232, 222, 209, 0.95);
+  --liquid-border-strong: #e0d3c2;
+  --liquid-border-hairline: rgba(124, 96, 61, 0.12);
+  --liquid-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.88);
+  --liquid-highlight-subtle: inset 0 1px 0 rgba(255, 255, 255, 0.62);
+  --liquid-shadow: 0 16px 42px rgba(124, 96, 61, 0.08), 0 1px 3px rgba(124, 96, 61, 0.06);
+  --liquid-shadow-sm: 0 8px 24px rgba(124, 96, 61, 0.07);
+  --liquid-shadow-overlay: 0 24px 80px rgba(124, 96, 61, 0.14);
+  --liquid-text-primary: #2f2f2f;
+  --liquid-text-secondary: #6f6960;
+  --liquid-text-tertiary: #726c63;
+  --refract-tint-rgb: 255, 253, 248;
+
+  /* 语义层：让仍在使用 --boh-* / --apple-* 的存量页面也跟随，而不是只有玻璃面变 */
+  --boh-bg-primary: #fffdf8;
+  --boh-bg-secondary: #f8f2ea;
+  --boh-bg-tertiary: #fdf8f1;
+  --boh-bg-elevated: #ffffff;
+  --boh-text-primary: #2f2f2f;
+  --boh-text-secondary: #6f6960;
+  --boh-text-tertiary: #726c63;
+  --boh-text-muted: #968c80;
+  --boh-border-primary: rgba(124, 96, 61, 0.18);
+  --boh-border-secondary: rgba(124, 96, 61, 0.1);
+  --boh-divider: rgba(124, 96, 61, 0.1);
+  --boh-shadow-sm: 0 4px 16px rgba(124, 96, 61, 0.06);
+  --boh-shadow-md: 0 10px 24px rgba(124, 96, 61, 0.08);
+  --boh-shadow-lg: 0 20px 60px rgba(124, 96, 61, 0.12);
+  --boh-glass-bg: rgba(255, 255, 255, 0.78);
+  --boh-glass-border: rgba(232, 222, 209, 0.92);
+  --boh-brand-blue: #2f2f2f;
+  --boh-brand-blue-soft: rgba(47, 47, 47, 0.08);
+  --apple-bg: #fffdf8;
+  --apple-text: #2f2f2f;
+  --apple-gray: #6f6960;
+  --apple-blue: #2f2f2f;
+}
+
+:root[data-theme="anniversary-mc"] {
+  --boh-page-bg: #e9eee3;
+  --boh-login-island-bg: #fbf7e9;
+
+  --liquid-bg: rgba(251, 247, 233, 0.96);
+  --liquid-bg-strong: #fbf7e9;
+  --liquid-bg-subtle: rgba(251, 247, 233, 0.88);
+  --liquid-bg-nested: rgba(238, 230, 207, 0.72);
+  --liquid-bg-overlay: rgba(251, 247, 233, 0.78);
+  --liquid-border: rgba(57, 51, 41, 0.24);
+  --liquid-border-strong: rgba(57, 51, 41, 0.42);
+  --liquid-border-hairline: rgba(57, 51, 41, 0.16);
+  --liquid-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.94);
+  --liquid-highlight-subtle: inset 0 1px 0 rgba(255, 255, 255, 0.68);
+  --liquid-shadow: 4px 4px 0 rgba(65, 55, 47, 0.1), 0 1px 3px rgba(65, 55, 47, 0.08);
+  --liquid-shadow-sm: 2px 2px 0 rgba(65, 55, 47, 0.08);
+  --liquid-shadow-overlay: 8px 8px 0 rgba(65, 55, 47, 0.14);
+  --liquid-text-primary: #292923;
+  --liquid-text-secondary: #5f5b50;
+  --liquid-text-tertiary: #6d6b60;
+  --refract-tint-rgb: 251, 247, 233;
+
+  --boh-bg-primary: #fbf7e9;
+  --boh-bg-secondary: #eee6cf;
+  --boh-bg-tertiary: #f4efdf;
+  --boh-bg-elevated: #fffdf4;
+  --boh-text-primary: #292923;
+  --boh-text-secondary: #5f5b50;
+  --boh-text-tertiary: #6d6b60;
+  --boh-text-muted: #8a8576;
+  --boh-border-primary: rgba(57, 51, 41, 0.24);
+  --boh-border-secondary: rgba(57, 51, 41, 0.14);
+  --boh-divider: rgba(57, 51, 41, 0.14);
+  --boh-shadow-sm: 2px 2px 0 rgba(65, 55, 47, 0.08);
+  --boh-shadow-md: 4px 4px 0 rgba(65, 55, 47, 0.1);
+  --boh-shadow-lg: 8px 8px 0 rgba(65, 55, 47, 0.14);
+  --boh-glass-bg: rgba(251, 247, 233, 0.96);
+  --boh-glass-border: rgba(57, 51, 41, 0.24);
+  --boh-brand-blue: #5f7d49;
+  --boh-brand-blue-soft: rgba(95, 125, 73, 0.12);
+  --apple-bg: #fbf7e9;
+  --apple-text: #292923;
+  --apple-gray: #5f5b50;
+  --apple-blue: #5f7d49;
+}
+
 /* Liquid Glass 降级：不支持 backdrop-filter 或性能省电模式时回退为实色 */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   :root {

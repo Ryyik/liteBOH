@@ -40,6 +40,7 @@
     "check:shell-grep": "node scripts/check-shell-grep.mjs",
     "check:doc-truth": "node scripts/check-doc-truth.mjs",
     "check:doc-truth:update": "node scripts/check-doc-truth.mjs --update",
+    "check:doc-links": "node scripts/check-doc-links.mjs",
     "check:structure": "node scripts/check-project-structure.mjs",
     "check:auth-validation": "node scripts/check-auth-validation-parity.mjs",
     "check:liquid-glass": "node scripts/check-liquid-glass.mjs",
@@ -93,7 +94,7 @@
     "probe:composer-session-gate": "node scripts/probes/probe-composer-session-gate.mjs",
     "test": "vitest run",
     "verify": "node scripts/verify.mjs",
-    "verify:fast": "npm run check:views && npm run check:structure && npm run check:first-paint && npm run check:first-paint-closure && npm run check:root-clean && npm run check:untracked-imports && npm run check:shell-grep && npm run check:doc-truth",
+    "verify:fast": "npm run check:views && npm run check:structure && npm run check:first-paint && npm run check:first-paint-closure && npm run check:root-clean && npm run check:untracked-imports && npm run check:shell-grep && npm run check:doc-truth && npm run check:doc-links",
     "verify:full": "npm run verify && npm run build:ci",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
@@ -119,7 +120,7 @@
     "security:setup:no-secret": "node scripts/cloudflare-setup.mjs --no-secret",
     "audit:coupling": "node scripts/audit-coupling.mjs",
     "compare:builds": "node scripts/compare-builds.mjs",
-    "verify:serial": "npm run check:views && npm run check:structure && npm run check:auth-validation && npm run check:liquid-glass && npm run check:important-budget && npm run check:layering && npm run check:dark-tokens:strict && npm run check:first-paint && npm run check:first-paint-closure && npm run check:async-component-fallback && npm run check:bohai-params && npm run check:root-clean && npm run check:untracked-imports && npm run check:shell-grep && npm run check:doc-truth && npm run lint && npm run type-check && npm run test && npm run check:ratchets"
+    "verify:serial": "npm run check:views && npm run check:structure && npm run check:auth-validation && npm run check:liquid-glass && npm run check:important-budget && npm run check:layering && npm run check:dark-tokens:strict && npm run check:first-paint && npm run check:first-paint-closure && npm run check:async-component-fallback && npm run check:bohai-params && npm run check:root-clean && npm run check:untracked-imports && npm run check:shell-grep && npm run check:doc-links && npm run check:doc-truth && npm run lint && npm run type-check && npm run test && npm run check:ratchets"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.116.0",

@@ -570,6 +570,17 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .album-editor-page {
+  /* 与摄影集列表同一套根变量映射（plans/043 阶段 4）。
+     本页大量消费 --surface-primary / --surface-secondary / --brand，
+     根上不接 token 时自定义主题只会换 body 底、工具栏仍是白卡。 */
+  --surface-primary: var(--boh-bg-elevated, #fff);
+  --surface-secondary: var(--boh-bg-secondary, #f2f2f7);
+  --text-primary: var(--boh-text-primary, #1d1d1f);
+  --text-secondary: var(--boh-text-secondary, #6e6e73);
+  --text-tertiary: var(--boh-text-tertiary, #86868b);
+  --border-color: var(--boh-border-primary, rgba(0, 0, 0, 0.06));
+  --brand: var(--boh-brand-blue, #0a84ff);
+
   min-height: 100vh;
   display: flex;
   flex-direction: column;

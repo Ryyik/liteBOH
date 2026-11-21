@@ -661,6 +661,20 @@ onMounted(loadAlbums);
 }
 
 .photo-albums-page {
+  /* 页面级变量映射（plans/043 阶段 4）：本页大量消费 --surface/--brand/--text-*，
+     但根上一直没有定义它们，自定义主题只能改 body 底色、按钮仍是品牌蓝。
+     接到站点 token 后，亮色主题走 fallback（逐字节不变），两套自定义主题自动跟随。 */
+  --surface-primary: var(--boh-bg-elevated, #fff);
+  --surface: var(--boh-bg-elevated, #fff);
+  --surface-soft: var(--boh-bg-secondary, #f8fafc);
+  --text-primary: var(--boh-text-primary, #1d1d1f);
+  --text-secondary: var(--boh-text-secondary, #515154);
+  --text-tertiary: var(--boh-text-tertiary, #86868b);
+  --stroke: var(--boh-border-primary, rgba(15, 23, 42, 0.1));
+  --stroke-strong: var(--boh-border-primary, rgba(15, 23, 42, 0.2));
+  --border-color: var(--boh-border-primary, #d1d1d6);
+  --brand: var(--boh-brand-blue, #0a84ff);
+
   min-height: 100vh;
   background: var(--boh-page-bg, #f4f4f6);
   color: var(--text-primary, #1d1d1f);

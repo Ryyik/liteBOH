@@ -318,6 +318,14 @@ body {
   min-height: 100vh;
 }
 
+/* 自定义主题的正文继承色：body 上面的 `color: #000` 是全局默认，
+   不进 token 层；这里只把两套已接入 token 的主题接上（plans/043 阶段 1）。
+   ⚠️ 不写 `body[data-theme]`：data-theme 挂在 html 上，不是 body。 */
+:root[data-theme="home-cat"] body,
+:root[data-theme="anniversary-mc"] body {
+  color: var(--liquid-text-primary);
+}
+
 /* Custom Scrollbar */
 ::-webkit-scrollbar {
   width: 8px;
