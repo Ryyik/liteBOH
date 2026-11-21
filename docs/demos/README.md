@@ -8,9 +8,16 @@
 
 现在两件事同时有了：
 
-1. **门禁**：`npm run check:root-clean`（在 `verify` 链内）把现存 25 个 html + 3 个临时脚本
-   冻结成棘轮基线，**新增即红**。
+1. **门禁**：`npm run check:root-clean`（在 `verify` 链内）把根目录 html 基线冻结为 **0**
+   （22 个存量已于 2026-11-21 全部归拢到本目录），只剩 3 个临时脚本；**新增即红**。
 2. **落点**：就是这里。
+
+## 2026-11-21 根目录归拢
+
+根目录 22 个 demo html 已全部迁入本目录（清单见 `scripts/root-clean-baseline.json`，基线已同步降为
+0 个 html + 3 个临时脚本）。其中 `ai-config-demo.html`、`join-wizard-demo.html` 原本用相对路径引
+`src/assets/images/main1-1280.webp`，迁移后已改为 `../../src/assets/images/main1-1280.webp`：
+**这两个文件不是严格单文件零依赖**，以后改名/再迁移时要一起检查。
 
 ## 已迁入（2026-10-15）
 
@@ -61,16 +68,14 @@
 
 ## 根目录存量怎么办
 
-**不强制迁移。** 25 个存量是冻结记账的历史债（见 `scripts/root-clean-baseline.json`），
-想迁就迁、不急；门禁只保证**它不再增长**。
-
-真要归拢：
+根目录 html 基线已在 2026-11-21 清零；**以后新增视觉沙盒直接放本目录**，不要再放仓库根。
+门禁仍保留 3 个历史临时脚本的基线，新增临时脚本同样会红。
 
 ```bash
-git mv ai-config-demo.html docs/demos/     # …逐个来
+git mv some-demo.html docs/demos/          # 如果确实还有遗漏
 npm run check:root-clean:update            # 下调基线（下调永远是好方向，不用交代）
 ```
 
-> ⚠️ 注意：这些 demo 是**单文件零依赖**的（内联样式与脚本），
-> 直接 `git mv` 到本目录即可 —— 它们不参与构建，也不被 Vite 处理。
-> 但如果有 demo 用了相对路径引用 `src/` 下的东西，搬运会失效，迁之前先打开确认一眼。
+> ⚠️ 注意：大部分 demo 是单文件零依赖的（内联样式与脚本），直接 `git mv` 即可，不参与构建。
+> 但 `ai-config-demo.html` / `join-wizard-demo.html` 依赖 `../../src/assets/images/...`，
+> 再迁移时必须同步相对路径；其他 demo 若新加相对资源，也先打开确认一眼。

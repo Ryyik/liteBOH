@@ -7,8 +7,11 @@
  */
 import { chromium } from 'playwright';
 import { mkdirSync } from 'node:fs';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 
-const FILE = process.env.DEMO_FILE || 'file:///Users/ryyik/Documents/BOHLITEForMacLatest/BOHLITEBeta2.5/dark-gate-demo.html';
+const FILE =
+  process.env.DEMO_FILE || pathToFileURL(path.resolve('docs/demos/dark-gate-demo.html')).href;
 const OUT = 'debug-screenshots';
 mkdirSync(OUT, { recursive: true });
 
@@ -47,20 +50,32 @@ const chipOf = async (id, m) => {
 // 1 列表/分组渲染数量
 const picks = await page.locator('.pick').count();
 const groups = await page.locator('.picker .grp').count();
-check('1 场景条目与分组渲染完整（5 项 / 3 组）', picks === 5 && groups === 3, `pick=${picks} grp=${groups}`);
+check(
+  '1 场景条目与分组渲染完整（5 项 / 3 组）',
+  picks === 5 && groups === 3,
+  `pick=${picks} grp=${groups}`,
+);
 
 // 2 默认项跑出结论卡
 await page.waitForSelector('.verdict.on', { timeout: 8000 });
 const firstVerdict = await page.locator('.verdict h4').innerText();
 const firstNodes = await page.locator('#path .node').count();
 const firstNodesOn = await page.locator('#path .node.on').count();
-check('2 默认场景跑完，结论卡与判定链全部点亮', firstNodes > 0 && firstNodesOn === firstNodes, `node.on=${firstNodesOn}/${firstNodes}`);
+check(
+  '2 默认场景跑完，结论卡与判定链全部点亮',
+  firstNodes > 0 && firstNodesOn === firstNodes,
+  `node.on=${firstNodesOn}/${firstNodes}`,
+);
 
 // 3 换对象后结论确实变了
 await page.locator('.pick[data-id="move"]').click();
 await page.waitForTimeout(1400);
 const secondVerdict = await page.locator('.verdict h4').innerText();
-check('3 换场景后结论文案确实不同', firstVerdict !== secondVerdict, `"${firstVerdict}" vs "${secondVerdict}"`);
+check(
+  '3 换场景后结论文案确实不同',
+  firstVerdict !== secondVerdict,
+  `"${firstVerdict}" vs "${secondVerdict}"`,
+);
 
 // 4 三档 × 场景：搬移全放行 / 真实新增随档位变化
 const moveObserve = await chipOf('move', 'observe');
@@ -72,12 +87,12 @@ const addStrict = await chipOf('add1', 'strict');
 check(
   '4a 搬移在三档下都放行（重构不会被判红）',
   moveObserve.includes('通过') && moveScoped.includes('通过') && moveStrict.includes('通过'),
-  `${moveObserve} | ${moveScoped} | ${moveStrict}`
+  `${moveObserve} | ${moveScoped} | ${moveStrict}`,
 );
 check(
   '4b 真实新增：档1/档2 只报告，档3 才失败',
   addObserve.includes('报告') && addScoped.includes('报告') && addStrict.includes('失败'),
-  `${addObserve} | ${addScoped} | ${addStrict}`
+  `${addObserve} | ${addScoped} | ${addStrict}`,
 );
 
 // 5 分区严格：已清扫区域回退 —— 档2 也必须拦（这是"牙齿长在干净处"的核心）
@@ -87,7 +102,7 @@ const regStrict = await chipOf('regress', 'strict');
 check(
   '5 已清扫区回退：档2 与档3 都判失败（分区严格不受观察模式影响）',
   regObserve.includes('报告') && regScoped.includes('失败') && regStrict.includes('失败'),
-  `${regObserve} | ${regScoped} | ${regStrict}`
+  `${regObserve} | ${regScoped} | ${regStrict}`,
 );
 
 // 6 不判红的"注释"场景必须放行（假红已修）
@@ -98,7 +113,11 @@ check('6 注释里的 !important 场景放行（假红已修）', commentChip.in
 await page.locator('.pick[data-id="newfile"]').click();
 await page.waitForTimeout(50);
 const residual = await page.locator('#path .node.on').count();
-check('7 切换瞬间旧判定链高亮被清空（无残留）', residual <= 1, `切换后 50ms 仍点亮的节点=${residual}`);
+check(
+  '7 切换瞬间旧判定链高亮被清空（无残留）',
+  residual <= 1,
+  `切换后 50ms 仍点亮的节点=${residual}`,
+);
 
 // 8 面板切换：表格与清单重渲染 + 列序稳定
 await page.locator('.tab[data-tab="2"]').click();
@@ -108,31 +127,53 @@ const rowCount = await page.locator('table tbody tr').count();
 check(
   '8a 差异表列序固定为 维度 | 改前 | 改后（切换不换列）',
   heads.length === 3 && heads[1].includes('改前') && heads[2].includes('改后'),
-  heads.join(' | ')
+  heads.join(' | '),
 );
-check('8b 差异表含策略维度行（可阻断范围）', rowCount >= 6 && (await page.locator('table').innerText()).includes('可阻断范围'), `rows=${rowCount}`);
+check(
+  '8b 差异表含策略维度行（可阻断范围）',
+  rowCount >= 6 && (await page.locator('table').innerText()).includes('可阻断范围'),
+  `rows=${rowCount}`,
+);
 
 await page.locator('.tab[data-tab="3"]').click();
 await page.waitForTimeout(400);
 const items = await page.locator('#adopt li').count();
 const boxes = await page.locator('#adopt .box').count();
 const circs = await page.locator('#adopt .circ').count();
-check('9 采用清单渲染完整（11 项：6 可勾 + 5 状态点）', items === 11 && boxes === 6 && circs === 5, `li=${items} box=${boxes} circ=${circs}`);
+check(
+  '9 采用清单渲染完整（11 项：6 可勾 + 5 状态点）',
+  items === 11 && boxes === 6 && circs === 5,
+  `li=${items} box=${boxes} circ=${circs}`,
+);
 
 // 9 不可操作项点不动
-const circItem = page.locator('#adopt li').filter({ has: page.locator('.circ') }).first();
+const circItem = page
+  .locator('#adopt li')
+  .filter({ has: page.locator('.circ') })
+  .first();
 const before = await circItem.getAttribute('aria-checked');
 await circItem.locator('.tog').click();
 await circItem.locator('.tog').click();
 const after = await circItem.getAttribute('aria-checked');
-check('10 圆形状态点项不可勾选（点两次仍为 false）', before === 'false' && after === 'false', `${before} -> ${after}`);
+check(
+  '10 圆形状态点项不可勾选（点两次仍为 false）',
+  before === 'false' && after === 'false',
+  `${before} -> ${after}`,
+);
 
 // 10 可勾选项能勾
-const boxItem = page.locator('#adopt li').filter({ has: page.locator('.box') }).first();
+const boxItem = page
+  .locator('#adopt li')
+  .filter({ has: page.locator('.box') })
+  .first();
 const boxBefore = await boxItem.getAttribute('aria-checked');
 await boxItem.locator('.tog').click();
 const boxAfter = await boxItem.getAttribute('aria-checked');
-check('11 方形勾选项可切换', boxBefore === 'true' && boxAfter === 'false', `${boxBefore} -> ${boxAfter}`);
+check(
+  '11 方形勾选项可切换',
+  boxBefore === 'true' && boxAfter === 'false',
+  `${boxBefore} -> ${boxAfter}`,
+);
 
 // 11 运行时错误
 check('12 无 JS 运行时错误', errors.length === 0, errors.slice(0, 3).join(' | '));

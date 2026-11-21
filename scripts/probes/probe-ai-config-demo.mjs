@@ -22,7 +22,7 @@ import path from 'node:path';
 //        （.modal{display:flex} 与 [hidden]{display:none} 同特异性，靠源序决胜）。
 // =====================================================================
 
-const FILE = process.env.DEMO_FILE || 'file://' + path.resolve('ai-config-demo.html');
+const FILE = process.env.DEMO_FILE || 'file://' + path.resolve('docs/demos/ai-config-demo.html');
 const OUT = process.env.SHOT_DIR || 'debug-screenshots';
 const EXPECT_RED = String(process.env.EXPECT_RED || '')
   .split(',')

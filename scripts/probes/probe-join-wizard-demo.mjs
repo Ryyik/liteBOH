@@ -6,7 +6,7 @@ import path from 'node:path';
 // 用法：node scripts/probes/probe-join-wizard-demo.mjs
 //   反证：DEMO_FILE=file:///tmp/rev-A.html node scripts/probes/probe-join-wizard-demo.mjs
 //   期望红：EXPECT_RED=birth_feb_days node ...（命中则退出码 0，否则 1）
-const FILE = process.env.DEMO_FILE || 'file://' + path.resolve('join-wizard-demo.html');
+const FILE = process.env.DEMO_FILE || 'file://' + path.resolve('docs/demos/join-wizard-demo.html');
 const OUT = process.env.SHOT_DIR || 'debug-screenshots';
 const EXPECT_RED = String(process.env.EXPECT_RED || '')
   .split(',')

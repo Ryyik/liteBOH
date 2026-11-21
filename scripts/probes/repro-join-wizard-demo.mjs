@@ -4,7 +4,7 @@ import path from 'node:path';
 
 // 反证：把每处修复改回缺陷版本，确认对应断言真的变红。
 // 看不到红 → 那条断言是摆设。截图全部写到 /tmp，不碰正式截图。
-const SRC = path.resolve('join-wizard-demo.html');
+const SRC = path.resolve('docs/demos/join-wizard-demo.html');
 const src = readFileSync(SRC, 'utf8');
 
 const CASES = [
@@ -75,8 +75,13 @@ const CASES = [
 
 // CASE=F 只跑某一条（省得为了调一条断言等六轮）
 const only = String(process.env.CASE || '').trim();
-const selected = only ? CASES.filter((c) => c.id.startsWith(only) || c.id.split('-')[0] === only) : CASES;
-if (!selected.length) { console.log('没有匹配的反证用例：' + only); process.exit(1); }
+const selected = only
+  ? CASES.filter((c) => c.id.startsWith(only) || c.id.split('-')[0] === only)
+  : CASES;
+if (!selected.length) {
+  console.log('没有匹配的反证用例：' + only);
+  process.exit(1);
+}
 
 let allProven = true;
 for (const c of selected) {
@@ -107,17 +112,27 @@ for (const c of selected) {
     code = e.status;
     out = String(e.stdout || '') + String(e.stderr || '');
   } finally {
-    try { unlinkSync(file); } catch { /* 已删 */ }
+    try {
+      unlinkSync(file);
+    } catch {
+      /* 已删 */
+    }
   }
   const relevant = out.split('\n').filter((l) => l.startsWith('FAIL'));
   relevant.forEach((l) => console.log('   ' + l));
-  if (out.includes('ERR_FILE_NOT_FOUND')) console.log('   [warn] 有资源 404，反证环境与真实环境不一致');
-  const tail = out.split('\n').filter((l) => l.includes('反证目标') || l.includes('PASS')).slice(-2);
+  if (out.includes('ERR_FILE_NOT_FOUND'))
+    console.log('   [warn] 有资源 404，反证环境与真实环境不一致');
+  const tail = out
+    .split('\n')
+    .filter((l) => l.includes('反证目标') || l.includes('PASS'))
+    .slice(-2);
   tail.forEach((l) => console.log('   ' + l));
   const ok = code === 0;
   console.log(`   → ${ok ? '反证成立（断言确实变红）' : '反证失败：断言没变红，是摆设'}`);
   if (!ok) allProven = false;
 }
 
-console.log(`\n${allProven ? `全部反证成立：${selected.length} 项修复各自都有会变红的断言守着` : '有反证未成立，需要重写对应断言'}`);
+console.log(
+  `\n${allProven ? `全部反证成立：${selected.length} 项修复各自都有会变红的断言守着` : '有反证未成立，需要重写对应断言'}`,
+);
 process.exit(allProven ? 0 : 1);

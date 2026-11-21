@@ -35,19 +35,19 @@ const SCENARIOS = [
   {
     name: '01-desktop',
     desc: '桌面默认：通行密钥 + 消息通知，两项都可开启',
-    url: `${BASE_URL}/account-bind-prompt-demo.html?bindPrompt=1`,
+    url: `${BASE_URL}/docs/demos/account-bind-prompt-demo.html?bindPrompt=1`,
     viewport: { width: 430, height: 900 },
   },
   {
     name: '02-ios-needs-install',
     desc: 'iPhone 未添加到主屏幕：通知项渲染成三步图文引导',
-    url: `${BASE_URL}/account-bind-prompt-demo.html?bindPrompt=1&variant=ios`,
+    url: `${BASE_URL}/docs/demos/account-bind-prompt-demo.html?bindPrompt=1&variant=ios`,
     viewport: { width: 390, height: 844 },
   },
   {
     name: '03-dark',
     desc: '深色主题下的同一弹窗',
-    url: `${BASE_URL}/account-bind-prompt-demo.html?bindPrompt=1&variant=dark`,
+    url: `${BASE_URL}/docs/demos/account-bind-prompt-demo.html?bindPrompt=1&variant=dark`,
     viewport: { width: 430, height: 900 },
   },
 ];
@@ -58,11 +58,7 @@ const main = async () => {
   const browser = await chromium.launch({
     // 本机没装 playwright 自带内核时用系统 Chrome；禁代理避免连不上本地服务
     channel: 'chrome',
-    args: [
-      '--no-proxy-server',
-      '--proxy-server=direct://',
-      '--proxy-bypass-list=*',
-    ],
+    args: ['--no-proxy-server', '--proxy-server=direct://', '--proxy-bypass-list=*'],
   });
 
   const results = [];
@@ -107,7 +103,9 @@ const main = async () => {
       await page.screenshot({ path: file });
 
       // 顺带抓一份断言用的文本，确认分支真的走对了（截图之外的第二重证据）
-      const sheetText = (await page.locator('.bind-prompt-sheet').innerText()).replace(/\s+/g, ' ').trim();
+      const sheetText = (await page.locator('.bind-prompt-sheet').innerText())
+        .replace(/\s+/g, ' ')
+        .trim();
       const stepsCount = await page.locator('.bind-prompt-steps li').count();
       const buttons = await page.locator('.bind-prompt-sheet button').allInnerTexts();
 
@@ -121,7 +119,12 @@ const main = async () => {
         ok: true,
       });
     } catch (error) {
-      results.push({ name: scenario.name, desc: scenario.desc, ok: false, error: String(error?.message || error) });
+      results.push({
+        name: scenario.name,
+        desc: scenario.desc,
+        ok: false,
+        error: String(error?.message || error),
+      });
     } finally {
       await context.close();
     }
@@ -141,7 +144,9 @@ const main = async () => {
     }
   }
 
-  console.log(`\n[probe-account-bind-prompt] ${results.length - failed.length}/${results.length} 通过`);
+  console.log(
+    `\n[probe-account-bind-prompt] ${results.length - failed.length}/${results.length} 通过`,
+  );
   if (failed.length) process.exitCode = 1;
 };
 

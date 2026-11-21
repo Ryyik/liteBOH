@@ -111,7 +111,9 @@ const CHECKS = [
   },
   {
     label: '根目录沙盒冻结数（html/临时脚本）',
-    re: /现存 (\d+) 个 html \+ (\d+) 个临时脚本/,
+    // 2026-11-21：22 个根 demo 已归拢到 docs/demos，AGENTS 的表述从「现存 N 个」改成
+    // 「当前 N 个 html + N 个临时脚本」；锚点跟着改，仍然只对标基线（基线是唯一真源）。
+    re: /当前 (\d+) 个 html \+ (\d+) 个临时脚本/,
     measure: () => [rootClean.html, rootClean.scratch],
   },
   {
