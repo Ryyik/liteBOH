@@ -88,6 +88,13 @@ const CHECKS = [
     measure: () => [testsCount],
   },
   {
+    label: '测试运行覆盖文件数（§5）',
+    // 与上一条同源但锚点不同：§0 写「N 个单元测试文件」，§5 写「npm run test 覆盖 N 个测试文件」。
+    // 2026-11-21 复核：§5 曾写 211、实测 383，因无锚点长期无人发现 ⇒ 补这条。
+    re: /`npm run test` 覆盖 \*\*(\d+) 个测试文件\*\*/,
+    measure: () => [testsCount],
+  },
+  {
     label: 'src 源文件数',
     re: /`src\/` (\d+) 个源文件/,
     measure: () => [srcCount],
