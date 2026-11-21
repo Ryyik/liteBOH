@@ -80,7 +80,7 @@
 ## 关键约束（来自 project_memory）
 
 执行 plan 时必须遵守以下项目约束：
-- **不破坏 BOHAI 工作区**：[motion-system.css](../src/views/BOHAI/BOHAI/styles/motion-system.css) 已是项目最佳实践样板，plan 001 不应修改它，只让全局 animations.css 对齐。
+- **不破坏 BOHAI 工作区**：`motion-system.css`（2026-10-08 已随 BOHAI 旧 styles 5 件退役）曾是项目最佳实践样板，plan 001 不应修改它，只让全局 animations.css 对齐。
 - **不破坏 RLS 与 API Key 配置**：本批 plan 全部为 CSS 修改，不涉及数据库或 API，无影响。
 - **保留 useConfirmDialog 的统一 modal API**：[CommonAlertModal](../src/components/CommonAlertModal.vue) 已使用合理的 `cubic-bezier(0.16, 1, 0.3, 1)`，不在本批 plan 范围。
 - **Vue error handling 保留**：不动 [App.vue](../src/App.vue) 的 `app.config.errorHandler`，Plan 005 只在 template 中包裹 `<Transition>`。
