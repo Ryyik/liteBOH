@@ -4,10 +4,10 @@
 > **「只拆不重写」**前提。
 >
 > **前置阅读**：
-> - `docs/2026-10-05-BOHAI-Chat与Work双形态重构方案.md` —— **做什么**（产品形态、Chat/Work、Tool Registry、P0/P1/P2）。
-> - `docs/DESIGN-BOHAI.md` —— **长什么样**（令牌、断点、布局矩阵、组件树、两层模式体系）。本文是**怎么改**（工程）。
+> - `docs/reports/2026-10/2026-10-05-BOHAI-Chat与Work双形态重构方案.md` —— **做什么**（产品形态、Chat/Work、Tool Registry、P0/P1/P2）。
+> - `docs/guides/DESIGN-BOHAI.md` —— **长什么样**（令牌、断点、布局矩阵、组件树、两层模式体系）。本文是**怎么改**（工程）。
 > - `output/boh-ui-demo/index.html` —— 已验收的 UI 预览件（**本地预览，`output/` 已 gitignore，不入库**）。
->   它是视觉与交互规格的**事实基准**；`docs/DESIGN-BOHAI.md` 已把它的全部数值自含抄录，后续不依赖该文件。
+>   它是视觉与交互规格的**事实基准**；`docs/guides/DESIGN-BOHAI.md` 已把它的全部数值自含抄录，后续不依赖该文件。
 >
 > **版本说明**：本文是 **v2**，**原地改写** v1（不新建文件，单一真源）。v1 的「L1/L2 拆、L3 重写」分层
 > 与「44 份验证资产会作废」的顾虑**已作废**；v1 中仍然有效的部分（现状量化口径、并行会话禁令、
@@ -56,7 +56,7 @@ v1 认为：**拆文件**和**重写**是两件事，风险差一个数量级；
 
 ## 1. 现状量化（实测账本 · 2026-10-06）
 
-> 本节每条量化结论按 `docs/报告模板.md` 的**三件套**给出：**结论 / 判据（可重跑命令）/ 实测日期**。
+> 本节每条量化结论按 `docs/guides/报告模板.md` 的**三件套**给出：**结论 / 判据（可重跑命令）/ 实测日期**。
 > 与提示词或 v1 不符处，**以本节实测为准**并显式标注冲突。
 
 ### 1.1 规模
@@ -255,7 +255,7 @@ SFC 可 `lang="ts"`（⚠️ **全仓首例**，`vue-tsc` 已在 `verify` 链内
 | Step | 做什么 | 验证 | 风险 |
 | --- | --- | --- | --- |
 | **0** | **清场**：了结 `docs/未完成任务清单.md` 的 BOHAI 在途项 | 见下「Step 0 清单」 | 低 |
-| **1** | `docs/DESIGN-BOHAI.md` 落盘 + `--boh-*` 令牌落地 | **零行为变更**：`verify` 绿 + 探针全绿（不改 DOM） | 极低 |
+| **1** | `docs/guides/DESIGN-BOHAI.md` 落盘 + `--boh-*` 令牌落地 | **零行为变更**：`verify` 绿 + 探针全绿（不改 DOM） | 极低 |
 | **2** | **domain 数据沉淀**：常量/正则/模式 → 单一真源，测试改 import 跟进 | 相关单测（改 import 即绿） | 低 |
 | **3** | **utils 归位**：92 个导出分模块；旧 `bohai-engine-helpers.js` 先做**临时 barrel** 保绿 | 10+ 相关单测 + `verify` | 极低 |
 | **4** | **tools / Tool Registry**：8 个 read connector 一文件 + registry | `bohai-*-sources` / `bohai-connectors` 等测试 | 低 |
@@ -276,7 +276,7 @@ SFC 可 `lang="ts"`（⚠️ **全仓首例**，`vue-tsc` 已在 `verify` 链内
 
 ### Step 1 — DESIGN-BOHAI + 令牌落地（零行为变更）
 
-- 产出 `docs/DESIGN-BOHAI.md`（本次同批交付）。
+- 产出 `docs/guides/DESIGN-BOHAI.md`（本次同批交付）。
 - 落地 `--boh-*` 令牌（灰度 12 档 + 语义别名 + 暗色映射），**只新增令牌，不接组件**。
 - 判绿：`verify` 绿、探针全绿（**DOM 未变**，探针不该有任何变化）。
 
@@ -398,7 +398,7 @@ await runRetrievalStage(ctx, { query, signal });
 | --- | --- | --- |
 | 7-1 | BOHAI 目录行数阈值收紧（**组件 400 / 模块 500**）并入 `check-project-structure` | 门禁绿 |
 | 7-2 | **断言总数核算 ≥ 落盘日实测**（162 文件 / 2,361 passed） | `npm run test` 输出 |
-| 7-3 | ~~**BOHAI 名下 `!important` 归零**并下调棘轮基线~~ ✅ **2026-10-08 复核：已达成** | `node -e "const j=require('./scripts/important-budget.json');console.log(Object.entries(j.files).filter(([k])=>/views\/BOHAI/i.test(k)).length)"` → **0**（`BOHAIIsland.vue` 从 73 → **2**）。⚠️ 本行原写「现值约 497 + 73」**已失效**，判据见 `docs/2026-10-08-BOHAI对齐Codex优化方案与斜杠命令修复.md` §10 |
+| 7-3 | ~~**BOHAI 名下 `!important` 归零**并下调棘轮基线~~ ✅ **2026-10-08 复核：已达成** | `node -e "const j=require('./scripts/important-budget.json');console.log(Object.entries(j.files).filter(([k])=>/views\/BOHAI/i.test(k)).length)"` → **0**（`BOHAIIsland.vue` 从 73 → **2**）。⚠️ 本行原写「现值约 497 + 73」**已失效**，判据见 `docs/reports/2026-10/2026-10-08-BOHAI对齐Codex优化方案与斜杠命令修复.md` §10 |
 | 7-4 | BOHAI 文件**掉出全仓 top-20**（见 §1.2，不追求 WARN 归零） | 全仓行数降序排名 |
 
 ---
@@ -431,9 +431,9 @@ grep -E "problems|Test Files|Tests " /tmp/verify.log
 
 | 文档 | 关系 |
 | --- | --- |
-| `docs/2026-10-05-BOHAI-Chat与Work双形态重构方案.md` | **做什么**（形态、Chat/Work、插件选型、路线图 P0/P1/P2）。本文是它的**工程实现路径**；`docs/DESIGN-BOHAI.md` 是它的**视觉/交互规格**。 |
+| `docs/reports/2026-10/2026-10-05-BOHAI-Chat与Work双形态重构方案.md` | **做什么**（形态、Chat/Work、插件选型、路线图 P0/P1/P2）。本文是它的**工程实现路径**；`docs/guides/DESIGN-BOHAI.md` 是它的**视觉/交互规格**。 |
 | **⚠️ companion §5.3 能力公式修订声明** | companion 文档 §5.3 原公式 **漏了 `action`、没提编码**。本方案**修订为**（见 `DESIGN-BOHAI.md` §7）：<br>`Chat = retrieval + web + action(轻量写:发帖/记忆)`<br>`Work = retrieval + web + generator(docx/pptx/xlsx + 代码) + agents 集群` |
-| `docs/DESIGN-BOHAI.md` | **长什么样**（令牌、断点、布局矩阵、组件树、两层模式体系）。本次同批交付。 |
+| `docs/guides/DESIGN-BOHAI.md` | **长什么样**（令牌、断点、布局矩阵、组件树、两层模式体系）。本次同批交付。 |
 | `AGENTS.md` | 改动 → 必跑门禁的对照表（本文 §5 是它的 BOHAI 专用版）；本次顺手更正 lint 基线 183 → 118。 |
 | `docs/未完成任务清单.md` | BOHAI 相关的在途事项**应先清完再做本方案**（Step 0），否则会撞车；本方案落盘与 Step 0 清场项已登记。 |
 | `plans/023-bohai-ui-redraw.md` / `plans/024-bohai-rules-and-latency-slimming.md` | 它们的遗留项（约 35 处死 CSS、P2-1 消融验证）与本方案**有重叠**：**旧 CSS 在 Step 6 整体删除时一并消失**，P2-1 并入 Step 0 清场。 |

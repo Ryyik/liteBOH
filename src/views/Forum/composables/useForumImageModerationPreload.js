@@ -19,7 +19,7 @@ export const useForumImageModerationPreload = (preloadForumImageModeration) => {
    * 为什么：`nsfw-weights` chunk 实测 3516 KB raw / **2477 KB gzip**，而且整个文件里
    * 最长一行 360 万字符 —— 权重被内联成单个 JS 串，**要下载并当 JS 解析**（主线程大头）。
    * 云端可达时这个模型**一次都用不上**（审核走云端优先），白下这几 MB 正是「选图后卡顿」的成因之一。
-   * 实测数据见 docs/2026-10-04-GitHub开源可引入方案调研.md §3.1。
+   * 实测数据见 docs/reports/2026-10/2026-10-04-GitHub开源可引入方案调研.md §3.1。
    *
    * 为什么安全：真需要时**不依赖预载** —— 兜底 classify 路径本身是懒加载
    * （`forum-image-moderation.js` 的 `getNsfwModel()`），所以这里只省流量、不改变任何判定行为。

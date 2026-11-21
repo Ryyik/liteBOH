@@ -2562,7 +2562,7 @@ export const dataConfig = {
   // 但页签的列配置基于已废弃的重试队列语义（status/error_message/retry_count 均不存在），
   // 且其 delete 动作是硬删台账行（不删 Cloudinary 文件、也不标 deleted_at），
   // 会让用户此后无法删除自己的图片（EF 查不到归属 → 403），故页签一并摘除。
-  // 详见 docs/2026-09-24-数据管理面板列错误查错报告.md 第四节。
+  // 详见 docs/reports/2026-09/2026-09-24-数据管理面板列错误查错报告.md 第四节。
 
   // ========== API Key 审计日志 ==========
   apiKeyAuditLogs: {

@@ -313,7 +313,7 @@ gate 层拿不到。Console 侧要在选择「街景/首屏」模板时**禁用*
 
 | # | 文件 | 改动 |
 | --- | --- | --- |
-| E1 | `docs/PROBES.md` | 更新 `probe-home-gate-pull` 断言数（§5.1） |
+| E1 | `docs/guides/PROBES.md` | 更新 `probe-home-gate-pull` 断言数（§5.1） |
 | E2 | `AGENTS.md:67` | `（50）` → 实际断言数。**注意字节棘轮**：AGENTS.md 现 47966B / 基线 47970B，只剩 4B 余量 ⇒ 必须同批删掉等量内容，或走 `check:doc-truth:update` 并在 commit message 交代 |
 | E3 | `docs/未完成任务清单.md` | 登记本方案与遗留项（§6） |
 
@@ -390,7 +390,7 @@ gate 层拿不到。Console 侧要在选择「街景/首屏」模板时**禁用*
 - 判据：`node scripts/probes/probe-gate-marker-reduce.mjs "http://[::1]:5173"` ⇒ **4/8**（2026-10-22 实测）
 - 成因：B 组断言的 `homeGateExitReduced` / `homeForumStageInReduced` 属于 2026-09-24 的实现，
   2026-09-27 改成进度派生后**整段删掉**了（`grep -rn homeGateExitReduced src` ⇒ 0 命中）
-- 为什么没人发现：它不在 AGENTS 门禁表里，只登记在 `docs/PROBES.md:93`
+- 为什么没人发现：它不在 AGENTS 门禁表里，只登记在 `docs/guides/PROBES.md:93`
 
 **处置（施工第 0 步）**：要么把 B 组改写成「进度派生 + `GATE_TIMINGS.reduced`」口径，要么退役 B 组只保 A 组（标记机制）。
 **不许在假基线上加新断言。**

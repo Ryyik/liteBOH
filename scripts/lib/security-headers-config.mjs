@@ -130,7 +130,7 @@ export const SECURITY_HEADER_NAMES = Object.keys(
    · 后果：新版本发布后，`registration.update()` 可能拿到**与旧版逐字节相同**的
      sw.js ⇒ 浏览器判定「没有新 SW」⇒ 旧 SW 继续用旧预缓存的 index.html 应答导航。
      用户点「立即更新」拿回一模一样的旧页面（2026-11-10 的弹窗循环，见
-     `docs/gate-matrix.md` §C-10）。Safari 更糟：它不认 `updateViaCache:'none'`，
+     `docs/guides/gate-matrix.md` §C-10）。Safari 更糟：它不认 `updateViaCache:'none'`，
      4 小时窗口对它无条件成立。
 
    部署后 purge 只覆盖「purge 成功且该 POP 命中」的情形，补不上这个缺口；

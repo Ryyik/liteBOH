@@ -12,7 +12,7 @@
  *      · `[boh-sw-cache]` —— 路径级，只对 sw.js / push-sw.js 下发 `Cache-Control: no-cache`。
  *        它们名字不带 hash、内容每次构建都变，却被 GitHub Pages 发了 max-age=14400；
  *        缓存住就等于「更新检查看到旧字节 → 点立即更新仍落旧壳」
- *        （2026-11-10 弹窗循环，见 `docs/gate-matrix.md` §C-10）。
+ *        （2026-11-10 弹窗循环，见 `docs/guides/gate-matrix.md` §C-10）。
  *   2. 未配置 token / 权限不足 / 任何网络失败 → 一律「告警 + exit 0」，
  *      绝不阻断发布（与仓库现有 purge 步骤同一策略）。
  *      ⚠️ 但**发布后**的 `check-security-headers-live.mjs` 是硬断言：
@@ -116,7 +116,7 @@ const buildRule = () => {
 /**
  * sw.js / push-sw.js：无 hash 的入口脚本必须每次回源校验，否则浏览器/中间层会用满
  * origin 的 `max-age=14400`（GitHub Pages 对 .js 的默认值）—— 那是「点立即更新
- * 还是弹新版本」的直接成因之一（见 `docs/gate-matrix.md` §C-10）。
+ * 还是弹新版本」的直接成因之一（见 `docs/guides/gate-matrix.md` §C-10）。
  * 值来自 `lib/security-headers-config.mjs`，与发布后断言共用。
  */
 const buildSwCacheRule = () => {

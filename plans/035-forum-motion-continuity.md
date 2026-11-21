@@ -228,7 +228,7 @@ panel.animate([
 | 改 | `Forum/styles/{feed,base,replies-responsive}.css` | 度量/节奏/方向修正 |
 | 改 | `Forum/components/ForumImageViewer.vue`、`PostDetail/components/ImageViewer.vue` | 两处共用一套 rect morph |
 | 一行接线 | `Profile/ProfileMain.vue`、`user-center/UserSpace/UserSpaceMain.vue` | 传 origin |
-| 门禁 | `scripts/lib/gate-map.json`、`docs/PROBES.md`、`AGENTS.md` §2 | 新增探针映射 |
+| 门禁 | `scripts/lib/gate-map.json`、`docs/guides/PROBES.md`、`AGENTS.md` §2 | 新增探针映射 |
 
 ---
 
@@ -443,7 +443,7 @@ probe-composer-session-gate ⚠️ 24/26：D1/D2 同样在 HEAD 版 `replies-res
 实测 `{"left":4,"top":184,"width":381,"height":476}` 与卡片 `{"left":4,"top":184,"width":381,"height":476}` 完全一致。
 
 已登记：`scripts/lib/gate-map.json`（Forum / PostDetail / `motion-origin.js` / `morph-layer.js` 四处）+
-`docs/PROBES.md` 两张表。
+`docs/guides/PROBES.md` 两张表。
 
 ### 第三轮实测
 

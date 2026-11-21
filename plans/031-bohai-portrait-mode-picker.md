@@ -4,7 +4,7 @@
 - **日期**：2026-10-21（修订 2026-10-22）
 - **触发**：用户口径「BOHAI 竖屏体验还是不好，主要是模式选择等问题」
 - **影响面**：`BohComposer.vue` / `boh-composer.css` / `layout.css` / `useBohShell.js` / `BohaiSettingsPanel.vue` / 通知通道；**不改数据库、不改 EF**
-- **关联**：`plans/030`（策略/模型两层体系，本方案是它的竖屏落地与 §3.6 的口径修订）、`docs/DESIGN-BOHAI.md` §3.1 / §7.2
+- **关联**：`plans/030`（策略/模型两层体系，本方案是它的竖屏落地与 §3.6 的口径修订）、`docs/guides/DESIGN-BOHAI.md` §3.1 / §7.2
 
 ---
 

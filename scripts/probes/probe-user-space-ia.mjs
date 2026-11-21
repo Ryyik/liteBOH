@@ -1087,7 +1087,7 @@ check('手机横屏保持底栏可见', mlandLayout.barShown);
 //   原先这条是「内容全宽、不让位」。2026-10-29 引入「Duo 式右侧竖向胶囊」后，
 //   生效区间 (orientation: landscape) and (max-width: 1023px) 把手机横屏也包含进来 ——
 //   420 高时贴底胶囊要吃掉 60–72px（约 17% 纵向空间），右侧竖条更划算，也与 Duo
-//   「控制区移到右侧、左侧留内容」一致（docs/2026-10-30-iPad适配调查.md）。
+//   「控制区移到右侧、左侧留内容」一致（docs/reports/2026-10/2026-10-30-iPad适配调查.md）。
 //   所以现在**应当**让位：内容宽 = 内宽 − gutter(88)，左缘仍为 0
 //   （让位走宽度/右 padding，绝不挪 left —— 那会破坏 tab 切换与滚动位置记忆）。
 //   同时把「底栏确实变成竖向条」钉住，避免以后有人只把内容让位改了、胶囊却还是横的。
@@ -1869,7 +1869,11 @@ const landscapeNav = await landscapePage.evaluate(() => {
     rail: shown(document.querySelector('.userspace-rail')),
   };
 });
-check('横屏手机用底部胶囊、不渲染左栏', landscapeNav.bar && !landscapeNav.rail, JSON.stringify(landscapeNav));
+check(
+  '横屏手机用底部胶囊、不渲染左栏',
+  landscapeNav.bar && !landscapeNav.rail,
+  JSON.stringify(landscapeNav),
+);
 
 const landscapeTargets = await landscapePage.evaluate(() => {
   const bad = [];
@@ -1880,7 +1884,11 @@ const landscapeTargets = await landscapePage.evaluate(() => {
     if (r.width < 8 || r.height < 8) return;
     const need = el.classList.contains('ah-link-btn') ? 32 : 40;
     if (r.height + 0.5 < need || r.width < 32) {
-      bad.push({ text: el.textContent.trim().slice(0, 8), w: Math.round(r.width), h: Math.round(r.height) });
+      bad.push({
+        text: el.textContent.trim().slice(0, 8),
+        w: Math.round(r.width),
+        h: Math.round(r.height),
+      });
     }
   });
   return bad;
@@ -1936,7 +1944,10 @@ check(
 );
 await landscapePage.keyboard.press('Escape');
 await landscapePage.waitForTimeout(400);
-check('横屏手机 Esc 可关充值弹窗', await landscapePage.evaluate(() => !document.querySelector('.ah-qr-overlay')));
+check(
+  '横屏手机 Esc 可关充值弹窗',
+  await landscapePage.evaluate(() => !document.querySelector('.ah-qr-overlay')),
+);
 await landscapePage.screenshot({ path: 'debug-screenshots/ia-landscape-assets.png' });
 await landscapePage.close();
 
@@ -1960,7 +1971,11 @@ const rotPortrait = {
   compact: await rotatePage.evaluate(() => document.body.classList.contains('is-rail-compact')),
   rail: await railVisible(),
 };
-check('旋转前 768×1024 竖屏：设置单栏、无左栏', !rotPortrait.nav && !rotPortrait.rail, JSON.stringify(rotPortrait));
+check(
+  '旋转前 768×1024 竖屏：设置单栏、无左栏',
+  !rotPortrait.nav && !rotPortrait.rail,
+  JSON.stringify(rotPortrait),
+);
 
 await rotatePage.setViewportSize({ width: 1024, height: 768 });
 await rotatePage.waitForTimeout(700);

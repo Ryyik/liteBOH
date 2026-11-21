@@ -1,5 +1,5 @@
 /**
- * tokens.css — BOH AI 设计令牌**单一真源**（口径见 docs/DESIGN-BOHAI.md §1）
+ * tokens.css — BOH AI 设计令牌**单一真源**（口径见 docs/guides/DESIGN-BOHAI.md §1）
  *
  * ⚠️ 两条硬纪律：
  *   1. **所有颜色字面量只允许出现在本文件的 `:root` 块**；`[data-boh-theme='dark']` 块

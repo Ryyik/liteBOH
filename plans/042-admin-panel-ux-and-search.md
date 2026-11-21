@@ -444,7 +444,7 @@ HeroConsole 改成整页                      ← 已有预览能力的返工
 
 1. **顶栏搜索整个移除**，而不是保留双入口。原方案没写这条，因为当时没注意到 `AdminHeader` 自带一个全局搜索框——它只在表格 tab 下才可能展示结果，在概览/页面型 tab 上是**点不到的无效控件**。合并后「一个关键词 + 一个范围开关」，顶栏那个框没有任何独占能力。
 2. **空态判定没有搬进 `search-core.js`**。`data-admin-empty-state.js` 已经是单一真源且有测试，搬过去只会造第二份。`search-core` 只负责「关键词 → 条件 / 打分 / 分组」。
-3. **不新建 `scripts/probes/probe-admin-search-baseline.mjs`**。实测发现该探针要在真实库上跑才有意义，而本机到 `*.supabase.co` 被阻断（见 `docs/AI-ENV.md`），写进仓库会变成一条永远跑不出数的脚本。基线改用一次性探针采集，数据记在 11.3。
+3. **不新建 `scripts/probes/probe-admin-search-baseline.mjs`**。实测发现该探针要在真实库上跑才有意义，而本机到 `*.supabase.co` 被阻断（见 `docs/guides/AI-ENV.md`），写进仓库会变成一条永远跑不出数的脚本。基线改用一次性探针采集，数据记在 11.3。
 4. **A3（删「全部状态」下拉）没做**。chips 的分布来自 `statusBreakdownForCurrentTab`，值域可能被截断；在没有确认「chips 覆盖全部枚举」之前删掉下拉会丢筛选能力，留给 P1 连同「其他」兜底一起做。
 
 ### 11.3 实测证据（1440×900，mock 数据：3 个商品 / 2 个用户）

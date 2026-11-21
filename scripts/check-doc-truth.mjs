@@ -14,7 +14,7 @@
  *   1. **数字对账**（AGENTS.md 里的关键数字 vs 实测）—— 不一致即红；
  *      锚点丢失（正文改写了）→ **WARN 并逐条列出**（明账，每次 verify 都看得见，
  *      但不阻断 —— 因为锚点是散文，措辞演化不该卡死整个仓库）。
- *   2. **必读面字节预算**（AGENTS.md / docs/AI-ENV.md，棘轮只许降）——
+ *   2. **必读面字节预算**（AGENTS.md / docs/guides/AI-ENV.md，棘轮只许降）——
  *      这两个文件**每次会话都会被读进上下文**，涨回去就是悄悄吃掉每个 AI 会话的预算。
  *
  * 用法：
@@ -31,7 +31,7 @@ const BASELINE = join(ROOT, 'scripts', 'doc-truth-baseline.json');
 const UPDATE = process.argv.includes('--update');
 
 const AGENTS = 'AGENTS.md';
-const AI_ENV = 'docs/AI-ENV.md';
+const AI_ENV = 'docs/guides/AI-ENV.md';
 const read = (p) => (existsSync(join(ROOT, p)) ? readFileSync(join(ROOT, p), 'utf8') : null);
 
 /** 计数必须用 tracked 文件集（git ls-files）：工作区里有并行会话未提交的新文件，

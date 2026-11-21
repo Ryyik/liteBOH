@@ -170,7 +170,7 @@
 5. **地址同步不要顺手改**：现在关闭结算时会 `syncDefaultAddress` 把结算里改的地址写回地址簿默认（`index.vue:685-693`）。换成"选地址"后，**选了什么就是什么，不要反写默认地址** —— 否则用户只是这一单选了另一个地址，默认地址就被悄悄改了。
 6. **价格快照问题不能只在 UI 修**：确认页刷新成实时价之后，购物袋列表仍显示旧价，两处必须同一口径（建议进购物袋/进确认页各刷一次 `products`，用 id 对齐）。
 7. **库存字段当前是装饰**（服务器不校验不扣减）。UI 上如果开始显示"仅剩 N 件"，必须先落 P2-⑩，否则是自己埋假承诺。
-8. ⚠️ **开工前先看工作区**：写这份方案时（2026-11-03）已有并行改动落在周边链路上 —— `OrderDetailSheet.vue` 的取消通知邮件、`supabase/migrations/2026110322_shop_order_progress_notification.sql`、`2026110323_shop_order_progress_mail.sql`（订单进度通知 + 进度邮件）。动结算/订单详情前先 `git diff` 一遍，别把在途改动卷进提交（见 `docs/AI-ENV.md` 并行会话纪律）。
+8. ⚠️ **开工前先看工作区**：写这份方案时（2026-11-03）已有并行改动落在周边链路上 —— `OrderDetailSheet.vue` 的取消通知邮件、`supabase/migrations/2026110322_shop_order_progress_notification.sql`、`2026110323_shop_order_progress_mail.sql`（订单进度通知 + 进度邮件）。动结算/订单详情前先 `git diff` 一遍，别把在途改动卷进提交（见 `docs/guides/AI-ENV.md` 并行会话纪律）。
 
 ---
 

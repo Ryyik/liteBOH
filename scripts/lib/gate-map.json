@@ -1,5 +1,5 @@
 {
-  "note": "机器可读的「改动 → 额外要跑什么」映射。人读版（含事故级坑记录）在 AGENTS.md §2 与 docs/gate-matrix.md；改门禁时两边都要改。verify 本身永远兜底，这里只列『额外』。",
+  "note": "机器可读的「改动 → 额外要跑什么」映射。人读版（含事故级坑记录）在 AGENTS.md §2 与 docs/guides/gate-matrix.md；改门禁时两边都要改。verify 本身永远兜底，这里只列『额外』。",
   "entries": [
     {
       "glob": ".github/workflows/**",
@@ -112,7 +112,7 @@
         "node scripts/probes/probe-aichat-landscape-rail.mjs",
         "node scripts/probes/probe-bohai-portrait.mjs"
       ],
-      "why": "AI 面板 + composer/壳/斜杠命令/推理块/切页不掐流/横屏左栏；事故记录见 docs/gate-matrix.md §C"
+      "why": "AI 面板 + composer/壳/斜杠命令/推理块/切页不掐流/横屏左栏；事故记录见 docs/guides/gate-matrix.md §C"
     },
     {
       "glob": "src/views/activities/**",
@@ -134,7 +134,7 @@
         "node scripts/probes/probe-cloud-portrait.mjs",
         "node scripts/probes/probe-cloud-motion.mjs"
       ],
-      "why": "Cloud+ 图库形态/竖屏几何/动效（需 mock 数据，坑见 docs/gate-matrix.md）"
+      "why": "Cloud+ 图库形态/竖屏几何/动效（需 mock 数据，坑见 docs/guides/gate-matrix.md）"
     },
     {
       "glob": "src/views/AvatarConsole/**",

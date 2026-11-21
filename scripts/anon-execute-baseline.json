@@ -119,5 +119,5 @@
     "word_similarity_op"
   ],
   "tables": [],
-  "note": "匿名可执行面基线（棘轮）。只能通过显式 revoke … from anon, public 下调。见 scripts/check-anon-execute.mjs 顶部说明与 docs/2026-09-21-安全审计报告核验与全量复检.md §6.7。"
+  "note": "匿名可执行面基线（棘轮）。只能通过显式 revoke … from anon, public 下调。见 scripts/check-anon-execute.mjs 顶部说明与 docs/reports/2026-09/2026-09-21-安全审计报告核验与全量复检.md §6.7。"
 }

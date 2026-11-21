@@ -14,7 +14,7 @@
  *
  * 默认是**诊断模式**（只打印 PASS/FAIL，exit 0）；`--strict` 用作 C 批门禁。
  * 2026-10-17 实测：thead=414、行高=64、可见 6 行 → C 批未达标（见
- * docs/2026-10-17-审查-数据管理重构-验收与测试指南.md §4.7）。
+ * docs/reports/2026-10/2026-10-17-审查-数据管理重构-验收与测试指南.md §4.7）。
  *
  * 运行：node scripts/probes/probe-data-admin-density.mjs [--strict]
  * 依赖：dev server 在 5173（BASE 可覆盖）；假 admin 登录态 + 全量 mock PostgREST。

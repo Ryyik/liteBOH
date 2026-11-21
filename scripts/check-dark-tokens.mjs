@@ -2,7 +2,7 @@
 /**
  * check-dark-tokens.mjs — 暗色裸色棘轮门禁
  *
- * 背景（2026-09-18 全量调研，见 docs/dark-mode-audit-report-2026-09-18.md）：
+ * 背景（2026-09-18 全量调研，见 docs/reports/2026-09/dark-mode-audit-report-2026-09-18.md）：
  * src 下位于暗色规则块内的颜色字面量有 ≈2800 个（分布在 89 个文件），
  * 而 themes/*.css 的 token 化率只有约 9% —— 也就是说 token 层设计是对的，
  * 却被 90 个文件的裸字面量绕过，导致"任何一次调色都要改约 2800 处"。
@@ -165,7 +165,7 @@ if (totalUp) {
   console.error(
     '  · 确属有意为之（迁移中途的过渡态、新页面早期形态）：node scripts/check-dark-tokens.mjs --update 登记基线。',
   );
-  console.error('  详情见 docs/dark-mode-audit-report-2026-09-18.md');
+  console.error('  详情见 docs/reports/2026-09/dark-mode-audit-report-2026-09-18.md');
   if (STRICT) process.exit(1);
   process.exit(0);
 }

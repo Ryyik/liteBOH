@@ -4,7 +4,7 @@
  *
  * ## 为什么需要这道门禁
  *
- * 2026-09-21 实测（见 docs/2026-09-21-安全审计报告核验与全量复检.md §6.7）证明：
+ * 2026-09-21 实测（见 docs/reports/2026-09/2026-09-21-安全审计报告核验与全量复检.md §6.7）证明：
  * **`alter default privileges` 这条路在本项目保证不了增量安全。**
  *
  * 具体表现：
@@ -68,10 +68,10 @@ const readAccessToken = () => {
     return '';
   }
   try {
-    const raw = execSync(
-      'security find-generic-password -s "Supabase CLI" -a supabase -w',
-      { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'ignore'] },
-    ).trim();
+    const raw = execSync('security find-generic-password -s "Supabase CLI" -a supabase -w', {
+      encoding: 'utf-8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
     // Supabase CLI 以 go-keyring 格式存储：go-keyring-base64:<base64>
     const payload = raw.includes(':') ? raw.slice(raw.indexOf(':') + 1) : raw;
     const decoded = Buffer.from(payload, 'base64').toString('utf-8').trim();
@@ -131,7 +131,9 @@ const runQuery = async (ref, token, query) => {
   });
 
   if (!response.ok) {
-    throw new Error(`Management API HTTP ${response.status}: ${(await response.text()).slice(0, 300)}`);
+    throw new Error(
+      `Management API HTTP ${response.status}: ${(await response.text()).slice(0, 300)}`,
+    );
   }
 
   const rows = await response.json();
@@ -158,7 +160,9 @@ const main = async () => {
 
   if (!token || !ref) {
     warn('[check:anon-execute] Skipped — 缺少凭据，无法核验匿名可执行面。');
-    warn(`   token: ${token ? '有' : '无（设 SUPABASE_ACCESS_TOKEN，或本机 Supabase CLI 已登录）'} | project ref: ${ref || '无'}`);
+    warn(
+      `   token: ${token ? '有' : '无（设 SUPABASE_ACCESS_TOKEN，或本机 Supabase CLI 已登录）'} | project ref: ${ref || '无'}`,
+    );
     warn('   这是一道**本地发布前检查**，跳过不代表通过。');
     process.exit(0);
   }
@@ -181,11 +185,14 @@ const main = async () => {
       total: current.anonExecutable.length,
       names: current.anonExecutable,
       tables: current.anonWritable,
-      note: '匿名可执行面基线（棘轮）。只能通过显式 revoke … from anon, public 下调。'
-        + '见 scripts/check-anon-execute.mjs 顶部说明与 docs/2026-09-21-安全审计报告核验与全量复检.md §6.7。',
+      note:
+        '匿名可执行面基线（棘轮）。只能通过显式 revoke … from anon, public 下调。' +
+        '见 scripts/check-anon-execute.mjs 顶部说明与 docs/reports/2026-09/2026-09-21-安全审计报告核验与全量复检.md §6.7。',
     };
     writeFileSync(BASELINE_FILE, `${JSON.stringify(next, null, 2)}\n`, 'utf-8');
-    log(`[check:anon-execute] 基线已更新：函数 ${baseline.names?.length ?? 0} → ${next.total}，表 ${next.tables.length}`);
+    log(
+      `[check:anon-execute] 基线已更新：函数 ${baseline.names?.length ?? 0} → ${next.total}，表 ${next.tables.length}`,
+    );
     process.exit(0);
   }
 
@@ -212,9 +219,13 @@ const main = async () => {
   }
 
   if (failures.length === 0) {
-    log(`[check:anon-execute] Passed. 匿名可执行函数 ${current.anonExecutable.length}/${baseline.names?.length ?? 0}（未超出基线）；匿名可写表 ${current.anonWritable.length}。`);
+    log(
+      `[check:anon-execute] Passed. 匿名可执行函数 ${current.anonExecutable.length}/${baseline.names?.length ?? 0}（未超出基线）；匿名可写表 ${current.anonWritable.length}。`,
+    );
     if (fnDiff.removed.length) {
-      log(`  可下调基线：${fnDiff.removed.length} 个函数已不再匿名可执行 → ${fnDiff.removed.slice(0, 8).join(', ')}${fnDiff.removed.length > 8 ? ' …' : ''}`);
+      log(
+        `  可下调基线：${fnDiff.removed.length} 个函数已不再匿名可执行 → ${fnDiff.removed.slice(0, 8).join(', ')}${fnDiff.removed.length > 8 ? ' …' : ''}`,
+      );
       log('  收紧基线：node scripts/check-anon-execute.mjs --update');
     }
     process.exit(0);
@@ -228,12 +239,20 @@ const main = async () => {
     console.error(`  + 表   ${name}（anon 可写）`);
   }
   if (current.anonWritable.length > 0 && newTables.length === 0) {
-    console.error(`  ! 当前匿名可写表 ${current.anonWritable.length} 张（期望 0）：${current.anonWritable.slice(0, 10).join(', ')}`);
+    console.error(
+      `  ! 当前匿名可写表 ${current.anonWritable.length} 张（期望 0）：${current.anonWritable.slice(0, 10).join(', ')}`,
+    );
   }
   console.error('');
-  console.error('修法：在新函数的同一条迁移里显式收权（alter default privileges 在本项目无效，见文件顶部说明）：');
-  console.error('  revoke execute on function public.<fn>(<args>) from anon, public;   -- 匿名入口');
-  console.error('  revoke execute on function public.<fn>(<args>) from anon, authenticated, public;  -- 仅服务端调用');
+  console.error(
+    '修法：在新函数的同一条迁移里显式收权（alter default privileges 在本项目无效，见文件顶部说明）：',
+  );
+  console.error(
+    '  revoke execute on function public.<fn>(<args>) from anon, public;   -- 匿名入口',
+  );
+  console.error(
+    '  revoke execute on function public.<fn>(<args>) from anon, authenticated, public;  -- 仅服务端调用',
+  );
   console.error('确认这道新增是**有意为之**后，才可用 --update 更新基线。');
   process.exit(1);
 };

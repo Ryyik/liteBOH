@@ -1,7 +1,7 @@
 /**
  * profiles 保存链路的载荷拆分（纯函数，便于反证测试）
  *
- * 为什么需要这一步：见 docs/2026-11-11-数据管理面板功能可行性全量审查.md §2 P0-1。
+ * 为什么需要这一步：见 docs/reports/2026-11/2026-11-11-数据管理面板功能可行性全量审查.md §2 P0-1。
  *
  *   · `role / points / experience / tags / hide_online_status` 的列级 UPDATE 被
  *     `2026090803_security_hardening.sql` **有意**排除在授权白名单外 ⇒ 直更必然 42501。

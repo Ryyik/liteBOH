@@ -86,7 +86,7 @@ try {
   }
 
   /* 注入滚动容器解析器。⚠️ page.evaluate 只序列化函数体、闭包依赖必须当参数传
-     （docs/AI-ENV.md），所以这里把实现挂到 window 上一次，后续复用，不重复内联。 */
+     （docs/guides/AI-ENV.md），所以这里把实现挂到 window 上一次，后续复用，不重复内联。 */
   await page.evaluate(() => {
     window.__probeScroller = () => {
       const seed =

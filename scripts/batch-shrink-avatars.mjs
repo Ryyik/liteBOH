@@ -2,7 +2,7 @@
 /**
  * 存量头像批处理：Supabase Storage 上的大 PNG 头像 → 512px webp 小档，并回写 profiles.avatar_url。
  *
- * 起因：docs/2026-09-29-加载速度与提速全面评测报告.md §4.1 —— 17 张 Supabase 托管头像
+ * 起因：docs/reports/2026-09/2026-09-29-加载速度与提速全面评测报告.md §4.1 —— 17 张 Supabase 托管头像
  * avg 315KB / max 508KB，展示只有 32-48px；2026-10-05 复测 `/` 冷首访传输 619KB 里
  * 头像占 603KB（97%）。服务端变换两条路均不可用（storage render 403 未开通、
  * Cloudinary fetch 401 域名不在白名单），故走「上传端小档」：未来上传经

@@ -299,7 +299,7 @@ import BohLogo from './BohLogo.vue';
 /**
  * BohSidebar.vue — 会话侧栏（plans/025 v2 · Step 6-2）
  *
- * 口径真源：`output/boh-ui-demo/index.html` 的 `.boh-sidebar` 区块 + `docs/DESIGN-BOHAI.md`
+ * 口径真源：`output/boh-ui-demo/index.html` 的 `.boh-sidebar` 区块 + `docs/guides/DESIGN-BOHAI.md`
  * §4（布局矩阵）/ §5（`Boh*` 命名契约）/ §7.1（形态切换器）/ §9 #2（Teleport + 杠杆）。
  *
  * 能力全部沿用旧 `BohaiSidebar.vue`（搜索 / 新对话 / 临时对话 / 分组 / 置顶 / 重命名 /

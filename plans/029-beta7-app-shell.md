@@ -2,7 +2,7 @@
 
 > **状态**：拍板中 —— 决策 1 已拍板（2026-10-19：**保留浮岛胶囊**，见 A2），决策 2–8 待拍板；拍板后按阶段施工，每阶段单独出施工单
 > **日期**：2026-10-18（**2026-10-19 增补 §2 设计宪法、§8 主线 D、决策 6–8**；**同日二轮复核**：/lab、BlockWall、Partners 退场后全量重测；**同日三轮实测**：依 Apple HIG 综述文档逐条走查，新增 §2.5 检查点实测对照表、§2.6 Hierarchy/Harmony 证据化、**D6 键盘可达 / D7 表单命名 / D8 全局反馈通道**三条新主线，并**更正 D2/D4/D5 三处口径错误**；**同日四轮**：依 Apple Music / App Store / 零售店 / Developer Forums / Apple Intelligence 五张脸补产品形态层，新增 **§2.7 可迁移结构、§2.8 论坛推演、§2.9 AI 推演**，决策增至 **13 个**（新增 9 策展接回 feed / 10 Q&A 语义 / 11 AI 披露口径 / 12 AI 席位 / 13 hot_score 去留）—— 详见各处「2026-10-19 三轮/四轮」标注）
-> **前置阅读**：`docs/discussions/beta7-feature-discussion-2026-10-13.md`（功能向 Beta7 讨论）、`AGENTS.md` §2、`docs/gate-matrix.md`
+> **前置阅读**：`docs/discussions/beta7-feature-discussion-2026-10-13.md`（功能向 Beta7 讨论）、`AGENTS.md` §2、`docs/guides/gate-matrix.md`
 > **本文定位**：不谈新功能，只谈**形态**与**判据**。功能向的 Beta7（表情、多模态、Work generators）应当建在新形态之上，否则要返工两遍。
 
 ---

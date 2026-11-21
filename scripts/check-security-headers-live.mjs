@@ -77,7 +77,7 @@ const TARGETS = urls.length > 0 ? urls : ['https://www.blockofhome.cn/'];
  * 无 hash 入口脚本的探测目标（同源推导，不另写域名）。
  * 它们的内容每次构建都变，却被 GitHub Pages 发了 `max-age=14400` ⇒ 必须断言
  * 「已经不可缓存」，否则 `registration.update()` 可能拿到旧字节，用户点「立即更新」
- * 仍落在旧壳（`docs/gate-matrix.md` §C-10）。
+ * 仍落在旧壳（`docs/guides/gate-matrix.md` §C-10）。
  */
 const SW_TARGETS = [
   ...new Set(

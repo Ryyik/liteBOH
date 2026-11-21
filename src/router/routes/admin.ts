@@ -3,7 +3,7 @@ import type { RouteRecordRaw } from 'vue-router';
 export const adminRoutes: RouteRecordRaw[] = [
   {
     // 管理台概览（2026-11-12）：`@` 动作 + 状态卡 + 待处理收件箱。
-    // 方案见 docs/2026-11-12-管理台概览页-@动作方案.md。
+    // 方案见 docs/reports/2026-11/2026-11-12-管理台概览页-@动作方案.md。
     // ⚠️ 路径刻意不带 `-console` 后缀：admin-console-wiring.test.js 会把所有
     //    /admin/*-console 当成独立控制台页，要求它在 tabModules 里有一席。
     path: '/admin/overview',

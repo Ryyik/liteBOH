@@ -60,7 +60,7 @@ import { chromium } from 'playwright';
 //   · 删掉 2026-09-28 那两条（主菜单 `display:none` / 容器 `height:0`）→ G/H/J 必红。
 //     实测（`git checkout` 回退后跑）：24/33，G 子菜单容器高 67.9、卡片底余量 81；
 //     H 一级菜单占位 261.95、顶部空洞 271.95；J 卡片底余量 −9.67。
-//   · 2026-09-29 新增 L/M/N 与窄横屏档时的反证，见 docs/PROBES.md 的实测记录：
+//   · 2026-09-29 新增 L/M/N 与窄横屏档时的反证，见 docs/guides/PROBES.md 的实测记录：
 //     给 `.nav-mobile-submenu.active` 临时插一个 60px 的占位块 → M 必红（deepVoid 60）；
 //     把竖屏档卡片 `max-height` 压到内容之下 → G 必红（bottomSlack 转负）。
 //   · 2026-11-01 新增 O 组的反证：删掉 navbar-dark.css 里「dark audit 2026-11-01」
@@ -176,7 +176,7 @@ const MEASURE_INNER = () => {
 
 // 三级（分组）态几何：分组返回条 / 它所在的分组面板 / 卡片 / 最后一项。
 // 2026-09-29 补。此前这一段只有 groupBackTop 被**量出来却从没被断言**，
-// 于是「三级」只活在文件标题与 docs/PROBES.md 里（文档声称覆盖一级/二级/三级，
+// 于是「三级」只活在文件标题与 docs/guides/PROBES.md 里（文档声称覆盖一级/二级/三级，
 // 实现里一条断言都没有）。
 const MEASURE_DEEP = () => {
   const q = (s) => document.querySelector(s);
@@ -577,7 +577,7 @@ const alphaOf = (color) => {
 // 此前这一档**零断言**，只有 unified-nav.css 注释里一句手验（原档 707×354 实测接缝 1px）。
 // 这里只断言与档位无关的三类不变量：接缝 / 投影 / 横向不出视口。
 // ⚠️ 2026-10-30：档位 707×354 → 667×375。手机/平板边界从 768 下移到 700
-//    （iPad mini 744 归入平板档，见 docs/2026-10-30-iPad适配调查.md），707 已属于
+//    （iPad mini 744 归入平板档，见 docs/reports/2026-10/2026-10-30-iPad适配调查.md），707 已属于
 //    **桌面导航**形态，汉堡根本不渲染 ⇒ 原档位会让整段窄横屏断言被跳过（探针报
 //    「该档不在移动端形态，断言无意义」）。667×375 是 iPhone SE 横屏，仍在手机档内，
 //    仍然走 vendor 那套 landscape 几何，覆盖目的不变。

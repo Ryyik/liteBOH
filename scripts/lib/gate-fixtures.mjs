@@ -331,7 +331,7 @@ export const FIXTURES = [
   },
   {
     gate: 'check:doc-truth',
-    why: '必读面（AGENTS.md / docs/AI-ENV.md）每个会话都要读进上下文，字节棘轮只许降不许涨 —— 否则上下文预算被悄悄吃掉',
+    why: '必读面（AGENTS.md / docs/guides/AI-ENV.md）每个会话都要读进上下文，字节棘轮只许降不许涨 —— 否则上下文预算被悄悄吃掉',
     // 字节预算：往 AGENTS.md 追加一大段注释 ⇒ 超基线 ⇒ 红。
     // 追加量必须明显大于基线（当前约 47KB），用 8KB 保证任何合理基线下都越线。
     prepare: () =>

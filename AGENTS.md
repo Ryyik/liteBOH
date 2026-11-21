@@ -20,11 +20,11 @@ Vue 3 + Vite 7 + Supabase 的 SPA，hash 路由，产品名「方块之家 BOH�
 | 优先级 | 读什么 | 什么时候 |
 | --- | --- | --- |
 | 必读 | 本文件 | 每次 |
-| **必读** | **`docs/AI-ENV.md`**（环境坑 10 条 + **并行会话纪律** + 开工三步） | **开工前**，或任何"命令行为很怪"的时候。2026-10-15 提上来的：里面每条规则**每次会话都会踩** |
-| 按需 | `docs/gate-matrix.md` | 改了某块代码要查「该跑哪个探针」的**事故级坑记录**时（AGENTS.md §2 该行会写「见 C-n」）；也放着门禁自证纪律与 CI/DB 两道线上门禁的细节 |
+| **必读** | **`docs/guides/AI-ENV.md`**（环境坑 10 条 + **并行会话纪律** + 开工三步） | **开工前**，或任何"命令行为很怪"的时候。2026-10-15 提上来的：里面每条规则**每次会话都会踩** |
+| 按需 | `docs/guides/gate-matrix.md` | 改了某块代码要查「该跑哪个探针」的**事故级坑记录**时（AGENTS.md §2 该行会写「见 C-n」）；也放着门禁自证纪律与 CI/DB 两道线上门禁的细节 |
 | 按需 | `PROJECT_MANUAL.md` 第 6 节（AI 修改指南）、第 8 节（表结构） | 改数据层或首次接手模块 |
-| 按需 | `docs/PROBES.md` | 需要跑浏览器探针自证时 |
-| 按需 | `docs/规范体系设计-2026-09-28.md` | 想知道「规则怎么才算生效」「为什么有些门禁是棘轮」「AI 交付必须提供哪些证据」 |
+| 按需 | `docs/guides/PROBES.md` | 需要跑浏览器探针自证时 |
+| 按需 | `docs/guides/规范体系设计-2026-09-28.md` | 想知道「规则怎么才算生效」「为什么有些门禁是棘轮」「AI 交付必须提供哪些证据」 |
 | 按需 | `plans/NNN-*.md` | 动效、左栏、搜索等已有既定方案的领域 |
 | **接手 / 续做** | **`docs/未完成任务清单.md`** | 想知道「现在有哪些半成品、下一步该做什么」（**活文档，不按日期分文件，有新进展直接改它**） |
 | 回溯 | `.workbuddy/memory/MEMORY.md` 与同名目录下的日期日志 | 想知道某条规则为什么这么定 |
@@ -43,19 +43,19 @@ Vue 3 + Vite 7 + Supabase 的 SPA，hash 路由，产品名「方块之家 BOH�
 > ⭐ **两道「线上库」门禁**（`check:db-lint` 查函数体运行期必错、`check:db-advisors` 查提权/RLS，均为棘轮）：
 > 发布前跑、**刻意不进 `verify`** —— CI 没有 Management API token，接进去只会永远降级跳过 = 假门禁。
 > ⚠️ 底线只有一条：**不要把 `check:db-lint` / `check:db-advisors` 接进 `verify` / `build:ci`。**
-> 首跑战绩（一次抓出 6 个线上坏函数）与基线维护细节 → `docs/gate-matrix.md` §A。
+> 首跑战绩（一次抓出 6 个线上坏函数）与基线维护细节 → `docs/guides/gate-matrix.md` §A。
 
 > ⭐ **CI 侧四件**：CodeQL（`security-extended`，每周一定时跑）、Dependabot（minor/patch 分组、**major 一律人工**）、
 > `deno check`（**2026-10-13 起为阻断门禁** —— 不许把 `continue-on-error` 加回来）、
 > `security:audit`（依赖漏洞棘轮；**改依赖清单才阻断、否则告警**，新公告由每日定时审计开 issue 兜底）。
-> 四者的取舍与侦察依据 → `docs/gate-matrix.md` §A 与 `docs/2026-10-04-GitHub开源可引入方案调研.md` §8。
+> 四者的取舍与侦察依据 → `docs/guides/gate-matrix.md` §A 与 `docs/reports/2026-10/2026-10-04-GitHub开源可引入方案调研.md` §8。
 
 > ⚠️ **`verify` 绿 ≠ 干净**：`npm run lint` 带 `--max-warnings`（**现为 90**，以 `package.json` 现值为准；
 > CI 与发布链都跑它，所以有牙）。这是一道**警告棘轮**，**新增一条死代码当场 exit 1**。
 > 三条纪律：① 清理后把 90 改小（下调永远是好方向，不用交代）；② 确需上调必须走 commit message 说明理由
 > （与 `check:important-budget` 等棘轮同规矩）；③ 计数口径 `eslint . -f json` 聚合，**别 grep 文本数**（会串）。
 > 🤖 **归因用 `npm run lint:delta`** —— 一条命令告诉你新增了哪一条、在哪个文件哪一行、离上限还剩几格，
-> 别再手工 set diff。为什么它是棘轮而不是直接把规则翻成 error → `docs/gate-matrix.md` §A。
+> 别再手工 set diff。为什么它是棘轮而不是直接把规则翻成 error → `docs/guides/gate-matrix.md` §A。
 
 | 你改了什么 | 除了 verify，还要跑 |
 | --- | --- |
@@ -85,12 +85,12 @@ Vue 3 + Vite 7 + Supabase 的 SPA，hash 路由，产品名「方块之家 BOH�
 | **周签到 / 积分余额线上真值**（报障「签到能一直签」「余额不显示」先跑这个） | `node scripts/probes/probe-weekly-checkin-points.mjs`（5 项断言，只读）。判据是「唯一索引在不在 / 有没有同用户同周多行 / 本周签到行数 == 本周签到流水数 / 部署版函数是不是幂等版 / 签到者积分有无空值」。⚠️ 时间边界必须 `(date 'X'::timestamp at time zone 'Asia/Shanghai')`，直接比 `timestamptz` 会退化成 UTC 午夜、漏掉周一凌晨签到的行，得到假的「行数 != 流水数」 |
 | **anon EXECUTE 收尾：哪些函数可以安全撤权** | `node scripts/probes/probe-anon-revoke-safety.mjs`（只读）。两条硬规则：① **被任何 RLS 策略引用 → 不可撤**（策略按查询者角色求值，撤 anon 会让游客查询直接 42501；实测 `current_user_is_admin` 被 113 条策略引用）；② 匿名态有前端调用点 → 需人工确认。⚠️ **撤权不等于加防线**：函数体内部只信 `auth.uid()`，`authenticated` 同样能调它 —— 无论撤不撤 anon，「内部守卫」都是唯一那道防线，故边际收益有限；落库前先跑「撤销 → 全站游客路径冒烟」 |
 | AI 面板 / BOHAI | `npm run probe:ai-panels` |
-| **BOH AI 输入区 composer**（底行两胶囊 / 模型与工具浮层 / 用量圆钮） | `node scripts/probes/probe-bohai-composer.mjs`（32，独立页 + AI 岛两形态 + 设置面板）。⚠️ 三条必读坑（窄浮层必须页面内 click 否则被遮罩关掉 / 要断言「模板引用未定义绑定」的 Vue warning / 模型清单异步竞态）+ 用量圆钮单环契约 + 2026-10-11 思考强度控件下线 → `docs/gate-matrix.md` C-1 |
-| **BOH AI 输入区两胶囊 + 空态**（两颗独立胶囊 / 浮层玻璃 / 空态居中与 FLIP / 输入框底色与横屏高度） | `probe-bohai-composer.mjs`（31）+ `probe-bohai-shell.mjs`（39）+ `probe-bohai-slash-commands.mjs`；单测 `tests/unit/bohai-glass-surfaces.test.js`。⚠️ 两条必读坑（两处 `margin:auto` 会在中间裂开 309px 空洞 / FLIP 的 watcher 必须 `flush:'pre'`）+ 2026-10-12 用户口径反转成液态玻璃（第 6 个消费者，输入区浮在消息流之上）→ `docs/gate-matrix.md` C-2 |
+| **BOH AI 输入区 composer**（底行两胶囊 / 模型与工具浮层 / 用量圆钮） | `node scripts/probes/probe-bohai-composer.mjs`（32，独立页 + AI 岛两形态 + 设置面板）。⚠️ 三条必读坑（窄浮层必须页面内 click 否则被遮罩关掉 / 要断言「模板引用未定义绑定」的 Vue warning / 模型清单异步竞态）+ 用量圆钮单环契约 + 2026-10-11 思考强度控件下线 → `docs/guides/gate-matrix.md` C-1 |
+| **BOH AI 输入区两胶囊 + 空态**（两颗独立胶囊 / 浮层玻璃 / 空态居中与 FLIP / 输入框底色与横屏高度） | `probe-bohai-composer.mjs`（31）+ `probe-bohai-shell.mjs`（39）+ `probe-bohai-slash-commands.mjs`；单测 `tests/unit/bohai-glass-surfaces.test.js`。⚠️ 两条必读坑（两处 `margin:auto` 会在中间裂开 309px 空洞 / FLIP 的 watcher 必须 `flush:'pre'`）+ 2026-10-12 用户口径反转成液态玻璃（第 6 个消费者，输入区浮在消息流之上）→ `docs/guides/gate-matrix.md` C-2 |
 | **BOHAI 侧栏与竖屏浮动 chrome + 消息列横向布局**（`.boh-sidebar` 展开/收起、沉浸球、消息区顶部留白、流光速度、AI 回复的靠左与限宽、用户气泡的贴右与白底、输入框的玻璃与浮层） | `node scripts/probes/probe-bohai-shell.mjs`（**39 条**，含「默认收起 + 展开路径 + 收起路径」「竖屏顶部留白 ≥68px」「抽屉打开时悬浮球让位且不吃点击」「场景 E：AI 回复靠左 + 宽 880 + 用户气泡贴可用区域右边 + 白底 + 输入框玻璃且与消息区重叠」）。⚠️ 五条实测坑：① 对话管理**默认收起**（初值 `false`），入口靠右上角浮动按钮，**不要**再做「记住上次展开」—— KeepAlive 下那会让它一直开着；② 沉浸球模式下页面顶到满屏，消息区要留顶部（竖屏 68 / 横屏 44，写成同一个值会在横屏白丢 24px）；③ 球让位必须同时写 `opacity: 0` + `visibility: hidden` —— vendor 给 nav surface 写了 `pointer-events: auto !important`，只写 pointer-events 会留下「看不见但能吃点击」的靶子，且这条规则只能进 `src/style.css`（scoped 会给最后一个选择器加 `[data-v]` 而永不匹配）；④ ⭐ **列宽约束必须在「消息级」、容器 `.boh-stream-pad` 必须全宽** —— 用户口径是「AI 回复靠左、用户气泡贴右边」；容器一旦限宽，气泡就只能贴到内容列右缘（实测 1440 下 928），够不到可用区域右边（`main.right − 40 = 1400`）。⑤ 比「输入框与消息同列」必须比**内容左缘**：`.boh-stream-pad` 的内衬写在它自己身上（盒内），输入框的让位来自父级 `.boh-composer-wrap` 的 padding（盒外），直接比两个盒子的 `x` 会差一个 padding（1440 下 40px）。流光速度单源是 `--boh-dur-bob`（1.8s，网页搜索与正在思考共用，别拆）。 |
 | **BOH AI 切页不掐流**（改 `/ai-chat` 的 `meta.keepAlive`、会话落盘、灵动岛） | `node scripts/probes/probe-bohai-keepalive-stream.mjs`（**5 条**）+ `node --env-file=.env scripts/probes/…` 之外**不要**用真模型。⚠️ 它的慢流是 `addInitScript` 注入的 fetch 包装重放 SSE（`route.fulfill` 一次性给完 ⇒ 假绿），**且必须接住 abort 信号**，否则去掉 keepAlive 照样 PASS；改判据前先做反证。⚠️ 加 keepAlive 后页面实例与灵动岛**两个引擎共存**、共用 `boh_chat_sessions`，写入冲突由 `createBohAISessionWriteGuard` 挡住（改它要跑 `tests/unit/bohai-chat-session-store.test.js` 与 `use-conversation-manager.test.js`） |
 | **BOHAI 层级**（动 `.boh-sidebar` / 浮层 / 全局 chrome 的 z-index） | `tests/unit/bohai-sidebar-layer.test.js`（锁**相对关系**：对话管理 < 临时浮层 < 全局 chrome < 全屏设置页）。实测判据用交叠点 `document.elementFromPoint`，不是肉眼看 || **BOH AI 生成参数**（改 temperature / max_tokens / top_p 等调参，或新增 LLM 调用点） | 已在 verify 链内跑 `check:bohai-params`（严格门禁，禁止在真源表之外内联字面量）。真源两张表：`src/views/BOHAI/generation-params.js`（按任务语义）与 `chat-engine-config.js` 的 `GENERATION_PROFILE_BY_MODE`（按对话模式）。改真源表的值属于**行为变更**：跑 `npm run probe:ai-panels` 并人眼复核对话质量 |
-| **BOH AI 斜杠命令**（改 `/` 命令表、命令解析、或**新增任何「用户发出这条输入」的入口**） | `node scripts/probes/probe-bohai-slash-commands.mjs`（7）；单测 `tests/unit/bohai-slash-commands.test.js`（21）。⚠️ 四条必读坑 + 一条不变量（**每个 action 都要在壳的 switch 里有 case**）→ `docs/gate-matrix.md` C-3。**底线：新增入口只许汇到 `handleSend` / `executeSlashCommand`，不许再写第三处 `startsWith('/')`** |
+| **BOH AI 斜杠命令**（改 `/` 命令表、命令解析、或**新增任何「用户发出这条输入」的入口**） | `node scripts/probes/probe-bohai-slash-commands.mjs`（7）；单测 `tests/unit/bohai-slash-commands.test.js`（21）。⚠️ 四条必读坑 + 一条不变量（**每个 action 都要在壳的 switch 里有 case**）→ `docs/guides/gate-matrix.md` C-3。**底线：新增入口只许汇到 `handleSend` / `executeSlashCommand`，不许再写第三处 `startsWith('/')`** |
 | **BOH AI 推理过程块**（改思考态、推理内容的分流或渲染） | `node scripts/probes/probe-bohai-search-status.mjs`（14，含 A4b reduced-motion + A9/A10 展开往返）。2026-10-10 口径：**思考态 = 纯文本「正在思考」**（旧呼吸圆点已整段删除）、**默认收起**、点击展开看推理原文。⚠️ 四条硬约束：① 推理原文由 `createThinkingState` / `filterThinkingContentStream` 分流累积（`getThinkingReasoning`），壳用 `updateReasoning` 落到 `message.reasoning` —— **正文一个字符都不许变**（A7 的 `reasoningLeaked`）；② 推理块用 `v-show` 不用 `v-if`（节点常驻）；③ 分块会切开标签 ⇒ 半截 `</thi` / `<thi` 留在 `thinkingBuffer` 等拼回（`PARTIAL_THINK_*` 单源），流在块内结束的残留归推理、**绝不能当正文吐出**；④ **标签名单与「裸闭合」只在 `src/utils/reasoning-tags.js`**，两个过滤器都从那儿引 —— 以前四处各写一份且只认开口，造成「非流式正常、流式泄漏」（Z1 的 `思考…</think>答案` 整段进正文，2026-10-22 用户报障）。⚠️ 裸闭合**必须配前导暂存**：已吐出的字收不回来，故只对 Z1 系按住开头等判定，并有超时/超长兜底（普通正文绝不能被扣住）。⚠️ 要提取 JSON 的调用方只能用 `stripPairedReasoningBlocks`（完整版「只有开口就删到结尾」会吃掉 JSON 后半段、静默返回 null）。单测 `bohai-reasoning-capture.test.js`（18）+ `bohai-reasoning-tags.test.js`（28）。⑤ 思考中（`.is-live`）的「正在思考」走流光：**复用**「网页搜索」那组定义（`.boh-search-line.is-shimmer, .boh-reason.is-live .boh-reason-head span`），**别抄第二份** —— 必须挂 `…head span` 而非 `…head`（否则 caret 一起透明消失）；同组带 `prefers-reduced-motion` 兜底恢复实色。探针 **14/14** |
 | 数据管理面板列定义 | `npm run audit:dm-columns` |
 | `vite.config.js` 依赖别名 / optimizeDeps | `node scripts/probes/probe-vite-dep-scan.mjs`（6） |
@@ -98,11 +98,11 @@ Vue 3 + Vite 7 + Supabase 的 SPA，hash 路由，产品名「方块之家 BOH�
 | 暗色主题样式（新增裸色值） | 已在 verify 链内跑 `check:dark-tokens:strict`（棘轮，总量上升即红）。确需新增 token：写进 `src/styles/themes/dark-mode.css` 的 token 块再引用；只有「存量搬迁/新页面早期形态」才允许 `npm run check:dark-tokens:update` 登记，并在 commit message 里说明理由 |
 | **在 `src/views`、`src/components`、`src/composables` 里写 `supabase.from/rpc/functions.invoke`** | 已在 verify 链内跑 `check:layering`（棘轮，基线 **132** 处 / 28 文件，**新文件违规即红**；2026-11-20 实测对账为 132（此前 133，删减后下调）。改法：复用 `src/utils/api/*` 已有封装，没有就在那儿新增一个模块收口。会话内省请用 `authStore` 而不是 `supabase.auth.getUser()`。清单：`npm run check:layering:list` |
 | SW 预缓存改动上线前（**专项，没进自动化链**） | `npm run check:sw-upgrade`（对比 `dist` 与 `dist-check` 两份产物，CI 上没有 `dist-check` 所以只能在本地跑）；`npm run check:route-css-runtime` 还要先手工起 `npx vite preview --outDir dist-check --port 4180 --strictPort`，它是独立起服务的浏览器验收 |
-| **首屏 / 加载性能**（改图片管线、SW 预缓存、首屏请求收敛之后） | `node scripts/probes/probe-perf-baseline.mjs`（4 断言；只读打线上冷首访 + 产物闭包 + DB RTT，**不进 verify 主链**；`--json` 落盘做前后对照。基线与口径源自 `docs/2026-09-29-加载速度与提速全面评测报告.md`） |
+| **首屏 / 加载性能**（改图片管线、SW 预缓存、首屏请求收敛之后） | `node scripts/probes/probe-perf-baseline.mjs`（4 断言；只读打线上冷首访 + 产物闭包 + DB RTT，**不进 verify 主链**；`--json` 落盘做前后对照。基线与口径源自 `docs/reports/2026-09/2026-09-29-加载速度与提速全面评测报告.md`） |
 | RPC / 触发器静默失败 | 审计表取 code → `DO` 块分步复现 → 修完把 `sqlstate` 落进审计 message |
-| **邮件链路保活**（`mail-keepalive` EF / cron 调度 / 21 天阈值） | `npm run mail:verify` + `npm run mail:health`（需 Management API token，**刻意不进 verify**）。三条硬规则 + 2026-10-27 事故记录 → `docs/gate-matrix.md` C-4 |
+| **邮件链路保活**（`mail-keepalive` EF / cron 调度 / 21 天阈值） | `npm run mail:verify` + `npm run mail:health`（需 Management API token，**刻意不进 verify**）。三条硬规则 + 2026-10-27 事故记录 → `docs/guides/gate-matrix.md` C-4 |
 
-其余探针见 `docs/PROBES.md`。
+其余探针见 `docs/guides/PROBES.md`。
 
 ## 3. 硬规则（都是踩出来的，不是风格偏好）
 
@@ -143,7 +143,7 @@ Vue 3 + Vite 7 + Supabase 的 SPA，hash 路由，产品名「方块之家 BOH�
 
 ### 报告 / 方案文档（量化结论必须带判据）
 
-- **报告、方案、审查类文档里的每一条量化结论，必须写成「结论 / 判据 / 实测日期」三件套**，判据必须是**能重跑的命令**（`node …` / `grep …` / `npm run …`），不是散文。模板见 `docs/报告模板.md`。
+- **报告、方案、审查类文档里的每一条量化结论，必须写成「结论 / 判据 / 实测日期」三件套**，判据必须是**能重跑的命令**（`node …` / `grep …` / `npm run …`），不是散文。模板见 `docs/guides/报告模板.md`。
 - 为什么这条是硬规则：**没有判据的数字无法被证伪，而无法证伪的结论会带着权威感被下游照做。** 本仓库已经因此吃过三次：报告写 `formatDate` 26 处重复（实测 15 处 / 8 种不同语义，合并即改视觉）、写 `Skin/transparent` 是 1:1 重复省 1.5M（实测两套字节全不同，照做会掉功能）、写 CSS 孤儿 311 个（实测 1404 个）。
 - **判据一变，旧结论自动作废**，不许继续被引用；发现实测与上游结论不符时，**以实测为准并当场更正上游文档**（不是只在聊天里说一句）。
 - 量化结论必须能区分「实测」与「估计/外推」，后者要显式标注。
@@ -156,7 +156,7 @@ Vue 3 + Vite 7 + Supabase 的 SPA，hash 路由，产品名「方块之家 BOH�
 ## 4. 环境事实（省得每次试）
 
 > 🤖 **先跑 `npm run env:doctor`** —— 36 项环境自检（**实测**，不靠平台名推断）。
-> 本机 10 条环境坑的完整清单、正确做法、以及**并行会话纪律**都在 `docs/AI-ENV.md`（必读通道）。
+> 本机 10 条环境坑的完整清单、正确做法、以及**并行会话纪律**都在 `docs/guides/AI-ENV.md`（必读通道）。
 > 下面这几条是其中最容易撞上的。
 
 - dev server 只监听 IPv6：`http://[::1]:5173`。构建验证用 `vite build --outDir dist-check`，**不要动 `dist/`**。
@@ -172,7 +172,7 @@ Vue 3 + Vite 7 + Supabase 的 SPA，hash 路由，产品名「方块之家 BOH�
   - `audit:css:duplication` —— 共享 partial 被多处 scoped `@import` 的重复体量。口径：**体积 × (被 .vue 导入次数 − 1)**。⚠️ 别去数产物里的选择器，各 partial 前缀不同极易漏（曾把 443KB 漏成 24KB）；也别按 basename 匹配（全仓一堆同名 `style.scoped.css`，会得出「被 17 个文件导入」这种假结果）。
   - `audit:css:orphans` —— 孤儿类名。分三桶：**确定孤儿** / **疑似孤儿**（只被别的 CSS 引用）/ **待确认过渡类**（形如 `*-enter-active` 但没找到 `<transition name="…">`，可能是动态 `:name`，别直接删）。已规避四类假阳性：scoped 定义方=使用方、声明值被误当选择器、动态拼名、Vue 运行时过渡类。
   - ⚠️ 它**只报告**；删 CSS 需视觉回归。
-- **重构验证协议**：`docs/重构验证协议.md`。拆组件 / 搬代码 / 外置 CSS 这类"不改行为"的重构，**只跑 verify 不够** —— 这类失效是静默的（没报错、没测试红，只是样式不生效或事件没人接）。协议给了 L1–L6 六层，每层都写明**能力与盲区**。
+- **重构验证协议**：`docs/guides/重构验证协议.md`。拆组件 / 搬代码 / 外置 CSS 这类"不改行为"的重构，**只跑 verify 不够** —— 这类失效是静默的（没报错、没测试红，只是样式不生效或事件没人接）。协议给了 L1–L6 六层，每层都写明**能力与盲区**。
   - 核心自动化工具：`npm run compare:builds -- <改动前产物目录> <改动后产物目录>`。做四件事：总字节 / 文件级差异（**会归一文件名里的内容哈希**，否则每次重建都被报成"全部新增"）/ 变化 CSS 的**声明级逐条比对**（剥 `[data-v-*]` + 归一 8 位 scope 哈希）/ **CSS scope id ↔ JS scope id 配对**（L3 证明不了这一层，而它不配对 = 样式静默不生效）。
   - 用法：改动前 `mv dist-check /tmp/dist-before && npx vite build --outDir dist-check`；改动后再构建，然后 `npm run compare:builds -- /tmp/dist-before dist-check`。
   - ⚠️ 它只覆盖「产物结构 + 样式」。**运行时行为靠单测与探针，视觉仍须人眼确认** —— 协议里明确要求把没验证的说成"待确认"，不要把没验证的说成验证过了。
@@ -202,7 +202,7 @@ Vue 3 + Vite 7 + Supabase 的 SPA，hash 路由，产品名「方块之家 BOH�
 ## 6. 不要做的事
 
 - 不要为了「跑起来」给现有代码加 `!important`、加 window 全局、或复制第二份 `.home-gate` 定义 —— 这类做法只是把债从一处挪到另一处。
-- 不要往仓库根目录新增 `xxx-demo.html` 或临时脚本（`repro-*` / `diag-*` / `test_*` / `*-tmp.mjs`）。**当前 0 个 html + 3 个临时脚本是冻结的存量**（22 个 demo 已于 2026-11-21 归拢到 `docs/demos/`；由 `npm run check:root-clean` 拦，新增即红，在 `verify` 链内）。视觉沙盒走 `docs/demos/`、`scripts/probes/` 或 `output/`。
+- 不要往仓库根目录新增 demo html 或临时脚本（`repro-*` / `diag-*` / `test_*` / `*-tmp.mjs`）。**当前 0 个 html + 3 个临时脚本是冻结的存量**（由 `npm run check:root-clean` 拦，新增即红，在 `verify` 链内）。
 - 不要提交 `.env`、`dist/`、`dist-check/` 和截图产物（`debug-screenshots/`、`output/` 已 gitignore，也别把未忽略的新截图目录加进去）。
 - 不要把搜索词、未转义字符拼进 URL 或 SQL 字符串。
 - 修改 Supabase 权限、表结构、Edge Function 属于对外部署行动，**先跟人确认**。

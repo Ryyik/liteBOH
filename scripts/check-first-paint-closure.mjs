@@ -3,7 +3,7 @@
  * check-first-paint-closure.mjs — 首屏入口闭包的不变量门禁（源码级，不需要构建）
  *
  * ── 为什么需要它 ─────────────────────────────────────────────────────
- * 2026-11-14 的性能勘察（docs/2026-11-14-首屏与userspace性能勘察.md）量出两笔
+ * 2026-11-14 的性能勘察（docs/reports/2026-11/2026-11-14-首屏与userspace性能勘察.md）量出两笔
  * 「用户根本没用到、但每个首次访客都要付」的下载：
  *
  *   ① 空闲预取把整条 AI 链路拉下来：BOHAI 页 77.4 + 引擎 115.5 + markdown 29.7
@@ -183,7 +183,7 @@ if (violations.length) {
   console.error('\n✗ check:first-paint-closure —— 首屏入口闭包被塞回重量级依赖：\n');
   for (const v of violations) console.error(`   ${v}\n`);
   console.error(
-    '   背景与量级见 docs/2026-11-14-首屏与userspace性能勘察.md §3 / §5。\n' +
+    '   背景与量级见 docs/reports/2026-11/2026-11-14-首屏与userspace性能勘察.md §3 / §5。\n' +
       '   这些依赖不是不能加载，而是**不能出现在首屏之前**。\n',
   );
   process.exit(1);

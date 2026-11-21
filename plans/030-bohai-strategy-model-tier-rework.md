@@ -6,7 +6,7 @@
 - **日期**：2026-10-20（阶段 6 修订 2026-10-22）
 - **触发**：用户口径「模型不再分模式，直接显示模型名；搭配 Cost / Balance / Intelligence 三档策略；Coding plan 下线」
 - **影响面**：`bohai_model_configs` / `ai_quota_config` / `subscription_plan_prices`、`api-key-vault` EF、BOHAI 前端选择器、订阅页
-- **关联**：`docs/2026-10-02-BOHAI模型倍率与积分制度审查.md`（历史倍率口径，**本文已覆盖其结论**）、`plans/024`（延迟治理，`preferAccuracyModel` 相关）
+- **关联**：`docs/reports/2026-10/2026-10-02-BOHAI模型倍率与积分制度审查.md`（历史倍率口径，**本文已覆盖其结论**）、`plans/024`（延迟治理，`preferAccuracyModel` 相关）
 
 ---
 

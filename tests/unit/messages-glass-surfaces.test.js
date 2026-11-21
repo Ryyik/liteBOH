@@ -1,7 +1,7 @@
 /**
  * messages-glass-surfaces.test.js — 锁「消息中心液态玻璃接线」（2026-10-15）
  *
- * 口径（对齐 docs/2026-10-14-液玻交接-给下一个AI.md 与 未完成任务清单 §21.11）：
+ * 口径（对齐 docs/reports/2026-10/2026-10-14-液玻交接-给下一个AI.md 与 未完成任务清单 §21.11）：
  *   · 上玻璃（采样祖先链干净或 filter 挂自身）：sticky 页头（.x-header / .x-header-minimal，
  *     自身的堆叠上下文不裁自身的 backdrop-filter）、玻璃列表 .x-inbox-list、
  *     详情抽屉 .x-detail-panel 及其子面（drawer-header / detail-user-card / source-content /

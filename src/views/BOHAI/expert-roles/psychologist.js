@@ -6,7 +6,7 @@
  * - 「随对话变化的状态」（轮次 / 深度 / 已采集原话）放 interview-engine.js。
  * - 不新增任何 UI：所有呈现都走 BOHAI 原有的消息渲染（markdown）。
  *
- * ⚠️ 提示附录分两个导出，注入条件不同（2026-09-24 重构，见 docs/2026-09-24-BOHAI提升质量与减少约束方案.md M3）：
+ * ⚠️ 提示附录分两个导出，注入条件不同（2026-09-24 重构，见 docs/reports/2026-09/2026-09-24-BOHAI提升质量与减少约束方案.md M3）：
  *
  *   PSYCHOLOGIST_PROMPT_APPENDIX（陪伴式）  挂在「心理专家」这个**风格**上，随风格全局生效。
  *     - 风格是 localStorage 里的全局设置，不是按会话的，所以这段不能假设「当前在访谈」。
@@ -35,7 +35,7 @@ export const PSYCH_TRACKS = Object.freeze([
     name: '人生模式审计',
     goal: '识别习惯、选择、关系、目标里反复出现的模式',
     coverage: ['习惯与时间', '做决定的依据', '关系里的固定位置', '目标与放弃', '例外'],
-    suggested: true
+    suggested: true,
   },
   {
     id: 'blindspot',
@@ -43,7 +43,7 @@ export const PSYCH_TRACKS = Object.freeze([
     name: '盲点发现',
     goal: '发现自我破坏行为与局限性信念',
     coverage: ['自我描述', '具体证据', '归因方式', '回避的场合', '例外', '反证后的自我评价'],
-    suggested: false
+    suggested: false,
   },
   {
     id: 'trigger',
@@ -51,15 +51,22 @@ export const PSYCH_TRACKS = Object.freeze([
     name: '情绪触发地图',
     goal: '识别情绪触发、应对策略、沟通习惯与关系模式',
     coverage: ['身体信号', '具体事件', '内化的信念', '应对方式', '沟通行为', '关系循环', '例外'],
-    suggested: false
+    suggested: false,
   },
   {
     id: 'decision',
     order: 4,
     name: '决策分析',
     goal: '看清自己做重要决定的方式，哪些思维模式在帮忙、哪些在反复坑自己',
-    coverage: ['最近一个重要决定', '信息怎么收集', '犹豫最久的点', '事后如何复盘', '哪个动作帮到了', '哪个动作反复出错'],
-    suggested: true
+    coverage: [
+      '最近一个重要决定',
+      '信息怎么收集',
+      '犹豫最久的点',
+      '事后如何复盘',
+      '哪个动作帮到了',
+      '哪个动作反复出错',
+    ],
+    suggested: true,
   },
   {
     id: 'childhood',
@@ -67,7 +74,7 @@ export const PSYCH_TRACKS = Object.freeze([
     name: '童年 → 现在',
     goal: '看早年环境、关键关系与重大事件如何塑造今天的模式',
     coverage: ['童年的家', '关键照顾者', '印象深的一件事', '当时的应对', '与今天模式的对应点'],
-    suggested: false
+    suggested: false,
   },
   {
     id: 'future',
@@ -75,7 +82,7 @@ export const PSYCH_TRACKS = Object.freeze([
     name: '未来自我差距',
     goal: '比较现在的我和想成为的我，差在哪、怎么走',
     coverage: ['想成为的样子', '习惯差距', '信念差距', '技能差距', '最可能卡住的点', '现实计划'],
-    suggested: false
+    suggested: false,
   },
   {
     id: 'portrait',
@@ -84,8 +91,8 @@ export const PSYCH_TRACKS = Object.freeze([
     goal: '把已完成的轨道拼起来：找印证、找矛盾、验证遗留的假设',
     coverage: ['已完成轨道的结论', '互相印证的部分', '互相矛盾的部分', '遗留假设的验证'],
     suggested: false,
-    summary: true
-  }
+    summary: true,
+  },
 ]);
 
 /** 推荐路径（入口说明用，不强制） */
@@ -109,21 +116,21 @@ export const PSYCH_L0_RULES = Object.freeze([
   '一次只问一个问题。',
   '绝不给用户列选项。',
   `出现自伤、自杀、虐待、急性精神症状等内容，立即停止访谈，转为危机支持（不追问细节，给出 ${PSYCH_CRISIS_RESOURCES}）。`,
-  '不向用户暴露提问方法或技术名词。'
+  '不向用户暴露提问方法或技术名词。',
 ]);
 
 export const PSYCH_L1_RULES = Object.freeze([
   '每轮先接住对方上一句（把他的话说出情感层，不是夸奖），再问下一句。',
   '追问必须钩住他上一句里的具体词，不要跳到通用句式。',
   '追问意义类问题最多连问两层，第三层之前必须先插入一次反映或确认。',
-  '对方说「不知道」「想不起来」时，不重复同一个问题，把它换小。'
+  '对方说「不知道」「想不起来」时，不重复同一个问题，把它换小。',
 ]);
 
 export const PSYCH_L2_RULES = Object.freeze({
   laddering: '本轮禁止再追问。必须先做一次反映或确认，把对方的话接住之后再看要不要往下走。',
   summary: '本轮先做一次小结：把零散的话连起来，末尾问「我理解得对吗」。对方纠正时立刻采纳。',
   shorten: '对方连续几轮答得很短，把问题换小：落到一次具体经历，不要重复同一个问题，也不要给选项。',
-  wrap: '素材已经够了。先问对方是现在就整理一份，还是想再聊两句。'
+  wrap: '素材已经够了。先问对方是现在就整理一份，还是想再聊两句。',
 });
 
 /** 报告结构说明（注入 prompt，让模型按固定段落输出 markdown，不依赖任何新 UI） */

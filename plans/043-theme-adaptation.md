@@ -144,7 +144,7 @@ done
 
 1. **`--liquid-*` 是 20+ 个消费者的共享 token**（`.liquid-glass` 系、顶栏、Cloud+、Island 家族）。
    在 token 层加主题覆写会「一改全变」，必须做视觉回归：
-   `npm run compare:builds` + `docs/重构验证协议.md` 的 L3–L6。
+   `npm run compare:builds` + `docs/guides/重构验证协议.md` 的 L3–L6。
 2. **首屏骨架是硬编码的**
    `index.html` 127–137 行只写了 light/dark 两套底色；
    `scripts/check-first-paint.mjs` 会断言骨架色 === token 值。
@@ -352,7 +352,7 @@ npm run verify:fast                # 通过
   入口：`npm run check:theme-coverage`。
 - `scripts/probes/probe-theme-adaptation.mjs`：2 主题 × 4 公开页（首页/论坛/资讯/商城），
   54 条断言全绿（body 底、`--boh-page-bg`、`--liquid-bg`、玻璃面 computed、页面根、零 pageerror）。
-  入口：`npm run probe:theme-adaptation`。已登记 `docs/PROBES.md`。
+  入口：`npm run probe:theme-adaptation`。已登记 `docs/guides/PROBES.md`。
 - 未做（保留为二期）：`drawers-skeletons.css` 的 42 条 `!important` 迁移；
   coverage 的 strict 入 verify；登录态页面（消息/Cloud+/个人主页）纳入探针。
 

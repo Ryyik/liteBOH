@@ -8,7 +8,7 @@
  *
  * 唯一真源（改这里 = 三处一起改）：
  *   · 落库的是**压缩后的小图**：512px webp（展示上限 256 CSS px × 2 DPR，见
- *     docs/2026-09-29-加载速度与提速全面评测报告.md §4.1——385KB 原图直出是首访最大字节项）
+ *     docs/reports/2026-09/2026-09-29-加载速度与提速全面评测报告.md §4.1——385KB 原图直出是首访最大字节项）
  *   · 路径   `${userId}/avatar_${timestamp}.${ext}`，ext/contentType 跟随压缩产物的真实类型
  *   · 公开 URL 末尾带 `?t=${timestamp}` 破浏览器缓存
  *   · bucket 'avatars' + cacheControl 3600

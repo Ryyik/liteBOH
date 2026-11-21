@@ -474,5 +474,5 @@ export const FORUM_SECTION_ITEMS: ForumSectionItem[] = [
 
 - `AGENTS.md` §2「改动 → 必跑门禁」、§3 硬规则
 - `plans/020-site-global-search.md`（全局搜索面，IA 收席后需同步）
-- `docs/PROBES.md`（探针登记表）
+- `docs/guides/PROBES.md`（探针登记表）
 - `.workbuddy-ai/memory/2026-09-29.md`（首轮 IA 讨论全文 + 入口冗余审计）

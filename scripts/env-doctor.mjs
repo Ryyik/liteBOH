@@ -8,7 +8,7 @@
  * Playwright 需直连代理、macOS 无 timeout、lint-staged 卷入无关文件、
  * deno 本地可装 —— 2026-10-16 复核：dl.deno.land 直下即用，旧「装不了」结论已作废）。
  *
- * 问题**不是"没记"** —— 是记在 `docs/AI-ENV.md` 这种**按需通道**里，
+ * 问题**不是"没记"** —— 是记在 `docs/guides/AI-ENV.md` 这种**按需通道**里，
  * 于是每一个新 AI 会话都要**重新踩一遍**才真正"读到"。规范放错通道 = 每条规则
  * 都要被重新踩一遍才生效。
  *
@@ -131,7 +131,7 @@ report(
 );
 
 // deno：EF 类型检查的本地预验能力（2026-10-16 复核：dl.deno.land 直下 zip 解压即用；
-// 旧结论「本地装不了 deno」已在 docs/AI-ENV.md #10 更新）。把它变成开工可见的一条。
+// 旧结论「本地装不了 deno」已在 docs/guides/AI-ENV.md #10 更新）。把它变成开工可见的一条。
 const denoPath = (() => {
   const inPath = sh('sh', ['-c', 'command -v deno']);
   if (inPath.status === 0 && inPath.stdout?.trim()) return inPath.stdout.trim();
@@ -145,7 +145,7 @@ report(
   denoV || (denoPath ? '存在但 --version 失败' : '未安装（可选，改 EF 时强烈建议）'),
   denoV
     ? '预验：把 supabase/functions/ + deno.json 复制到临时目录后逐文件 deno check；CI 仍是最终裁定'
-    : '安装：dl.deno.land 直下 zip 解压即用（见 docs/AI-ENV.md #10）；CI 的 deno-check 是兜底',
+    : '安装：dl.deno.land 直下 zip 解压即用（见 docs/guides/AI-ENV.md #10）；CI 的 deno-check 是兜底',
 );
 
 // Playwright 浏览器：装了 @playwright/test 不等于浏览器二进制就位，
@@ -194,7 +194,7 @@ if (DEEP) {
     nc.status === 0 ? OK : FAIL,
     'GitHub over :443（--deep）',
     nc.status === 0 ? '可达' : '不可达',
-    nc.status === 0 ? null : 'push 走 ssh.github.com:443（见 docs/AI-ENV.md）',
+    nc.status === 0 ? null : 'push 走 ssh.github.com:443（见 docs/guides/AI-ENV.md）',
   );
 } else {
   report(INFO, 'GitHub :443 探测', '已跳过（加 --deep 联网实测）');
@@ -387,7 +387,7 @@ for (const stub of ['post-commit', 'post-checkout']) {
       INFO,
       `${stub} 钩子`,
       `${statSync(p).size} 字节空 stub`,
-      '删掉或写实（见 docs/2026-10-15-AI-环境审计.md 建议 A-5）',
+      '删掉或写实（见 docs/reports/2026-10/2026-10-15-AI-环境审计.md 建议 A-5）',
     );
   }
 }
@@ -463,7 +463,7 @@ if (count(FAIL) === 0 && count(WARN) === 0) {
 } else if (count(FAIL) === 0) {
   console.log('无阻断项；⚠️ 是「本机如此」的事实，读一眼再开工。');
 } else {
-  console.log('有 ❌ 阻断项，先按 ↳ 提示修掉（详见 docs/AI-ENV.md）。');
+  console.log('有 ❌ 阻断项，先按 ↳ 提示修掉（详见 docs/guides/AI-ENV.md）。');
 }
 if (!STRICT && count(FAIL) > 0) {
   console.log('（诊断档：以 exit 0 结束。要让它阻断请加 --strict）');

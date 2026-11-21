@@ -1,5 +1,5 @@
 /**
- * 路由 chunk 预取（docs/2026-09-29-加载速度与提速全面评测报告.md §10 P1-7）。
+ * 路由 chunk 预取（docs/reports/2026-09/2026-09-29-加载速度与提速全面评测报告.md §10 P1-7）。
  *
  * 背景：53 个路由组件全部懒加载（探针 A2 在 verify 链里锁死「0 静态 view 引入」，
  * 别为了预取改回静态 import），除 UserSpace 自带的 async-loaders 外没有任何预取 ——
@@ -40,7 +40,7 @@ const IDLE_PREFETCH_STORAGE_KEY = 'boh_route_idle_prefetch_v1';
 /* 只预取「我 / 消息」这一个落点（UserSpaceMain，3453 行的大页，底栏高频席）。
  *
  * ⚠️ 别把 '/ai-chat' 加回来（2026-11-14 实测移除，见
- *    docs/2026-11-14-首屏与userspace性能勘察.md §3）：
+ *    docs/reports/2026-11/2026-11-14-首屏与userspace性能勘察.md §3）：
  *    /ai-chat 的依赖闭包 = BOHAI 页 77.4 + useChatEngine 115.5 + markdown 29.7
  *    ≈ 225.8 KiB，A/B 实测首屏 1026.8→709.0 KiB、158→136 请求、LCP −1.21 s。
  *    它排在 idle 里、又和首屏 LCP 那张帖子图抢 1.6 Mbps 的带宽 —— 收益（AI 首开快几百 ms）

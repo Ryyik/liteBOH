@@ -1,7 +1,7 @@
 /**
  * layout.css — BOH AI **壳级**布局（plans/025 v2 · Step 6-1）
  *
- * 口径真源：`docs/DESIGN-BOHAI.md` §4（布局矩阵）/ §3.1（断点表 4+1）。
+ * 口径真源：`docs/guides/DESIGN-BOHAI.md` §4（布局矩阵）/ §3.1（断点表 4+1）。
  * 事实基准：`output/boh-ui-demo/index.html` 的 `§4 布局 layout`。
  *
  * 本文件只负责 **BOHAIMain.vue 自己模板里的元素**（`.bohai-page` / `.boh-shell` /

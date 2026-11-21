@@ -1094,7 +1094,7 @@
 /* 手机（< 700px）
    ⚠️ 2026-10-30：边界 768 → 699（配合 iPad mini 归入平板档）。
    744 实测装得下完整导航（logo + 5 链接 + 搜索 + 登录，scrollWidth 正好 744，
-   零溢出，见 docs/2026-10-30-iPad适配调查.md 的实验）。旧边界让 744/768 落进
+   零溢出，见 docs/reports/2026-10/2026-10-30-iPad适配调查.md 的实验）。旧边界让 744/768 落进
    「汉堡胶囊 + 704px 拉满底栏」的手机形态，与 820/834 的完整导航割裂。
    改边界时必须同步：本文件 3 处、UnifiedNavbar/index.vue 的 portraitMiniQuery
    与 innerWidth 判据、style.scoped.css 2 处、bottom-nav.css 三档、首页底栏槽位。 */

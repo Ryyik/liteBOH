@@ -2,7 +2,7 @@
  * types.ts — BOHAI Tool Registry 的**类型真源**（plans/025 v2 · Step 4）
  *
  * 工具 = 声明式能力描述：`id / label / category / surfaces / trigger / run / 权限 / 产出形态`。
- * 见 `docs/2026-10-05-BOHAI-Chat与Work双形态重构方案.md` §5.1。
+ * 见 `docs/reports/2026-10/2026-10-05-BOHAI-Chat与Work双形态重构方案.md` §5.1。
  */
 
 /** 工具类别 —— 决定它属于哪种能力，以及被哪个形态（surface）使用。 */

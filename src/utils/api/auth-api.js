@@ -737,10 +737,10 @@ export async function resendSignupConfirmation(email) {
  *
  * 删掉而不是留着的三个理由：
  *   1. 风控旁路 —— 密码登录全部收口在 `auth-login` EF（失败计数 / Altcha / 封禁都在那里），
- *      OAuth 走 GoTrue 的 /token，等于第二条入口；`docs/2026-11-03-安全整改外部审查.md:69` 已点名。
+ *      OAuth 走 GoTrue 的 /token，等于第二条入口；`docs/reports/2026-11/2026-11-03-安全整改外部审查.md:69` 已点名。
  *   2. 首登无身份 —— OAuth 用户没有 profiles 行、没有方块 ID，而社区全链路依赖
  *      `profiles.username`，接上必须先有「首登设置方块 ID」的流程。
- *   3. 从未接线 —— UI 里没有任何入口（`docs/2026-09-22-注册页改版方案.md:139` 已记录），
+ *   3. 从未接线 —— UI 里没有任何入口（`docs/reports/2026-09/2026-09-22-注册页改版方案.md:139` 已记录），
  *      留着只会让下一个人以为「开箱即用」。
  * 将来若要启用：先定风控口径（是否并入 auth-login），再补首登引导与回跳落地，别只加两个按钮。
  */

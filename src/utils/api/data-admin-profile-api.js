@@ -2,7 +2,7 @@
  * 数据管理面板 · 用户资料（profiles）写入口
  *
  * 单独收口的原因（不只是分层门禁）：profiles 的写路径有两处**必须**配套的约束，
- * 散落在视图里迟早被改回去。见 docs/2026-11-11-数据管理面板功能可行性全量审查.md §2 P0-1。
+ * 散落在视图里迟早被改回去。见 docs/reports/2026-11/2026-11-11-数据管理面板功能可行性全量审查.md §2 P0-1。
  *
  *   ① `role / points / experience / tags / hide_online_status` 的列级 UPDATE
  *      被 2026090803_security_hardening.sql 有意收窄 ⇒ 只能经 SECURITY DEFINER RPC

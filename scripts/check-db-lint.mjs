@@ -8,7 +8,7 @@
  * 「函数体引用了不存在的函数/列/表」这类**运行期必抛**的问题，而本仓
  * **200+ 探针 + 10 道门禁一个都没发现**（它们只看前端源码与构建产物，不看 DB 函数体）。
  *
- * 实例（见 docs/2026-10-04-线上DB函数lint与积分链路修复.md）：
+ * 实例（见 docs/reports/2026-10/2026-10-04-线上DB函数lint与积分链路修复.md）：
  *   - `reserve_ai_points` 用了 `hashtextext()` —— PG 里只有 `hashtext()` ⇒ 42883，
  *     **AI 积分预扣链路从未成功过**（解释了「积分只发不收」）；
  *   - `execute_lottery_draw` 往 `lottery_notification_jobs` 插 `fulfillment_id`，
@@ -170,5 +170,5 @@ console.error(
   '  修法：写迁移 `supabase/migrations/YYYYMMDDNN_*.sql` 后 `supabase db push --linked --yes`，',
 );
 console.error('  并按仓库纪律做两条独立路径验证（直读 pg_get_functiondef + 事务内真跑一次）。');
-console.error('  参考：docs/2026-10-04-线上DB函数lint与积分链路修复.md');
+console.error('  参考：docs/reports/2026-10/2026-10-04-线上DB函数lint与积分链路修复.md');
 process.exit(1);

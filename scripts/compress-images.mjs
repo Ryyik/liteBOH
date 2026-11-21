@@ -11,7 +11,7 @@ const projectRoot = join(__dirname, '..');
 const SIZE_THRESHOLD_KB = 50;
 
 // 压缩目标。src/assets/images 的 webp 是既有口径；public/ 两个目录是 2026-09-29 加进去的 ——
-// 加载性能评测报告（docs/2026-09-29-加载速度与提速全面评测报告.md §4.2/§6.4）实测这两处
+// 加载性能评测报告（docs/reports/2026-09/2026-09-29-加载速度与提速全面评测报告.md §4.2/§6.4）实测这两处
 // 「源字节 = 产物字节」：旧脚本目录写死 src/assets/images、glob 只认 *.webp，永远碰不到 public/，
 // 而首屏 52% 的字节（头像框 PNG）正是从 public/avatars/frames 直出的。
 //

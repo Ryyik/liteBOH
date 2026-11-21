@@ -12,7 +12,7 @@
  *     5. CSV 行数 = 1500 + 1 表头
  *
  * >1000 行真实库上的最终确认（管理员账号点一次）仍需人工执行，见
- * docs/2026-10-17-修复-数据管理面板-全量检查与验证.md §9。
+ * docs/reports/2026-10/2026-10-17-修复-数据管理面板-全量检查与验证.md §9。
  *
  * 运行：node scripts/probes/probe-data-admin-export-large.mjs [--strict]
  */

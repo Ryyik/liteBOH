@@ -7609,7 +7609,7 @@ const saveData = async ({ keepOpen = false } = {}) => {
       let savedRow = null;
 
       // profiles（users / points 两页签）走双通道，原因见
-      // docs/2026-11-11-数据管理面板功能可行性全量审查.md §2 P0-1：
+      // docs/reports/2026-11/2026-11-11-数据管理面板功能可行性全量审查.md §2 P0-1：
       //   ① role/points/experience/tags/hide_online_status 的列级 UPDATE 是
       //      2026090803 有意收窄的 ⇒ 直更必然 42501；而「补 GRANT」会让普通用户
       //      借 profiles_update_self 自升 admin（已实测）⇒ 只能走 SECURITY DEFINER RPC。
