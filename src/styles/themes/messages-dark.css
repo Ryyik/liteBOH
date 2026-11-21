@@ -353,16 +353,47 @@
 /* 新版收件箱式消息中心兜底已删：行 hairline 走 --liquid-border-hairline，
    暗色由 token 自动翻转；旧块只是为了压住上面已删的实底双写。 */
 
+/* 骨架行 + 骨架屏两个列容器（2026-11-21）：基础样式里 .x-skeleton-wrap .x-skeleton-list
+   与 .x-skeleton-detail 是裸 #fff，暗色原本只盖到行自身 ⇒ 加载态整块半屏白
+   （竖屏 list 还被 ≤1024 的 flex:1 拉满容器高，白从行尾一直拖到页底）。
+   列容器并入行同一条暗色规则，零新增裸色值。 */
 .x-notifications-container[data-theme="dark"] .x-skeleton-item,
-[data-theme="dark"] .x-notifications-container .x-skeleton-item {
+.x-notifications-container[data-theme="dark"] .x-skeleton-wrap .x-skeleton-list,
+.x-notifications-container[data-theme="dark"] .x-skeleton-detail,
+[data-theme="dark"] .x-notifications-container .x-skeleton-item,
+[data-theme="dark"] .x-notifications-container .x-skeleton-wrap .x-skeleton-list,
+[data-theme="dark"] .x-notifications-container .x-skeleton-detail {
   background: #1e1e2a;
   border-color: rgba(255, 255, 255, 0.08);
 }
 
 .x-notifications-container[data-theme="dark"] .x-skeleton-avatar,
 .x-notifications-container[data-theme="dark"] .x-skeleton-line,
+.x-notifications-container[data-theme="dark"] .x-skeleton-detail-avatar,
 [data-theme="dark"] .x-notifications-container .x-skeleton-avatar,
-[data-theme="dark"] .x-notifications-container .x-skeleton-line {
+[data-theme="dark"] .x-notifications-container .x-skeleton-line,
+[data-theme="dark"] .x-notifications-container .x-skeleton-detail-avatar {
   background: linear-gradient(90deg, #252532 25%, #303044 50%, #252532 75%);
   background-size: 200% 100%;
+}
+
+/* 骨架详情列的头部与源卡（2026-11-21）：基础 #1d1d1f 文字 / #f8f9fa 卡底 /
+   rgba(16,24,40,·) hairline 在暗色下不可读或不可见；只补 token，不新增裸色值。 */
+.x-notifications-container[data-theme="dark"] .x-skeleton-detail-header,
+[data-theme="dark"] .x-notifications-container .x-skeleton-detail-header {
+  color: var(--liquid-text-secondary);
+  border-bottom-color: var(--liquid-border-hairline);
+}
+
+.x-notifications-container[data-theme="dark"] .x-skeleton-detail-source,
+[data-theme="dark"] .x-notifications-container .x-skeleton-detail-source {
+  background: var(--liquid-bg-subtle);
+  border-left-color: var(--liquid-border-hairline);
+}
+
+/* 左滑快捷按钮层（2026-11-21）：亮色用实色填充，暗色统一退回玻璃 token，零新增裸色值 */
+.x-notifications-container[data-theme="dark"] .x-swipe-btn,
+[data-theme="dark"] .x-notifications-container .x-swipe-btn {
+  background: var(--liquid-bg-strong);
+  color: var(--liquid-text-primary);
 }

@@ -100,51 +100,51 @@
                 </button>
                 <Transition name="x-pop">
                   <div v-if="actionsDropdownOpen" class="x-select-actions-menu" @click.stop>
-                  <button
-                    type="button"
-                    class="x-select-action-item"
-                    @click="
-                      toggleSelectMode();
-                      toggleActionsDropdown();
-                    "
-                  >
-                    完成
-                  </button>
-                  <button
-                    v-if="currentTab !== 'archived'"
-                    type="button"
-                    class="x-select-action-item"
-                    :disabled="selectedMessageCount === 0"
-                    @click="
-                      archiveSelectedMessages();
-                      toggleActionsDropdown();
-                    "
-                  >
-                    归档{{ selectedMessageCount ? ` ${selectedMessageCount}` : '' }}
-                  </button>
-                  <button
-                    v-else
-                    type="button"
-                    class="x-select-action-item"
-                    :disabled="selectedMessageCount === 0"
-                    @click="
-                      unarchiveSelectedMessages();
-                      toggleActionsDropdown();
-                    "
-                  >
-                    取消归档{{ selectedMessageCount ? ` ${selectedMessageCount}` : '' }}
-                  </button>
-                  <button
-                    type="button"
-                    class="x-select-action-item"
-                    :disabled="selectedMessageCount === 0"
-                    @click="
-                      markSelectedMessagesAsRead();
-                      toggleActionsDropdown();
-                    "
-                  >
-                    已读{{ selectedMessageCount ? ` ${selectedMessageCount}` : '' }}
-                  </button>
+                    <button
+                      type="button"
+                      class="x-select-action-item"
+                      @click="
+                        toggleSelectMode();
+                        toggleActionsDropdown();
+                      "
+                    >
+                      完成
+                    </button>
+                    <button
+                      v-if="currentTab !== 'archived'"
+                      type="button"
+                      class="x-select-action-item"
+                      :disabled="selectedMessageCount === 0"
+                      @click="
+                        archiveSelectedMessages();
+                        toggleActionsDropdown();
+                      "
+                    >
+                      归档{{ selectedMessageCount ? ` ${selectedMessageCount}` : '' }}
+                    </button>
+                    <button
+                      v-else
+                      type="button"
+                      class="x-select-action-item"
+                      :disabled="selectedMessageCount === 0"
+                      @click="
+                        unarchiveSelectedMessages();
+                        toggleActionsDropdown();
+                      "
+                    >
+                      取消归档{{ selectedMessageCount ? ` ${selectedMessageCount}` : '' }}
+                    </button>
+                    <button
+                      type="button"
+                      class="x-select-action-item"
+                      :disabled="selectedMessageCount === 0"
+                      @click="
+                        markSelectedMessagesAsRead();
+                        toggleActionsDropdown();
+                      "
+                    >
+                      已读{{ selectedMessageCount ? ` ${selectedMessageCount}` : '' }}
+                    </button>
                   </div>
                 </Transition>
               </div>
@@ -173,43 +173,43 @@
               </button>
               <Transition name="x-pop">
                 <div v-if="filterDropdownOpen" class="x-filter-dropdown" @click.stop>
-                <div class="x-filter-section">
-                  <button
-                    v-for="tab in typeFilterTabs"
-                    :key="tab.id"
-                    type="button"
-                    class="x-filter-option"
-                    :class="{ active: currentTab === tab.id }"
-                    @click="
-                      setNotificationTab(tab.id);
-                      filterDropdownOpen = false;
-                    "
-                  >
-                    <span>{{ tab.label }}</span>
-                    <span
-                      v-if="tab.id !== 'archived' && typeUnreadCounts[tab.id]"
-                      class="x-filter-count"
-                      >{{ typeUnreadCounts[tab.id] }}</span
+                  <div class="x-filter-section">
+                    <button
+                      v-for="tab in typeFilterTabs"
+                      :key="tab.id"
+                      type="button"
+                      class="x-filter-option"
+                      :class="{ active: currentTab === tab.id }"
+                      @click="
+                        setNotificationTab(tab.id);
+                        filterDropdownOpen = false;
+                      "
                     >
-                  </button>
-                </div>
-                <div class="x-filter-divider"></div>
-                <div class="x-filter-section">
-                  <button
-                    type="button"
-                    class="x-filter-option"
-                    :class="{ active: showUnreadOnly }"
-                    @click="
-                      showUnreadOnly = !showUnreadOnly;
-                      filterDropdownOpen = false;
-                    "
-                  >
-                    <span>只看未读</span>
-                    <span v-if="unreadTotalCount" class="x-filter-count">{{
-                      unreadTotalCount
-                    }}</span>
-                  </button>
-                </div>
+                      <span>{{ tab.label }}</span>
+                      <span
+                        v-if="tab.id !== 'archived' && typeUnreadCounts[tab.id]"
+                        class="x-filter-count"
+                        >{{ typeUnreadCounts[tab.id] }}</span
+                      >
+                    </button>
+                  </div>
+                  <div class="x-filter-divider"></div>
+                  <div class="x-filter-section">
+                    <button
+                      type="button"
+                      class="x-filter-option"
+                      :class="{ active: showUnreadOnly }"
+                      @click="
+                        showUnreadOnly = !showUnreadOnly;
+                        filterDropdownOpen = false;
+                      "
+                    >
+                      <span>只看未读</span>
+                      <span v-if="unreadTotalCount" class="x-filter-count">{{
+                        unreadTotalCount
+                      }}</span>
+                    </button>
+                  </div>
                 </div>
               </Transition>
             </div>
@@ -306,43 +306,43 @@
                 </button>
                 <Transition name="x-pop">
                   <div v-if="filterDropdownOpen" class="x-filter-dropdown" @click.stop>
-                  <div class="x-filter-section">
-                    <button
-                      v-for="tab in typeFilterTabs"
-                      :key="tab.id"
-                      type="button"
-                      class="x-filter-option"
-                      :class="{ active: currentTab === tab.id }"
-                      @click="
-                        setNotificationTab(tab.id);
-                        filterDropdownOpen = false;
-                      "
-                    >
-                      <span>{{ tab.label }}</span>
-                      <span
-                        v-if="tab.id !== 'archived' && typeUnreadCounts[tab.id]"
-                        class="x-filter-count"
-                        >{{ typeUnreadCounts[tab.id] }}</span
+                    <div class="x-filter-section">
+                      <button
+                        v-for="tab in typeFilterTabs"
+                        :key="tab.id"
+                        type="button"
+                        class="x-filter-option"
+                        :class="{ active: currentTab === tab.id }"
+                        @click="
+                          setNotificationTab(tab.id);
+                          filterDropdownOpen = false;
+                        "
                       >
-                    </button>
-                  </div>
-                  <div class="x-filter-divider"></div>
-                  <div class="x-filter-section">
-                    <button
-                      type="button"
-                      class="x-filter-option"
-                      :class="{ active: showUnreadOnly }"
-                      @click="
-                        showUnreadOnly = !showUnreadOnly;
-                        filterDropdownOpen = false;
-                      "
-                    >
-                      <span>只看未读</span>
-                      <span v-if="unreadTotalCount" class="x-filter-count">{{
-                        unreadTotalCount
-                      }}</span>
-                    </button>
-                  </div>
+                        <span>{{ tab.label }}</span>
+                        <span
+                          v-if="tab.id !== 'archived' && typeUnreadCounts[tab.id]"
+                          class="x-filter-count"
+                          >{{ typeUnreadCounts[tab.id] }}</span
+                        >
+                      </button>
+                    </div>
+                    <div class="x-filter-divider"></div>
+                    <div class="x-filter-section">
+                      <button
+                        type="button"
+                        class="x-filter-option"
+                        :class="{ active: showUnreadOnly }"
+                        @click="
+                          showUnreadOnly = !showUnreadOnly;
+                          filterDropdownOpen = false;
+                        "
+                      >
+                        <span>只看未读</span>
+                        <span v-if="unreadTotalCount" class="x-filter-count">{{
+                          unreadTotalCount
+                        }}</span>
+                      </button>
+                    </div>
                   </div>
                 </Transition>
               </div>
@@ -350,6 +350,16 @@
           </div>
         </div>
         <div v-if="!isSelectMode" class="x-header-actions-minimal">
+          <!-- 常驻「全部已读」（2026-11-21）：此前页面内没有一键入口，只有未读
+               ≥ UNREAD_DIGEST_MIN(4) 条时智能建议岛才弹一次，1~3 条未读只能逐条点开。
+               只在收件箱分区且有未读时出现；已归档分区隐藏（mark_all_as_read 只作用收件箱）。 -->
+          <button
+            v-if="currentTab !== 'archived' && unreadTotalCount > 0"
+            class="x-mark-all-btn-minimal"
+            @click="markAllAsRead()"
+          >
+            全部已读
+          </button>
           <button class="x-mark-all-btn-minimal" @click="enterSelectMode()">选择</button>
         </div>
       </header>
@@ -571,159 +581,259 @@
             </div>
           </div>
 
-          <!-- 普通列表（消息少于阈值时使用） -->
+          <!-- 普通列表（消息少于阈值时使用）：日期分组 + 同帖点赞聚合 + 左滑手势 cell -->
+          <!-- v-memo 已摘（2026-11-21）：行数 ≤100 时 memo 收益趋零，而左滑手势直接改行内
+               DOM，memo 跳过补丁会让 transform/显隐与状态脱钩 -->
           <template v-else>
-            <div
-              v-for="msg in filteredMessages"
-              :key="msg.id"
-              v-memo="[
-                msg.id,
-                msg.status,
-                msg.archived_at,
-                isSelectMode,
-                selectedMessageIds.has(msg.id),
-                selectedMessage?.id === msg.id,
-              ]"
-              class="x-item"
-              role="option"
-              tabindex="0"
-              :data-message-id="msg.id"
-              :class="{
-                unread: msg.status === 'unread',
-                'is-selecting': isSelectMode,
-                selected: selectedMessageIds.has(msg.id),
-                'active-detail': selectedMessage?.id === msg.id && !isSelectMode,
-              }"
-              :aria-selected="isSelectMode ? selectedMessageIds.has(msg.id) : undefined"
-              @click="onItemClick(msg)"
-              @pointerdown="onItemPointerDown(msg, $event)"
-              @pointerup="cancelLongPress"
-              @pointerleave="cancelLongPress"
-              @pointercancel="cancelLongPress"
-              @contextmenu.prevent="onItemContextMenu(msg)"
-              @keydown.enter="isSelectMode ? toggleMessageSelection(msg.id) : showDetail(msg)"
-              @keydown.space.prevent="
-                isSelectMode ? toggleMessageSelection(msg.id) : showDetail(msg)
-              "
-            >
-              <!-- 左侧：头像或选择框（未读蓝点叠在头像角标） -->
+            <template v-for="entry in displayListEntries" :key="entry.id">
+              <!-- 日期分组头（今天/昨天/7 天内/更早，纯展示层）；
+                   .x-inbox-list 的 overflow:hidden(玻璃圆角裁切)会废掉 sticky ⇒ 不做吸顶 -->
               <div
-                v-if="isSelectMode"
-                class="x-select-check"
-                @click.stop="toggleMessageSelection(msg.id)"
+                v-if="entry.kind === 'header'"
+                class="x-date-group-header"
+                :data-group="entry.groupKey"
               >
-                <span class="x-checkbox" :class="{ checked: selectedMessageIds.has(msg.id) }">
+                {{ entry.label }}
+              </div>
+              <!-- 同帖点赞聚合行：点开行内展开成员；选择模式不出现（displayListEntries 已切原始流） -->
+              <div
+                v-else-if="entry.kind === 'aggregate'"
+                class="x-item x-aggregate-row"
+                role="option"
+                tabindex="0"
+                :class="{
+                  unread: entry.unreadCount > 0,
+                  'is-expanded': expandedAggregateIds.has(entry.id),
+                }"
+                :aria-expanded="expandedAggregateIds.has(entry.id) ? 'true' : 'false'"
+                @click="toggleAggregate(entry.id)"
+                @keydown.enter.prevent="toggleAggregate(entry.id)"
+                @keydown.space.prevent="toggleAggregate(entry.id)"
+              >
+                <div class="x-avatar-stack" aria-hidden="true">
+                  <div v-for="m in entry.members.slice(0, 3)" :key="m.id" class="x-stack-avatar">
+                    <img
+                      v-if="m.sender?.avatar_url"
+                      :src="m.sender.avatar_url"
+                      class="x-avatar-img"
+                      alt=""
+                      loading="lazy"
+                    />
+                    <div v-else class="x-avatar" :style="avatarTone(m.sender?.username)">
+                      {{ m.sender?.username?.charAt(0)?.toUpperCase?.() || 'S' }}
+                    </div>
+                  </div>
+                </div>
+                <div class="x-item-main">
+                  <div class="x-item-meta">
+                    <div class="x-item-identity">
+                      <span class="x-sender-name">{{ aggregateActorNames(entry.members) }}</span>
+                      <span class="x-action-type x-t-like">赞了你</span>
+                    </div>
+                    <span class="x-date inline-date">{{ formatDate(entry.created_at) }}</span>
+                  </div>
+                  <div class="x-item-content">
+                    <span class="x-text">{{ aggregateRowText(entry) }}</span>
+                  </div>
+                </div>
+                <div class="x-item-right">
+                  <span v-if="entry.unreadCount > 0" class="x-agg-unread x-filter-count">
+                    {{ entry.unreadCount }}
+                  </span>
                   <svg
-                    v-if="selectedMessageIds.has(msg.id)"
-                    width="16"
-                    height="16"
+                    class="x-agg-chevron"
+                    width="14"
+                    height="14"
                     viewBox="0 0 24 24"
                     fill="none"
                     stroke="currentColor"
-                    stroke-width="3"
+                    stroke-width="2.5"
                   >
-                    <polyline points="20 6 9 17 4 12"></polyline>
+                    <polyline points="6 9 12 15 18 9"></polyline>
                   </svg>
-                </span>
-              </div>
-              <div class="x-item-left">
-                <div class="x-avatar-wrapper">
-                  <img
-                    v-if="msg.sender?.avatar_url"
-                    :src="msg.sender.avatar_url"
-                    class="x-avatar-img"
-                    alt="avatar"
-                    loading="lazy"
-                  />
-                  <div v-else class="x-avatar" :style="avatarTone(msg.sender?.username)">
-                    {{ msg.sender?.username?.charAt(0)?.toUpperCase?.() || 'S' }}
-                  </div>
-                  <span
-                    v-if="msg.status === 'unread' && !isSelectMode"
-                    class="x-unread-dot"
-                    aria-hidden="true"
-                  ></span>
                 </div>
               </div>
-              <!-- 中间：主要内容（两行制：身份行 + 内容行） -->
-              <div class="x-item-main">
-                <div class="x-item-meta">
-                  <div class="x-item-identity">
-                    <span class="x-sender-name">{{ msg.sender?.username || '系统' }}</span>
-                    <span :class="['x-action-type', `x-t-${msg.type}`]">{{ msg._typeLabel }}</span>
-                  </div>
-                  <span class="x-date inline-date">{{ msg._formattedDate }}</span>
-                </div>
-                <div v-if="msg._summary" class="x-item-content">
-                  <span class="x-text">{{ msg._summary }}</span>
-                </div>
-              </div>
-              <!-- 右侧：时间和状态 -->
-              <div class="x-item-right">
-                <span class="x-date">{{ msg._formattedDate }}</span>
-                <!-- 悬停快捷操作 -->
-                <div class="x-quick-actions" @click.stop>
+              <!-- 消息行：cell 承载左滑按钮层（行透明底 ⇒ 按钮层随拖拽 opacity 显形） -->
+              <div v-else class="x-item-swipe-cell" :data-swipe-id="entry.msg.id">
+                <div class="x-swipe-actions" aria-hidden="false">
+                  <button
+                    v-if="currentTab !== 'archived' && entry.msg.status === 'unread'"
+                    type="button"
+                    class="x-swipe-btn read"
+                    @click.stop="swipeMarkRead(entry.msg)"
+                  >
+                    已读
+                  </button>
                   <button
                     v-if="currentTab !== 'archived'"
-                    class="x-quick-btn archive"
-                    @click="archiveMessage(msg)"
-                    title="归档"
-                    aria-label="归档"
+                    type="button"
+                    class="x-swipe-btn archive"
+                    @click.stop="swipeArchive(entry.msg)"
                   >
-                    <svg
-                      width="14"
-                      height="14"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2"
-                    >
-                      <path d="M21 8v13H3V8"></path>
-                      <path d="M1 3h22v5H1z"></path>
-                      <line x1="10" y1="12" x2="14" y2="12"></line>
-                    </svg>
+                    归档
                   </button>
                   <button
-                    v-if="currentTab === 'archived'"
-                    class="x-quick-btn unarchive"
-                    @click="unarchiveMessage(msg)"
-                    title="取消归档"
-                    aria-label="取消归档"
+                    v-else
+                    type="button"
+                    class="x-swipe-btn unarchive"
+                    @click.stop="swipeArchive(entry.msg)"
                   >
-                    <svg
-                      width="14"
-                      height="14"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2"
-                    >
-                      <path d="M21 8v13H3V8"></path>
-                      <path d="M1 3h22v5H1z"></path>
-                      <line x1="10" y1="12" x2="14" y2="12"></line>
-                    </svg>
-                  </button>
-                  <button
-                    v-if="msg.status === 'unread' && currentTab !== 'archived'"
-                    class="x-quick-btn mark-read"
-                    @click="markAsRead(msg)"
-                    title="标记已读"
-                    aria-label="标记已读"
-                  >
-                    <svg
-                      width="14"
-                      height="14"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2"
-                    >
-                      <polyline points="20 6 9 17 4 12"></polyline>
-                    </svg>
+                    取消归档
                   </button>
                 </div>
+                <div
+                  class="x-item"
+                  role="option"
+                  tabindex="0"
+                  :data-message-id="entry.msg.id"
+                  :class="{
+                    unread: entry.msg.status === 'unread',
+                    'is-selecting': isSelectMode,
+                    selected: selectedMessageIds.has(entry.msg.id),
+                    'active-detail': selectedMessage?.id === entry.msg.id && !isSelectMode,
+                  }"
+                  :aria-selected="isSelectMode ? selectedMessageIds.has(entry.msg.id) : undefined"
+                  @click="onItemClick(entry.msg)"
+                  @pointerdown="onRowGestureDown(entry.msg, $event)"
+                  @pointermove="onRowGestureMove"
+                  @pointerup="onRowGestureUp"
+                  @pointerleave="onRowGestureCancel"
+                  @pointercancel="onRowGestureCancel"
+                  @contextmenu.prevent="onItemContextMenu(entry.msg)"
+                  @keydown.enter="
+                    isSelectMode ? toggleMessageSelection(entry.msg.id) : showDetail(entry.msg)
+                  "
+                  @keydown.space.prevent="
+                    isSelectMode ? toggleMessageSelection(entry.msg.id) : showDetail(entry.msg)
+                  "
+                >
+                  <!-- 左侧：头像或选择框（未读蓝点叠在头像角标） -->
+                  <div
+                    v-if="isSelectMode"
+                    class="x-select-check"
+                    @click.stop="toggleMessageSelection(entry.msg.id)"
+                  >
+                    <span
+                      class="x-checkbox"
+                      :class="{ checked: selectedMessageIds.has(entry.msg.id) }"
+                    >
+                      <svg
+                        v-if="selectedMessageIds.has(entry.msg.id)"
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="3"
+                      >
+                        <polyline points="20 6 9 17 4 12"></polyline>
+                      </svg>
+                    </span>
+                  </div>
+                  <div class="x-item-left">
+                    <div class="x-avatar-wrapper">
+                      <img
+                        v-if="entry.msg.sender?.avatar_url"
+                        :src="entry.msg.sender.avatar_url"
+                        class="x-avatar-img"
+                        alt="avatar"
+                        loading="lazy"
+                      />
+                      <div v-else class="x-avatar" :style="avatarTone(entry.msg.sender?.username)">
+                        {{ entry.msg.sender?.username?.charAt(0)?.toUpperCase?.() || 'S' }}
+                      </div>
+                      <span
+                        v-if="entry.msg.status === 'unread' && !isSelectMode"
+                        class="x-unread-dot"
+                        aria-hidden="true"
+                      ></span>
+                    </div>
+                  </div>
+                  <!-- 中间：主要内容（两行制：身份行 + 内容行） -->
+                  <div class="x-item-main">
+                    <div class="x-item-meta">
+                      <div class="x-item-identity">
+                        <span class="x-sender-name">{{
+                          entry.msg.sender?.username || '系统'
+                        }}</span>
+                        <span :class="['x-action-type', `x-t-${entry.msg.type}`]">{{
+                          entry.msg._typeLabel
+                        }}</span>
+                      </div>
+                      <span class="x-date inline-date">{{ entry.msg._formattedDate }}</span>
+                    </div>
+                    <div v-if="entry.msg._summary" class="x-item-content">
+                      <span class="x-text">{{ entry.msg._summary }}</span>
+                    </div>
+                  </div>
+                  <!-- 右侧：时间和状态 -->
+                  <div class="x-item-right">
+                    <span class="x-date">{{ entry.msg._formattedDate }}</span>
+                    <!-- 悬停快捷操作 -->
+                    <div class="x-quick-actions" @click.stop>
+                      <button
+                        v-if="currentTab !== 'archived'"
+                        class="x-quick-btn archive"
+                        @click="archiveMessage(entry.msg)"
+                        title="归档"
+                        aria-label="归档"
+                      >
+                        <svg
+                          width="14"
+                          height="14"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                        >
+                          <path d="M21 8v13H3V8"></path>
+                          <path d="M1 3h22v5H1z"></path>
+                          <line x1="10" y1="12" x2="14" y2="12"></line>
+                        </svg>
+                      </button>
+                      <button
+                        v-if="currentTab === 'archived'"
+                        class="x-quick-btn unarchive"
+                        @click="unarchiveMessage(entry.msg)"
+                        title="取消归档"
+                        aria-label="取消归档"
+                      >
+                        <svg
+                          width="14"
+                          height="14"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                        >
+                          <path d="M21 8v13H3V8"></path>
+                          <path d="M1 3h22v5H1z"></path>
+                          <line x1="10" y1="12" x2="14" y2="12"></line>
+                        </svg>
+                      </button>
+                      <button
+                        v-if="entry.msg.status === 'unread' && currentTab !== 'archived'"
+                        class="x-quick-btn mark-read"
+                        @click="markAsRead(entry.msg)"
+                        title="标记已读"
+                        aria-label="标记已读"
+                      >
+                        <svg
+                          width="14"
+                          height="14"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                        >
+                          <polyline points="20 6 9 17 4 12"></polyline>
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                </div>
               </div>
-            </div>
+            </template>
           </template>
           <div
             v-if="currentTab !== 'archived' && hasMoreNotifications"
@@ -876,6 +986,22 @@
               </Transition>
               <!-- Action Buttons -->
               <div class="notification-actions">
+                <!-- 上一条 / 下一条(Gmail auto-advance 模式,2026-11-21):
+                     归档当前后自动落到下一条;桌面键盘 J/K 同义 -->
+                <button
+                  class="notif-action-btn detail-nav"
+                  :disabled="!hasPrevMessage"
+                  @click="navigateDetail(-1)"
+                >
+                  ← 上一条
+                </button>
+                <button
+                  class="notif-action-btn detail-nav"
+                  :disabled="!hasNextMessage"
+                  @click="navigateDetail(1)"
+                >
+                  下一条 →
+                </button>
                 <button
                   v-if="selectedMessage.type === 'comment'"
                   class="notif-action-btn reply"
@@ -1049,6 +1175,12 @@ import { useDebounce, useThrottle } from '@/composables/useDebounceThrottle';
 import { useVirtualList } from '@vueuse/core';
 import { showIsland } from '@/composables/useIsland.js';
 import { useAutoGrowTextarea } from '@/composables/useAutoGrowTextarea.js';
+import { useSwipeActions } from '@/composables/useSwipeActions.js';
+import {
+  buildAggregateEntries,
+  buildDateGroups,
+  aggregateActorNames,
+} from '@/utils/notification-list-view.js';
 
 // Props
 const props = defineProps({
@@ -1470,6 +1602,41 @@ watch(
   { immediate: true },
 );
 
+// ─── 列表视图整形:同帖点赞聚合 + 日期分组(2026-11-21 消息中心 UX 二期) ────
+// 只作用于普通列表分支;虚拟滚动(>100 条)维持原始流(useVirtualList 固定 itemHeight,
+// 异构行会撑破行高假设,边界说明见 utils/notification-list-view.js 头注)。
+const expandedAggregateIds = ref(new Set());
+
+const toggleAggregate = (groupId) => {
+  const next = new Set(expandedAggregateIds.value);
+  if (next.has(groupId)) {
+    next.delete(groupId);
+  } else {
+    next.add(groupId);
+  }
+  expandedAggregateIds.value = next;
+};
+
+const displayListEntries = computed(() => {
+  if (shouldUseVirtualScroll.value) return [];
+  // 选择模式退回原始流:多选语义按条,聚合行不可勾选(Instagram/微博同款边界);
+  // 包装条目统一携带 created_at(buildDateGroups 的分组键读它)
+  const base = isSelectMode.value
+    ? filteredMessages.value.map((m) => ({
+        kind: 'message',
+        id: m.id,
+        msg: m,
+        created_at: m.created_at,
+      }))
+    : buildAggregateEntries(filteredMessages.value, expandedAggregateIds.value);
+  return buildDateGroups(base);
+});
+
+const aggregateRowText = (entry) => {
+  const title = getForumPostTitle(entry.post);
+  return title && title !== '无标题' ? `赞了你的帖子《${title}》` : '赞了你的帖子';
+};
+
 const typeFilterTabs = computed(() => NOTIFICATION_TABS);
 const selectedMessageCount = computed(() => selectedMessageIds.value.size);
 const unreadTotalCount = computed(() => messages.value.filter((m) => m.status === 'unread').length);
@@ -1735,15 +1902,52 @@ const startRealtimeChannels = async (userId) => {
   messageCenterRealtimeChannels = [notificationsChannel];
 };
 
+// ─── 详情连续处理(2026-11-21,Gmail auto-advance 模式) ─────────────────────
+const currentDetailIndex = computed(() => {
+  if (!selectedMessage.value) return -1;
+  return filteredMessages.value.findIndex((m) => m.id === selectedMessage.value.id);
+});
+const hasPrevMessage = computed(() => currentDetailIndex.value > 0);
+const hasNextMessage = computed(() => {
+  const idx = currentDetailIndex.value;
+  return idx >= 0 && idx < filteredMessages.value.length - 1;
+});
+
+const navigateDetail = (delta) => {
+  const idx = currentDetailIndex.value;
+  if (idx < 0) return;
+  const next = filteredMessages.value[idx + delta];
+  if (!next) return;
+  showDetail(next);
+};
+
+/**
+ * 详情内归档 → auto-advance:成功(行已移出列表)后同一位置即原「下一条」;
+ * 失败(行还在)或没有下一条 → 维持旧行为收详情。
+ * ⚠️ 直接赋值 selectedMessage 会进其 watcher 的移动端滚动锁——那里已有「已锁不重锁」
+ * 守卫配合本流程,别删。
+ */
 const archiveMessageFromDetail = async () => {
   if (!selectedMessage.value) return;
+  const idx = filteredMessages.value.findIndex((m) => m.id === selectedMessage.value.id);
   await archiveMessage(selectedMessage.value);
+  const rowStillThere = idx >= 0 && filteredMessages.value[idx]?.id === selectedMessage.value?.id;
+  if (!rowStillThere && filteredMessages.value[idx]) {
+    selectedMessage.value = filteredMessages.value[idx];
+    return;
+  }
   closeDetail();
 };
 
 const unarchiveMessageFromDetail = async () => {
   if (!selectedMessage.value) return;
+  const idx = filteredMessages.value.findIndex((m) => m.id === selectedMessage.value.id);
   await unarchiveMessage(selectedMessage.value);
+  const rowStillThere = idx >= 0 && filteredMessages.value[idx]?.id === selectedMessage.value?.id;
+  if (!rowStillThere && filteredMessages.value[idx]) {
+    selectedMessage.value = filteredMessages.value[idx];
+    return;
+  }
   closeDetail();
 };
 
@@ -1759,17 +1963,20 @@ watch(selectedMessage, (newVal) => {
   }
   if (isMobile.value) {
     if (newVal) {
-      bodyScrollPosition = window.scrollY;
-      document.documentElement.style.overflow = 'hidden';
-      document.body.style.overflow = 'hidden';
-      document.body.style.position = 'fixed';
-      document.body.style.top = `-${bodyScrollPosition}px`;
-      document.body.style.width = '100%';
-      const tabPage = document.querySelector('.tab-page.messages-tab');
-      if (tabPage) {
-        tabPage.dataset._overflowX = tabPage.style.overflowX || '';
-        tabPage.dataset._overflowY = tabPage.style.overflowY || '';
-        tabPage.style.overflow = 'hidden';
+      // 详情→详情连续处理(auto-advance)时锁已在:不重取 scrollY(锁定期恒为 0,重锁会跳页顶)
+      if (document.body.style.position !== 'fixed') {
+        bodyScrollPosition = window.scrollY;
+        document.documentElement.style.overflow = 'hidden';
+        document.body.style.overflow = 'hidden';
+        document.body.style.position = 'fixed';
+        document.body.style.top = `-${bodyScrollPosition}px`;
+        document.body.style.width = '100%';
+        const tabPage = document.querySelector('.tab-page.messages-tab');
+        if (tabPage) {
+          tabPage.dataset._overflowX = tabPage.style.overflowX || '';
+          tabPage.dataset._overflowY = tabPage.style.overflowY || '';
+          tabPage.style.overflow = 'hidden';
+        }
       }
     } else {
       document.documentElement.style.overflow = '';
@@ -1879,6 +2086,7 @@ watch(archivedHasMore, async (val) => {
 watch(isSelectMode, () => {
   selectFilterOpen.value = false;
   selectStatusFilter.value = 'all';
+  swipe.close();
 });
 
 watch(selectStatusFilter, () => {
@@ -1961,10 +2169,27 @@ const handleWindowResize = () => {
 
 // 键盘：Esc 退出选择模式（桌面 / 平板接键盘）。详情抽屉不接 Esc ——
 // 里面有回复输入框，误按会连草稿一起关掉。
+// J/K 切下一条/上一条（Gmail 惯例，2026-11-21）：只用 J/K 不用 ↑↓——方向键默认
+// 滚动详情面板，劫持会砸滚动；输入框内不劫持，修饰键组合不劫持。
 const handleKeydown = (event) => {
-  if (event.key !== 'Escape' || !isSelectMode.value) return;
+  if (event.key === 'Escape' && isSelectMode.value) {
+    event.preventDefault();
+    exitSelectMode();
+    return;
+  }
+  if (!selectedMessage.value || isSelectMode.value || isMobile.value) return;
+  const key = String(event.key || '').toLowerCase();
+  if (key !== 'j' && key !== 'k') return;
+  const target = event.target;
+  if (
+    target instanceof HTMLElement &&
+    (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)
+  ) {
+    return;
+  }
+  if (event.metaKey || event.ctrlKey || event.altKey) return;
   event.preventDefault();
-  exitSelectMode();
+  navigateDetail(key === 'j' ? 1 : -1);
 };
 
 // Transition 生命周期钩子
@@ -2626,6 +2851,41 @@ const onItemPointerDown = (msg, event) => {
     enterSelectMode(msg.id);
     if (typeof navigator.vibrate === 'function') navigator.vibrate(8);
   }, LONG_PRESS_MS);
+};
+
+// ─── 左滑快捷手势(2026-11-21,iOS Mail 式):仅普通列表分支、浏览态 ──────────
+// 与长按共存:横向位移判定为滑动 → onSwipeStart 回调 cancelLongPress;
+// 拖拽过程 useSwipeActions 直接改 DOM(行有 v-memo,响应式绑定会被跳过)。
+const swipe = useSwipeActions({ onSwipeStart: cancelLongPress });
+const swipeEnabled = () => !isSelectMode.value && !shouldUseVirtualScroll.value;
+
+const onRowGestureDown = (msg, event) => {
+  swipe.onRowPointerDown(event, msg.id, { enabled: swipeEnabled });
+  onItemPointerDown(msg, event);
+};
+
+const onRowGestureMove = (event) => swipe.onRowPointerMove(event);
+
+const onRowGestureUp = (event) => {
+  cancelLongPress();
+  const result = swipe.onRowPointerUp(event);
+  if (result) suppressClickUntil = Date.now() + 400;
+};
+
+const onRowGestureCancel = () => {
+  cancelLongPress();
+  swipe.onRowPointerCancel();
+};
+
+const swipeMarkRead = (msg) => {
+  swipe.close();
+  void markAsRead(msg);
+};
+
+const swipeArchive = (msg) => {
+  // 归档会把行移出列表 → 先复位手势状态再执行,免得 close() 去摸已卸载的 DOM
+  swipe.resetIf(msg.id);
+  void (currentTab.value === 'archived' ? unarchiveMessage(msg) : archiveMessage(msg));
 };
 
 const onItemContextMenu = (msg) => {

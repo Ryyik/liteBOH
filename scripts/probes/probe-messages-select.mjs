@@ -8,6 +8,9 @@
 //   E. 0 选中时「已读」禁用（旧实现在 0 选中时偷偷执行「全部已读」）
 //   F. 手机横屏 844×390：完全可见行数 ≥3（改动前是 2）
 //   G. 横屏选择模式下底栏让位（opacity 0 / pointer-events none）
+//   H–J. 长按 / 桌面右键进选择模式、已归档分区批量入口
+//   K. 手机横屏详情（2026-11-21）：返回钮可见可点、动作条 static 不压正文
+//   L. 页头常驻「全部已读」（2026-11-21）：有未读时出现、点击清零后收起、下拉不含该项
 //
 // 为什么这些断言值钱：旧实现在 ≥1024 下 A/B 全红（底部条被 v-if 与 CSS 双杀、页头动作永久
 // display:none），而手机横屏 B 红（条浮到屏高 61% 处压住列表并与底栏相交）。
@@ -64,9 +67,29 @@ const archivedRows = rows.slice(0, 4).map((row) => ({
 }));
 
 const openMessages = async (viewport, { hasTouch = false } = {}) => {
+  // L 场景用：mark_all_as_read RPC 一旦发出，列表 mock 就返回已读行 ——
+  // 生产语义是「RPC 落库 → triggerUnreadRefresh 重拉 → 服务端返回已读」，
+  // mock 必须跟着模拟服务端真值，否则重拉会把本地翻转盖回去（2026-11-21 实测踩过）。
+  let markAllFired = false;
   const context = await browser.newContext({ viewport, deviceScaleFactor: 2, hasTouch });
   await context.route('**/auth/v1/user', (r) =>
     r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(mockUser) }),
+  );
+  await context.route('**/rest/v1/notifications**', (r) =>
+    r.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(markAllFired ? rows.map((row) => ({ ...row, status: 'read' })) : rows),
+    }),
+  );
+  // 未读相关 RPC 显式 mock（最后注册 = 逆序最先命中）：mark-all 流程 / 刷新未读计数
+  // 都不许探针触碰真实库（本地 dev 也连着真项目）。
+  await context.route('**/rest/v1/rpc/mark_all_as_read', (r) => {
+    markAllFired = true;
+    r.fulfill({ status: 200, contentType: 'application/json', body: 'null' });
+  });
+  await context.route('**/rest/v1/rpc/get_unread_notification_count', (r) =>
+    r.fulfill({ status: 200, contentType: 'application/json', body: '[{"count":0}]' }),
   );
   await context.route(/\/rest\/v1\/notifications\?[^]*archived_at=not\.is\.null/, (r) =>
     r.fulfill({
@@ -75,9 +98,6 @@ const openMessages = async (viewport, { hasTouch = false } = {}) => {
       contentType: 'application/json',
       body: JSON.stringify(archivedRows),
     }),
-  );
-  await context.route('**/rest/v1/notifications**', (r) =>
-    r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(rows) }),
   );
   const page = await context.newPage();
   await page.addInitScript((u) => {
@@ -123,7 +143,9 @@ for (const c of CASES) {
   console.log(`\n▶ ${c.name}`);
   const { context, page } = await openMessages(c.vp);
 
-  const selectBtn = page.locator('.x-mark-all-btn-minimal').first();
+  // ⚠️ 按文本锁「选择」：2026-11-21 起页头还有「全部已读」也挂 .x-mark-all-btn-minimal，
+  //    .first() 会点错（实测全读后 selected=0 连环假红）
+  const selectBtn = page.locator('.x-mark-all-btn-minimal', { hasText: '选择' }).first();
   check(`${c.name} · 页头有「选择」入口`, (await selectBtn.count()) > 0);
   await selectBtn.click();
   await page.waitForTimeout(500);
@@ -294,7 +316,7 @@ for (const c of CASES) {
     await archivedOption.click();
     await archived.page.waitForTimeout(1200);
   }
-  await archived.page.locator('.x-mark-all-btn-minimal').first().click();
+  await archived.page.locator('.x-mark-all-btn-minimal', { hasText: '选择' }).first().click();
   await archived.page.waitForTimeout(400);
   const archivedState = await archived.page.evaluate(() => ({
     labels: [...document.querySelectorAll('.x-sab-btn')].map((b) => b.textContent.trim()),
@@ -307,6 +329,99 @@ for (const c of CASES) {
   );
   check('已归档分区 0 选中时「已读」禁用', archivedState.readDisabled === true);
   await archived.context.close();
+
+  // K. 手机横屏详情（2026-11-21）：返回钮可见可点、动作条静态化不压正文。
+  //    旧实现：.x-detail-back 在 601–1023 被 display:none（只能点面板外的暗化遮罩关闭，
+  //    不可发现）；.notification-actions 基础样式 sticky，~390 高的抽屉里正文从半透明
+  //    动作条底下穿过（actionsOverlapSrc 实测 true）。≤767 竖屏有 static 重置，横屏漏了。
+  const landscapeDetail = await openMessages({ width: 844, height: 390 });
+  // 点第 6 条（read + comment：详情有 source-content，且点开不触发标记已读写路径）
+  await landscapeDetail.page.locator('.x-item').nth(5).click();
+  await landscapeDetail.page.waitForTimeout(600);
+  const detailGeo = await landscapeDetail.page.evaluate(() => {
+    const back = document.querySelector('.x-detail-back');
+    const actions = document.querySelector('.notification-actions');
+    const src = document.querySelector('.source-content');
+    const rect = (el) => {
+      const b = el.getBoundingClientRect();
+      return [Math.round(b.x), Math.round(b.y), Math.round(b.width), Math.round(b.height)];
+    };
+    const backHit = (() => {
+      if (!back) return false;
+      const b = back.getBoundingClientRect();
+      const top = document.elementFromPoint(b.x + b.width / 2, b.y + b.height / 2);
+      return top === back || back.contains(top);
+    })();
+    const overlap =
+      actions && src
+        ? !(
+            actions.getBoundingClientRect().bottom <= src.getBoundingClientRect().top ||
+            src.getBoundingClientRect().bottom <= actions.getBoundingClientRect().top
+          )
+        : false;
+    return {
+      backVisible: back
+        ? getComputedStyle(back).display !== 'none' && back.getBoundingClientRect().width > 0
+        : false,
+      backHit,
+      actionsStatic: actions ? getComputedStyle(actions).position === 'static' : false,
+      actionsOverlapSrc: overlap,
+      hasSource: Boolean(src),
+      backRect: back ? rect(back) : null,
+    };
+  });
+  check('横屏详情 · 返回钮可见', detailGeo.backVisible, JSON.stringify(detailGeo.backRect));
+  check('横屏详情 · 返回钮未被遮挡', detailGeo.backHit, JSON.stringify(detailGeo.backRect));
+  check('横屏详情 · 动作条随内容流（static）', detailGeo.actionsStatic);
+  check(
+    '横屏详情 · 动作条不压正文',
+    detailGeo.hasSource && !detailGeo.actionsOverlapSrc,
+    `hasSource=${detailGeo.hasSource} overlap=${detailGeo.actionsOverlapSrc}`,
+  );
+  await landscapeDetail.page.locator('.x-detail-back').click();
+  await landscapeDetail.page.waitForTimeout(500);
+  const detailClosed = await landscapeDetail.page.evaluate(
+    () => !document.querySelector('.x-detail-panel'),
+  );
+  check('横屏详情 · 点返回钮关闭详情', detailClosed);
+  await landscapeDetail.context.close();
+
+  // L. 页头常驻「全部已读」（2026-11-21）：页面内此前没有一键已读入口，
+  //    只有未读 ≥ UNREAD_DIGEST_MIN(4) 条时智能建议岛才弹。按钮只在收件箱且有未读时出现，
+  //    点击走 markAllAsRead 完整闭环；清零后按钮收起；下拉里不再有该项（用户口径：放页头不放筛选）。
+  const markAll = await openMessages({ width: 390, height: 844 });
+  await markAll.page.waitForTimeout(300);
+  const markAllBtn = markAll.page
+    .locator('.x-header-actions-minimal .x-mark-all-btn-minimal', { hasText: '全部已读' })
+    .first();
+  const markAllPresent = (await markAllBtn.count()) > 0;
+  check('页头「全部已读」存在（有未读时）', markAllPresent);
+  if (markAllPresent) {
+    await markAll.page.locator('.x-filter-chip.filter-trigger').first().click();
+    await markAll.page.waitForTimeout(300);
+    const inDropdown = await markAll.page.evaluate(() => {
+      const dd = document.querySelector('.x-filter-dropdown');
+      return Boolean(dd && dd.textContent.includes('全部已读'));
+    });
+    check('筛选下拉不含「全部已读」', !inDropdown);
+    await markAll.page.locator('.x-filter-chip.filter-trigger').first().click();
+    await markAll.page.waitForTimeout(300);
+    await markAllBtn.click();
+    await markAll.page.waitForTimeout(900);
+    const afterMarkAll = await markAll.page.evaluate(() => ({
+      unreadRows: document.querySelectorAll('.x-item.unread').length,
+      btnCount: [...document.querySelectorAll('.x-header-actions-minimal button')].filter((b) =>
+        b.textContent.includes('全部已读'),
+      ).length,
+    }));
+    check(
+      '全部已读 · 未读行清零',
+      afterMarkAll.unreadRows === 0,
+      `unread=${afterMarkAll.unreadRows}`,
+    );
+    check('全部已读 · 清零后按钮收起', afterMarkAll.btnCount === 0, `btn=${afterMarkAll.btnCount}`);
+  }
+  await markAll.context.close();
 }
 
 await browser.close();

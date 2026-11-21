@@ -11,7 +11,8 @@
   background: #f8f9fa;
   min-height: 100vh;
   padding: 0 0 40px;
-  font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   box-sizing: border-box;
 }
 
@@ -191,6 +192,125 @@
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+/* ---------- 列表视图整形:日期分组 / 同帖点赞聚合 / 左滑手势(2026-11-21) ---------- */
+/* 亮色裸色值不进暗色棘轮(计数只看暗色块);暗色补齐在 messages-dark.css,全部走 token */
+
+.x-date-group-header {
+  padding: 16px 16px 6px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: var(--liquid-text-secondary);
+}
+
+/* 同帖点赞聚合行:头像堆叠 + 展开箭头;未读 tint 复用 .x-item.unread */
+.x-aggregate-row .x-avatar-stack {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.x-aggregate-row .x-stack-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 2px solid var(--liquid-bg-strong);
+  margin-left: -10px;
+  flex-shrink: 0;
+}
+
+.x-aggregate-row .x-stack-avatar:first-child {
+  margin-left: 0;
+}
+
+.x-aggregate-row .x-stack-avatar .x-avatar,
+.x-aggregate-row .x-stack-avatar .x-avatar-img {
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+}
+
+.x-aggregate-row .x-agg-chevron {
+  color: var(--liquid-text-secondary);
+  transition: transform 0.18s ease;
+}
+
+.x-aggregate-row.is-expanded .x-agg-chevron {
+  transform: rotate(180deg);
+}
+
+/* 左滑手势:cell 是纯容器(定位/裁切/行分隔线),行本身样式零改动;
+   行分隔线原在 .x-item 上,包裹后 :last-child 恒真 ⇒ 迁到 cell */
+.x-item-swipe-cell {
+  position: relative;
+  overflow: hidden;
+  border-bottom: 1px solid var(--liquid-border-hairline);
+}
+
+.x-item-swipe-cell:last-child {
+  border-bottom: 0;
+}
+
+.x-item-swipe-cell > .x-item {
+  border-bottom: 0;
+  /* pan-y:纵向滚动交还浏览器(触发 pointercancel 复位),横向由手势接管 */
+  touch-action: pan-y;
+  /* ⚠️ 必须关掉行入场动画:message-row-in 是 fill-mode: both,收尾关键帧会永久
+     压住 inline transform——左滑的 translateX 实测被它整行吃掉(2026-11-21)。
+     入场观感由容器 content-swap-in-fade 兜底。 */
+  animation: none;
+}
+
+.x-swipe-actions {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: stretch;
+  justify-content: flex-end;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.x-swipe-btn {
+  width: 74px;
+  border: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 800;
+  font-family: inherit;
+  cursor: pointer;
+  color: #fff;
+  padding: 0;
+}
+
+.x-swipe-btn.read {
+  background: #0071e3;
+}
+
+.x-swipe-btn.archive {
+  background: #52677a;
+}
+
+.x-swipe-btn.unarchive {
+  background: #1d9bf0;
+}
+
+/* 详情连续处理:上一条/下一条;禁用态走透明度,不引入新色值 */
+.notif-action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.notif-action-btn.detail-nav {
+  flex-shrink: 0;
 }
 
 .x-quick-btn {
@@ -735,7 +855,9 @@
 /* Transitions */
 .fade-enter-active,
 .fade-leave-active {
-  transition: opacity 180ms ease, transform 180ms ease;
+  transition:
+    opacity 180ms ease,
+    transform 180ms ease;
 }
 
 .fade-enter-from,
@@ -813,8 +935,6 @@
   margin: 0 0 4px;
 }
 
-
-
 .x-mark-all-btn-minimal {
   /* 在 sticky 页头（堆叠上下文）内：backdrop-filter 必被裁空（§21.11）⇒ 实底 token */
   border: 1px solid var(--liquid-border);
@@ -851,7 +971,6 @@
 .minimal-mode .x-list {
   padding: 0 20px 96px;
 }
-
 
 .x-header-actions-minimal {
   display: flex;
@@ -1069,7 +1188,11 @@
   font-size: 13px;
   font-weight: 800;
   cursor: pointer;
-  transition: background-color 0.18s ease, color 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
+  transition:
+    background-color 0.18s ease,
+    color 0.18s ease,
+    border-color 0.18s ease,
+    transform 0.18s ease;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.03);
   white-space: nowrap;
   flex-shrink: 0;
@@ -1246,7 +1369,9 @@
   backdrop-filter: var(--liquid-filter-sm);
   -webkit-backdrop-filter: var(--liquid-filter-sm);
   border: 1px solid var(--liquid-border, rgba(255, 255, 255, 0.65));
-  box-shadow: var(--liquid-shadow, 0 8px 24px rgba(15, 23, 42, 0.06)), var(--liquid-highlight, inset 0 1px 0 rgba(255, 255, 255, 0.86));
+  box-shadow:
+    var(--liquid-shadow, 0 8px 24px rgba(15, 23, 42, 0.06)),
+    var(--liquid-highlight, inset 0 1px 0 rgba(255, 255, 255, 0.86));
 }
 
 /* ---------- 选择模式：页头单行工具条（取消 / 全选 / 范围 / 已选 N） ----------
@@ -1295,7 +1420,10 @@
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
-  transition: color 0.18s ease, border-color 0.18s ease, background-color 0.18s ease;
+  transition:
+    color 0.18s ease,
+    border-color 0.18s ease,
+    background-color 0.18s ease;
 }
 
 .x-select-cancel:hover {
@@ -1326,7 +1454,9 @@
   color: var(--text-primary, #1d1d1f);
   cursor: pointer;
   white-space: nowrap;
-  transition: opacity 0.15s ease, transform 0.15s ease;
+  transition:
+    opacity 0.15s ease,
+    transform 0.15s ease;
 }
 
 .x-sab-btn:disabled {
@@ -1347,7 +1477,9 @@
 
 .x-sab-enter-active,
 .x-sab-leave-active {
-  transition: opacity 180ms ease, transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  transition:
+    opacity 180ms ease,
+    transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 .x-sab-enter-from,
@@ -1379,12 +1511,12 @@
   }
 }
 
-[data-theme="dark"] .x-sab-btn {
+[data-theme='dark'] .x-sab-btn {
   background: rgba(255, 255, 255, 0.1);
   color: #f5f5f7;
 }
 
-[data-theme="dark"] .x-select-action-bar {
+[data-theme='dark'] .x-select-action-bar {
   background: var(--liquid-bg-strong, rgba(40, 40, 52, 0.84));
 }
 
@@ -1436,7 +1568,9 @@
   font-size: 13px;
   font-weight: 700;
   cursor: pointer;
-  transition: background-color 0.18s ease, color 0.18s ease;
+  transition:
+    background-color 0.18s ease,
+    color 0.18s ease;
   white-space: nowrap;
 }
 
@@ -1473,7 +1607,11 @@
   font-size: 12px;
   font-weight: 850;
   cursor: pointer;
-  transition: background-color 0.18s ease, color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+  transition:
+    background-color 0.18s ease,
+    color 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.18s ease;
   white-space: nowrap;
   flex-shrink: 0;
 }
@@ -1486,7 +1624,9 @@
 .x-select-status-filter button.active {
   background: rgba(255, 255, 255, 0.9);
   color: #1d1d1f;
-  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.07), inset 0 0 0 1px rgba(16, 24, 40, 0.04);
+  box-shadow:
+    0 4px 12px rgba(15, 23, 42, 0.07),
+    inset 0 0 0 1px rgba(16, 24, 40, 0.04);
 }
 
 .x-select-status-filter.compact button {
@@ -1551,7 +1691,9 @@
    x-select-actions-menu（原先双向硬切）与两处 x-filter-dropdown（原先只有进场）共用。 */
 .x-pop-enter-active,
 .x-pop-leave-active {
-  transition: opacity 0.14s ease, transform 0.14s ease;
+  transition:
+    opacity 0.14s ease,
+    transform 0.14s ease;
 }
 
 .x-pop-enter-from,
@@ -1616,8 +1758,6 @@
   margin: 2px 8px;
 }
 
-
-
 .x-load-more-row {
   display: flex;
   justify-content: center;
@@ -1635,7 +1775,10 @@
   font-size: 14px;
   font-weight: 800;
   cursor: pointer;
-  transition: background-color 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
+  transition:
+    background-color 0.18s ease,
+    border-color 0.18s ease,
+    transform 0.18s ease;
 }
 
 .x-load-more-btn:hover:not(:disabled) {
@@ -1695,7 +1838,10 @@
   font-size: 12px;
   font-weight: 900;
   cursor: pointer;
-  transition: transform 0.16s ease, background-color 0.16s ease, border-color 0.16s ease;
+  transition:
+    transform 0.16s ease,
+    background-color 0.16s ease,
+    border-color 0.16s ease;
 }
 
 .message-feedback-action:hover {
@@ -1715,8 +1861,6 @@
 .message-feedback-toast.info {
   background: rgba(29, 78, 216, 0.94);
 }
-
-
 
 .x-list,
 .minimal-mode .x-list {
@@ -2241,13 +2385,9 @@
     font-size: 12px;
   }
 
-  .x-detail-back {
-    display: none;
-  }
-
-  .drawer-header {
-    justify-content: center;
-  }
+  /* 返回钮横屏可见（2026-11-21）：601–1023 的详情是侧滑面板，旧规则把返回钮
+     display:none 后，手机横屏只能靠点面板外的暗化遮罩关闭，不可发现。
+     与 ≤600 竖屏（全屏抽屉、返回钮可见）口径对齐。≥1024 分栏面板的隐藏规则保留。 */
 }
 
 /* Mobile Responsive - Very narrow screens (< 600px) */
@@ -2539,6 +2679,39 @@
     transform: translateY(16px);
   }
 
+  /* 详情动作条横屏静态化（2026-11-21）：基础样式里的 sticky 玻璃条在 ~390 高的抽屉里，
+     正文会从条底穿过、与动作钮互相叠字（实测 actionsOverlapSrc=true）。≤767 竖屏
+     已有 static 重置，这里补齐对称口径；静态内容流里浮层玻璃一并让位。 */
+  .notification-actions {
+    position: static;
+    margin: 20px 0 0;
+    padding: 0 0 4px;
+    background: transparent;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    border-top: 0;
+  }
+
+  /* 分组头 / 聚合行 / 滑动钮的横屏紧凑档(行高 72 口径内)。
+     ⚠️ 横屏组头直接隐藏:028 实测 390 高只有 ~210px 列表预算(3 行),
+     一个 ~30px 的组头就把「完全可见行数 ≥3」吃成 2 行;横屏单屏只有 2-3 行,
+     日期上下文由行内相对时间承担。 */
+  .x-date-group-header {
+    display: none;
+  }
+
+  .x-aggregate-row .x-stack-avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: 10px;
+    margin-left: -8px;
+  }
+
+  .x-swipe-btn {
+    width: 64px;
+    font-size: 11px;
+  }
+
   /* 行高压缩：844×390 原本一屏只看得到 2 条（行 88 + 页头 46 + 底栏 96 + 动作条 65） */
   .x-notifications-container.minimal-mode .x-item {
     padding: 10px 14px;
@@ -2715,335 +2888,333 @@
   }
 }
 
-
-
 /* ================================================================
    暗色主题（2026-09-09 补全：此前全文件仅 2 条 dark 规则，
    列表/筛选/详情全部裸奔导致未读白底白字）
    ================================================================ */
 
 /* ---------- 列表面板与行 ---------- */
-[data-theme="dark"] .x-inbox-list {
+[data-theme='dark'] .x-inbox-list {
   --x-item-ring: rgba(22, 24, 32, 0.92);
 }
 
-[data-theme="dark"] .x-item:hover {
+[data-theme='dark'] .x-item:hover {
   background: rgba(255, 255, 255, 0.05);
 }
 
-[data-theme="dark"] .x-item:active {
+[data-theme='dark'] .x-item:active {
   background: rgba(255, 255, 255, 0.085);
 }
 
-[data-theme="dark"] .x-item.active-detail {
+[data-theme='dark'] .x-item.active-detail {
   background: rgba(41, 151, 255, 0.1);
   box-shadow: inset 3px 0 0 #2997ff;
 }
 
-[data-theme="dark"] .x-item.active-detail .x-action-type {
+[data-theme='dark'] .x-item.active-detail .x-action-type {
   background: rgba(41, 151, 255, 0.16);
   color: #7cc0ff;
 }
 
-[data-theme="dark"] .x-item.unread {
+[data-theme='dark'] .x-item.unread {
   background: rgba(41, 151, 255, 0.09);
 }
 
-[data-theme="dark"] .x-unread-dot {
+[data-theme='dark'] .x-unread-dot {
   background: #2997ff;
   border-color: rgba(22, 24, 32, 0.92);
 }
 
-[data-theme="dark"] .x-sender-name,
-[data-theme="dark"] .x-item.unread .x-sender-name {
+[data-theme='dark'] .x-sender-name,
+[data-theme='dark'] .x-item.unread .x-sender-name {
   color: #f4f6f8;
 }
 
-[data-theme="dark"] .x-action-type {
+[data-theme='dark'] .x-action-type {
   background: rgba(255, 255, 255, 0.09);
   color: #a7afba;
 }
 
-[data-theme="dark"] .x-action-type.x-t-like,
-[data-theme="dark"] .x-action-type.x-t-post_rejected,
-[data-theme="dark"] .x-action-type.x-t-comment_rejected,
-[data-theme="dark"] .x-action-type.x-t-post_report_limited {
+[data-theme='dark'] .x-action-type.x-t-like,
+[data-theme='dark'] .x-action-type.x-t-post_rejected,
+[data-theme='dark'] .x-action-type.x-t-comment_rejected,
+[data-theme='dark'] .x-action-type.x-t-post_report_limited {
   background: rgba(255, 105, 97, 0.16);
   color: #ff8b85;
 }
 
-[data-theme="dark"] .x-action-type.x-t-comment {
+[data-theme='dark'] .x-action-type.x-t-comment {
   background: rgba(41, 151, 255, 0.16);
   color: #7cc0ff;
 }
 
-[data-theme="dark"] .x-action-type.x-t-follow {
+[data-theme='dark'] .x-action-type.x-t-follow {
   background: rgba(48, 209, 88, 0.16);
   color: #6ee7a0;
 }
 
-[data-theme="dark"] .x-action-type.x-t-impression {
+[data-theme='dark'] .x-action-type.x-t-impression {
   background: rgba(191, 90, 242, 0.2);
   color: #d9a8f5;
 }
 
-[data-theme="dark"] .x-action-type.x-t-gift,
-[data-theme="dark"] .x-action-type.x-t-lottery_win {
+[data-theme='dark'] .x-action-type.x-t-gift,
+[data-theme='dark'] .x-action-type.x-t-lottery_win {
   background: rgba(255, 159, 10, 0.2);
   color: #ffc46b;
 }
 
-[data-theme="dark"] .x-action-type.x-t-subscription {
+[data-theme='dark'] .x-action-type.x-t-subscription {
   background: rgba(125, 123, 255, 0.2);
   color: #b3b1fa;
 }
 
-[data-theme="dark"] .x-text {
+[data-theme='dark'] .x-text {
   color: #a7afba;
 }
 
-[data-theme="dark"] .x-item.unread .x-text {
+[data-theme='dark'] .x-item.unread .x-text {
   color: #c9d4e4;
 }
 
-[data-theme="dark"] .x-date,
-[data-theme="dark"] .inline-date {
+[data-theme='dark'] .x-date,
+[data-theme='dark'] .inline-date {
   color: #8b9098;
 }
 
-[data-theme="dark"] .x-item.unread .x-date,
-[data-theme="dark"] .x-item.unread .inline-date {
+[data-theme='dark'] .x-item.unread .x-date,
+[data-theme='dark'] .x-item.unread .inline-date {
   color: #7cc0ff;
 }
 
-[data-theme="dark"] .x-quick-btn {
+[data-theme='dark'] .x-quick-btn {
   background: rgba(255, 255, 255, 0.08);
   border-color: rgba(255, 255, 255, 0.12);
   color: #a7afba;
 }
 
 /* ---------- 筛选条 / 下拉 ---------- */
-[data-theme="dark"] .x-filter-chip,
-[data-theme="dark"] .x-select-btn,
-[data-theme="dark"] .x-mark-all-btn-minimal {
+[data-theme='dark'] .x-filter-chip,
+[data-theme='dark'] .x-select-btn,
+[data-theme='dark'] .x-mark-all-btn-minimal {
   background: rgba(255, 255, 255, 0.07);
   border-color: rgba(255, 255, 255, 0.12);
   color: #d5d9e0;
 }
 
-[data-theme="dark"] .x-filter-chip:hover,
-[data-theme="dark"] .x-select-btn:hover,
-[data-theme="dark"] .x-mark-all-btn-minimal:hover:not(:disabled) {
+[data-theme='dark'] .x-filter-chip:hover,
+[data-theme='dark'] .x-select-btn:hover,
+[data-theme='dark'] .x-mark-all-btn-minimal:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.12);
 }
 
-[data-theme="dark"] .x-select-btn.active,
-[data-theme="dark"] .x-mark-all-btn-minimal.active {
+[data-theme='dark'] .x-select-btn.active,
+[data-theme='dark'] .x-mark-all-btn-minimal.active {
   background: rgba(41, 151, 255, 0.16);
   border-color: rgba(41, 151, 255, 0.4);
   color: #7cc0ff;
 }
 
-[data-theme="dark"] .x-select-status-filter {
+[data-theme='dark'] .x-select-status-filter {
   background: rgba(255, 255, 255, 0.06);
 }
 
 /* 选择模式工具条：取消钮与计数只需在暗色下换文字色 ——
    底色/描边在基础规则里已经引 --liquid-bg-strong / --liquid-border（token 自动翻转）。
    ⚠️ 这里必须写纯 token：暗色块内的颜色字面量会被 check:dark-tokens 计入棘轮。 */
-[data-theme="dark"] .x-select-cancel {
+[data-theme='dark'] .x-select-cancel {
   color: var(--liquid-text-secondary);
 }
 
-[data-theme="dark"] .x-select-cancel:hover {
+[data-theme='dark'] .x-select-cancel:hover {
   color: var(--liquid-text-primary);
 }
 
-[data-theme="dark"] .x-select-count {
+[data-theme='dark'] .x-select-count {
   color: var(--liquid-text-tertiary);
 }
 
-[data-theme="dark"] .x-select-status-filter button {
+[data-theme='dark'] .x-select-status-filter button {
   color: #a7afba;
 }
 
-[data-theme="dark"] .x-select-status-filter button.active {
+[data-theme='dark'] .x-select-status-filter button.active {
   background: rgba(255, 255, 255, 0.12);
   color: #f4f6f8;
 }
 
-[data-theme="dark"] .x-filter-dropdown {
+[data-theme='dark'] .x-filter-dropdown {
   background: var(--liquid-bg-strong, rgba(28, 30, 38, 0.92));
   border-color: rgba(255, 255, 255, 0.12);
 }
 
-[data-theme="dark"] .x-filter-option {
+[data-theme='dark'] .x-filter-option {
   color: #d5d9e0;
 }
 
-[data-theme="dark"] .x-filter-option:hover {
+[data-theme='dark'] .x-filter-option:hover {
   background: rgba(255, 255, 255, 0.06);
 }
 
-[data-theme="dark"] .x-filter-option.active {
+[data-theme='dark'] .x-filter-option.active {
   background: rgba(41, 151, 255, 0.14);
   color: #7cc0ff;
 }
 
-[data-theme="dark"] .x-filter-count {
+[data-theme='dark'] .x-filter-count {
   background: rgba(41, 151, 255, 0.18);
   color: #7cc0ff;
 }
 
-[data-theme="dark"] .x-filter-divider {
+[data-theme='dark'] .x-filter-divider {
   background: rgba(255, 255, 255, 0.08);
 }
 
 /* ---------- 底部批量操作栏 ---------- */
-[data-theme="dark"] .x-sab-btn {
+[data-theme='dark'] .x-sab-btn {
   background: rgba(255, 255, 255, 0.1);
   color: #f4f6f8;
 }
 
-[data-theme="dark"] .x-sab-primary {
+[data-theme='dark'] .x-sab-primary {
   background: #0071e3;
   color: #ffffff;
 }
 
 /* ---------- 详情抽屉 ---------- */
-[data-theme="dark"] .x-detail-container {
+[data-theme='dark'] .x-detail-container {
   background: rgba(0, 0, 0, 0.45);
 }
 
-[data-theme="dark"] .x-detail-panel {
+[data-theme='dark'] .x-detail-panel {
   background: rgba(22, 24, 31, 0.94);
   box-shadow: -20px 0 60px rgba(0, 0, 0, 0.5);
 }
 
-[data-theme="dark"] .drawer-header {
+[data-theme='dark'] .drawer-header {
   background: rgba(22, 24, 31, 0.9);
   border-bottom-color: rgba(255, 255, 255, 0.08);
 }
 
-[data-theme="dark"] .drawer-header h3 {
+[data-theme='dark'] .drawer-header h3 {
   color: #f4f6f8;
 }
 
-[data-theme="dark"] .detail-user-card {
+[data-theme='dark'] .detail-user-card {
   background: rgba(255, 255, 255, 0.05);
   border-color: rgba(255, 255, 255, 0.1);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
-[data-theme="dark"] .user-info .name {
+[data-theme='dark'] .user-info .name {
   color: #f4f6f8;
 }
 
-[data-theme="dark"] .user-info .type {
+[data-theme='dark'] .user-info .type {
   background: rgba(255, 255, 255, 0.09);
   color: #a7afba;
 }
 
-[data-theme="dark"] .detail-title {
+[data-theme='dark'] .detail-title {
   color: #f4f6f8;
 }
 
-[data-theme="dark"] .main-text {
+[data-theme='dark'] .main-text {
   color: #c9d4e4;
 }
 
-[data-theme="dark"] .source-content {
+[data-theme='dark'] .source-content {
   background: rgba(255, 255, 255, 0.045);
   border-left-color: #2997ff;
 }
 
-[data-theme="dark"] .source-label {
+[data-theme='dark'] .source-label {
   color: #8b9098;
 }
 
-[data-theme="dark"] .source-text {
+[data-theme='dark'] .source-text {
   color: #c9d4e4;
 }
 
-[data-theme="dark"] .full-date {
+[data-theme='dark'] .full-date {
   color: #8b9098;
 }
 
-[data-theme="dark"] .reply-textarea {
+[data-theme='dark'] .reply-textarea {
   background: rgba(255, 255, 255, 0.06);
   border-color: rgba(255, 255, 255, 0.12);
   color: #f4f6f8;
 }
 
-[data-theme="dark"] .reply-textarea:focus {
+[data-theme='dark'] .reply-textarea:focus {
   border-color: rgba(41, 151, 255, 0.6);
 }
 
-[data-theme="dark"] .cancel-reply-btn {
+[data-theme='dark'] .cancel-reply-btn {
   background: rgba(255, 255, 255, 0.08);
   color: #d5d9e0;
 }
 
-[data-theme="dark"] .submit-reply-btn {
+[data-theme='dark'] .submit-reply-btn {
   background: #0071e3;
   color: #ffffff;
 }
 
-[data-theme="dark"] .notification-actions {
+[data-theme='dark'] .notification-actions {
   background: rgba(22, 24, 31, 0.85);
   border-top-color: rgba(255, 255, 255, 0.08);
 }
 
-[data-theme="dark"] .notif-action-btn {
+[data-theme='dark'] .notif-action-btn {
   background: rgba(255, 255, 255, 0.07);
   border-color: rgba(255, 255, 255, 0.12);
   color: #d5d9e0;
 }
 
-[data-theme="dark"] .notif-action-btn.reply,
-[data-theme="dark"] .notif-action-btn.view-post,
-[data-theme="dark"] .notif-action-btn.unarchive {
+[data-theme='dark'] .notif-action-btn.reply,
+[data-theme='dark'] .notif-action-btn.view-post,
+[data-theme='dark'] .notif-action-btn.unarchive {
   color: #7cc0ff;
   border-color: rgba(41, 151, 255, 0.35);
 }
 
-[data-theme="dark"] .notif-action-btn.archive {
+[data-theme='dark'] .notif-action-btn.archive {
   color: #a7afba;
 }
 
-[data-theme="dark"] .notif-action-btn.mark-read {
+[data-theme='dark'] .notif-action-btn.mark-read {
   color: #6ee7a0;
   border-color: rgba(48, 209, 88, 0.3);
 }
 
 /* ---------- 骨架屏 / 加载更多 ---------- */
-[data-theme="dark"] .x-skeleton-avatar,
-[data-theme="dark"] .x-skeleton-line,
-[data-theme="dark"] .x-skeleton-detail-avatar {
+[data-theme='dark'] .x-skeleton-avatar,
+[data-theme='dark'] .x-skeleton-line,
+[data-theme='dark'] .x-skeleton-detail-avatar {
   background: rgba(255, 255, 255, 0.07);
 }
 
-[data-theme="dark"] .x-skeleton-detail-header {
+[data-theme='dark'] .x-skeleton-detail-header {
   color: #a7afba;
 }
 
-[data-theme="dark"] .x-load-more-btn {
+[data-theme='dark'] .x-load-more-btn {
   background: rgba(255, 255, 255, 0.06);
   border-color: rgba(255, 255, 255, 0.14);
   color: #d5d9e0;
 }
 
-[data-theme="dark"] .x-load-more-btn:hover:not(:disabled) {
+[data-theme='dark'] .x-load-more-btn:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.1);
 }
 
-[data-theme="dark"] .x-load-more-spinner {
+[data-theme='dark'] .x-load-more-spinner {
   border-color: rgba(255, 255, 255, 0.12);
   border-top-color: #2997ff;
 }
 
 /* ---------- 反馈 toast ---------- */
-[data-theme="dark"] .message-feedback-toast {
+[data-theme='dark'] .message-feedback-toast {
   background: rgba(28, 30, 38, 0.95);
   color: #f4f6f8;
 }
@@ -3053,68 +3224,68 @@
    这里只补仍写死亮色的三处：页面底、空态、蓝色强调。
    选择器用 html[data-theme]：.x-notifications-container 是路由挂载后才出现的，
    theme-manager 初始化时扫不到它，不能依赖容器自身带 data-theme。 */
-html[data-theme="home-cat"] .x-notifications-container,
-html[data-theme="anniversary-mc"] .x-notifications-container {
+html[data-theme='home-cat'] .x-notifications-container,
+html[data-theme='anniversary-mc'] .x-notifications-container {
   --x-accent: var(--boh-brand-blue);
   --x-item-ring: var(--boh-bg-elevated);
   background: var(--boh-page-bg);
 }
 
-html[data-theme="home-cat"] .x-notifications-container .empty-icon-circle,
-html[data-theme="anniversary-mc"] .x-notifications-container .empty-icon-circle {
+html[data-theme='home-cat'] .x-notifications-container .empty-icon-circle,
+html[data-theme='anniversary-mc'] .x-notifications-container .empty-icon-circle {
   background: var(--boh-bg-elevated);
   color: var(--boh-text-secondary);
 }
 
-html[data-theme="home-cat"] .x-notifications-container .x-empty h3,
-html[data-theme="anniversary-mc"] .x-notifications-container .x-empty h3 {
+html[data-theme='home-cat'] .x-notifications-container .x-empty h3,
+html[data-theme='anniversary-mc'] .x-notifications-container .x-empty h3 {
   color: var(--boh-text-primary);
 }
 
-html[data-theme="home-cat"] .x-notifications-container .x-empty p,
-html[data-theme="anniversary-mc"] .x-notifications-container .x-empty p {
+html[data-theme='home-cat'] .x-notifications-container .x-empty p,
+html[data-theme='anniversary-mc'] .x-notifications-container .x-empty p {
   color: var(--boh-text-secondary);
 }
 
-html[data-theme="home-cat"] .x-notifications-container .refresh-btn,
-html[data-theme="anniversary-mc"] .x-notifications-container .refresh-btn {
+html[data-theme='home-cat'] .x-notifications-container .refresh-btn,
+html[data-theme='anniversary-mc'] .x-notifications-container .refresh-btn {
   background: var(--x-accent);
   color: var(--boh-bg-elevated);
 }
 
-html[data-theme="home-cat"] .x-notifications-container .x-mark-all-btn,
-html[data-theme="anniversary-mc"] .x-notifications-container .x-mark-all-btn {
+html[data-theme='home-cat'] .x-notifications-container .x-mark-all-btn,
+html[data-theme='anniversary-mc'] .x-notifications-container .x-mark-all-btn {
   background: color-mix(in srgb, var(--x-accent) 10%, transparent);
   border-color: color-mix(in srgb, var(--x-accent) 18%, transparent);
   color: var(--x-accent);
 }
 
-html[data-theme="home-cat"] .x-notifications-container .x-item.active-detail,
-html[data-theme="anniversary-mc"] .x-notifications-container .x-item.active-detail {
+html[data-theme='home-cat'] .x-notifications-container .x-item.active-detail,
+html[data-theme='anniversary-mc'] .x-notifications-container .x-item.active-detail {
   background: color-mix(in srgb, var(--x-accent) 7%, transparent);
   box-shadow: inset 3px 0 0 var(--x-accent);
 }
 
-html[data-theme="home-cat"] .x-notifications-container .x-item.active-detail .x-action-type,
-html[data-theme="anniversary-mc"] .x-notifications-container .x-item.active-detail .x-action-type {
+html[data-theme='home-cat'] .x-notifications-container .x-item.active-detail .x-action-type,
+html[data-theme='anniversary-mc'] .x-notifications-container .x-item.active-detail .x-action-type {
   background: color-mix(in srgb, var(--x-accent) 12%, transparent);
   color: var(--x-accent);
 }
 
-html[data-theme="home-cat"] .x-notifications-container .x-item.unread,
-html[data-theme="anniversary-mc"] .x-notifications-container .x-item.unread {
+html[data-theme='home-cat'] .x-notifications-container .x-item.unread,
+html[data-theme='anniversary-mc'] .x-notifications-container .x-item.unread {
   background: color-mix(in srgb, var(--x-accent) 5%, transparent);
 }
 
-html[data-theme="home-cat"] .x-notifications-container .x-unread-dot,
-html[data-theme="anniversary-mc"] .x-notifications-container .x-unread-dot {
+html[data-theme='home-cat'] .x-notifications-container .x-unread-dot,
+html[data-theme='anniversary-mc'] .x-notifications-container .x-unread-dot {
   background: var(--x-accent);
   border-color: var(--x-item-ring);
 }
 
-html[data-theme="home-cat"] .x-notifications-container .x-item.unread .x-date,
-html[data-theme="home-cat"] .x-notifications-container .x-item.unread .inline-date,
-html[data-theme="anniversary-mc"] .x-notifications-container .x-item.unread .x-date,
-html[data-theme="anniversary-mc"] .x-notifications-container .x-item.unread .inline-date {
+html[data-theme='home-cat'] .x-notifications-container .x-item.unread .x-date,
+html[data-theme='home-cat'] .x-notifications-container .x-item.unread .inline-date,
+html[data-theme='anniversary-mc'] .x-notifications-container .x-item.unread .x-date,
+html[data-theme='anniversary-mc'] .x-notifications-container .x-item.unread .inline-date {
   color: var(--x-accent);
 }

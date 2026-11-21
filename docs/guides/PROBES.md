@@ -248,11 +248,12 @@ F5 后不得掉回整页详情：A 横屏刷新仍是弹窗 / B 仍是同一帖 
 | --- | --- | --- |
 | `probe-shop-detail-scroll.mjs` | — | 探针：商品详情的「滚动归属」（2026-11-10 用户报障「商城详情的滚动还是在滚动商品列表页」）。真因是页面滚动发生在 `html` 上（`html{overflow-y:auto!important}` + `body{overflow-y:visible!important}`），而代码只锁 `body` 的 inline 样式 ⇒ 等于没锁。A 组（横屏）钉：打开即锁根元素 / 封面·遮罩·内容三处滚轮都不带动背后列表 / 上锁不横向位移 / 关闭后恢复可滚；B 组（竖屏）钉内容区自己能滚且页面不动；C 组钉抽奖·订单分区没有误上锁。**反证**：撤掉 `useBodyScrollLock` 里锁 `documentElement` 那几行 → A1–A3 立刻红（2026-11-10 实测） |
 
-### 数据管理面板 / RLS / 权限（8）
+### 数据管理面板 / RLS / 权限（9）
 
 | 文件 | npm script | 说明 |
 | --- | --- | --- |
 | `audit-datamanagement-columns.mjs` | `npm run audit:dm-columns` | 数据管理面板「列错误」静态查错 原理：后台每个 tab 点击后会向 PostgREST 发一条带 select/filter/order 的查询。 |
+| `probe-fulfillment-workbench.mjs` | — | **数据管理「订单与礼物」履约台（30 断言，2026-11-21）**：拦截 `shop_points_orders` / `user_gifts` / `user_addresses` / `profiles` 与 `rpc/*`，伪造 admin 后直接打开 `?section=data&tab=fulfillment`。断言：商城单 / 抽奖自动单 / 赠礼同屏四条、概览计数与优先顺序 4/1/2/1/1（「待补信息」排第二，竖屏横滑时前两张卡必须是该看的数）、缺地址的抽奖单默认排首位、来源标签、待补信息筛选、重置筛选、就地推进的 PATCH 载荷、推进后按钮换档、已送达无地址不再提示「待补」、抽奖单详情交代自动建单口径、**一键复制是带字段名的三行（收货人/电话/地址）**、**后台取消走 `admin_cancel_shop_order` RPC 且二次确认写明「已寄出不自动退积分」**、**展开详情查 `admin_shop_order_mail_status` 账本并如实显示「已由 Brevo 发出」**、**推进状态后重新查账本不沿用旧结论**、**竖屏 390px 无横向溢出 / 操作按钮 ≥44px / 复制按钮带字 ≥32px / 概览可横滑**、横屏压缩次要文案、零 pageerror。⚠️ 数据全部 mock（不读写线上）；依赖 `npm run dev`。 |
 | `probe-privacy-cols.mjs` | — | （无头部说明） |
 | `probe-resolve-email-rpc.mjs` | — | 探测远程 resolve_email_for_login 是否已修复（email 从 auth.users 取） |
 | `probe-rest-spec.mjs` | — | （无头部说明） |
@@ -268,7 +269,7 @@ F5 后不得掉回整页详情：A 横屏刷新仍是弹窗 / B 仍是同一帖 
 | `probe-blank-screen-diagnosis.mjs` | — | 白屏诊断探针（只读，不改任何源码） 精确区分两类 chunk： 应用壳依赖 = 入口 app-*.js 的静态 import（8 个，Vue mount 之前必须全部到位） |
 | `probe-boot-perf.mjs` | — | 首屏性能对比：改造前(dist) vs 改造后(dist-check) 目的：确认内联启动骨架**让首帧内容提前出现**，并且不拖慢挂载/可交互。 |
 | `probe-commit-pipeline.mjs` | — | 提交 a180938 验证探针：Beta5 选图预热管线（压缩→检测→3路并发上传） |
-| `probe-console-entries.mjs` | — | 装修台入口探针 —— 验证数据管理面板里「商城装修 / 首页装修 / 头像框」 三个 page 类页签的接入与功能是否正常。 |
+| `probe-console-entries.mjs` | — | 装修台入口探针 —— 验证数据管理面板里「商品编辑台 / 首页装修 / 头像框」 三个 page 类页签的接入与功能是否正常。 |
 | `probe-core-pages-errors.mjs` | — | 核心路径运行时错误扫描：逐页访问并收集 pageerror / console.error， |
 | `probe-final-check.mjs` | — | 1. 页面顶部：侧栏不应遮 Hero（top 应等于其自然位置） |
 | `probe-first-paint-real.mjs` | — | 首屏测量受 Service Worker 安装态影响很大（第一次裸跑、第二次已被 SW 接管， |
@@ -320,8 +321,9 @@ F5 后不得掉回整页详情：A 横屏刷新仍是弹窗 / B 仍是同一帖 
 | `probe-messages-metrics.mjs` | — | 量测：消息页顶部每一层的实际占位（竖屏 + 横屏） |
 | `probe-bohai-portrait.mjs` | 5 | BOHAI 竖屏 390×844 适配回归（2026-10-15）：无横向滚动 / 模式与工具菜单全宽 action-sheet 不越视口 / 零 pageerror，附四张截图。⚠️ 登出态跑（模式清单确定性单行，多行满高场景由工具菜单承担）；模式清单 RPC 走真实网络，mock 形状保真度差会退化成单行干扰判断 |
 | `probe-messages-ui.mjs` | — | 探针：消息中心 UI 现状截图（注入 mock 通知数据） |
-| `probe-messages-select.mjs` | 91 | **消息中心「选择模式」横竖屏**（2026-10-18，plans/028）：5 档视口（390×844 / 844×390 / 740×360 / 1024×600 / 1280×800）× 进入选择→勾选 1→Esc，另加长按 / 桌面右键 / 已归档分区。断言：取消按钮存在+可见+`elementFromPoint` 命中；动作条在视口内且不压底栏；≥1024 选择模式下详情收起、Esc 后恢复；Esc 后选中归零 + `body.boh-messages-selecting` 摘除；0 选中时「已读」禁用（防误触「全部已读」）；手机横屏完全可见行 ≥3；横屏底栏让位；长按 450ms / 右键进模式并勾中该条；已归档分区入口为「取消归档」。⚠️ 三坑：① ≥1024 挂载即自动选中首条 ⇒ `detail-open` 常真，旧实现把动作面按成 0（模式与详情必须互斥）；② 竖屏底距 88px 会压底栏 7px，用 `--messages-sab-offset` 分档；③ 横屏动作条贴底与底栏相交（nav z-index 更高）⇒ 靠 body 标记让底栏让位，KeepAlive 下必须 `onActivated`/`onDeactivated` 同步 |
+| `probe-messages-select.mjs` | 100 | **消息中心「选择模式」横竖屏**（2026-10-18，plans/028；2026-11-21 扩 K/L 组）：5 档视口（390×844 / 844×390 / 740×360 / 1024×600 / 1280×800）× 进入选择→勾选 1→Esc，另加长按 / 桌面右键 / 已归档分区 / 手机横屏详情（K）/ 页头一键已读（L）。断言：取消按钮存在+可见+`elementFromPoint` 命中；动作条在视口内且不压底栏；≥1024 选择模式下详情收起、Esc 后恢复；Esc 后选中归零 + `body.boh-messages-selecting` 摘除；0 选中时「已读」禁用（防误触「全部已读」）；手机横屏完全可见行 ≥3；横屏底栏让位；长按 450ms / 右键进模式并勾中该条；已归档分区入口为「取消归档」；横屏详情返回钮可见可点（点它真能关详情）+ 动作条 static 不压正文；「全部已读」按钮只在收件箱且有未读时出现、点击后未读清零并收起、筛选下拉不含该项。⚠️ 四坑：① ≥1024 挂载即自动选中首条 ⇒ `detail-open` 常真，旧实现把动作面按成 0（模式与详情必须互斥）；② 竖屏底距 88px 会压底栏 7px，用 `--messages-sab-offset` 分档；③ 横屏动作条贴底与底栏相交（nav z-index 更高）⇒ 靠 body 标记让底栏让位，KeepAlive 下必须 `onActivated`/`onDeactivated` 同步；④ L 组的列表 mock 必须随 `mark_all_as_read` RPC **有状态翻转**（生产语义 = RPC 落库后重拉返回已读；mock 恒返 unread 行会把本地翻转盖回去，实测踩过），且两个未读 RPC 必须显式 mock —— 本地 dev 连着真项目，探针不许写真库；另：页头「全部已读」「选择」两颗钮都挂 `.x-mark-all-btn-minimal`，探针定位必须按文本锁「选择」，`.first()` 会点错（实测连环假红） |
 | `probe-messages-glass.mjs` | 21 | 消息中心液态玻璃验收（2026-10-15）：挂载/材质 token 口径/**像素级模糊开-关**（确定性条纹背板 + about:blank 整页重建）/采样根链（.tab-page 架构白名单）× 浅暗双主题 + 旧路由重定向。⚠️ 三坑：fixed 岛状态卡会探进页头 clip 污染能量读数（测前滚 300px + 藏岛）；暗色容器 `background !important`（0,2,0）会压平 0,1,0 背板条纹（同特异度 + 后注入才赢）；登录必须种**会话形状**（pinia 注入触发不了 supabase.getUser 的取数链 —— 无会话时它零网络静默返 null，实测踩过） |
+| `probe-messages-list-ux.mjs` | 25 | 消息中心列表视图 UX（2026-11-21 二期）：日期分组（今天/昨天/更早组头 + 顺序）、同帖点赞聚合（3 赞 1 行 + 头像堆叠 + 行内展开/收起 + 评论不聚）、详情连续处理（上一条/下一条 + 边界禁用 + J/K 键盘 + 归档 auto-advance）、左滑手势（吸附展开 + 滑层按钮 + 纵向复位 + 回弹吞点击 + 选择模式禁用）、虚拟滚动边界（>100 条无组头/无聚合）。⚠️ 五坑：① 列表 mock 必须**有状态**（PATCH 归档 / mark_single_as_read RPC 翻转本地集合，生产语义 = 落库后重拉一致；静态 mock 会被 120ms 重拉盖回去）；② 归档 PATCH 路由用**谓词**不用正则（`[?&]id=eq\.` 对「id 是首参」的 URL 先天不匹配，裸 `id=eq\.` 又误匹配 `recipient_id`）；③ 行入场动画 `message-row-in` 是 fill-mode: both，会永久压住 inline transform ⇒ 左滑在 `.x-item-swipe-cell > .x-item` 上必须 `animation: none`；④ `getUserNotifications` 按 limit 切片 ⇒ 要测 >100 虚拟阈值必须分页感知 mock + 滚动触发哨兵链（哨兵在视口外不自触发）；⑤ 横屏组头 CSS 隐藏（028 的 3 行预算被 ~30px 组头吃成 2 行，F 组断言抓到） |
 | `probe-news-image-check.mjs` | — | （无头部说明） |
 | `probe-overview-day-marker.mjs` | — | 离线总结「上次在线日 / 当日已检查」天粒度游标 — 纯函数单元验证 |
 | `probe-pd-modal.mjs` | — | 探针：横屏帖子详情弹窗化（openForumPost 单源分流 + 小红书式布局） |
