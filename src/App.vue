@@ -9,7 +9,6 @@ import { homeGateScreening } from '@/composables/useHomeGate.js';
 import { shouldMarkBootReady } from '@/utils/boot-readiness.js';
 import UnifiedNavbar from '@/components/UnifiedNavbar/index.vue';
 import BohIsland from '@/components/BohIsland.vue';
-import BohPetBlock from '@/components/BohPetBlock.vue';
 import GlobalErrorBoundary from '@/components/GlobalErrorBoundary.vue';
 import RouteProgressBar from '@/components/RouteProgressBar.vue';
 import { scheduleBottomNavPrefetch } from '@/utils/route-prefetch.js';
@@ -33,6 +32,19 @@ const AccountBindPrompt = createPanelAsync(
   () => import('@/components/AccountBindPrompt/index.vue'),
   { label: 'AccountBindPrompt', silent: true },
 );
+/* 全局挂件「小方」（2026-11-22）：**必须懒加载**。
+   它与 BohIsland 同属「隐形直到到岗」的浮层，但自身带着 723 行 canvas 渲染 +
+   activity-avatar-engine（17.9KB）+ boh-pet-bus / boh-pet-acts。静态 import 会
+   把这一整坨拖进入口 app.js ⇒ 首屏 gzip 从 12.0KB 涨到 29.3KB（CI 实测 +17.3KB），
+   首屏预算 262.1KB > 上限 259.9KB，deploy 的 Build with Bundle Gate 直接红。
+   口径同 vite.config.js 的 SHELL_CHUNKS 注释（第 224-228 行）：**修法是把组件改回
+   懒加载，不是把它加进预缓存名单** —— 后者只让弱网不白屏，首屏仍要多下这十几 KB。
+   silent: true 与上面三个浮层同理：挂件平时靠内部状态隐藏，chunk 失败时不能
+   在页面角落裸露一块「正在加载…」占位；失败出口同样是恢复链强刷。 */
+const BohPetBlock = createPanelAsync(() => import('@/components/BohPetBlock.vue'), {
+  label: 'BohPetBlock',
+  silent: true,
+});
 import { useConfirmDialog } from '@/composables/useConfirmDialog.js';
 import PWAUpdateToast from '@/components/PWAUpdateToast/index.vue';
 import PostDetailModal from './views/PostDetail/PostDetailModal.vue';
