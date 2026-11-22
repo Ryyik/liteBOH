@@ -15,7 +15,7 @@
 | 横屏左栏落位 | `probe-rail-landing.mjs` | 45 |
 | **横屏左栏「更多」浮层**（窄栏 88px 下主题 / 退出登录不被滚动容器裁成半个字、不被内容层遮挡；含反证自检） | `probe-rail-more-menu.mjs` | 16 |
 | 首屏拉动入场动效 | `probe-home-gate-pull.mjs` | 50 |
-| 论坛搜索 | `probe-forum-search.mjs` | 27 |
+| 论坛搜索 | `probe-forum-search.mjs` | 39 |
 | **论坛/详情「从哪来、回哪去」空间连续性**（图片查看器从缩略图 rect 起、关闭缩回同一张；详情正文卡从列表卡片 rect 形变入场；返程克隆层末帧落回入口卡片矩形；落定后 `transform: none`；reduce 下形变全跳过） | `probe-forum-motion.mjs` | 22 |
 | **帖子列表大图浏览**（翻页左箭头不被 stage/图片盖住；点空白关闭、点图片不关闭、拖拽不误关；开合动效逐帧采样 + reduce 口径） | `probe-forum-image-viewer.mjs` | 27 |
 | **帖子详情弹窗 chunk 加载失败兜底**（部署窗口期旧入口 import 旧 chunk 404：错误态出现、不再无声空白、DEV 不强刷、正常路径内容完整渲染） | `probe-pd-modal-chunk-fail.mjs` | 12 |
@@ -34,6 +34,7 @@
 | 方块积分卡自定义卡面裂图 | `probe-points-card-image.mjs` | 7 |
 | 订阅权益 / 配额 | `probe-subscription-benefits.mjs` | 49 |
 | **商城商品详情的滚动归属**（详情打开期间背后列表必须一动不动；竖屏详情内容区自己能滚；关闭后页面恢复可滚；上锁不引起横向位移；抽奖/订单分区不误上锁） | `probe-shop-detail-scroll.mjs` | 11 |
+| **商城大屏布局**（超大屏内容限宽 1480 居中（真源 `--page-content-max`）+ 商品/抽奖 auto-fill 自适应增列（2560→5 列 ~283px）+ 订单/袋/地址 760 面板居中；1440 档回归旧三列口径、竖屏 2 列不动；含反证） | `probe-large-screen-layout.mjs` | 17 |
 | 竖屏导航菜单的接缝与内部几何（一级/二级/三级 + 窄横屏档） | `probe-nav-mobile-menu.mjs` | 48 |
 | **数据管理面板「按功能名找入口」**（侧栏搜「补发」→ 积分发放 / 订阅发放；独立控制台页也能搜到；↵ 直接打开；⌘K 与侧栏共用同一份索引；同一个模块不在「功能」「模块」两组重复出现）。功能清单唯一真源 `src/views/DataManagement/config/function-index.js`（别名表也在里面），纯逻辑由 `tests/unit/admin-function-index.test.js` 覆盖 | `probe-admin-function-search.mjs` | 16 |
 | **极简骨架第一个真模块**（`/admin/users-minimal`：第一行数据 ≤160px、首屏可交互 ≤40、6 列；竖屏行高 ≥56、三列折进第二行、编辑改底部抽屉；横屏编辑从右侧进；空用户名禁用保存；未接模块带「旧」角标且落回旧面板）。阈值是上限，骨架稳定后应继续收紧 | `probe-admin-users-minimal.mjs` | 15 |
@@ -59,7 +60,7 @@
 | `probe-datamanagement-errors.mjs` | `npm run probe:dm-errors` | 数据管理面板「一键查错」运行时探针 做法：伪造 admin 登录 → 遍历侧栏每个模块 + 每个页签 → 采集 |
 | `probe-datamanagement-smoke.mjs` | — | 直接请求数据管理页模块，让 vite 现场编译，验证修复后的文件无编译错误 |
 | `probe-datamanagement-validator.mjs` | — | 数据管理面板校验器回归测试：复现"新闻模板保存报 Cannot read properties of undefined (reading 'includes')" |
-| `probe-forum-search.mjs` | — | 探针：论坛搜索体验增强（清除按钮 / ⌘K 聚焦 / 最近搜索 / 结果计数 / 无结果引导），网络全程 mock |
+| `probe-forum-search.mjs` | — | 探针：论坛搜索体验增强（清除按钮 / ⌘K 聚焦 / 最近搜索 / 结果计数 / 无结果引导 / 2026-11-22 问 BOHAI 内联回答卡片——不弹岛、卡片位置、原句回显、SSE 流式、换词收卡、点卡片跳 /ai-chat 交接），网络全程 mock（AI 链路 = SSE fetch 包装逐块重放，抄 probe-bohai-keepalive-stream） |
 | `probe-forum-motion.mjs` | — | 探针：空间连续性（plans/035）—— 来源 rect 对齐 / 落点回归 / 落定 transform 归零 / 克隆层无残留 / reduce 降级 |
 | `probe-home-forum-rail.mjs` | — | 探针：首页（论坛层）横屏左栏 —— 修复「换个入口进论坛，左右栏结构就没了」 |
 | `probe-home-gate-pull.mjs` | — | 探针：首页开场画「跟手拖拽」入场（2026-09-27 由阈值触发改为 progress 派生） |

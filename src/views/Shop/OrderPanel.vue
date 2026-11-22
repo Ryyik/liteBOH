@@ -261,6 +261,9 @@ defineExpose({ refresh: loadOrders });
   color: var(--boh-text-primary, #1d1d1f);
   width: 100%;
   max-width: 760px;
+  /* 2026-11-22：商品/抽奖网格上限收进 1480 居中后，列表分区也跟着居中，
+     不再钉在内容区左侧（大屏下右侧会空出一大块）。 */
+  margin-inline: auto;
 }
 
 /* 整条是一个按钮（点哪儿都进「地址」分区），所以要把浏览器给 button 的默认外观抹掉。

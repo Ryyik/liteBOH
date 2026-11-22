@@ -45,6 +45,8 @@ const { isLoggedIn, showLoginModal } = storeToRefs(authStore);
 .addr-panel {
   width: 100%;
   max-width: 760px;
+  /* 2026-11-22：商品/抽奖网格上限收进 1480 居中后，列表分区也跟着居中（与订单/购物袋同） */
+  margin-inline: auto;
   color: var(--boh-text-primary, #1d1d1f);
 }
 

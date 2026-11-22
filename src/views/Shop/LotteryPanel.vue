@@ -203,19 +203,13 @@ watch(
   gap: 12px;
 }
 
+/* 横屏与商品网格（style.scoped.css）同一套 auto-fill 口径：手机横屏自然落两列
+   （右侧要让出竖排底栏胶囊），平板/桌面随宽度 3→4→5 列。
+   2026-11-22 前「16:9 封面被拉成巨幅横幅」的问题由「容器限宽 1480
+   （--page-content-max）+ 列数自适应」一起收掉，不再需要固定三列档。 */
 @media (orientation: landscape) {
   .lt-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-/* 电脑 / 平板横屏（≥1024）与商品网格同口径升到三列（2026-11-01 用户口径
-   「横屏全宽屏布局，能放三张就三张」）：两列在全宽下每张接近 500 宽，
-   16:9 封面被拉成巨幅横幅，腰封标题一行铺满反而不好扫读。
-   手机横屏（≤1023）保持两列 —— 右侧要让出竖排底栏胶囊，三列会把封面压扁。 */
-@media (orientation: landscape) and (min-width: 1024px) {
-  .lt-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr));
   }
 }
 

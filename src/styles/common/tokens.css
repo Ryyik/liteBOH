@@ -22,9 +22,10 @@
  *    门禁 scripts/check-liquid-glass.mjs 禁三类重复定义：
  *      --glass-filter-* 再派生 / 成品档字面量 / blur(NNpx) 且 NN≥14
  *
- * 3. Layout Tokens — 跨组件必须一致、禁止各自写死的布局常量（--boh-*）
- *    现有 2 个：--boh-login-island-width（横屏登录岛宽度，导航上半岛与登录卡片共用）
+ * 3. Layout Tokens — 跨组件必须一致、禁止各自写死的布局常量（--boh-* / --page-*）
+ *    现有 3 个：--boh-login-island-width（横屏登录岛宽度，导航上半岛与登录卡片共用）
  *              --boh-login-island-bg（横屏登录岛材质，上下两半必须同色）
+ *              --page-content-max（全站内容页宽度上限，商城与论坛共用）
  * ==============================================
  */
 
@@ -115,6 +116,16 @@
      且与基础登录弹窗（login-modal.css 的 #fff）、/login 表单区不一致。
      暗色取 #1c1c1e（比页面底 #0a0a0f 亮一档的抬升面），见下方 [data-theme="dark"]。 */
   --boh-login-island-bg: #ffffff;
+
+  /* 全站内容页宽度上限（2026-11-22）：桌面横屏下各内容页把主内容收到同一条上限并居中，
+     超大屏（2560px+）不再无限拉伸 —— 不限宽时商城 3 列会把单卡摊到 ~750px 见方。
+     消费方 3 个：
+       · views/Shop/style.scoped.css        .store-head/.store-tabs/.store-main 横屏分支
+       · views/Forum/styles/base.css        .forum-container（原字面量 1480，值不变换真源）
+       · views/user-center/UserSpace/styles/landscape-rail.css  内嵌论坛 .forum-container
+     1480 取论坛既有上限：商城与论坛在超大屏上左右对齐、观感统一。
+     卡片密度不跟这条上限走 —— 网格自身用 auto-fill minmax 自适应增列。 */
+  --page-content-max: 1480px;
 
   /* Page surface — 全站页面底色（2026-09-23：改回纯白）
      只服务 body 底色一处消费（src/style.css），**不要**拿它当面板/卡片底色 ——

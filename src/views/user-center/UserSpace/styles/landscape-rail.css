@@ -124,9 +124,10 @@
   }
 
   /* forum-container 的 max-width 含 100vw（视口宽）：分栏后视口宽 ≠ 可用宽，
-     改为纯上限，交由父容器（右区）决定实际宽度与居中 */
+     改为纯上限，交由父容器（右区）决定实际宽度与居中。
+     1480 换真源 --page-content-max（tokens.css，商城横屏分支同源）。 */
   .user-space-page .forum-container {
-    max-width: min(1480px, 100%);
+    max-width: min(var(--page-content-max, 1480px), 100%);
   }
 
   /* 内嵌论坛的发帖悬浮球：原 144px 是避让底栏，横屏底栏已隐藏 */

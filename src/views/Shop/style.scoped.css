@@ -266,21 +266,27 @@
 }
 
 /* 横屏 = 全宽屏布局（2026-11-01 用户口径：「横屏使用全宽屏布局，
-   如果能放下三张卡片就放三张吧」）：
-   · 取消原来的 760px 限宽，内容铺满左栏右侧的整块宽度，两侧只留 24 的呼吸
-   · 商品卡升到三列 —— 三张并排是这一档的目标密度
-   下方 (min-width: 1024px) 那一档才是三列：手机横屏右侧还要让出竖排底栏胶囊，
-   再切三列每张只剩 200 出头，图会被压成邮票。 */
+   如果能放下三张卡片就放三张吧」；2026-11-22 补超大屏档）：
+   · 笔记本档（可用宽 <1480）：内容铺满左栏右侧的整块宽度，两侧只留 24 的呼吸
+     （width: calc(100% - 48px) 与原 margin: 0 24px 几何相同）
+   · 超大屏档（≥1760 视口）：内容收进 --page-content-max(1480px) 居中 ——
+     不限宽时固定列数会把单卡摊到 ~750px 见方，一行反而只剩 3 张；
+     1480 与论坛 .forum-container 同一条上限，两页在超大屏上左右对齐
+   商品卡不用固定列数：auto-fill + minmax(280px) 让列数随可用宽度自己长
+   （1024 视口 3 列 → 1600 视口 4 列 → 1480 上限内 5 列 ~283px/卡）。
+   手机横屏（≤1023）右侧要让出竖排底栏胶囊，(100% - 48px) 之后自然落回两列，
+   不用单写一档；banner/large 形态卡 grid-column: 1/-1 通栏语义不受影响。 */
 @media (orientation: landscape) {
   .store-head,
   .store-tabs,
   .store-main {
-    width: auto;
-    margin: 0 24px;
+    width: min(calc(100% - 48px), var(--page-content-max, 1480px));
+    margin-inline: auto;
   }
 
   .product-grid {
     gap: 16px;
+    grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr));
   }
 }
 
@@ -294,12 +300,6 @@
 
   .store-tabs button {
     font-size: 14px;
-  }
-}
-
-@media (orientation: landscape) and (min-width: 1024px) {
-  .product-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 

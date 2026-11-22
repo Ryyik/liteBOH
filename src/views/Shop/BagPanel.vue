@@ -246,6 +246,8 @@ const removeItem = (item) => {
      限宽 760 与商品内容列、订单、地址同宽，切 Tab 时左右边界不跳。 */
   width: 100%;
   max-width: 760px;
+  /* 2026-11-22：商品/抽奖网格上限收进 1480 居中后，列表分区也跟着居中（与订单/地址同） */
+  margin-inline: auto;
 }
 
 .bag-list {

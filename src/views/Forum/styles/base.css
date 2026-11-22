@@ -14,7 +14,9 @@
 }
 
 .forum-container {
-  max-width: min(1480px, calc(100vw - 48px));
+  /* 1480 = 全站内容页宽度上限真源 --page-content-max（src/styles/common/tokens.css），
+     商城横屏分支与内嵌论坛（landscape-rail.css）消费同一个 token，值不变换真源。 */
+  max-width: min(var(--page-content-max, 1480px), calc(100vw - 48px));
   margin: 0 auto;
   padding: 0 clamp(16px, 2vw, 28px) 100px;
 }
