@@ -50,17 +50,10 @@ const LOTTERY_STATUS_LABELS = {
   cancelled: '已取消',
 };
 
-/* 礼物状态词表与资产页、礼物中心保持一致（preparing / processing / shipped / completed）。
-   礼物 2026-11-02 起并入购物袋订单：它是「我买/我得的实物，要看寄到哪了」，
-   和商城订单、中奖记录是同一类诉求，不该再单独占资产页的一个二级页。 */
-const GIFT_STATUS_LABELS = {
-  preparing: '准备中',
-  shipped: '已发货',
-  completed: '完成',
-  cancelled: '取消',
-  // 历史值兜底（迁移 2026110201 已把它们归并成 preparing）
-  processing: '准备中',
-};
+/* 礼物状态词表已并入 shopStatusLabel（2026-11-21）：
+   两者状态值完全一致（preparing / shipped / completed / cancelled），原先各维护
+   一份的后果是订单页写「已寄出」、礼物卡写「已发货」——同一件事两个说法。
+   历史值 processing 的兜底也由 shopStatusLabel 统一处理。 */
 
 const toInt = (value) => {
   const number = Number(value);
@@ -172,7 +165,7 @@ const normalizeGiftOrder = (row) => {
     subtitle: Number(row?.gift_price) > 0 ? `礼物 · RMB ${Number(row.gift_price)}` : '社区礼物',
     createdAt: row?.completed_at || row?.updated_at || row?.created_at || null,
     status,
-    statusLabel: GIFT_STATUS_LABELS[status] || status,
+    statusLabel: shopStatusLabel(status),
     isActive: row?.is_active !== false,
     image: String(row?.gift_image || ''),
   };
@@ -419,6 +412,9 @@ const CANCEL_ERROR_TEXT = {
   INVALID_INPUT: '参数不对，请刷新后重试',
   ORDER_NOT_FOUND: '找不到这个订单',
   ORDER_NOT_CANCELLABLE: '订单已发货，无法自助取消',
+  ORDER_COMPLETED: '已完成的订单是终态，不能取消',
+  NOT_ADMIN: '仅管理员可取消订单',
+  ADMIN_CANCEL_FAILED: '后台取消订单失败，请稍后再试',
   GIFT_NOT_FOUND: '找不到这条礼物记录',
   GIFT_NOT_CANCELLABLE: '礼物已经发出，无法取消',
   // 2026-11-03 A3：cancel_shop_order 加了 20 次/小时节流
@@ -457,6 +453,105 @@ export async function cancelShopOrder(orderId) {
       ? Number(result.current_points)
       : null,
   };
+}
+
+/**
+ * 后台取消订单（2026-11-21）。
+ *
+ * 不能复用 cancelShopOrder：那个 RPC 的判据是 `order.user_id = auth.uid()`，
+ * 管理员调用只会得到 ORDER_NOT_FOUND。后台版由数据库校验 admin，且在
+ * preparing 时退积分 + 写流水；shipped 允许取消但不自动退，completed 拒绝。
+ * 返回值里的 mailQueued 只代表 mail_outbox 已入账，不代表 Brevo 已送达
+ * —— 要确认是否真的发出，用 fetchShopOrderMailStatus 查账本。
+ */
+export async function adminCancelShopOrder(orderId, reason = 'admin_cancel') {
+  const id = String(orderId || '').trim();
+  if (!id) return { ok: false, message: '找不到这个订单' };
+
+  const { data, error } = await supabase.rpc('admin_cancel_shop_order', {
+    p_order_id: id,
+    p_reason: String(reason || 'admin_cancel'),
+  });
+  if (error) return { ok: false, message: readRpcFailure(error, '取消订单') };
+
+  const result = data && typeof data === 'object' ? data : {};
+  if (result.ok !== true) {
+    return {
+      ok: false,
+      message:
+        CANCEL_ERROR_TEXT[String(result.message || '')] || String(result.message || '取消失败'),
+    };
+  }
+
+  return {
+    ok: true,
+    status: 'cancelled',
+    alreadyCancelled: String(result.message || '') === 'ALREADY_CANCELLED',
+    previousStatus: String(result.previous_status || ''),
+    refundedPoints: Math.max(0, Number(result.refunded_points) || 0),
+    currentPoints: Number.isFinite(Number(result.current_points))
+      ? Number(result.current_points)
+      : null,
+    mailQueued: Boolean(result.mail_queued),
+  };
+}
+
+/* ── 进度邮件的真实投递结果（2026-11-21）─────────────────────────────
+ *
+ * 用户问的是「推进进度到底有没有发 Brevo 邮件」。此前后台无法回答：
+ * mail_outbox 只授 service_role，管理员读不到。现在走只读 RPC
+ * admin_shop_order_mail_status，把状态摊开：
+ *
+ *   pending → 已入队，follow-mail-send 还没处理（5 分钟 cron 兜底）
+ *   sent    → Brevo 已接受
+ *   skipped → 不会发了（无邮箱 / 用户没开），原因在 last_error
+ *   failed  → 重试用尽后放弃，原因在 last_error
+ *
+ * 失败**不抛错**：邮件状态是附加信息，查不到不能连累履约队列本身。
+ */
+export const MAIL_STATUS_TEXT = {
+  pending: '邮件已入队，等待投递',
+  sent: '邮件已由 Brevo 发出',
+  skipped: '邮件未发送',
+  failed: '邮件投递失败',
+};
+
+export async function fetchShopOrderMailStatus(orderId) {
+  const id = String(orderId || '').trim();
+  if (!id) return { ok: false, message: '找不到这个订单', hasRecord: false };
+
+  try {
+    const { data, error } = await supabase.rpc('admin_shop_order_mail_status', {
+      p_order_id: id,
+    });
+    if (error) {
+      logger.warn('shop-orders', '查询订单邮件状态失败', error);
+      return { ok: false, message: '邮件状态暂时查不到', hasRecord: false };
+    }
+
+    const result = data && typeof data === 'object' ? data : {};
+    if (result.ok !== true) {
+      return { ok: false, message: '没有权限查询邮件状态', hasRecord: false };
+    }
+    if (result.has_record !== true) {
+      return { ok: true, hasRecord: false, status: '', statusText: '这单还没有进度邮件' };
+    }
+
+    const status = String(result.status || '');
+    return {
+      ok: true,
+      hasRecord: true,
+      status,
+      statusText: MAIL_STATUS_TEXT[status] || '邮件状态未知',
+      lastError: String(result.last_error || ''),
+      attempts: Math.max(0, toInt(result.attempts)),
+      sentAt: result.sent_at || null,
+      queuedAt: result.queued_at || null,
+    };
+  } catch (error) {
+    logger.warn('shop-orders', '查询订单邮件状态异常', error);
+    return { ok: false, message: '邮件状态暂时查不到', hasRecord: false };
+  }
 }
 
 export async function cancelGift(giftId) {
@@ -542,14 +637,31 @@ const ADMIN_ORDER_LIMIT = 60;
 export async function fetchAllShopOrders({ limit = ADMIN_ORDER_LIMIT } = {}) {
   const take = Math.max(1, Math.min(200, Number(limit) || ADMIN_ORDER_LIMIT));
   try {
-    const { data, error } = await supabase
-      .from('shop_points_orders')
-      .select(
-        'id, order_no, user_id, items, points_used, total_points, rmb_total, payment_mode, status, created_at, updated_at, shipping_recipient, shipping_phone, shipping_address, remark, source, lottery_id',
-      )
-      .order('created_at', { ascending: false })
-      .limit(take);
+    const baseColumns =
+      'id, order_no, user_id, items, points_used, total_points, rmb_total, payment_mode, status, created_at, updated_at, shipping_recipient, shipping_phone, shipping_address, remark';
+    const query = (columns) =>
+      supabase
+        .from('shop_points_orders')
+        .select(columns)
+        .order('created_at', { ascending: false })
+        .limit(take);
 
+    /* 库还没跑 2026112001 时 source / lottery_id 不存在，整页不能跟着挂：
+       用旧列再查一次，抽奖单退化成普通订单展示（只是没有来源标签）。 */
+    let result = await query(`${baseColumns}, source, lottery_id`);
+    if (result.error) {
+      const code = String(result.error?.code || '');
+      const message = String(result.error?.message || '');
+      const missingSourceColumns =
+        code === '42703' ||
+        code === 'PGRST204' ||
+        /column .* (source|lottery_id) does not exist/i.test(message);
+      if (missingSourceColumns) {
+        result = await query(baseColumns);
+      }
+    }
+
+    const { data, error } = result;
     if (error) {
       logger.warn('shop-orders', '加载全部订单失败', error);
       return { data: [], error };
@@ -583,4 +695,155 @@ export async function fetchAllShopOrders({ limit = ADMIN_ORDER_LIMIT } = {}) {
     logger.warn('shop-orders', '加载全部订单异常', error);
     return { data: [], error };
   }
+}
+
+/* ── 管理员履约队列：赠礼（user_gifts）────────────────────────────────
+ *
+ * 2026-11-21：数据管理面板里「商城订单」和「礼物管理」是两个互不相干的表格，
+ * 一个要按状态推进，另一个要翻地址/用户再判断。这里把赠礼也整理成与订单
+ * 同形的记录，供「订单与礼物」页合并展示。
+ *
+ * 地址口径：不与 user_gifts 内联，统一从 user_addresses 取（地址管理是唯一
+ * 地址源；gift.address_id 优先，缺省回落该用户默认地址）。
+ */
+
+const ADMIN_GIFT_LIMIT = 200;
+
+const normalizeGiftAdminRow = (row, address, username) => {
+  const status = String(row?.gift_status || 'preparing');
+  const region = String(address?.region || '').trim();
+  const detail = String(address?.detail || '').trim();
+  return {
+    kind: 'gift',
+    id: String(row?.id || ''),
+    orderNo: String(row?.gift_no || ''),
+    userId: String(row?.user_id || ''),
+    username: username || '未知用户',
+    title: String(row?.gift_content || '未命名礼物'),
+    subtitle: row?.is_active === false ? '历史礼物' : '社区礼物',
+    status,
+    statusLabel: shopStatusLabel(status),
+    createdAt: row?.created_at || null,
+    updatedAt: row?.updated_at || null,
+    completedAt: row?.completed_at || null,
+    source: 'gift',
+    lotteryId: '',
+    priceText: Number(row?.gift_price) > 0 ? `¥${Number(row.gift_price)}` : '赠礼',
+    points: Math.max(0, toInt(row?.gift_points)),
+    items: [
+      {
+        title: String(row?.gift_content || '未命名礼物'),
+        quantity: 1,
+        specLabel: '',
+        image: String(row?.gift_image || ''),
+      },
+    ],
+    shipping: {
+      recipient: String(address?.recipient || ''),
+      phone: String(address?.phone || ''),
+      address: [region, detail].filter(Boolean).join(' '),
+    },
+    remark: row?.is_active === false ? '已归档为历史礼物' : '',
+    isActive: row?.is_active !== false,
+  };
+};
+
+/** 管理员读全部赠礼（RLS user_gifts_admin_select 仅管理员可见）。 */
+export async function fetchAllUserGifts({ limit = ADMIN_GIFT_LIMIT } = {}) {
+  const take = Math.max(1, Math.min(200, Number(limit) || ADMIN_GIFT_LIMIT));
+  try {
+    const { data, error } = await supabase
+      .from('user_gifts')
+      .select(
+        'id, user_id, gift_no, gift_content, gift_price, gift_points, gift_image, gift_status, is_active, address_id, completed_at, created_at, updated_at, profile:user_id(username)',
+      )
+      .order('created_at', { ascending: false })
+      .limit(take);
+
+    if (error) {
+      logger.warn('shop-orders', '加载全部赠礼失败', error);
+      return { data: [], error };
+    }
+
+    const rows = Array.isArray(data) ? data : [];
+    const userIds = [...new Set(rows.map((row) => String(row?.user_id || '')).filter(Boolean))];
+    let addressById = new Map();
+    let defaultAddressByUser = new Map();
+    if (userIds.length) {
+      const { data: addresses, error: addressError } = await supabase
+        .from('user_addresses')
+        .select('id, user_id, recipient, phone, region, detail, is_default')
+        .in('user_id', userIds);
+      if (addressError) logger.warn('shop-orders', '读取赠礼收货地址失败', addressError);
+      for (const address of Array.isArray(addresses) ? addresses : []) {
+        addressById.set(String(address?.id || ''), address);
+        const uid = String(address?.user_id || '');
+        if (!uid) continue;
+        const current = defaultAddressByUser.get(uid);
+        if (!current || (address?.is_default && !current?.is_default)) {
+          defaultAddressByUser.set(uid, address);
+        }
+      }
+    }
+
+    return {
+      data: rows.map((row) => {
+        const profile = Array.isArray(row?.profile) ? row.profile[0] : row?.profile;
+        const address =
+          addressById.get(String(row?.address_id || '')) ||
+          defaultAddressByUser.get(String(row?.user_id || '')) ||
+          null;
+        return normalizeGiftAdminRow(row, address, String(profile?.username || '').trim());
+      }),
+      error: null,
+    };
+  } catch (error) {
+    logger.warn('shop-orders', '加载全部赠礼异常', error);
+    return { data: [], error };
+  }
+}
+
+/** 管理员推进赠礼进度：preparing → shipped → completed（取消是终止态，不在此路）。 */
+const GIFT_ADVANCE_STATUSES = new Set(['shipped', 'completed']);
+
+export async function advanceUserGiftStatus(giftId, nextStatus) {
+  const id = String(giftId || '').trim();
+  const target = String(nextStatus || '').trim();
+  if (!id) return { ok: false, message: '找不到这条礼物记录' };
+  if (!GIFT_ADVANCE_STATUSES.has(target)) return { ok: false, message: '不支持的礼物状态' };
+
+  try {
+    const { data, error } = await supabase
+      .from('user_gifts')
+      .update({ gift_status: target, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select('id, gift_status')
+      .maybeSingle();
+
+    if (error) {
+      logger.warn('shop-orders', '推进赠礼进度失败', error);
+      return { ok: false, message: '推进失败，请稍后再试' };
+    }
+    if (!data) return { ok: false, message: '没有权限或礼物不存在' };
+    return { ok: true, status: String(data.gift_status || target) };
+  } catch (error) {
+    logger.warn('shop-orders', '推进赠礼进度异常', error);
+    return { ok: false, message: '推进失败，请稍后再试' };
+  }
+}
+
+/**
+ * 履约台一次取齐两条来源。
+ * 任何一路失败都返回另一路（赠礼读失败不该让整页空白）。
+ */
+export async function fetchFulfillmentQueue({ limit = 200 } = {}) {
+  const [orders, gifts] = await Promise.all([
+    fetchAllShopOrders({ limit }),
+    fetchAllUserGifts({ limit }),
+  ]);
+  return {
+    orders: orders.data,
+    gifts: gifts.data,
+    error: orders.error || gifts.error || null,
+  };
 }
