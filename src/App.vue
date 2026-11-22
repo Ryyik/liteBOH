@@ -9,6 +9,7 @@ import { homeGateScreening } from '@/composables/useHomeGate.js';
 import { shouldMarkBootReady } from '@/utils/boot-readiness.js';
 import UnifiedNavbar from '@/components/UnifiedNavbar/index.vue';
 import BohIsland from '@/components/BohIsland.vue';
+import BohPetBlock from '@/components/BohPetBlock.vue';
 import GlobalErrorBoundary from '@/components/GlobalErrorBoundary.vue';
 import RouteProgressBar from '@/components/RouteProgressBar.vue';
 import { scheduleBottomNavPrefetch } from '@/utils/route-prefetch.js';
@@ -440,6 +441,7 @@ const showGlobalNavbar = computed(() => isGlobalNavbarVisible(route, homeGateScr
        App 级常驻（壳同步渲染、内容懒加载）—— 不依赖导航栏存在，
        hideNavbar / user-space 子视图等路由照样可用；`/` 快捷键归它管 -->
   <BohIsland />
+  <BohPetBlock />
 
   <!-- 首屏加载态：路由就绪前替代主体空白（骨架样式来自 index.html 内联样式） -->
   <div
