@@ -1186,6 +1186,83 @@ describe('useConversationManager', () => {
       expect(conflicted.syncSessionsFromStorage()).toBe(true);
       expect(loadBohAIChatSessionsFromStorage).toHaveBeenCalled();
     });
+
+    // ==========================================================
+    // flushSessionsToStorage / reloadSessionsFromStorage
+    // 2026-11-22 论坛内联卡片交接的两个出口：
+    //   · flush = 点卡片跳全页前绕过 500ms 防抖立即写（交接靠 timestamp 在存储里找会话）；
+    //   · reload = 全页消费交接时无条件读回（卡片实例写的存储，页面实例不一定冲突过，
+    //     syncSessionsFromStorage 的条件版会静默跳过）。
+    // ==========================================================
+    describe('flushSessionsToStorage', () => {
+      beforeEach(() => {
+        vi.useFakeTimers();
+      });
+
+      afterEach(() => {
+        vi.useRealTimers();
+      });
+
+      it('立即写入，不等防抖窗口', () => {
+        manager.chatSessions[0] = createSession({ title: 'Flush me' });
+        saveBohAIChatSessionsToStorage.mockClear();
+
+        manager.flushSessionsToStorage();
+
+        expect(saveBohAIChatSessionsToStorage).toHaveBeenCalledTimes(1);
+      });
+
+      it('冲掉已排队的防抖保存（不再二次写）', () => {
+        saveBohAIChatSessionsToStorage.mockClear();
+        manager.scheduleSaveSessions();
+        manager.flushSessionsToStorage();
+        const callsAfterFlush = saveBohAIChatSessionsToStorage.mock.calls.length;
+
+        vi.advanceTimersByTime(2000);
+
+        expect(saveBohAIChatSessionsToStorage.mock.calls.length).toBe(callsAfterFlush);
+      });
+
+      it('写入冲突语义与 saveSessions 一致：守卫拒绝时放弃写入', () => {
+        const guard = {
+          adopt: vi.fn(() => null),
+          canWrite: vi.fn(() => false),
+          commit: vi.fn(() => null),
+        };
+        createBohAISessionWriteGuard.mockReturnValueOnce(guard);
+        const conflicted = createManager(vi.fn());
+        saveBohAIChatSessionsToStorage.mockClear();
+
+        conflicted.flushSessionsToStorage();
+
+        expect(saveBohAIChatSessionsToStorage).not.toHaveBeenCalled();
+        expect(conflicted.syncSessionsFromStorage()).toBe(true);
+      });
+    });
+
+    describe('reloadSessionsFromStorage', () => {
+      it('没有冲突过也无条件重载（区别于 syncSessionsFromStorage）', () => {
+        loadBohAIChatSessionsFromStorage.mockReturnValue([
+          { title: 'Handoff Session', messages: [], timestamp: 9999 },
+        ]);
+
+        // syncSessionsFromStorage 在「从没放弃过写入」时返回 false —— 交接消费不能走它
+        expect(manager.syncSessionsFromStorage()).toBe(false);
+
+        expect(manager.reloadSessionsFromStorage()).toBe(true);
+        expect(manager.chatSessions[0].title).toBe('Handoff Session');
+        expect(manager.chatSessions[0].timestamp).toBe(9999);
+      });
+
+      it('存储为空时保留现有会话（loadSessions 既有语义）', () => {
+        loadBohAIChatSessionsFromStorage.mockReturnValue([]);
+        const before = manager.chatSessions.length;
+
+        manager.reloadSessionsFromStorage();
+
+        expect(manager.chatSessions).toHaveLength(before);
+      });
+    });
   });
 
   // ==========================================================

@@ -341,6 +341,29 @@ export function useConversationManager({ scrollToBottom: scrollToBottomOption } 
     return true;
   };
 
+  /**
+   * 立即落盘（2026-11-22，论坛内联卡片交接用）：跳过 `scheduleSaveSessions` 的
+   * 500ms 防抖 + idle 排队，把当前会话**现在**写进存储。
+   * 消费方：BohForumAnswerCard 点卡片跳全页前 —— 交接靠 timestamp 在存储里找到这条
+   * 会话，防抖窗口内裸跳会让全页找不到（见 boh-ai-session-handoff.js）。
+   * 写入冲突语义与 saveSessions 一致：被别的实例改写过就放弃并标记待重载。
+   */
+  const flushSessionsToStorage = () => {
+    clearSaveTimers();
+    saveSessions();
+  };
+
+  /**
+   * 无条件从存储重载（区别于 syncSessionsFromStorage 的「只在冲突过才读」）。
+   * 消费方：useBohShell 消费会话交接 —— 卡片实例写的存储，全页实例不一定
+   * 放弃过写入，条件版会静默跳过，交接就找不到那条会话。
+   * ⚠️ 调用方必须先确认不在流式中（同 syncSessionsFromStorage 的守卫口径）。
+   */
+  const reloadSessionsFromStorage = () => {
+    loadSessions();
+    return true;
+  };
+
   const clearSaveTimers = () => {
     if (saveDebounceTimer) {
       clearTimeout(saveDebounceTimer);
@@ -651,6 +674,8 @@ export function useConversationManager({ scrollToBottom: scrollToBottomOption } 
     loadSessions,
     saveSessions,
     syncSessionsFromStorage,
+    flushSessionsToStorage,
+    reloadSessionsFromStorage,
     scheduleSaveSessions,
     clearSaveTimers,
     clearCache,

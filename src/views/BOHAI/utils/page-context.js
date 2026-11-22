@@ -12,10 +12,23 @@ import { estimateTokens } from './tokens.js';
 
 export const MAX_PAGE_CONTEXT_CHARS = 4000;
 
+/**
+ * `evidenceBlock`（2026-11-22，论坛搜索「问 BOHAI」内联卡片）：
+ * 调用方**已经组好**的证据块（论坛检索结果 + 回答口径说明），原样追加进
+ * `<page_context>`，不走「页面标题/正文」那套字段语义 —— 检索结果不是"页面"。
+ * 与 `content` 一样受 MAX_PAGE_CONTEXT_CHARS 截断保护，防调用方塞进整页正文。
+ */
 export const buildPageContextBlock = (pageContext = null) => {
   if (!pageContext) return '';
-  const { title = '', url = '', selection = '', content = '', description = '' } = pageContext;
-  if (!title && !url && !selection && !content) return '';
+  const {
+    title = '',
+    url = '',
+    selection = '',
+    content = '',
+    description = '',
+    evidenceBlock = '',
+  } = pageContext;
+  if (!title && !url && !selection && !content && !evidenceBlock) return '';
 
   const sections = [];
   if (title) sections.push(`页面标题：${title}`);
@@ -25,6 +38,10 @@ export const buildPageContextBlock = (pageContext = null) => {
   if (content) {
     const trimmed = content.slice(0, MAX_PAGE_CONTEXT_CHARS);
     sections.push(`页面正文：\n${trimmed}`);
+  }
+  if (evidenceBlock) {
+    const trimmedEvidence = evidenceBlock.slice(0, MAX_PAGE_CONTEXT_CHARS);
+    sections.push(trimmedEvidence);
   }
 
   return `<page_context>\n${sections.join('\n')}\n</page_context>`;

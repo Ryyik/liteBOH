@@ -29,6 +29,9 @@ import { storeToRefs } from 'pinia';
 import { clearMarkdownCache } from '../BOHAI/components/boh-markdown.js';
 import { sourcePrefix } from '../BOHAI/components/boh-sources.js';
 import { captureCurrentPageContext } from '../utils/page-context.js';
+/* 论坛内联卡片 → 全页的会话交接（2026-11-22）：发起方见 BohForumAnswerCard，
+   通道本体在 utils/boh-ai-session-handoff.js。 */
+import { consumePendingBohAISessionOpen } from '@/utils/boh-ai-session-handoff.js';
 import { useBohaiDebugMode } from './useBohaiDebugMode.js';
 /* 斜杠命令的唯一真源（2026-10-08）：定义 + 解析 + 菜单构造全在这个纯函数模块里。
    ⚠️ 不要再在壳里写 `startsWith('/')` —— 规则散两处正是本次「点发送键把 /cloud
@@ -457,6 +460,7 @@ export function useBohShell(props, emit) {
     isTreeholeMemoryToggling,
     memoryCaptureTip,
     syncSessionsIfStale,
+    reloadSessionsFromStorage,
   } = useChatEngine();
 
   /* ── 登录态校正（2026-10-20，plans/030）────────────────────────────────────
@@ -486,7 +490,47 @@ export function useBohShell(props, emit) {
    */
   onActivated(() => {
     syncSessionsIfStale();
+    consumeSessionHandoff();
   });
+
+  /* ── 会话交接：论坛内联卡片 → 自动打开这条对话（2026-11-22）──────────────
+     发起方 BohForumAnswerCard 在 router.push('/ai-chat') 前落盘 + 登记 timestamp；
+     这里在 onMounted（首次进页）与 onActivated（keepAlive 复活）两个入口消费。
+     两条硬口径：
+       ① 必须无条件 reload —— 卡片实例写的存储，本实例不一定「放弃过写入」，
+          `syncSessionsIfStale` 的条件版会静默跳过，交接就扑空；
+       ② 中止路径的收尾消息可能比 flush 晚一拍 —— 找不到时短重试，
+          仍找不到就放弃（落 index 0，不硬造）。 */
+  const HANDOFF_RETRY_DELAY_MS = 400;
+  const HANDOFF_RETRY_MAX = 5;
+
+  const consumeSessionHandoff = () => {
+    if (!isStandalone.value) return;
+    const targetTimestamp = consumePendingBohAISessionOpen();
+    if (!targetTimestamp) return;
+    if (!reloadSessionsFromStorage()) return; // 流式中绝不换状态
+
+    const findAndSwitch = () =>
+      chatSessions.findIndex((session) => session?.timestamp === targetTimestamp);
+
+    let index = findAndSwitch();
+    if (index >= 0) {
+      switchSession(index);
+      return;
+    }
+    let retriesLeft = HANDOFF_RETRY_MAX;
+    const retryFind = () => {
+      if (!reloadSessionsFromStorage()) return; // 进入流式就停手
+      index = findAndSwitch();
+      if (index >= 0) {
+        switchSession(index);
+        return;
+      }
+      retriesLeft -= 1;
+      if (retriesLeft > 0) setTimeout(retryFind, HANDOFF_RETRY_DELAY_MS);
+    };
+    setTimeout(retryFind, HANDOFF_RETRY_DELAY_MS);
+  };
 
   /* 输入框元素现在长在 `BohComposer` 里，但引擎（`useChatEngine`）仍按 `textareaRef`
      直接**聚焦**它 ⇒ 必须把子组件的 textarea 元素回填给引擎的 ref，否则「发送后聚焦」
@@ -2146,6 +2190,10 @@ export function useBohShell(props, emit) {
     // 后台存活的实例会留着监听（同一个事件被多个实例响应）。
     window.addEventListener('boh-ai-focus-composer', focusComposer);
     fetchTodayQuota();
+
+    // 论坛内联卡片跳过来时自动打开那条对话（读后即清；keepAlive 复活路径在同名的
+    // onActivated 里也消费一次 —— 本实例第一次挂载时 onActivated 也会跑，两边幂等）
+    consumeSessionHandoff();
 
     // 支持其他页面带种子提问跳转过来（例如 BOH Health 的「用 BOH AI 分析」）：
     // /ai-chat?ask=... 仅在独立页面模式生效，全局浮层不参与路由。

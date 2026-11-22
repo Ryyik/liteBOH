@@ -186,6 +186,13 @@ const PostComposer = createPanelAsync(() => import('./components/PostComposer.vu
   silent: true,
 });
 
+/* 论坛「问 BOHAI」内联回答卡片（2026-11-22）：必须懒加载 ——
+   它 import 了 boh-markdown（markdown-vendor + ui-sanitize），静态引入会把这两个
+   chunk 拽进 ForumMain 图（BohIsland.vue 头注释的前车之鉴）；首次「问 BOHAI」才下载。 */
+const BohForumAnswerCard = createPanelAsync(() => import('./components/BohForumAnswerCard.vue'), {
+  label: 'forum-bohai-answer-card',
+});
+
 /* ── 底栏切回「内容」：整页重挂不重播入场（2026-10-31）────────────────
    底栏「内容 / 我 / 图库」是独立路由，来回切 = 本组件整页重挂，
    `.posts-feed` 的 fade-in-up（1s + inline delay 0.2s）和卡片入场从 opacity 0
@@ -309,6 +316,14 @@ watch(searchKeyword, (next, prev) => {
   if (String(next || '').trim() === String(prev || '').trim()) return;
   if (suppressFeedSwapArm) return;
   armFeedSwap();
+});
+
+/* 关键词一变就收卡 + 清 hint（2026-11-22）：内联卡片回答的是「这一问」，
+   换词 / 清词后留着就是张过期答案。不设 suppressFeedSwapArm 豁免 ——
+   详情返回恢复的是同一个词（watch 不触发），真变了就说明语境已经换了。 */
+watch(searchKeyword, () => {
+  dismissInlineAsk();
+  aiSearchHint.value = '';
 });
 
 watch(forumData, () => {
@@ -696,6 +711,17 @@ const checkinReward = ref({
 });
 const isAiSearchLoading = ref(false);
 const aiSearchHint = ref('');
+
+/* 「问 BOHAI」内联回答卡片（2026-11-22）：检索完成后把「原句 + 相关帖」交给
+   BohForumAnswerCard（懒加载）就地流式作答；不再弹悬浮岛。
+   nonce 参与卡片 :key —— 再次提问 = 新卡片实例 = 新快速会话，旧卡片随 key 变化卸载
+   （其引擎经 onScopeDispose 自行中止流）。 */
+const inlineAsk = ref(null);
+let inlineAskNonce = 0;
+
+const dismissInlineAsk = () => {
+  inlineAsk.value = null;
+};
 
 const createDefaultWeeklyCheckinStatus = () => ({
   hasSignedThisWeek: false,
@@ -3486,9 +3512,12 @@ const submitQuoteRepost = async () => {
   await fetchForumData(false, { background: true });
 };
 
-// 问 BOHAI：先在论坛库中检索相关内容，再把问题 + 检索结果交给悬浮岛回复。
-// 检索本身不消耗额度；岛内回答走用户 AI 额度，恒走 fast 档（档位在 BohIslandAnswer 里定，
-// 岛内没有模型选择 UI —— plans/038 §3.6；这里不再传 mode，传了也会被忽略）。
+// 问 BOHAI（2026-11-22 内联卡片版）：先在论坛库中检索相关内容，然后把「原句 + 相关帖」
+// 交给结果区里的 BohForumAnswerCard 就地流式作答 —— 不再弹悬浮岛（旧 showIsland.ai
+// 链路整体退场；悬浮岛仍是下拉 / ⌘K 的对话入口，与本流程无关）。
+// 职责分界：本函数只负责「检索」（不消耗额度）+ 交付；发问 / 流式 / 交接全在卡片内
+// （BohForumAnswerCard：原句进引擎，检索证据走 attachedContext 的 evidenceBlock 进
+// system prompt，回答走用户 AI 额度、恒 balance 档 —— 档位契约在卡片 onMounted）。
 const askBohai = async () => {
   if (isAiSearchLoading.value) return;
   const question = stripTagTokens(searchQuery.value);
@@ -3515,50 +3544,18 @@ const askBohai = async () => {
       sortMode: 'hottest',
     });
     const posts = (Array.isArray(relatedPosts) ? relatedPosts : []).slice(0, 5);
-    const contextBlock = posts.length
-      ? posts
-          .map((post, index) => {
-            const title = String(post.title || '').trim() || '（无标题）';
-            const excerpt = String(post.content || '')
-              .replace(/<[^>]+>/g, ' ')
-              .replace(/\s+/g, ' ')
-              .trim()
-              .slice(0, 120);
-            const tagLabel = FORUM_TAG_MAP[post.tag]?.label || '';
-            const author = String(post.author_username || post.username || '').trim();
-            return `${index + 1}. ${title}${tagLabel ? `（${tagLabel}）` : ''}${author ? ` —— 作者：${author}` : ''}\n   ${excerpt || '（无正文摘要）'}`;
-          })
-          .join('\n')
-      : '';
-
-    const prompt = [
-      `用户刚在社区论坛的搜索框里提问：「${question}」。`,
-      '',
-      contextBlock
-        ? `论坛数据库中检索到的相关帖子：\n${contextBlock}`
-        : '论坛数据库中没有检索到直接相关的帖子。',
-      '',
-      contextBlock
-        ? '请基于以上论坛内容，用中文简洁回答用户的问题：相关内容充分就归纳作答并点出可参考的帖子标题；不够就如实说明，再补充你自己的知识。'
-        : '请用中文简洁回答用户的问题；如果问题适合社区讨论，可以建议用户发一个带 #提问 标签的帖子来获得更多帮助。',
-    ].join('\n');
-
-    const opened = showIsland.ai({ prompt });
-    if (opened) {
-      aiSearchHint.value = 'BOHAI 正在悬浮岛为你解答。';
-    } else {
-      /* plans/038 P3 后 showIsland.ai 直达 App 级 BohIsland（Teleport 到 body），
-         无导航栏的视图照样能开 —— false 只剩两种：已在 /ai-chat 页，或首页开场画在场
-         （canOpen 的两条否定条件，见 useBohIsland.js）。 */
-      aiSearchHint.value = '当前无法唤起悬浮岛 —— 你已在 AI 对话页，或首页开场动画还没结束。';
-    }
+    // 交付即收 hint：等待动画 / 回答状态全部由卡片自己呈现
+    aiSearchHint.value = '';
+    inlineAsk.value = {
+      nonce: (inlineAskNonce += 1),
+      question,
+      posts,
+    };
   } catch (error) {
     logger.warn('forum', '问 BOHAI 失败:', error);
     aiSearchHint.value = 'BOHAI 检索论坛内容失败，请稍后再试。';
   } finally {
-    setTimeout(() => {
-      isAiSearchLoading.value = false;
-    }, 240);
+    isAiSearchLoading.value = false;
   }
 };
 
@@ -3908,6 +3905,17 @@ const {
                   </button>
                 </template>
               </div>
+
+              <!-- 论坛「问 BOHAI」内联回答卡片（2026-11-22）：位置在空态之后、帖子之前 ——
+                   有结果 = 帖子列表最前面一张卡；无结果 = 「没有找到」空态的下方。
+                   nonce 进 :key：再次提问 = 新实例 = 新快速会话；换关键词由 watch 收卡。 -->
+              <BohForumAnswerCard
+                v-if="inlineAsk"
+                :key="inlineAsk.nonce"
+                class="posts-list-bohai-answer"
+                :question="inlineAsk.question"
+                :posts="inlineAsk.posts"
+              />
 
               <div
                 v-if="virtualFeedTopSpacerHeight > 0"

@@ -247,6 +247,8 @@ export function useChatEngine() {
     computeContextBudgetUsage,
     loadSessions,
     syncSessionsFromStorage,
+    flushSessionsToStorage: _flushSessionsToStorage,
+    reloadSessionsFromStorage: _reloadSessionsFromStorage,
     scheduleSaveSessions,
     clearCache,
     getSessionByIndex,
@@ -275,6 +277,24 @@ export function useChatEngine() {
   const syncSessionsIfStale = () => {
     if (isStreamingGeneration.value) return false;
     return syncSessionsFromStorage();
+  };
+
+  /**
+   * 立即落盘（2026-11-22，绕过防抖）：论坛内联卡片点卡片跳全页前调用 ——
+   * 交接按 timestamp 在存储里找这条会话，防抖窗口内裸跳会让全页扑空。
+   */
+  const flushSessionsToStorage = () => {
+    _flushSessionsToStorage();
+  };
+
+  /**
+   * 无条件从存储重载（会话交接消费用）：卡片实例写的存储，本实例不一定
+   * 冲突过，`syncSessionsIfStale` 的条件版会静默跳过。流式中绝不换状态
+   * （同 `syncSessionsIfStale` 的守卫口径）。
+   */
+  const reloadSessionsFromStorage = () => {
+    if (isStreamingGeneration.value) return false;
+    return _reloadSessionsFromStorage();
   };
 
   const attachedContext = ref(null);
@@ -2076,6 +2096,8 @@ export function useChatEngine() {
     chatSessions,
     currentSessionIndex,
     syncSessionsIfStale,
+    flushSessionsToStorage,
+    reloadSessionsFromStorage,
     inputMessage,
     isLoading,
     isThinking,

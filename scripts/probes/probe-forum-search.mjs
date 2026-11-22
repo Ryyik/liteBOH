@@ -7,10 +7,15 @@ import { chromium } from 'playwright';
      3. 最近搜索（显式提交才写入 / 聚焦空输入时展开 / 点回填 / 清除）
      4. 结果计数（只在该出现的时候出现）
      5. 无结果引导（问 BOHAI + 清除搜索）
+     6. 「问 BOHAI」内联回答卡片（2026-11-22）：点问 BOHAI 不弹悬浮岛 —— 卡片出现在
+        空态下方 / 帖子列表前面，原句回显，SSE 流式文字进卡片，点卡片跳 /ai-chat 交接
    ⚠️ 网络全程 mock：
      搜索结果的**正确性**（中文子串命中、相关度排序）在 SQL 层验证，不在本探针内；
      这里只验证「搜索相关的 UI 行为」与前端交互链，所以刻意断网，避免数据漂移。
-   ⚠️ 同一 path 只注册一条 route（Playwright 按注册逆序匹配 → catch-all 先注册）。 */
+   ⚠️ 同一 path 只注册一条 route（Playwright 按注册逆序匹配 → catch-all 先注册）。
+   ⚠️ AI 链路的 mock 手法抄 probe-bohai-keepalive-stream.mjs：SSE 一次性给、
+      addInitScript 注入 fetch 包装逐块重放（且必须接住 abort 信号）——
+      route.fulfill 一次给完会让「有内容」恒真（假绿）。 */
 const BASE = process.env.BASE || 'http://[::1]:5173';
 const OUT = 'debug-screenshots';
 let pass = 0;
@@ -56,8 +61,73 @@ const MOCK_ROW = {
   has_more: false,
 };
 
-/** 打开论坛并把所有读请求 mock 成「给定结果集」 */
-const openForum = async (rows) => {
+/* ── 「问 BOHAI」内联回答卡片的 AI 链路 mock（手法抄 probe-bohai-keepalive-stream）── */
+
+const MOCK_AI_MODES = [
+  {
+    id: 'fast',
+    mode_id: 'fast',
+    model_id: 'deepseek-ai/DeepSeek-V3',
+    name: 'Fast',
+    display_name: 'Fast',
+    tagline: '极速响应',
+    min_tier: 'free',
+    status: 'active',
+    sort_order: 10,
+    quota_multiplier: 1,
+  },
+];
+
+/** 哨兵放最后一段：只断言「有内容」会假绿（中止前也吐过几段），哨兵到达 = 流跑到自然结束 */
+const AI_SENTINEL = '内联回答哨兵END';
+const AI_CHUNK_GAP_MS = 240;
+
+const AI_SSE_BODY =
+  ['论', '坛', '内', '联', '回', '答', AI_SENTINEL]
+    .map((c) => `data: ${JSON.stringify({ choices: [{ delta: { content: c } }] })}\n\n`)
+    .join('') + 'data: [DONE]\n\n';
+
+/** 注入的 fetch 包装：把一次性拿到的 SSE 按「空行」切开逐块重放（真等 gapMs），
+    必须接住 abort 信号 —— 否则这条 mock 流免疫于中止，「点卡片停流」就测不出来。 */
+const SLOW_SSE_FETCH_WRAPPER = ({ gapMs }) => {
+  const originalFetch = window.fetch.bind(window);
+  window.fetch = async (...args) => {
+    const signal = args[1]?.signal;
+    const response = await originalFetch(...args);
+    const url = typeof args[0] === 'string' ? args[0] : args[0]?.url || '';
+    if (!String(url).includes('api-key-vault')) return response;
+    if (!response.headers.get('content-type')?.includes('text/event-stream')) return response;
+    const text = await response.text();
+    const parts = text.split(/(?<=\n\n)/).filter(Boolean);
+    const stream = new ReadableStream({
+      async start(controller) {
+        const encoder = new TextEncoder();
+        const onAbort = () => {
+          try {
+            controller.error(new DOMException('Aborted', 'AbortError'));
+          } catch {
+            /* 流已关闭 */
+          }
+        };
+        if (signal?.aborted) return onAbort();
+        signal?.addEventListener('abort', onAbort, { once: true });
+        for (const part of parts) {
+          if (signal?.aborted) return;
+          controller.enqueue(encoder.encode(part));
+          await new Promise((resolve) => setTimeout(resolve, gapMs));
+        }
+        if (!signal?.aborted) controller.close();
+      },
+    });
+    return new Response(stream, {
+      status: 200,
+      headers: { 'Content-Type': 'text/event-stream' },
+    });
+  };
+};
+
+/** 打开论坛并把所有读请求 mock 成「给定结果集」；options.ai = 连 AI 链路一起 mock */
+const openForum = async (rows, options = {}) => {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
   await context.addInitScript(() => {
     try {
@@ -83,6 +153,36 @@ const openForum = async (rows) => {
       },
     }),
   );
+
+  if (options.ai) {
+    // 模式清单 mock（list_public_bohai_modes）。⚠️ 必填 model_id：normalize 会把缺
+    // model_id 的行整条丢掉 ⇒ availableModels 为空 ⇒ 流根本没起来（keepalive 探针同坑）。
+    await page.route('**/rest/v1/rpc/list_public_bohai_modes*', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(MOCK_AI_MODES),
+      }),
+    );
+    // SSE 慢速重放（fetch 包装逐块 enqueue，接住 abort —— 手法与判据见文件头）
+    await context.addInitScript(SLOW_SSE_FETCH_WRAPPER, { gapMs: AI_CHUNK_GAP_MS });
+    await page.route('**/functions/v1/api-key-vault**', async (route) => {
+      const reqBody = route.request().postData() || '';
+      if (!reqBody.includes('runtime-chat-stream')) {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ ok: true, data: {} }),
+        });
+        return;
+      }
+      await route.fulfill({
+        status: 200,
+        headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' },
+        body: AI_SSE_BODY,
+      });
+    });
+  }
 
   await page.goto(`${BASE}/#/user-space?tab=community`, { waitUntil: 'domcontentloaded' });
   await page.waitForSelector('.forum-page .toolbar-search-input', { timeout: 25000 });
@@ -298,6 +398,148 @@ try {
        现在改成反向锁：任何情况下都不该再出现 —— 防止有人以「提升可发现性」为由加回来。 */
     check('H1 搜索态不渲染结果计数（2026-10-22 已移除）', countEls === 0, `count=${countEls}`);
     check('Z3 零 JS 运行时错误', errors.length === 0, errors.slice(0, 2).join(' | '));
+    await context.close();
+  }
+
+  /* ⚠️ 内联卡片场景的公共断言：
+     · 卡片不再弹悬浮岛 —— 岛的根节点（.boh-island-root）必须不出现；
+     · 原句回显 = 搜索框原句（stripTagTokens 后），不是拼好的长 prompt；
+     · 点卡片跳 #/ai-chat 且会话以 origin=quick-ask 落盘（交接的发起侧）。 */
+  const waitCardStreamed = async (page) => {
+    await page.waitForSelector('.boh-forum-answer', { timeout: 15000 });
+    await page.waitForFunction(
+      () =>
+        document.querySelector('.boh-forum-answer-text')?.textContent?.includes('内联回答哨兵END'),
+      null,
+      { timeout: 15000 },
+    );
+  };
+
+  // ---------------- I：内联回答卡片（无结果 → 卡片在空态下方） ----------------
+  {
+    const { context, page, errors } = await openForum([], { ai: true });
+
+    console.log('\n--- I 问 BOHAI 内联卡片（无结果） ---');
+    await page.fill('.forum-page .toolbar-search-input', '不存在的关键词');
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(900);
+
+    await page.locator('.empty-state-actions .empty-action-btn.is-primary:visible').click();
+    // 检索窗口：转圈状态出现 → 卡片挂载
+    await page.waitForSelector('.boh-forum-answer', { timeout: 15000 });
+
+    /* 岛的根节点 .boh-island-root 是 App 级常驻（Teleport 到 body，关岛也卸不掉），
+       要数的是展开卡（v-if="rendered"）或 open 态 —— 数根节点会恒假红。 */
+    check(
+      'I1 不弹悬浮岛',
+      (await page.locator('.boh-island-root.open').count()) === 0 &&
+        (await page.locator('.boh-island-root .boh-card').count()) === 0,
+    );
+    check(
+      'I2 原句回显 = 搜索框原句',
+      (await page.locator('.boh-forum-answer-q').innerText()).includes('不存在的关键词'),
+    );
+    check(
+      'I3 检索 hint 已收（状态交棒给卡片）',
+      (await page.locator('.toolbar-ai-hint').count()) === 0,
+    );
+
+    // 空态在前、卡片在后（用户口径：渲染在搜索结果的下方）
+    const order = await page.evaluate(() => {
+      const empty = document.querySelector('.posts-list .empty-state');
+      const card = document.querySelector('.boh-forum-answer');
+      if (!empty || !card) return 'missing';
+      return empty.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING
+        ? 'empty-first'
+        : 'wrong';
+    });
+    check('I4 卡片在空态下方', order === 'empty-first', order);
+    check(
+      'I5 卡片不带追问输入框（纯展示口径）',
+      (await page.locator('.boh-forum-answer input, .boh-forum-answer textarea').count()) === 0,
+    );
+
+    await waitCardStreamed(page);
+    check(
+      'I6 SSE 流式文字进卡片（含哨兵 = 流自然结束）',
+      (await page.locator('.boh-forum-answer-text').innerText()).includes(AI_SENTINEL),
+    );
+
+    // 点卡片 → /ai-chat（交接发起侧；消费侧 = useBohShell 消费交接，源码级单测锁定）
+    await page.locator('.boh-forum-answer .boh-forum-answer-cta:visible').click();
+    await page.waitForFunction(() => window.location.hash.startsWith('#/ai-chat'), null, {
+      timeout: 10000,
+    });
+    const finalHash = await page.evaluate(() => window.location.hash);
+    check('I8 点卡片跳 /ai-chat', finalHash.startsWith('#/ai-chat'), finalHash.slice(0, 24));
+
+    // 落盘断言放在点击之后：点卡片链里有 flushSessionsToStorage（立即写），
+    // 平时防抖 500ms+idle 的落盘在跳转前已经完成 —— 顺序反了会撞上防抖窗口假红
+    check(
+      'I7 会话以 quick-ask 落盘（侧栏「在搜索里问过」分组的来源标记）',
+      await page.evaluate(() => {
+        try {
+          const sessions = JSON.parse(localStorage.getItem('boh_chat_sessions') || '[]');
+          return sessions.some(
+            (s) =>
+              s.origin === 'quick-ask' &&
+              Array.isArray(s.messages) &&
+              s.messages.some(
+                (m) => m.role === 'user' && String(m.content || '').includes('不存在的关键词'),
+              ),
+          );
+        } catch {
+          return false;
+        }
+      }),
+    );
+
+    check('Z4 零 JS 运行时错误', errors.length === 0, errors.slice(0, 2).join(' | '));
+    await page.screenshot({ path: `${OUT}/forum-search-bohai-card-empty.png` });
+    await context.close();
+  }
+
+  // ---------------- J：内联回答卡片（有结果 → 卡片在帖子列表前面） ----------------
+  {
+    const { context, page, errors } = await openForum([MOCK_ROW], { ai: true });
+
+    console.log('\n--- J 问 BOHAI 内联卡片（有结果） ---');
+    await page.fill('.forum-page .toolbar-search-input', '关键词');
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(900);
+
+    // 有结果时空态不在场：走搜索行内的「问 BOHAI」胶囊（⚠️ hero 版本 display:none，必须 :visible）
+    await page.locator('.toolbar-search-actions .toolbar-ai-btn:visible').click();
+    await page.waitForSelector('.boh-forum-answer', { timeout: 15000 });
+
+    const order = await page.evaluate(() => {
+      const card = document.querySelector('.boh-forum-answer');
+      const post = document.querySelector('.posts-list .forum-virtual-post');
+      if (!card || !post) return 'missing';
+      return card.compareDocumentPosition(post) & Node.DOCUMENT_POSITION_FOLLOWING
+        ? 'card-first'
+        : 'wrong';
+    });
+    check('J1 卡片在帖子列表前面', order === 'card-first', order);
+
+    await waitCardStreamed(page);
+    check(
+      'J2 有结果时同样流式出全文',
+      (await page.locator('.boh-forum-answer-text').innerText()).includes(AI_SENTINEL),
+    );
+
+    // 换关键词收卡（watch(searchKeyword) → dismissInlineAsk）
+    await page.fill('.forum-page .toolbar-search-input', '另一个词');
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(900);
+    check(
+      'J3 换关键词后卡片收起',
+      (await page.locator('.boh-forum-answer').count()) === 0,
+      `count=${await page.locator('.boh-forum-answer').count()}`,
+    );
+
+    check('Z5 零 JS 运行时错误', errors.length === 0, errors.slice(0, 2).join(' | '));
+    await page.screenshot({ path: `${OUT}/forum-search-bohai-card-results.png` });
     await context.close();
   }
 } catch (error) {

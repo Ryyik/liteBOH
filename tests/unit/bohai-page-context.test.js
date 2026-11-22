@@ -112,6 +112,28 @@ describe('buildPageContextBlock：契约没变', () => {
     });
     expect(block).toContain('y'.repeat(MAX_PAGE_CONTEXT_CHARS));
   });
+
+  /* 2026-11-22 论坛搜索「问 BOHAI」内联卡片：
+     检索结果不是「页面」，走 evidenceBlock 原样追加，不冒用 title/content 字段语义。 */
+  it('只有 evidenceBlock ⇒ 也产出块，且原样保留（不吃「页面正文」标签）', () => {
+    const block = buildPageContextBlock({ evidenceBlock: '论坛检索结果：\n1. 探针测试帖' });
+    expect(block).toContain('<page_context>');
+    expect(block).toContain('论坛检索结果：\n1. 探针测试帖');
+    expect(block).not.toContain('页面正文');
+    expect(block).toContain('</page_context>');
+  });
+
+  it('evidenceBlock 与 content 并存 ⇒ 两个 section 都在', () => {
+    const block = buildPageContextBlock({ content: '页面正文内容', evidenceBlock: '证据块' });
+    expect(block).toContain('页面正文：\n页面正文内容');
+    expect(block).toContain('证据块');
+  });
+
+  it('evidenceBlock 同样按 4000 字截断', () => {
+    const block = buildPageContextBlock({ evidenceBlock: 'z'.repeat(MAX_PAGE_CONTEXT_CHARS + 9) });
+    expect(block).toContain('z'.repeat(MAX_PAGE_CONTEXT_CHARS));
+    expect(block).not.toContain('z'.repeat(MAX_PAGE_CONTEXT_CHARS + 1));
+  });
 });
 
 describe('接线守卫：入口存在、且只在灵动岛形态出现', () => {

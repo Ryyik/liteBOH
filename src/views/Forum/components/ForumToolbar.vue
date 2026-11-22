@@ -170,7 +170,7 @@ const onOpenWeeklyCheckin = () => {
           type="button"
           class="toolbar-ai-btn"
           :disabled="isAiSearchLoading"
-          title="BOHAI 检索论坛内容，并在顶部 AI 岛回答（消耗 AI 额度，Fast 模型）"
+          title="BOHAI 检索论坛内容，在搜索结果下方回答（消耗 AI 额度，点卡片进完整对话）"
           @click="onAskBohai"
         >
           <span class="ai-label">问 BOHAI</span>
@@ -207,7 +207,7 @@ const onOpenWeeklyCheckin = () => {
           class="toolbar-hero-pill"
           tone="soft"
           :disabled="isAiSearchLoading"
-          title="BOHAI 检索论坛内容，并在顶部 AI 岛回答（消耗 AI 额度，Fast 模型）"
+          title="BOHAI 检索论坛内容，在搜索结果下方回答（消耗 AI 额度，点卡片进完整对话）"
           @click="onAskBohai"
         >
           <Sparkles :size="16" :stroke-width="2" aria-hidden="true" />
