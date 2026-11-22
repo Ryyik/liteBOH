@@ -42,13 +42,13 @@ const ruleOf = (source, selector) => {
   return [...source.matchAll(re)].map((m) => m[0]).join('\n');
 };
 
-/* sticky 页头子树内的控件：玻璃必被采样裁空 ⇒ 实底 token */
+/* sticky 页头子树内的控件：玻璃必被采样裁空 ⇒ 实底 token
+   （.x-select-status-filter 已随 2026-11-21 批量减按钮删除，断言随之移除） */
 const HEADER_CHILDREN = [
   '.x-mark-all-btn',
   '.x-mark-all-btn-minimal',
   '.x-filter-chip',
   '.x-select-btn',
-  '.x-select-status-filter',
   '.x-filter-dropdown',
   '.x-select-actions-menu',
 ];
@@ -96,7 +96,6 @@ describe('消息中心液态玻璃：页头', () => {
     expect(ruleOf(css, '.x-filter-chip')).toContain('background: var(--liquid-bg-strong)');
     expect(ruleOf(css, '.x-select-btn')).toContain('background: var(--liquid-bg-strong)');
     expect(ruleOf(css, '.x-mark-all-btn-minimal')).toContain('background: var(--liquid-bg-strong)');
-    expect(ruleOf(css, '.x-select-status-filter')).toContain('background: var(--liquid-bg-subtle)');
     expect(ruleOf(css, '.x-select-actions-menu')).toContain('background: var(--liquid-bg-strong)');
     expect(ruleOf(css, '.x-filter-dropdown')).toContain('background: var(--liquid-bg-strong)');
   });

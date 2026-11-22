@@ -129,8 +129,20 @@ export const buildAggregateEntries = (messages, expandedIds = new Set()) => {
     }
     out.push(entry);
     if (expandedIds.has(entry.id)) {
-      for (const m of members) {
-        out.push({ kind: 'message', id: m.id, msg: m, created_at: m.created_at });
+      // 展开态成员行带归属标记:模板据此画连接线/缩进/错峰入场动画
+      // (aggIndex 从 0 起,aggLast 标记末成员——连接线在它身上减半)
+      for (let i = 0; i < members.length; i++) {
+        const m = members[i];
+        out.push({
+          kind: 'message',
+          id: m.id,
+          msg: m,
+          created_at: m.created_at,
+          aggMember: true,
+          aggId: entry.id,
+          aggIndex: i,
+          aggLast: i === members.length - 1,
+        });
       }
     }
   }

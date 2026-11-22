@@ -2,7 +2,8 @@
 //
 // 断言面:
 //   A. 日期分组:今天/昨天/更早 组头出现且顺序正确
-//   B. 同帖点赞聚合:3 赞 1 行、头像堆叠、独立赞不并、评论不聚、行内展开/收起
+//   B. 同帖点赞聚合:3 赞 1 行、头像堆叠、独立赞不并、评论不聚、行内展开/收起、
+//      成员行归属标记(连接线/缩进/错峰动画挂钩)、外置「未读」chip 过滤往返
 //   C. 详情连续处理:上一条/下一条、边界禁用、J/K 键盘、归档 auto-advance
 //   D. 左滑手势:拖拽吸附展开、按钮可用、纵向滚动复位、回弹吞点击、选择模式禁用
 //   E. 虚拟滚动边界:>100 条退回原始流(无组头/无聚合)
@@ -307,6 +308,28 @@ const firePointer = (el, type, x, y) =>
     expanded.isExpanded && expanded.memberIds.length === 3,
     JSON.stringify(expanded),
   );
+  // B6b 成员行归属标记(2026-11-21 二次改版):连接线/缩进/错峰动画的数据挂钩
+  const memberMark = await page.evaluate(() => {
+    const cells = [...document.querySelectorAll('.x-item-swipe-cell[data-agg-member]')];
+    const expandedRow = document.querySelector('.x-aggregate-row.is-expanded');
+    const last = cells.find((c) => c.classList.contains('is-agg-last'));
+    return {
+      count: cells.length,
+      hasLast: Boolean(last),
+      expandedRowTinted: expandedRow ? getComputedStyle(expandedRow).backgroundColor : null,
+      indented: cells.length
+        ? getComputedStyle(cells[0].querySelector('.x-item')).paddingLeft
+        : null,
+    };
+  });
+  check(
+    'B6b · 成员行带归属标记/缩进/展开态聚合行强化',
+    memberMark.count === 3 &&
+      memberMark.hasLast &&
+      parseFloat(memberMark.indented) >= 44 &&
+      memberMark.expandedRowTinted !== 'rgba(0, 0, 0, 0)',
+    JSON.stringify(memberMark),
+  );
   await page.screenshot({ path: `${OUT}/msgs-list-agg-expanded.png` });
   await page.locator('.x-aggregate-row').first().click();
   await page.waitForTimeout(400);
@@ -322,6 +345,34 @@ const firePointer = (el, type, x, y) =>
     !collapsed.isExpanded && collapsed.memberIds.length === 0,
     JSON.stringify(collapsed),
   );
+
+  // B8 外置「未读」chip(2026-11-21):未读筛选的唯一真源(取代选择模式内分段与下拉项)
+  const unreadChip = page.locator('.x-unread-chip').first();
+  const chipPresent = (await unreadChip.count()) > 0;
+  check('B8 · 「未读」chip 常驻存在', chipPresent);
+  if (chipPresent) {
+    await unreadChip.click();
+    await page.waitForTimeout(400);
+    const unreadOnly = await page.evaluate(() => {
+      const rows = [...document.querySelectorAll('.x-item[data-message-id]')];
+      return {
+        total: rows.length,
+        allUnread: rows.every((r) => r.classList.contains('unread')),
+      };
+    });
+    check(
+      'B9 · 点 chip 后仅未读行可见',
+      unreadOnly.total > 0 && unreadOnly.allUnread,
+      JSON.stringify(unreadOnly),
+    );
+    await unreadChip.click();
+    await page.waitForTimeout(400);
+    const restored = await page.evaluate(
+      () => document.querySelectorAll('.x-item[data-message-id]').length,
+    );
+    check('B10 · 再点 chip 恢复全量', restored === 4, `rows=${restored}`);
+    await page.screenshot({ path: `${OUT}/msgs-list-unread-chip.png` });
+  }
   await context.close();
 }
 

@@ -10,7 +10,10 @@
 //   G. 横屏选择模式下底栏让位（opacity 0 / pointer-events none）
 //   H–J. 长按 / 桌面右键进选择模式、已归档分区批量入口
 //   K. 手机横屏详情（2026-11-21）：返回钮可见可点、动作条 static 不压正文
-//   L. 页头常驻「全部已读」（2026-11-21）：有未读时出现、点击清零后收起、下拉不含该项
+//   L. 页头常驻「全部已读」（2026-11-21 二次改版）：常驻可见、0 未读置灰、下拉不含该项
+//   M. 批量动作后保持选择模式（2026-11-21 批量减按钮：选择清空、模式不退）
+//   N. 桌面 shift-click 范围多选（1→3 共 3 条）
+//   另：选择模式内「全部|未读」分段已删（未读筛选唯一真源 = 外置未读 chip），计数并入全选 chip
 //
 // 为什么这些断言值钱：旧实现在 ≥1024 下 A/B 全红（底部条被 v-if 与 CSS 双杀、页头动作永久
 // display:none），而手机横屏 B 红（条浮到屏高 61% 处压住列表并与底栏相交）。
@@ -67,10 +70,11 @@ const archivedRows = rows.slice(0, 4).map((row) => ({
 }));
 
 const openMessages = async (viewport, { hasTouch = false } = {}) => {
-  // L 场景用：mark_all_as_read RPC 一旦发出，列表 mock 就返回已读行 ——
-  // 生产语义是「RPC 落库 → triggerUnreadRefresh 重拉 → 服务端返回已读」，
-  // mock 必须跟着模拟服务端真值，否则重拉会把本地翻转盖回去（2026-11-21 实测踩过）。
+  // L/M 场景用：mark_all_as_read RPC 发出后列表 mock 返回已读行;归档 PATCH 后该行
+  // 从 mock 集合剔除 —— 生产语义是「落库 → 重拉 → 服务端与本地一致」,mock 必须模拟
+  // 服务端真值,否则重拉会把本地翻转盖回去（2026-11-21 实测踩过）。
   let markAllFired = false;
+  const archivedIds = new Set();
   const context = await browser.newContext({ viewport, deviceScaleFactor: 2, hasTouch });
   await context.route('**/auth/v1/user', (r) =>
     r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(mockUser) }),
@@ -79,8 +83,25 @@ const openMessages = async (viewport, { hasTouch = false } = {}) => {
     r.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify(markAllFired ? rows.map((row) => ({ ...row, status: 'read' })) : rows),
+      body: JSON.stringify(
+        rows
+          .filter((row) => !archivedIds.has(row.id))
+          .map((row) => (markAllFired ? { ...row, status: 'read' } : row)),
+      ),
     }),
+  );
+  // 归档 PATCH:notifications?id=eq.xxx(archiveNotification)→ 翻转本地归档集合。
+  // 用谓词不用正则:recipient_id 会与裸 id=eq. 混淆(实测踩过,详见 probe-messages-list-ux)。
+  await context.route(
+    (url) => url.pathname.endsWith('/rest/v1/notifications') && url.searchParams.has('id'),
+    (r) => {
+      if (r.request().method() !== 'PATCH') {
+        return r.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
+      }
+      const id = (new URL(r.request().url()).searchParams.get('id') || '').replace('eq.', '');
+      if (id.startsWith('n')) archivedIds.add(id);
+      return r.fulfill({ status: 204, body: '' });
+    },
   );
   // 未读相关 RPC 显式 mock（最后注册 = 逆序最先命中）：mark-all 流程 / 刷新未读计数
   // 都不许探针触碰真实库（本地 dev 也连着真项目）。
@@ -89,7 +110,13 @@ const openMessages = async (viewport, { hasTouch = false } = {}) => {
     r.fulfill({ status: 200, contentType: 'application/json', body: 'null' });
   });
   await context.route('**/rest/v1/rpc/get_unread_notification_count', (r) =>
-    r.fulfill({ status: 200, contentType: 'application/json', body: '[{"count":0}]' }),
+    r.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([
+        { count: markAllFired ? 0 : rows.filter((row) => row.status === 'unread').length },
+      ]),
+    }),
   );
   await context.route(/\/rest\/v1\/notifications\?[^]*archived_at=not\.is\.null/, (r) =>
     r.fulfill({
@@ -194,7 +221,10 @@ for (const c of CASES) {
       rowsFullyVisible: items,
       readDisabled: document.querySelector('.x-select-action-bar .x-sab-btn:last-of-type')
         ?.disabled,
-      countText: document.querySelector('.x-select-count')?.textContent?.trim() || '',
+      countText: (document.querySelector('.x-select-count')?.textContent?.trim() || '').replace(
+        /\s+/g,
+        ' ',
+      ),
       detailOpen: Boolean(document.querySelector('.x-detail-panel')),
     };
   });
@@ -212,9 +242,9 @@ for (const c of CASES) {
     if (c.wide) {
       check(`${c.name} · 选择模式收起详情`, !geo.detailOpen);
     }
-    // E. 0 选中时「已读」禁用
+    // E. 0 选中时「已读」禁用;计数徽标并入全选 chip,0 选中时不渲染
     check(`${c.name} · 0 选中时「已读」禁用`, geo.readDisabled === true);
-    check(`${c.name} · 计数初始为未选择`, geo.countText === '未选择', geo.countText);
+    check(`${c.name} · 计数徽标初始隐藏`, geo.countText === '', geo.countText);
     // F. 横屏可见行数
     if (c.landscape) {
       check(`${c.name} · 完全可见行数 ≥3`, geo.rowsFullyVisible >= 3, `${geo.rowsFullyVisible} 行`);
@@ -232,7 +262,7 @@ for (const c of CASES) {
   }));
   check(`${c.name} · 点行进入勾选`, afterPick.selected === 1, `selected=${afterPick.selected}`);
   check(`${c.name} · 勾选后「已读」可用`, afterPick.readDisabled === false);
-  check(`${c.name} · 计数显示已选 1 条`, afterPick.countText === '已选 1 条', afterPick.countText);
+  check(`${c.name} · 计数徽标显示已选 1 条`, afterPick.countText === '· 1', afterPick.countText);
   if (c.wide) check(`${c.name} · 勾选时详情仍收起`, !afterPick.detailOpen);
 
   // D. Esc 退出
@@ -290,7 +320,7 @@ for (const c of CASES) {
   }));
   check('长按进选择模式', afterLongPress.bar);
   check('长按同时勾中该条', afterLongPress.checked === 1, `checked=${afterLongPress.checked}`);
-  check('长按后计数为已选 1 条', afterLongPress.count === '已选 1 条', afterLongPress.count);
+  check('长按后计数徽标显示已选 1 条', afterLongPress.count === '· 1', afterLongPress.count);
   await context.close();
 
   // I. 桌面右键进选择模式（不弹浏览器菜单、不误开详情）
@@ -386,16 +416,19 @@ for (const c of CASES) {
   check('横屏详情 · 点返回钮关闭详情', detailClosed);
   await landscapeDetail.context.close();
 
-  // L. 页头常驻「全部已读」（2026-11-21）：页面内此前没有一键已读入口，
-  //    只有未读 ≥ UNREAD_DIGEST_MIN(4) 条时智能建议岛才弹。按钮只在收件箱且有未读时出现，
-  //    点击走 markAllAsRead 完整闭环；清零后按钮收起；下拉里不再有该项（用户口径：放页头不放筛选）。
+  // L. 页头常驻「全部已读」（2026-11-21 二次改版）：**不再按未读数隐藏**——0 未读置灰,
+  //    入口永远可见（用户反馈「看不到」的根因就是 0 未读整颗消失）;启用判定走
+  //    serverUnreadCount（服务端真源）;下拉里不再有该项（用户口径：放页头不放筛选）。
   const markAll = await openMessages({ width: 390, height: 844 });
   await markAll.page.waitForTimeout(300);
   const markAllBtn = markAll.page
     .locator('.x-header-actions-minimal .x-mark-all-btn-minimal', { hasText: '全部已读' })
     .first();
   const markAllPresent = (await markAllBtn.count()) > 0;
-  check('页头「全部已读」存在（有未读时）', markAllPresent);
+  check(
+    '页头「全部已读」常驻存在（mock 未读 3 时可用）',
+    markAllPresent && (await markAllBtn.isEnabled()),
+  );
   if (markAllPresent) {
     await markAll.page.locator('.x-filter-chip.filter-trigger').first().click();
     await markAll.page.waitForTimeout(300);
@@ -408,20 +441,79 @@ for (const c of CASES) {
     await markAll.page.waitForTimeout(300);
     await markAllBtn.click();
     await markAll.page.waitForTimeout(900);
-    const afterMarkAll = await markAll.page.evaluate(() => ({
-      unreadRows: document.querySelectorAll('.x-item.unread').length,
-      btnCount: [...document.querySelectorAll('.x-header-actions-minimal button')].filter((b) =>
+    const afterMarkAll = await markAll.page.evaluate(() => {
+      const btn = [...document.querySelectorAll('.x-header-actions-minimal button')].find((b) =>
         b.textContent.includes('全部已读'),
-      ).length,
-    }));
+      );
+      return {
+        unreadRows: document.querySelectorAll('.x-item.unread').length,
+        btnPresent: Boolean(btn),
+        btnDisabled: btn?.disabled,
+      };
+    });
     check(
       '全部已读 · 未读行清零',
       afterMarkAll.unreadRows === 0,
       `unread=${afterMarkAll.unreadRows}`,
     );
-    check('全部已读 · 清零后按钮收起', afterMarkAll.btnCount === 0, `btn=${afterMarkAll.btnCount}`);
+    check(
+      '全部已读 · 清零后仍常驻但置灰',
+      afterMarkAll.btnPresent === true && afterMarkAll.btnDisabled === true,
+      JSON.stringify(afterMarkAll),
+    );
   }
   await markAll.context.close();
+}
+
+// ── 补充场景三(2026-11-21 二次改版):批量减按钮 / 动作后保持模式 / shift-click ──
+{
+  console.log('\n▶ 补充场景三');
+
+  // M. 批量动作后保持选择模式:勾 1 条归档 → 模式不退、选择清零(旧实现整模式退出)
+  const keepMode = await openMessages({ width: 390, height: 844 });
+  await keepMode.page.locator('.x-mark-all-btn-minimal', { hasText: '选择' }).first().click();
+  await keepMode.page.waitForTimeout(400);
+  await keepMode.page.locator('.x-item').first().click();
+  await keepMode.page.waitForTimeout(300);
+  await keepMode.page.locator('.x-select-action-bar .x-sab-btn', { hasText: '归档' }).click();
+  await keepMode.page.waitForTimeout(900);
+  const afterArchive = await keepMode.page.evaluate(() => ({
+    bar: Boolean(document.querySelector('.x-select-action-bar')),
+    selected: document.querySelectorAll('.x-item.selected').length,
+    cancelVisible: (() => {
+      const c = document.querySelector('.x-select-cancel');
+      if (!c) return false;
+      const r = c.getBoundingClientRect();
+      return r.width > 0 && r.height > 0;
+    })(),
+  }));
+  check(
+    'M1 · 批量归档后选择模式保持(动作条仍在)',
+    afterArchive.bar && afterArchive.selected === 0 && afterArchive.cancelVisible,
+    JSON.stringify(afterArchive),
+  );
+  await keepMode.context.close();
+
+  // N. 桌面 shift-click 范围多选:点第 1 条 → shift 点第 3 条 ⇒ 3 条入选
+  const shiftSel = await openMessages({ width: 1280, height: 800 });
+  await shiftSel.page.locator('.x-mark-all-btn-minimal', { hasText: '选择' }).first().click();
+  await shiftSel.page.waitForTimeout(400);
+  await shiftSel.page.locator('.x-item').first().click();
+  await shiftSel.page.waitForTimeout(200);
+  await shiftSel.page
+    .locator('.x-item')
+    .nth(2)
+    .click({ modifiers: ['Shift'] });
+  await shiftSel.page.waitForTimeout(300);
+  const afterShift = await shiftSel.page.evaluate(() => ({
+    selected: document.querySelectorAll('.x-item.selected').length,
+  }));
+  check(
+    'N1 · shift-click 范围多选(1→3 共 3 条)',
+    afterShift.selected === 3,
+    JSON.stringify(afterShift),
+  );
+  await shiftSel.context.close();
 }
 
 await browser.close();

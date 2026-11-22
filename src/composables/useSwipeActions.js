@@ -113,7 +113,7 @@ export function useSwipeActions({ revealWidth = 148, openThreshold = 76, onSwipe
    * 返回 'action' | 'close' | null:宿主据此在 onItemClick 里吞掉本次点击。
    * action = 完成了一次滑动展开;close = 滑动收起了已展开行。
    */
-  const onRowPointerUp = (event) => {
+  const onRowPointerUp = () => {
     if (!drag) return null;
     const { horizontal, vertical, offsetX, layers, id, tapToClose } = drag;
     drag = null;

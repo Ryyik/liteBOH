@@ -118,7 +118,7 @@ describe('buildAggregateEntries', () => {
     expect(out.filter((e) => e.kind === 'message')).toHaveLength(5);
   });
 
-  it('展开态 = 聚合行 + 成员消息行,顺序保持', () => {
+  it('展开态 = 聚合行 + 成员消息行,顺序保持,成员带归属标记', () => {
     const out = buildAggregateEntries(
       [like('l1', 'p1', { daysAgo: 0 }), like('l2', 'p1', { sender: 'Mochi', daysAgo: 1 })],
       new Set(['like:p1']),
@@ -126,6 +126,13 @@ describe('buildAggregateEntries', () => {
     expect(out.map((e) => e.kind)).toEqual(['aggregate', 'message', 'message']);
     expect(out[1].msg.id).toBe('l1');
     expect(out[2].msg.id).toBe('l2');
+    // 归属标记:缩进/连接线/错峰动画的数据来源
+    expect(out[1].aggMember).toBe(true);
+    expect(out[1].aggId).toBe('like:p1');
+    expect(out[1].aggIndex).toBe(0);
+    expect(out[1].aggLast).toBe(false);
+    expect(out[2].aggIndex).toBe(1);
+    expect(out[2].aggLast).toBe(true);
   });
 });
 

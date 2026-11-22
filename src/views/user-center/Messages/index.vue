@@ -35,22 +35,6 @@
               </span>
               全选
             </button>
-            <div class="x-select-status-filter" role="tablist" aria-label="选择范围">
-              <button
-                type="button"
-                :class="{ active: selectStatusFilter === 'all' }"
-                @click="selectStatusFilter = 'all'"
-              >
-                全部
-              </button>
-              <button
-                type="button"
-                :class="{ active: selectStatusFilter === 'unread' }"
-                @click="selectStatusFilter = 'unread'"
-              >
-                未读
-              </button>
-            </div>
             <div class="x-filter-actions">
               <div class="x-filter-actions-desktop">
                 <button class="x-select-btn active" @click="toggleSelectMode">完成</button>
@@ -193,23 +177,6 @@
                       >
                     </button>
                   </div>
-                  <div class="x-filter-divider"></div>
-                  <div class="x-filter-section">
-                    <button
-                      type="button"
-                      class="x-filter-option"
-                      :class="{ active: showUnreadOnly }"
-                      @click="
-                        showUnreadOnly = !showUnreadOnly;
-                        filterDropdownOpen = false;
-                      "
-                    >
-                      <span>只看未读</span>
-                      <span v-if="unreadTotalCount" class="x-filter-count">{{
-                        unreadTotalCount
-                      }}</span>
-                    </button>
-                  </div>
                 </div>
               </Transition>
             </div>
@@ -249,7 +216,14 @@
                 </svg>
                 取消
               </button>
-              <button type="button" class="x-filter-chip select-all" @click="selectAllFiltered">
+              <!-- 2026-11-21 批量减按钮:「全部|未读」分段删除(职责并入外置未读 chip),
+                   计数并入全选 chip(aria-live 保留)⇒ 工具条 = 取消 / 全选·N -->
+              <button
+                type="button"
+                class="x-filter-chip select-all"
+                aria-live="polite"
+                @click="selectAllFiltered"
+              >
                 <span class="x-checkbox" :class="{ checked: isAllFilteredSelected }">
                   <svg
                     v-if="isAllFilteredSelected"
@@ -263,25 +237,10 @@
                     <polyline points="20 6 9 17 4 12"></polyline>
                   </svg>
                 </span>
-                全选
+                全选<span v-if="selectedMessageCount" class="x-select-count">
+                  · {{ selectedMessageCount }}</span
+                >
               </button>
-              <div class="x-select-status-filter compact" role="tablist" aria-label="选择范围">
-                <button
-                  type="button"
-                  :class="{ active: selectStatusFilter === 'all' }"
-                  @click="selectStatusFilter = 'all'"
-                >
-                  全部
-                </button>
-                <button
-                  type="button"
-                  :class="{ active: selectStatusFilter === 'unread' }"
-                  @click="selectStatusFilter = 'unread'"
-                >
-                  未读
-                </button>
-              </div>
-              <span class="x-select-count" aria-live="polite">{{ selectCountLabel }}</span>
             </template>
             <template v-else>
               <div class="x-filter-dropdown-wrap">
@@ -326,36 +285,34 @@
                         >
                       </button>
                     </div>
-                    <div class="x-filter-divider"></div>
-                    <div class="x-filter-section">
-                      <button
-                        type="button"
-                        class="x-filter-option"
-                        :class="{ active: showUnreadOnly }"
-                        @click="
-                          showUnreadOnly = !showUnreadOnly;
-                          filterDropdownOpen = false;
-                        "
-                      >
-                        <span>只看未读</span>
-                        <span v-if="unreadTotalCount" class="x-filter-count">{{
-                          unreadTotalCount
-                        }}</span>
-                      </button>
-                    </div>
                   </div>
                 </Transition>
               </div>
+              <!-- 「只看未读」外置(2026-11-21):高频操作从下拉两跳变一跳,并取代
+                   选择模式内的「全部|未读」分段成为未读筛选的唯一真源 -->
+              <button
+                type="button"
+                class="x-filter-chip x-unread-chip"
+                :class="{ active: showUnreadOnly }"
+                :aria-pressed="showUnreadOnly ? 'true' : 'false'"
+                @click="showUnreadOnly = !showUnreadOnly"
+              >
+                未读<span v-if="unreadTotalCount" class="x-filter-count">{{
+                  unreadTotalCount
+                }}</span>
+              </button>
             </template>
           </div>
         </div>
         <div v-if="!isSelectMode" class="x-header-actions-minimal">
-          <!-- 常驻「全部已读」（2026-11-21）：此前页面内没有一键入口，只有未读
-               ≥ UNREAD_DIGEST_MIN(4) 条时智能建议岛才弹一次，1~3 条未读只能逐条点开。
-               只在收件箱分区且有未读时出现；已归档分区隐藏（mark_all_as_read 只作用收件箱）。 -->
+          <!-- 常驻「全部已读」（2026-11-21 二次改版）：不再按未读数隐藏——0 未读时置灰
+               禁用，入口永远可见可发现（用户反馈「看不到」的根因就是 0 未读整颗消失）。
+               启用判定走 serverUnreadCount（服务端真源）；已归档分区隐藏
+               （mark_all_as_read 只作用收件箱）。 -->
           <button
-            v-if="currentTab !== 'archived' && unreadTotalCount > 0"
+            v-if="currentTab !== 'archived'"
             class="x-mark-all-btn-minimal"
+            :disabled="serverUnreadCount === 0"
             @click="markAllAsRead()"
           >
             全部已读
@@ -508,7 +465,7 @@
                   'active-detail': selectedMessage?.id === msg.id && !isSelectMode,
                 }"
                 :aria-selected="isSelectMode ? selectedMessageIds.has(msg.id) : undefined"
-                @click="onItemClick(msg)"
+                @click="onItemClick(msg, $event)"
                 @pointerdown="onItemPointerDown(msg, $event)"
                 @pointerup="cancelLongPress"
                 @pointerleave="cancelLongPress"
@@ -523,7 +480,7 @@
                 <div
                   v-if="isSelectMode"
                   class="x-select-check"
-                  @click.stop="toggleMessageSelection(msg.id)"
+                  @click.stop="toggleMessageSelection(msg.id, $event)"
                 >
                   <span class="x-checkbox" :class="{ checked: selectedMessageIds.has(msg.id) }">
                     <svg
@@ -653,8 +610,18 @@
                   </svg>
                 </div>
               </div>
-              <!-- 消息行：cell 承载左滑按钮层（行透明底 ⇒ 按钮层随拖拽 opacity 显形） -->
-              <div v-else class="x-item-swipe-cell" :data-swipe-id="entry.msg.id">
+              <!-- 消息行：cell 承载左滑按钮层（行透明底 ⇒ 按钮层随拖拽 opacity 显形）；
+                   聚合展开的成员行带 data-agg-member（连接线/缩进/错峰入场动画的挂钩） -->
+              <div
+                v-else
+                class="x-item-swipe-cell"
+                :class="{ 'is-agg-last': entry.aggLast }"
+                :data-agg-member="entry.aggId || undefined"
+                :data-swipe-id="entry.msg.id"
+                :style="
+                  entry.aggMember ? { animationDelay: entry.aggIndex * 40 + 'ms' } : undefined
+                "
+              >
                 <div class="x-swipe-actions" aria-hidden="false">
                   <button
                     v-if="currentTab !== 'archived' && entry.msg.status === 'unread'"
@@ -693,7 +660,7 @@
                     'active-detail': selectedMessage?.id === entry.msg.id && !isSelectMode,
                   }"
                   :aria-selected="isSelectMode ? selectedMessageIds.has(entry.msg.id) : undefined"
-                  @click="onItemClick(entry.msg)"
+                  @click="onItemClick(entry.msg, $event)"
                   @pointerdown="onRowGestureDown(entry.msg, $event)"
                   @pointermove="onRowGestureMove"
                   @pointerup="onRowGestureUp"
@@ -711,7 +678,7 @@
                   <div
                     v-if="isSelectMode"
                     class="x-select-check"
-                    @click.stop="toggleMessageSelection(entry.msg.id)"
+                    @click.stop="toggleMessageSelection(entry.msg.id, $event)"
                   >
                     <span
                       class="x-checkbox"
@@ -1200,8 +1167,19 @@ const isFromUserSpace = computed(
 
 const refreshUnreadCount = async (options = {}) => {
   const notificationStore = await ensureNotificationStore();
+  notificationStoreRef.value = notificationStore;
   await notificationStore.refreshUnreadCount(options);
 };
+
+/** 服务端未读真源：与底栏徽标 / 一键已读建议岛同源（get_unread_notification_count RPC），
+ *  不受列表分页影响——「全部已读」按钮的启用判定用它，不用本地已加载页的 unreadTotalCount。 */
+const notificationStoreRef = ref(null);
+const serverUnreadCount = computed(() => notificationStoreRef.value?.unreadCount ?? 0);
+// setup 期就取 store（异步 loader 有缓存）：不依赖某次 refresh 才赋值，否则按钮
+// 初次挂载会一直停在禁用态（2026-11-21 自查补上）。
+void ensureNotificationStore().then((store) => {
+  notificationStoreRef.value = store;
+});
 
 const router = useRouter();
 const authStore = useAuthStore();
@@ -1358,8 +1336,8 @@ const isSelectMode = ref(false);
 // 非 minimal（独立通知页）头部下拉状态；minimal 模式已改用底部一键操作栏
 const actionsDropdownOpen = ref(false);
 const selectedMessageIds = ref(new Set());
+const lastSelectedMessageId = ref(null); // shift-click 范围多选的锚点
 const selectFilterOpen = ref(false); // 预留：筛选下拉面板状态
-const selectStatusFilter = ref('all');
 const archivedMessages = ref([]);
 const archivedHasMore = ref(false);
 const archivedCursor = ref(null);
@@ -1568,16 +1546,11 @@ const isSystemNotificationType = (type) =>
 
 const filteredMessages = computed(() => {
   if (currentTab.value === 'archived') {
-    let result = archivedMessages.value;
-    if (isSelectMode.value && selectStatusFilter.value !== 'all') {
-      result = result.filter((m) => m.status === selectStatusFilter.value);
-    }
-    return result;
+    return archivedMessages.value;
   }
 
   const tab = currentTab.value;
   const unreadOnly = showUnreadOnly.value;
-  const selectFilter = isSelectMode.value ? selectStatusFilter.value : null;
   const isSystemType = tab === 'system';
   const isSpecificType = tab !== 'all' && !isSystemType;
 
@@ -1586,7 +1559,6 @@ const filteredMessages = computed(() => {
     if (isSystemType && !isSystemNotificationType(m.type)) return false;
     if (isSpecificType && m.type !== tab) return false;
     if (unreadOnly && m.status !== 'unread') return false;
-    if (selectFilter && selectFilter !== 'all' && m.status !== selectFilter) return false;
     return true;
   });
 });
@@ -1652,7 +1624,7 @@ const filterSummaryText = computed(() => {
 });
 const emptyStateTitle = computed(() => {
   if (currentTab.value === 'archived') return '暂无已归档通知';
-  if (showUnreadOnly.value || selectStatusFilter.value === 'unread') {
+  if (showUnreadOnly.value) {
     return currentTab.value === 'all' ? '暂无未读通知' : `暂无未读${currentTabLabel.value}类通知`;
   }
   if (currentTab.value !== 'all') return `暂无${currentTabLabel.value}类通知`;
@@ -1660,8 +1632,7 @@ const emptyStateTitle = computed(() => {
 });
 const emptyStateDescription = computed(() => {
   if (currentTab.value === 'archived') return '当你归档通知后，可以在这里找到它们。';
-  if (showUnreadOnly.value || selectStatusFilter.value === 'unread')
-    return '当前筛选下没有需要处理的未读消息。';
+  if (showUnreadOnly.value) return '当前筛选下没有需要处理的未读消息。';
   if (currentTab.value !== 'all') return `当有新的${currentTabLabel.value}类互动时，会显示在这里。`;
   return '当有伙伴与你互动或系统有新消息时，你会在这里看到它们。';
 });
@@ -2085,16 +2056,7 @@ watch(archivedHasMore, async (val) => {
 
 watch(isSelectMode, () => {
   selectFilterOpen.value = false;
-  selectStatusFilter.value = 'all';
   swipe.close();
-});
-
-watch(selectStatusFilter, () => {
-  if (!isSelectMode.value || selectedMessageIds.value.size === 0) return;
-  const visibleIds = new Set(filteredMessages.value.map((message) => message.id));
-  selectedMessageIds.value = new Set(
-    Array.from(selectedMessageIds.value).filter((id) => visibleIds.has(id)),
-  );
 });
 
 // 组件卸载时恢复 body 滚动并取消订阅
@@ -2557,7 +2519,7 @@ const archiveSelectedMessages = async () => {
     }
 
     // 清空选择状态
-    resetSelectMode();
+    clearSelectionKeepMode();
 
     await triggerUnreadRefresh();
 
@@ -2631,7 +2593,7 @@ const unarchiveSelectedMessages = async () => {
       closeDetail();
     }
 
-    resetSelectMode();
+    clearSelectionKeepMode();
 
     await triggerUnreadRefresh();
 
@@ -2715,7 +2677,7 @@ const markSelectedMessagesAsRead = async () => {
   const selectedRows = messages.value.filter((message) => selectedMessageIds.value.has(message.id));
   const unreadRows = selectedRows.filter((message) => message.status === 'unread');
   if (unreadRows.length === 0) {
-    resetSelectMode();
+    clearSelectionKeepMode();
     showFeedback('所选通知已经是已读', 'info');
     return;
   }
@@ -2748,7 +2710,7 @@ const markSelectedMessagesAsRead = async () => {
       }
     });
 
-    resetSelectMode();
+    clearSelectionKeepMode();
     await triggerUnreadRefresh();
 
     if (failedRows.length === 0) {
@@ -2792,13 +2754,17 @@ const enterSelectMode = (msgId = null) => {
     selectedMessage.value = null;
     showOverlay.value = false;
   }
-  if (msgId) selectedMessageIds.value = new Set([msgId]);
+  if (msgId) {
+    selectedMessageIds.value = new Set([msgId]);
+    lastSelectedMessageId.value = msgId;
+  }
 };
 
 const exitSelectMode = () => {
   if (!isSelectMode.value) return;
   isSelectMode.value = false;
   selectedMessageIds.value = new Set();
+  lastSelectedMessageId.value = null;
   const restoreId = selectModeRestoreId.value;
   selectModeRestoreId.value = null;
   if (!isMobile.value && restoreId) {
@@ -2807,18 +2773,15 @@ const exitSelectMode = () => {
   }
 };
 
-/** 批量动作执行后的收口：不恢复详情（目标可能已被归档 / 移出当前分区） */
-const resetSelectMode = () => {
-  isSelectMode.value = false;
+/** 批量动作后的收口（2026-11-21 改版）：只清选择、**保持选择模式**——
+ *  连续批量处理不再每轮重进；退出统一走页头「取消」/ Esc。
+ *  旧 resetSelectMode（动作即退模式）已删。 */
+const clearSelectionKeepMode = () => {
   selectedMessageIds.value = new Set();
-  selectModeRestoreId.value = null;
+  lastSelectedMessageId.value = null;
 };
 
 const toggleSelectMode = () => (isSelectMode.value ? exitSelectMode() : enterSelectMode());
-
-const selectCountLabel = computed(() =>
-  selectedMessageCount.value > 0 ? `已选 ${selectedMessageCount.value} 条` : '未选择',
-);
 
 // 选择模式期间给 <body> 挂标记：手机横屏要把底栏让位给贴底动作条（bottom-nav.css 消费）。
 // KeepAlive 下切走 tab 不走 onUnmounted ⇒ activated / deactivated 也要同步，否则底栏会永久消失。
@@ -2894,14 +2857,27 @@ const onItemContextMenu = (msg) => {
   enterSelectMode(msg.id);
 };
 
-const onItemClick = (msg) => {
+const onItemClick = (msg, event) => {
   // 长按 / 右键刚触发过：吞掉紧随其后的合成 click，否则会立刻把刚选中那条取消掉
   if (Date.now() < suppressClickUntil) return;
-  if (isSelectMode.value) toggleMessageSelection(msg.id);
+  if (isSelectMode.value) toggleMessageSelection(msg.id, event);
   else showDetail(msg);
 };
 
-const toggleMessageSelection = (msgId) => {
+const toggleMessageSelection = (msgId, event) => {
+  // 桌面 shift-click 范围多选（2026-11-21）：以最近一次点选为锚点，区间并入选择
+  if (event?.shiftKey && lastSelectedMessageId.value) {
+    const list = filteredMessages.value;
+    const from = list.findIndex((m) => m.id === lastSelectedMessageId.value);
+    const to = list.findIndex((m) => m.id === msgId);
+    if (from !== -1 && to !== -1) {
+      const [lo, hi] = from < to ? [from, to] : [to, from];
+      const next = new Set(selectedMessageIds.value);
+      for (let i = lo; i <= hi; i++) next.add(list[i].id);
+      selectedMessageIds.value = next;
+      return;
+    }
+  }
   const next = new Set(selectedMessageIds.value);
   if (next.has(msgId)) {
     next.delete(msgId);
@@ -2909,6 +2885,7 @@ const toggleMessageSelection = (msgId) => {
     next.add(msgId);
   }
   selectedMessageIds.value = next;
+  lastSelectedMessageId.value = msgId;
 };
 
 const isAllFilteredSelected = computed(() => {

@@ -242,6 +242,68 @@
   transform: rotate(180deg);
 }
 
+/* 展开态聚合行强化(2026-11-21 二次改版):浅底 + 收起提示,与成员行拉开层次 */
+.x-aggregate-row.is-expanded {
+  background: var(--liquid-bg-subtle);
+}
+
+/* 展开成员行:连接线 + 缩进,归属感一眼可辨 */
+.x-item-swipe-cell[data-agg-member]::before {
+  content: '';
+  position: absolute;
+  left: 26px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--liquid-border-hairline);
+}
+
+.x-item-swipe-cell[data-agg-member].is-agg-last::before {
+  bottom: 50%;
+}
+
+.x-item-swipe-cell[data-agg-member] > .x-item {
+  padding-left: 44px;
+}
+
+/* 错峰入场动画挂在 cell 上(行本体 animation:none + 可被左滑 inline transform 接管,
+   两者都不能再背第二个 transform 动画——fill-mode: both 的教训见 cell 规则注释) */
+.x-item-swipe-cell[data-agg-member] {
+  animation: agg-member-in 260ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@keyframes agg-member-in {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* 勾选 pop:勾选框挂上时轻微回弹(select-all 与行内复用) */
+.x-checkbox {
+  transition: transform 0.15s ease;
+}
+
+.x-checkbox.checked {
+  animation: check-pop 0.18s ease;
+}
+
+@keyframes check-pop {
+  0% {
+    transform: scale(0.72);
+  }
+  60% {
+    transform: scale(1.12);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
 /* 左滑手势:cell 是纯容器(定位/裁切/行分隔线),行本身样式零改动;
    行分隔线原在 .x-item 上,包裹后 :last-child 恒真 ⇒ 迁到 cell */
 .x-item-swipe-cell {
@@ -1390,14 +1452,6 @@
   flex: 0 0 auto;
 }
 
-.x-filter-bar.x-select-toolbar > .x-select-status-filter {
-  order: 0;
-  width: auto;
-  flex: 0 0 auto;
-  justify-content: flex-start;
-  min-width: 0;
-}
-
 /* 计数紧跟分段控件（不 margin-left:auto）—— 桌面 979px 宽时推到最右会与控件隔开半屏，
    横屏 844 下同理；贴左与列表起点对齐更好读。 */
 .x-filter-bar.x-select-toolbar > .x-select-count {
@@ -1584,56 +1638,6 @@
   cursor: not-allowed;
 }
 
-.x-select-status-filter {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  padding: 3px;
-  border-radius: 13px;
-  border: 1px solid var(--liquid-border);
-  /* 在 sticky 页头（堆叠上下文）内：backdrop-filter 必被裁空（§21.11）⇒ 实底 */
-  background: var(--liquid-bg-subtle);
-  box-shadow: var(--liquid-highlight-subtle);
-}
-
-.x-select-status-filter button {
-  min-height: 30px;
-  padding: 0 12px;
-  border: 0;
-  border-radius: 10px;
-  background: transparent;
-  color: #667085;
-  font: inherit;
-  font-size: 12px;
-  font-weight: 850;
-  cursor: pointer;
-  transition:
-    background-color 0.18s ease,
-    color 0.18s ease,
-    box-shadow 0.18s ease,
-    transform 0.18s ease;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
-.x-select-status-filter button:hover {
-  color: #344054;
-  transform: translateY(-1px);
-}
-
-.x-select-status-filter button.active {
-  background: rgba(255, 255, 255, 0.9);
-  color: #1d1d1f;
-  box-shadow:
-    0 4px 12px rgba(15, 23, 42, 0.07),
-    inset 0 0 0 1px rgba(16, 24, 40, 0.04);
-}
-
-.x-select-status-filter.compact button {
-  min-height: 28px;
-  padding: 0 10px;
-}
-
 /* ─── 筛选下拉 ───────────────────────────────────────────────────────────── */
 
 .x-filter-dropdown-wrap {
@@ -1746,6 +1750,25 @@
 .x-filter-option.active {
   background: rgba(0, 113, 227, 0.09);
   color: #0071e3;
+}
+
+/* 当前选中项的 ✓ 记号(2026-11-21):只有底色时弱,加字形一眼锁定 */
+.x-filter-option.active::after {
+  content: '✓';
+  margin-left: 6px;
+  font-weight: 800;
+}
+
+/* 外置「未读」chip 的激活态(与 .x-mark-all-btn-minimal.active 同色系) */
+.x-unread-chip.active {
+  border-color: #1d9bf0;
+  background: rgba(29, 155, 240, 0.1);
+  color: #1d9bf0;
+}
+
+.x-unread-chip.active .x-filter-count {
+  background: rgba(29, 155, 240, 0.16);
+  color: #1d9bf0;
 }
 
 .x-filter-section {
@@ -2323,14 +2346,6 @@
     row-gap: 10px;
   }
 
-  .x-filter-bar > .x-select-status-filter {
-    order: 3;
-    width: auto;
-    flex: 1 1 auto;
-    justify-content: flex-start;
-    min-width: 120px;
-  }
-
   .x-filter-actions {
     margin-left: auto;
     gap: 6px;
@@ -2356,12 +2371,6 @@
 
   .x-filter-chip.select-all {
     padding: 0 16px 0 12px;
-  }
-
-  .x-select-status-filter button {
-    padding: 0 10px;
-    font-size: 12px;
-    min-height: 28px;
   }
 
   .x-mark-all-btn {
@@ -2437,23 +2446,6 @@
 
   .x-filter-actions {
     gap: 6px;
-  }
-
-  .x-select-status-filter {
-    order: 3;
-    width: 100%;
-    justify-content: center;
-  }
-
-  /* 选择模式（minimal）：全选 + 全部/未读 同一行 */
-  .minimal-mode .x-select-status-filter {
-    order: 0;
-    width: auto;
-    flex: 0 0 auto;
-  }
-
-  .x-select-status-filter button {
-    flex: 1;
   }
 
   .x-filter-dropdown {
@@ -2865,11 +2857,6 @@
     padding-left: 12px;
     padding-right: 12px;
   }
-  .x-notifications-container.detail-open .x-select-status-filter button {
-    padding: 0 8px;
-    font-size: 11px;
-    min-height: 26px;
-  }
 
   .x-notifications-container.detail-open .x-filter-chip.select-all {
     padding: 0 10px 0 8px;
@@ -3015,10 +3002,6 @@
   color: #7cc0ff;
 }
 
-[data-theme='dark'] .x-select-status-filter {
-  background: rgba(255, 255, 255, 0.06);
-}
-
 /* 选择模式工具条：取消钮与计数只需在暗色下换文字色 ——
    底色/描边在基础规则里已经引 --liquid-bg-strong / --liquid-border（token 自动翻转）。
    ⚠️ 这里必须写纯 token：暗色块内的颜色字面量会被 check:dark-tokens 计入棘轮。 */
@@ -3032,15 +3015,6 @@
 
 [data-theme='dark'] .x-select-count {
   color: var(--liquid-text-tertiary);
-}
-
-[data-theme='dark'] .x-select-status-filter button {
-  color: #a7afba;
-}
-
-[data-theme='dark'] .x-select-status-filter button.active {
-  background: rgba(255, 255, 255, 0.12);
-  color: #f4f6f8;
 }
 
 [data-theme='dark'] .x-filter-dropdown {
