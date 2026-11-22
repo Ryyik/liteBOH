@@ -20,6 +20,7 @@
 import { chromium } from 'playwright';
 
 const BASE = process.argv[2] || 'http://localhost:5173';
+const OUT = process.env.OUT || 'debug-screenshots';
 
 const violations = [];
 let total = 0;
@@ -496,6 +497,38 @@ try {
       Math.abs(end.top - end.mainBottom) < 200 && !end.isEmptyClass && end.msgs >= 1,
       `top=${end.top} mainBottom=${end.mainBottom} is-empty=${end.isEmptyClass} msgs=${end.msgs}`,
     );
+    // ── 2026-11-22 用户报障「对话列表点三个点不显示」回归 ─────────────────────
+    // 菜单已 Teleport 到 body + fixed 定位（旧实现挂条目内部，absolute 向下弹 ——
+    // 被 .boh-sb-gbody-inner 的 overflow: hidden（折叠动画承重墙）与
+    // .boh-sb-groups 的 overflow-y: auto 两层祖先裁剪，组内末条的菜单整块被吃）。
+    // 判据：点第一个 ⋯ → 菜单可见 + elementFromPoint 命中菜单本体（AGENTS 遮挡检测口径）。
+    await page.locator('.boh-float-actions [title="打开侧栏"]').first().click();
+    await page.waitForTimeout(500);
+    await page.locator('.boh-sb-item .boh-sb-more').first().click();
+    await page.waitForTimeout(300);
+    const menuChk = await page.evaluate(() => {
+      const menu = document.querySelector('.boh-sb-menu');
+      if (!menu) return { present: false };
+      const r = menu.getBoundingClientRect();
+      const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+      return {
+        present: true,
+        visible: menu.checkVisibility(),
+        inViewport: r.top >= 0 && r.left >= 0 && r.bottom <= innerHeight && r.right <= innerWidth,
+        hitIsMenu: !!hit && (menu === hit || menu.contains(hit)),
+        items: menu.querySelectorAll('button').length,
+      };
+    });
+    check(
+      '桌面：⋯ 菜单 Teleport 弹出、可见且 elementFromPoint 命中（不再被 gbody/groups 裁剪）',
+      menuChk.present &&
+        menuChk.visible &&
+        menuChk.inViewport &&
+        menuChk.hitIsMenu &&
+        menuChk.items >= 2, // 单会话 ⇒ 重命名+置顶 两项（删除按钮 sessions>1 才出现）
+      JSON.stringify(menuChk),
+    );
+    await page.screenshot({ path: `${OUT}/bohai-shell-sidebar-menu.png` });
     await ctx.close();
   }
   // ── 场景 E：消息列的横向布局（2026-10-12 用户口径）────────────────────

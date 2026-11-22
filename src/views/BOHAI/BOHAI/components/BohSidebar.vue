@@ -152,36 +152,10 @@
                       class="boh-sb-more"
                       title="更多操作"
                       aria-label="更多操作"
-                      @click.stop="toggleMenu(item.index)"
+                      @click.stop="toggleMenu(item.index, $event)"
                     >
                       <MoreHorizontal :size="15" aria-hidden="true" />
                     </button>
-                    <div v-if="menuIndex === item.index" class="boh-sb-menu" @click.stop>
-                      <button type="button" @click="beginRename(item)">
-                        <Pencil :size="14" aria-hidden="true" />重命名
-                      </button>
-                      <button type="button" @click="togglePin(item.index)">
-                        <Pin :size="14" aria-hidden="true" />{{
-                          item.session.pinned ? '取消置顶' : '置顶'
-                        }}
-                      </button>
-                      <!-- plans/038 §3.4：快速会话可提升为主会话（清 origin，回到常规时间分组） -->
-                      <button
-                        v-if="item.session.origin === 'quick-ask'"
-                        type="button"
-                        @click="promoteSession(item.index)"
-                      >
-                        <ArrowUpRight :size="14" aria-hidden="true" />提升为主会话
-                      </button>
-                      <button
-                        v-if="sessions.length > 1"
-                        type="button"
-                        class="is-danger"
-                        @click="requestDelete(item.index)"
-                      >
-                        <Trash2 :size="14" aria-hidden="true" />删除
-                      </button>
-                    </div>
                   </div>
                 </TransitionGroup>
               </div>
@@ -275,6 +249,45 @@
         </div>
       </aside>
     </Transition>
+    <!-- 三个点的菜单：Teleport 到 body + fixed 定位（2026-11-22 用户报障「点三个点不显示」）。
+       旧实现挂在条目内部、absolute 向下弹 —— 被两层祖先裁剪：
+       ① .boh-sb-gbody-inner 的 overflow: hidden（0fr↔1fr 折叠动画的承重墙，不能删）
+       ② .boh-sb-groups 的 overflow-y: auto（滚动边界）
+       组内最后一条的菜单几乎整块被吃掉。Teleport + 按钮矩形定位对两层裁剪免疫。
+       ⚠️ Teleport 到 body 后脱离 .bohai-page 的 var 作用域 ⇒ 颜色走内联常量
+       （明暗两套，开菜单时按侧栏文字亮度选档），不写裸色进 CSS（dark-tokens 棘轮）。 -->
+    <Teleport to="body">
+      <div
+        v-if="menuIndex !== null && menuItem"
+        class="boh-sb-menu"
+        :style="menuStyle"
+        @click.stop
+        @pointerdown.stop
+      >
+        <button type="button" @click="beginRename(menuItem)">
+          <Pencil :size="14" aria-hidden="true" />重命名
+        </button>
+        <button type="button" @click="togglePin(menuIndex)">
+          <Pin :size="14" aria-hidden="true" />{{ menuItem.session.pinned ? '取消置顶' : '置顶' }}
+        </button>
+        <!-- plans/038 §3.4：快速会话可提升为主会话（清 origin，回到常规时间分组） -->
+        <button
+          v-if="menuItem.session.origin === 'quick-ask'"
+          type="button"
+          @click="promoteSession(menuIndex)"
+        >
+          <ArrowUpRight :size="14" aria-hidden="true" />提升为主会话
+        </button>
+        <button
+          v-if="sessions.length > 1"
+          type="button"
+          class="is-danger"
+          @click="requestDelete(menuIndex)"
+        >
+          <Trash2 :size="14" aria-hidden="true" />删除
+        </button>
+      </div>
+    </Teleport>
   </Teleport>
 </template>
 
@@ -362,6 +375,10 @@ const surfaceMenuOpen = ref(false);
 const searchOpen = ref(false);
 const query = ref('');
 const menuIndex = ref(null);
+/* Teleport 菜单的宿主条目 / 定位 / 明暗档（2026-11-22 裁剪修复，见模板处注释） */
+const menuItem = ref(null);
+const menuPos = ref({ x: 0, y: 0 });
+const menuDark = ref(false);
 const renamingIndex = ref(null);
 const renameValue = ref('');
 const renameInput = ref(null);
@@ -390,9 +407,71 @@ const selectSession = (index) => {
   }
 };
 
-const toggleMenu = (index) => {
-  menuIndex.value = menuIndex.value === index ? null : index;
+const toggleMenu = (index, evt) => {
+  if (menuIndex.value === index) {
+    menuIndex.value = null;
+    menuItem.value = null;
+    return;
+  }
+  menuIndex.value = index;
+  menuItem.value =
+    filteredGroups.value.flatMap((grp) => grp.items).find((it) => it.index === index) || null;
+  /* 定位：按钮矩形 → fixed；近视口底部向上翻；横向收进视口内 */
+  const rect = evt?.currentTarget?.getBoundingClientRect?.();
+  const menuH = 150;
+  const menuW = 132;
+  if (rect) {
+    let x = Math.max(8, Math.min(rect.right - menuW, window.innerWidth - menuW - 8));
+    let y = rect.bottom + 6;
+    if (y + menuH > window.innerHeight - 8) y = Math.max(8, rect.top - menuH - 6);
+    menuPos.value = { x: Math.round(x), y: Math.round(y) };
+  }
+  /* 明暗档：按侧栏文字亮度判（主题无关的可靠探针） */
+  const sidebarEl = document.querySelector('.boh-sidebar');
+  const col = sidebarEl ? getComputedStyle(sidebarEl).color : '';
+  const m2 = col.match(/(\d+)[\s,]+(\d+)[\s,]+(\d+)/);
+  const lum = m2 ? Number(m2[1]) * 0.299 + Number(m2[2]) * 0.587 + Number(m2[3]) * 0.114 : 0;
+  menuDark.value = lum > 128;
 };
+
+/* 外点关闭：Teleport 后菜单不在侧栏 DOM 里，靠 document 捕获相位
+   （pointerdown 先于 click —— 自己按钮的 pointerdown 放行，交给 toggleMenu 翻转） */
+const onDocPointerDown = (e) => {
+  if (menuIndex.value === null) return;
+  const t = e.target;
+  if (t.closest?.('.boh-sb-menu') || t.closest?.('.boh-sb-more')) return;
+  menuIndex.value = null;
+  menuItem.value = null;
+};
+/* 侧栏滚动即关（fixed 菜单不跟随滚动，断开比错位好） */
+const onDocScroll = (e) => {
+  if (menuIndex.value === null) return;
+  if (e.target.closest?.('.boh-sb-groups')) {
+    menuIndex.value = null;
+    menuItem.value = null;
+  }
+};
+onMounted(() => {
+  document.addEventListener('pointerdown', onDocPointerDown, true);
+  document.addEventListener('scroll', onDocScroll, true);
+});
+onUnmounted(() => {
+  document.removeEventListener('pointerdown', onDocPointerDown, true);
+  document.removeEventListener('scroll', onDocScroll, true);
+});
+
+const menuStyle = computed(() => {
+  const dark = menuDark.value;
+  return {
+    left: `${menuPos.value.x}px`,
+    top: `${menuPos.value.y}px`,
+    background: dark ? '#2c2c2e' : '#ffffff',
+    color: dark ? '#f5f5f7' : '#1d1d1f',
+    borderColor: dark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.1)',
+    boxShadow: dark ? '0 8px 24px rgba(0, 0, 0, 0.45)' : '0 8px 24px rgba(0, 0, 0, 0.14)',
+    '--menu-danger': '#e5484d',
+  };
+});
 
 const togglePin = (index) => {
   menuIndex.value = null;

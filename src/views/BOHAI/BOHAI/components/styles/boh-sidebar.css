@@ -479,16 +479,20 @@
 }
 
 .boh-sb-menu {
-  position: absolute;
-  top: calc(100% - 4px);
-  right: 8px;
-  z-index: 46;
+  /* Teleport 到 body + fixed（2026-11-22 用户报障「点三个点不显示」）：
+     菜单原挂在条目内部被两层祖先裁剪 —— .boh-sb-gbody-inner 的 overflow: hidden
+     （0fr↔1fr 折叠动画承重墙）+ .boh-sb-groups 的 overflow-y: auto。
+     ⚠️ Teleport 后脱离 .bohai-page 的 var 作用域 ⇒ 颜色全部走组件内联变量
+     （menuStyle 按 opened 时侧栏亮度选明暗档），本文件不写裸色（dark-tokens 棘轮）。 */
+  position: fixed;
+  z-index: 60; /* 侧栏（30/45）之上、全局 chrome 之下（层级阶梯见 bohai-sidebar-layer.test） */
   min-width: 132px;
   padding: 5px;
-  border: 1px solid var(--boh-border);
+  border: 1px solid var(--menu-border);
   border-radius: var(--boh-radius-md);
-  background: var(--boh-bg-page);
-  box-shadow: var(--boh-shadow-lg);
+  background: var(--menu-bg);
+  color: var(--menu-fg);
+  box-shadow: var(--menu-shadow);
 }
 
 .boh-sb-menu button {
@@ -498,17 +502,17 @@
   width: 100%;
   padding: 7px 9px;
   border-radius: 7px;
-  color: var(--boh-text-1);
+  color: inherit;
   font-size: 13px;
   text-align: left;
 }
 
 .boh-sb-menu button:hover {
-  background: var(--boh-bg-hover);
+  background: color-mix(in srgb, currentColor 10%, transparent);
 }
 
 .boh-sb-menu button.is-danger {
-  color: var(--boh-danger);
+  color: var(--menu-danger);
 }
 
 .boh-sb-empty {
