@@ -39,8 +39,16 @@ const formatPoints = (points) => {
 
 /**
  * 按 `payment_mode` 拼价格文案。
- * 线上取值：`combined`（积分 + 现金）、`points_only`、`rmb_only`（推测）。
- * 未知取值时**兜底把两种都列出来**（宁可多给，不要漏掉真实价格）。
+ *
+ * 语义真源：`utils/product-pricing.js` 的 `PAYMENT_MODE_OPTIONS`（三档，与 DB check 白名单一致）：
+ *   `points_only`（纯积分）/ `rmb_only`（纯现金）/ `combined`（**积分 + 现金，两者都要付**）。
+ *
+ * ⚠️ 2026-11-21 用户报障：combined 曾被拼成「69 积分 或 ¥16.90」—— AI 照着说成
+ * 「69积分或16.90元可兑换」，把**组合支付**说成了**二选一**。combined 必须写成
+ * 「加（组合支付）」，这个「或」字是本连接器教坏模型的。
+ *
+ * 未知取值时**兜底把两种都列出来**（宁可多给，不要漏掉真实价格），但不下「或/和」的
+ * 语义结论 —— 用「/」分隔并注明以商城页为准，语义让真源判定。
  */
 export const formatProductPrice = (row = {}) => {
   const points = formatPoints(row?.points_cost);
@@ -49,10 +57,10 @@ export const formatProductPrice = (row = {}) => {
   if (mode === 'points_only') return points || '积分兑换';
   if (mode === 'rmb_only') return rmb || '价格未标注';
   if (mode === 'combined') {
-    if (points && rmb) return `${points} 或 ${rmb}`;
+    if (points && rmb) return `${points} + ${rmb}（组合支付）`;
     return points || rmb || '价格未标注';
   }
-  if (points && rmb) return `${points} 或 ${rmb}`;
+  if (points && rmb) return `${points} / ${rmb}（支付方式以商城页为准）`;
   return points || rmb || '价格未标注';
 };
 

@@ -76,9 +76,22 @@ describe('价格格式（分 → 元）', () => {
     expect(formatRmbPrice('abc')).toBe('');
   });
 
-  it('combined = 积分 或 现金（线上主力形态）', () => {
+  it('combined = 积分 + 现金组合支付（两者都要付，2026-11-21 用户报障纠偏：不许说「或」）', () => {
+    // 语义真源：utils/product-pricing.js PAYMENT_MODE_OPTIONS —— combined 的 hint 是「两者都要付」
     expect(formatProductPrice({ points_cost: 39, rmb_price: 790, payment_mode: 'combined' })).toBe(
-      '39 积分 或 ¥7.90',
+      '39 积分 + ¥7.90（组合支付）',
+    );
+    expect(formatProductPrice({ points_cost: 69, rmb_price: 1690, payment_mode: 'combined' })).toBe(
+      '69 积分 + ¥16.90（组合支付）',
+    );
+  });
+
+  it('combined 只有单边价格时给存在的那一边（缺价不是二选一的证据）', () => {
+    expect(formatProductPrice({ points_cost: 95, rmb_price: 0, payment_mode: 'combined' })).toBe(
+      '95 积分',
+    );
+    expect(formatProductPrice({ points_cost: 0, rmb_price: 500, payment_mode: 'combined' })).toBe(
+      '¥5.00',
     );
   });
 
@@ -91,9 +104,9 @@ describe('价格格式（分 → 元）', () => {
     ).toBe('¥5.00');
   });
 
-  it('未知 payment_mode 兜底把两种价都列出（宁可多给，不能漏真价）', () => {
+  it('未知 payment_mode 兜底把两种价都列出，但不猜「或/和」的语义（让真源判定）', () => {
     expect(formatProductPrice({ points_cost: 15, rmb_price: 500, payment_mode: '' })).toBe(
-      '15 积分 或 ¥5.00',
+      '15 积分 / ¥5.00（支付方式以商城页为准）',
     );
   });
 });
