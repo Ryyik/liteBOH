@@ -1,0 +1,678 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>BOHAI 思考动画方案 Demo</title>
+    <style>
+      /* ════════════════════════════════════════════════════════════
+     BOHAI「正在思考」动画方案比对 Demo
+     仅用于方案评审，不是线上代码。
+     真源：src/views/BOHAI/BOHAI/components/styles/boh-stream.css（流光单源）
+           src/views/BOHAI/BOHAI/styles/tokens.css（--boh-beam-c* / --boh-dur-bob / --boh-rainbow-lift）
+     彩虹梯度与亮度提升均为线上真实值。
+     ════════════════════════════════════════════════════════════ */
+
+      :root {
+        /* 线上单源 --boh-dur-bob = 1.8s；除以 --demo-speed 实现演示变速 */
+        --boh-dur-bob: calc(1.8s / var(--demo-speed, 1));
+        /* 线上彩虹调色板（tokens.css:159-167） */
+        --c1: rgb(255, 50, 100);
+        --c2: rgb(40, 140, 255);
+        --c3: rgb(50, 200, 80);
+        --c4: rgb(30, 185, 170);
+        --c5: rgb(100, 70, 255);
+        --c7: rgb(255, 120, 40);
+        --c8: rgb(240, 50, 180);
+        --c9: rgb(180, 40, 240);
+        /* 线上流光梯度顺序（boh-stream.css:379-389，首尾同为 c1 ⇒ 循环无缝） */
+        --beam-gradient: linear-gradient(
+          90deg,
+          var(--c1) 0%,
+          var(--c7) 16%,
+          var(--c3) 32%,
+          var(--c4) 48%,
+          var(--c2) 64%,
+          var(--c9) 80%,
+          var(--c8) 92%,
+          var(--c1) 100%
+        );
+      }
+
+      /* ── 明暗两档（--boh-rainbow-lift：浅 0.7 / 暗 1.15，线上真实值）── */
+      body {
+        --lift: 0.7;
+        --bg: #f2f2f6;
+        --card: #ffffff;
+        --ink: #1d1d1f;
+        --ink-2: #86868b;
+        --ink-3: #aeaeb2;
+        --hairline: rgba(0, 0, 0, 0.08);
+        --pill-bg: rgba(255, 255, 255, 0.55);
+        --pill-border: rgba(0, 0, 0, 0.06);
+        --sheen: rgba(255, 255, 255, 0.7);
+      }
+      body.dark {
+        --lift: 1.15;
+        --bg: #0d0d0f;
+        --card: #1b1b1f;
+        --ink: #f5f5f7;
+        --ink-2: #98989d;
+        --ink-3: #636366;
+        --hairline: rgba(255, 255, 255, 0.1);
+        --pill-bg: rgba(44, 44, 48, 0.5);
+        --pill-border: rgba(255, 255, 255, 0.12);
+        --sheen: rgba(255, 255, 255, 0.28);
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Segoe UI', sans-serif;
+        background: var(--bg);
+        color: var(--ink);
+        min-height: 100vh;
+        padding: 20px 16px 60px;
+        transition:
+          background 0.3s,
+          color 0.3s;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      /* ── 控制条 ── */
+      .controls {
+        position: sticky;
+        top: 12px;
+        z-index: 10;
+        max-width: 720px;
+        margin: 0 auto 24px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+        padding: 10px 16px;
+        background: var(--card);
+        border: 1px solid var(--hairline);
+        border-radius: 14px;
+        box-shadow: 0 6px 24px rgba(0, 0, 0, 0.08);
+      }
+      .controls button {
+        padding: 6px 14px;
+        border-radius: 999px;
+        cursor: pointer;
+        border: 1px solid var(--hairline);
+        background: transparent;
+        color: var(--ink);
+        font-size: 13px;
+        font-family: inherit;
+        transition: background 0.15s;
+      }
+      .controls button:hover {
+        background: var(--hairline);
+      }
+      .controls button.on {
+        background: var(--ink);
+        color: var(--card);
+        border-color: var(--ink);
+      }
+      .speed-wrap {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+        color: var(--ink-2);
+      }
+      .speed-wrap input {
+        accent-color: var(--c2);
+        width: 120px;
+      }
+      .speed-val {
+        min-width: 34px;
+        font-variant-numeric: tabular-nums;
+      }
+
+      h1 {
+        max-width: 720px;
+        margin: 4px auto 6px;
+        font-size: 20px;
+        font-weight: 700;
+      }
+      .sub {
+        max-width: 720px;
+        margin: 0 auto 28px;
+        font-size: 13px;
+        color: var(--ink-2);
+        line-height: 1.6;
+      }
+
+      /* ── 方案卡片：模拟消息流里的一条活动行 + 一段正文 ── */
+      .case {
+        max-width: 720px;
+        margin: 0 auto 18px;
+        background: var(--card);
+        border: 1px solid var(--hairline);
+        border-radius: 18px;
+        padding: 18px 20px 16px;
+        position: relative;
+        overflow: hidden;
+        transition: background 0.3s;
+      }
+      .case-title {
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+        margin-bottom: 14px;
+      }
+      .case-title b {
+        font-size: 15px;
+      }
+      .case-title .tag {
+        font-size: 11px;
+        padding: 2px 8px;
+        border-radius: 999px;
+        background: var(--hairline);
+        color: var(--ink-2);
+        white-space: nowrap;
+      }
+      .case-title .tag.rec {
+        background: var(--c2);
+        color: #fff;
+      }
+      .case-desc {
+        font-size: 12px;
+        color: var(--ink-2);
+        line-height: 1.7;
+        margin-top: 12px;
+      }
+      .case-desc code {
+        font-size: 11px;
+        padding: 1px 5px;
+        border-radius: 4px;
+        background: var(--hairline);
+        font-family: ui-monospace, Menlo, monospace;
+      }
+
+      /* 活动行容器：贴线上消息区左缘 */
+      .stage {
+        position: relative;
+        padding-left: 2px;
+      }
+
+      /* ⑤ 玻璃胶囊需要背后有东西可折射：暗色亮色各一滩色斑 */
+      .blob {
+        position: absolute;
+        border-radius: 50%;
+        filter: blur(34px);
+        opacity: 0.5;
+        pointer-events: none;
+      }
+      .blob-a {
+        width: 150px;
+        height: 110px;
+        left: 130px;
+        top: -26px;
+        background: var(--c2);
+      }
+      .blob-b {
+        width: 120px;
+        height: 100px;
+        left: 300px;
+        top: -6px;
+        background: var(--c8);
+      }
+
+      /* ══ 活动行通用骨架（贴线上：图标格 + 状态文字）══ */
+      .act {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        position: relative;
+        z-index: 1;
+        font-size: 15px;
+        color: var(--ink-2);
+      }
+      .act .ico {
+        flex: none;
+        display: inline-flex;
+        color: var(--ink-3);
+      }
+      .act .ico svg {
+        width: 15px;
+        height: 15px;
+      }
+
+      /* ── 共享 keyframes ── */
+      @keyframes sweep {
+        0% {
+          background-position: 130% 0;
+        }
+        100% {
+          background-position: -130% 0;
+        }
+      }
+      /* ①/⑥ 的节奏版：扫完只占 55% ⇒ 剩 45% 停在非亮处 =「停一拍」 */
+      @keyframes sweep-dwell {
+        0% {
+          background-position: 130% 0;
+        }
+        55% {
+          background-position: -130% 0;
+        }
+        100% {
+          background-position: -130% 0;
+        }
+      }
+
+      /* ══ 基线 & ①：文字内彩虹流光（线上同款：clip 到字形）══ */
+      .shimmer-text {
+        background: var(--beam-gradient);
+        background-size: 300% 100%;
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+        filter: brightness(var(--lift));
+      }
+      .case-baseline .shimmer-text {
+        animation: sweep var(--boh-dur-bob) linear infinite;
+      }
+      .case-a .shimmer-text {
+        animation: sweep-dwell var(--boh-dur-bob) linear infinite;
+      }
+
+      /* ══ ② / ⑥：文字恢复实色，下划线流光 ══ */
+      .underline-text {
+        position: relative;
+        color: var(--ink-2);
+        padding-bottom: 5px;
+      }
+      .underline-text::after {
+        content: '';
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: 2px;
+        border-radius: 1px;
+        background: var(--beam-gradient);
+        background-size: 300% 100%;
+        filter: brightness(var(--lift));
+      }
+      .case-b .underline-text::after {
+        animation: sweep var(--boh-dur-bob) linear infinite;
+      }
+      .case-ab .underline-text::after {
+        animation: sweep-dwell var(--boh-dur-bob) linear infinite;
+      }
+      .case-ab .shimmer-text {
+        animation: sweep-dwell var(--boh-dur-bob) linear infinite;
+      }
+
+      /* ══ ③：逐字波浪（灰底字 + 彩虹浮层交替亮起）══ */
+      .wave-ch {
+        position: relative;
+        display: inline-block;
+        animation: wave-lift var(--boh-dur-bob) ease-in-out infinite;
+        animation-delay: calc(var(--boh-dur-bob) * var(--i) * 0.083);
+      }
+      .wave-ch::before {
+        content: attr(data-ch);
+        position: absolute;
+        inset: 0;
+        background: var(--beam-gradient);
+        background-size: 300% 100%;
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+        filter: brightness(var(--lift));
+        opacity: 0;
+        animation: wave-glow var(--boh-dur-bob) ease-in-out infinite;
+        animation-delay: calc(var(--boh-dur-bob) * var(--i) * 0.083);
+      }
+      @keyframes wave-lift {
+        0%,
+        30%,
+        100% {
+          transform: translateY(0);
+        }
+        10% {
+          transform: translateY(-2.5px);
+        }
+      }
+      @keyframes wave-glow {
+        0%,
+        30%,
+        100% {
+          opacity: 0;
+        }
+        10% {
+          opacity: 1;
+        }
+      }
+
+      /* ══ ④：思考核（光球 hue 自转 + 呼吸；文字静音实色）══ */
+      .orb-wrap {
+        flex: none;
+        width: 16px;
+        height: 16px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        animation: orb-pulse var(--boh-dur-bob) ease-in-out infinite;
+      }
+      .orb {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background: radial-gradient(
+          circle at 32% 28%,
+          #fff 0%,
+          var(--c2) 42%,
+          var(--c5) 74%,
+          var(--c8) 100%
+        );
+        box-shadow: 0 0 10px 2px rgba(40, 140, 255, 0.35);
+        animation: orb-hue calc(var(--boh-dur-bob) * 3) linear infinite;
+      }
+      @keyframes orb-hue {
+        to {
+          filter: hue-rotate(360deg);
+        }
+      }
+      @keyframes orb-pulse {
+        0%,
+        100% {
+          transform: scale(1);
+        }
+        50% {
+          transform: scale(1.25);
+        }
+      }
+
+      /* ══ ⑤：液态玻璃胶囊（壳动、字不动；sheen 在胶囊内掠过）══ */
+      .pill {
+        position: relative;
+        z-index: 1;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 16px;
+        border-radius: 999px;
+        background: var(--pill-bg);
+        border: 1px solid var(--pill-border);
+        -webkit-backdrop-filter: blur(10px) saturate(1.6);
+        backdrop-filter: blur(10px) saturate(1.6);
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.1);
+        font-size: 15px;
+        color: var(--ink-2);
+        overflow: hidden;
+      }
+      .pill .ico {
+        flex: none;
+        display: inline-flex;
+        color: var(--ink-3);
+      }
+      .pill .ico svg {
+        width: 15px;
+        height: 15px;
+      }
+      .pill::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(105deg, transparent 42%, var(--sheen) 50%, transparent 58%);
+        background-size: 300% 100%;
+        animation: sweep var(--boh-dur-bob) linear infinite;
+        pointer-events: none;
+      }
+
+      /* ══ 降级：站点「界面动效」开关（.reduce 模拟）══
+     贴线上纪律：文字必须恢复实色可读；装饰层直接摘。 */
+      .reduce .shimmer-text,
+      .reduce .underline-text::after,
+      .reduce .wave-ch,
+      .reduce .wave-ch::before,
+      .reduce .orb-wrap,
+      .reduce .orb,
+      .reduce .pill::after {
+        animation: none;
+      }
+      .reduce .shimmer-text {
+        background: none;
+        color: inherit;
+        filter: none;
+      }
+      .reduce .wave-ch::before {
+        display: none;
+      }
+      .reduce .orb {
+        filter: none;
+      }
+
+      /* 同款兜底吃系统 prefers-reduced-motion（与线上双兜底纪律一致） */
+      @media (prefers-reduced-motion: reduce) {
+        .shimmer-text,
+        .underline-text::after,
+        .wave-ch,
+        .wave-ch::before,
+        .orb-wrap,
+        .orb,
+        .pill::after {
+          animation: none;
+        }
+        .shimmer-text {
+          background: none;
+          color: inherit;
+          filter: none;
+        }
+        .wave-ch::before {
+          display: none;
+        }
+        .orb {
+          filter: none;
+        }
+      }
+
+      /* 正文占位：用来判断活动行的存在感是否抢戏 */
+      .body-fake {
+        margin-top: 14px;
+        font-size: 14px;
+        line-height: 1.7;
+        color: var(--ink-3);
+      }
+    </style>
+  </head>
+  <body>
+    <h1>BOHAI「正在思考」动画 — 方案比对</h1>
+    <p class="sub">
+      彩虹调色板 / 时长（1.8s）/ 亮度提升（浅 0.7 · 暗 1.15）全部取自线上真源（tokens.css +
+      boh-stream.css）。 基线行是 2026-11-04 现状：匀速彩虹流光扫过文字。
+    </p>
+
+    <div class="controls">
+      <button id="themeBtn">🌙 暗色</button>
+      <button id="reduceBtn">⏸ 模拟关动效</button>
+      <div class="speed-wrap">
+        速度
+        <input id="speed" type="range" min="0.5" max="3" step="0.25" value="1" />
+        <span class="speed-val" id="speedVal">1×</span>
+      </div>
+    </div>
+
+    <!-- 基线 -->
+    <section class="case case-baseline">
+      <div class="case-title"><b>基线</b><span class="tag">现状 · 匀速彩虹流光</span></div>
+      <div class="stage">
+        <span class="act">
+          <span class="ico"
+            ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="7" />
+              <path d="M21 21l-4.35-4.35" /></svg
+          ></span>
+          <span class="shimmer-text">正在思考</span>
+        </span>
+      </div>
+      <p class="body-fake">（AI 回复正文会从这里开始……用它判断活动行的存在感。）</p>
+      <p class="case-desc">
+        现状：光带匀速往复扫过字形，无停顿，传送带感。兜底隐患：<code>color: transparent</code>
+        在动效关闭时要靠专门的恢复规则才可读。
+      </p>
+    </section>
+
+    <!-- ① -->
+    <section class="case case-a">
+      <div class="case-title"><b>方案 ①</b><span class="tag">节奏化流光 · 扫一段停一拍</span></div>
+      <div class="stage">
+        <span class="act">
+          <span class="ico"
+            ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="7" />
+              <path d="M21 21l-4.35-4.35" /></svg
+          ></span>
+          <span class="shimmer-text">正在思考</span>
+        </span>
+      </div>
+      <p class="body-fake">（AI 回复正文会从这里开始……用它判断活动行的存在感。）</p>
+      <p class="case-desc">
+        只改关键帧：扫完占 55% 周期、剩 45% 停在非亮处，像「读一下、想一下」。改动收在共享
+        <code>boh-search-shimmer</code>，网页搜索行自动同节奏。零新元素、零兜底改动。
+      </p>
+    </section>
+
+    <!-- ② -->
+    <section class="case case-b">
+      <div class="case-title"><b>方案 ②</b><span class="tag">流光下划线</span></div>
+      <div class="stage">
+        <span class="act">
+          <span class="ico"
+            ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="7" />
+              <path d="M21 21l-4.35-4.35" /></svg
+          ></span>
+          <span class="underline-text">正在思考</span>
+        </span>
+      </div>
+      <p class="body-fake">（AI 回复正文会从这里开始……用它判断活动行的存在感。）</p>
+      <p class="case-desc">
+        文字恢复实色、彩虹光移到 2px 下划线，根治
+        <code>color: transparent</code>
+        的可读性隐患；降级只需隐藏下划线。光的存在感比文字内流光弱一档。
+      </p>
+    </section>
+
+    <!-- ③ -->
+    <section class="case case-c">
+      <div class="case-title">
+        <b>方案 ③</b><span class="tag">逐字波浪</span
+        ><span class="tag">⚠ 与 2026-10-10「纯文本」口径相悖，需拍板</span>
+      </div>
+      <div class="stage">
+        <span class="act">
+          <span class="ico"
+            ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="7" />
+              <path d="M21 21l-4.35-4.35" /></svg
+          ></span>
+          <span style="color: var(--ink-2)"
+            ><span class="wave-ch" data-ch="正" style="--i: 0">正</span
+            ><span class="wave-ch" data-ch="在" style="--i: 1">在</span
+            ><span class="wave-ch" data-ch="思" style="--i: 2">思</span
+            ><span class="wave-ch" data-ch="考" style="--i: 3">考</span></span
+          >
+        </span>
+      </div>
+      <p class="body-fake">（AI 回复正文会从这里开始……用它判断活动行的存在感。）</p>
+      <p class="case-desc">
+        四个字依次「提起 + 彩虹闪亮」，像逐字组织语言。最有思考感，但要拆
+        span、加两份时长变量，且这是往回走半步（呼吸圆点当年被刻意删掉）。
+      </p>
+    </section>
+
+    <!-- ④ -->
+    <section class="case case-d">
+      <div class="case-title">
+        <b>方案 ④</b><span class="tag">思考核 · 光球</span
+        ><span class="tag">会打破「全屏只有一条光带」的克制原则</span>
+      </div>
+      <div class="stage">
+        <span class="act">
+          <span class="orb-wrap"><span class="orb"></span></span>
+          <span style="color: var(--ink-2)">正在思考</span>
+        </span>
+      </div>
+      <p class="body-fake">（AI 回复正文会从这里开始……用它判断活动行的存在感。）</p>
+      <p class="case-desc">
+        图标格换成彩虹光球：hue 自转（3 倍周期）+ 呼吸缩放，文字静音实色。GPU
+        便宜、不碰文字，但与文字流光并存时屏上会有两个彩色动源。
+      </p>
+    </section>
+
+    <!-- ⑤ -->
+    <section class="case case-e">
+      <div class="case-title"><b>方案 ⑤</b><span class="tag">液态玻璃胶囊</span></div>
+      <div class="stage">
+        <span class="blob blob-a"></span>
+        <span class="blob blob-b"></span>
+        <span class="pill">
+          <span class="ico"
+            ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="7" />
+              <path d="M21 21l-4.35-4.35" /></svg
+          ></span>
+          正在思考
+        </span>
+      </div>
+      <p class="body-fake">（AI 回复正文会从这里开始……用它判断活动行的存在感。）</p>
+      <p class="case-desc">
+        第 6 个液态玻璃消费者：胶囊壳浮在消息流上、sheen 在壳内折射，文字完全实色。小尺寸上
+        backdrop-filter 容易发灰，明暗两档都要肉眼过。背后色斑只为演示折射，实际落地时是消息流本身。
+      </p>
+    </section>
+
+    <!-- ⑥ 推荐 -->
+    <section class="case case-ab">
+      <div class="case-title"><b>方案 ⑥</b><span class="tag rec">推荐 · ①+② 组合</span></div>
+      <div class="stage">
+        <span class="act">
+          <span class="ico"
+            ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="7" />
+              <path d="M21 21l-4.35-4.35" /></svg
+          ></span>
+          <span class="underline-text">正在思考</span>
+        </span>
+      </div>
+      <p class="body-fake">（AI 回复正文会从这里开始……用它判断活动行的存在感。）</p>
+      <p class="case-desc">
+        文字实色 + 节奏化下划线（扫一段停一拍）。改动全收在 boh-stream.css
+        单源定义里，一行模板不用碰，顺手修掉可读性兜底隐患。
+      </p>
+    </section>
+
+    <script>
+      const body = document.body;
+      const themeBtn = document.getElementById('themeBtn');
+      const reduceBtn = document.getElementById('reduceBtn');
+      const speed = document.getElementById('speed');
+      const speedVal = document.getElementById('speedVal');
+
+      themeBtn.addEventListener('click', () => {
+        const dark = body.classList.toggle('dark');
+        themeBtn.textContent = dark ? '☀️ 亮色' : '🌙 暗色';
+        themeBtn.classList.toggle('on', dark);
+      });
+
+      reduceBtn.addEventListener('click', () => {
+        const on = body.classList.toggle('reduce');
+        reduceBtn.classList.toggle('on', on);
+      });
+
+      speed.addEventListener('input', () => {
+        body.style.setProperty('--demo-speed', speed.value);
+        speedVal.textContent = speed.value + '×';
+      });
+    </script>
+  </body>
+</html>

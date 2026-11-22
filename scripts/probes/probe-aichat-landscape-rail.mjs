@@ -30,7 +30,12 @@ const check = (name, pass, detail = '') => {
   console.log(`${pass ? 'PASS' : 'FAIL'}  ${name}${detail ? '  -- ' + detail : ''}`);
 };
 
-const browser = await chromium.launch();
+/* AGENTS 环境规则：Playwright 必须 channel: 'chrome'（系统 Chrome）——
+   默认 headless shell 二进制在本机不存在，代理/网络行为也与线上不一致。 */
+const browser = await chromium.launch({
+  channel: 'chrome',
+  args: ['--no-proxy-server', '--proxy-server=direct://', '--proxy-bypass-list=*'],
+});
 
 const probeLandscape = async () => {
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });

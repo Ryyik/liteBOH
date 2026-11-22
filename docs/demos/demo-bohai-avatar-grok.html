@@ -1,0 +1,729 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>BOH 等待动画 · 角色 Avatar Demo（原版圆 / MC 方块双皮肤）</title>
+    <style>
+      /* ════════════════════════════════════════════════════════════
+         BOH「等待动画」角色 Avatar Demo（2026-11-21）
+         Grok 式状态载体（六状态连续 morph、眨眼 0.26s/45%、hover 看动作）× 双皮肤：
+         · 原版圆：近完美圆 blob + 白胶囊眼（社区逆向测量规格）
+         · MC 方块（BOH MC 主题感）：等距方块头（正面/顶面/侧面三灰度）+ 像素方眼
+           + 低帧率步进（时间量化 ~10fps —— MC sprite 动画的灵魂）
+           + 方块破裂粒子 + 受伤反色闪（grayscale）
+         纯黑白（2026-11-21 用户口径）：身体 --ink / 眼睛 --card，零彩色。
+         ════════════════════════════════════════════════════════════ */
+
+      body {
+        --bg: #f2f2f6;
+        --card: #ffffff;
+        --ink: #1d1d1f;
+        --ink-2: #86868b;
+        --ink-3: #aeaeb2;
+        --hairline: rgba(0, 0, 0, 0.08);
+      }
+      body.dark {
+        --bg: #0d0d0f;
+        --card: #1b1b1f;
+        --ink: #f5f5f7;
+        --ink-2: #98989d;
+        --ink-3: #636366;
+        --hairline: rgba(255, 255, 255, 0.1);
+      }
+
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Segoe UI', sans-serif;
+        background: var(--bg);
+        color: var(--ink);
+        min-height: 100vh;
+        padding: 20px 16px 60px;
+        transition:
+          background 0.3s,
+          color 0.3s;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      h1 { max-width: 760px; margin: 4px auto 6px; font-size: 20px; font-weight: 700; }
+      .sub { max-width: 760px; margin: 0 auto 24px; font-size: 13px; color: var(--ink-2); line-height: 1.6; }
+      .sub b { color: var(--ink-2); }
+
+      .case {
+        max-width: 760px; margin: 0 auto 18px;
+        background: var(--card);
+        border: 1px solid var(--hairline);
+        border-radius: 18px;
+        padding: 18px 20px 14px;
+        transition: background 0.3s;
+      }
+      .case-title { display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+      .case-title b { font-size: 15px; }
+      .case-title .tag {
+        font-size: 11px; padding: 2px 8px; border-radius: 999px;
+        background: var(--hairline); color: var(--ink-2); white-space: nowrap;
+      }
+      .case-desc { font-size: 12px; color: var(--ink-2); line-height: 1.7; margin-top: 12px; }
+
+      .stage-row { display: flex; gap: 32px; align-items: center; justify-content: center; flex-wrap: wrap; padding: 10px 0; }
+      .state-btns { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin-top: 8px; }
+      .state-btns button {
+        padding: 6px 14px; border-radius: 999px; cursor: pointer;
+        border: 1px solid var(--hairline);
+        background: transparent; color: var(--ink);
+        font-size: 13px; font-family: inherit;
+        transition: background 0.15s;
+      }
+      .state-btns button:hover { background: var(--hairline); }
+      .state-btns button.on { background: var(--ink); color: var(--card); border-color: var(--ink); }
+      .hover-tip { text-align: center; font-size: 12px; color: var(--ink-3); margin-top: 8px; min-height: 18px; }
+      canvas { display: block; image-rendering: pixelated; }
+
+      .mini-stage {
+        display: flex; align-items: center; gap: 9px; justify-content: center;
+        padding: 16px 0; font-size: 12.5px; color: var(--ink-2);
+      }
+      .mini-stage .chev { color: var(--ink-3); display: inline-flex; }
+      .mini-stage .chev svg { width: 14px; height: 14px; }
+      .body-fake {
+        margin-top: 4px; font-size: 14px; line-height: 1.7; color: var(--ink-3);
+        text-align: left; max-width: 420px; margin-left: auto; margin-right: auto;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>BOH 等待动画 · 角色 Avatar（原版圆 / MC 方块双皮肤）</h1>
+    <p class="sub">
+      同一套 Grok 式状态机（六状态连续 morph、眨眼 0.26s/45% 全闭、hover 看当前动作），两套皮肤：
+      <b>原版圆</b> = 近完美圆 blob + 白胶囊眼（逆向测量规格）；<b>MC 方块</b> = 方块之家 MC 主题感 ——
+      等距方块头（正/顶/侧三灰度面 + 掉落物式旋转浮动）、像素方眼（8 格脸）、
+      <b>低帧率步进</b>（时间量化 ~10fps —— MC sprite 动画的灵魂）、方块破裂粒子、受伤反色闪。
+      纯黑白：身体 <b>--ink</b> / 眼睛 <b>--card</b>，零彩色。
+    </p>
+
+    <!-- 大预览 -->
+    <section class="case">
+      <div class="case-title">
+        <b>大预览</b><span class="tag">180px · 状态按钮 / 自动循环 / 皮肤切换</span>
+      </div>
+      <div class="stage-row">
+        <canvas id="cvBig" style="width: 180px; height: 180px"></canvas>
+      </div>
+      <div class="state-btns" id="skinBtns"></div>
+      <div class="state-btns" id="stateBtns"></div>
+      <div class="hover-tip" id="hoverTip">（把鼠标悬停在角色上看「当前动作」—— Grok 的细节按需展开）</div>
+      <p class="case-desc">
+        六状态性格（两套皮肤通用，眼睛 + 嘴巴一起演）：idle = 平静好奇（平线小嘴、慢眨眼 + 视线漂移）；thinking =
+        歪头 + 眼睛上瞟 + 嘴抿成一小点；working = 快速横扫 + 张嘴发力 + 底部溅方块碎粒（「kicks into gear」）；
+        waiting = 半闭眼上飘 + 宽平嘴、长眨；blocked = 眼睛下视 + ∩苦嘴 + 受伤反色闪（卡住 = MC 里被打了一下）；
+        done = 像素笑眼 + ⌣笑嘴 + 顶部爆方块碎粒 + 一次软弹跳。
+      </p>
+    </section>
+
+    <!-- 真实落位 -->
+    <section class="case">
+      <div class="case-title">
+        <b>真实落位形态</b><span class="tag">32px · 活动行内嵌（文字保持普通文本）</span>
+      </div>
+      <div class="mini-stage">
+        <canvas id="cvMini" style="width: 32px; height: 32px"></canvas>
+        <span>正在思考</span>
+        <span class="chev">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6" /></svg>
+        </span>
+      </div>
+      <p class="body-fake">（AI 回复正文会从这里开始……判断角色状态行在消息流里的存在感。）</p>
+      <p class="case-desc">
+        文字不承担状态表达（Grok 的教训：三点分不清工作/卡住）——状态让角色动效说，动作文字保持普通文本。
+        MC 皮肤在 28px 下网格 ≈ 3.5px/格，像素眼依旧可读（黑白对比是下限）。
+      </p>
+    </section>
+
+    <script>
+      (() => {
+        'use strict';
+
+        /* ── 状态定义：目标参数 + 动效性格 + hover 动作文 ── */
+        const STATES = {
+          idle: {
+            hold: 4, action: '待命中 · 有任务我会开工',
+            eyeH: 1.0, tilt: 0, energy: 0.15, happy: 0, gaze: 'drift', yaw: 0,
+            mouthW: 2, mouthOpen: 0.12, mouthCurve: 'flat',
+          },
+          thinking: {
+            hold: 4, action: '正在思考 · 在琢磨怎么答',
+            eyeH: 0.5, eyeW: 1.0, tilt: 8, energy: 0.5, happy: 0, gaze: 'think', yaw: 0.55,
+            mouthW: 1, mouthOpen: 0.1, mouthCurve: 'flat',
+          },
+          working: {
+            hold: 4, action: '正在执行 · 工具跑着呢',
+            eyeH: 1.35, eyeW: 1.0, tilt: 0, energy: 1, happy: 0, gaze: 'scan', yaw: 0,
+            mouthW: 2, mouthOpen: 0.9, mouthCurve: 'flat',
+          },
+          waiting: {
+            hold: 4, action: '等待你的输入 · 不催也没关系',
+            eyeH: 0.45, eyeW: 1.0, tilt: -2, energy: 0.25, happy: 0, gaze: 'up', yaw: -0.25,
+            mouthW: 3, mouthOpen: 0.08, mouthCurve: 'flat',
+          },
+          blocked: {
+            hold: 3.5, action: '需要你的帮助 · 卡在一个权限上',
+            eyeH: 0.8, eyeW: 1.1, tilt: -6, energy: 0.3, happy: 0, gaze: 'down', yaw: -0.4,
+            mouthW: 3, mouthOpen: 0.15, mouthCurve: 'frown',
+          },
+          done: {
+            hold: 2.5, action: '已完成 · 答案在下面',
+            eyeH: 0.9, tilt: 0, energy: 0.4, happy: 1, gaze: 'center', yaw: 0,
+            mouthW: 3, mouthOpen: 0.5, mouthCurve: 'smile',
+          },
+        };
+        const ORDER = ['idle', 'thinking', 'working', 'waiting', 'blocked', 'done'];
+
+        const rand = (a, b) => a + Math.random() * (b - a);
+        /* 指数缓动因子：帧率无关、纯收敛不过冲（「body never overshoots」） */
+        const easeK = (dt, rate) => 1 - Math.exp(-dt * rate);
+        const mix = (a, b, t) => [
+          Math.round(a[0] + (b[0] - a[0]) * t),
+          Math.round(a[1] + (b[1] - a[1]) * t),
+          Math.round(a[2] + (b[2] - a[2]) * t),
+        ];
+        const rgb = (c) => `rgb(${c[0]},${c[1]},${c[2]})`;
+
+        class Avatar {
+          constructor(canvas, size, opts = {}) {
+            this.cv = canvas;
+            this.size = size;
+            this.dpr = Math.min(2, window.devicePixelRatio || 1);
+            canvas.width = Math.round(size * this.dpr);
+            canvas.height = Math.round(size * this.dpr);
+            canvas.style.width = `${size}px`;
+            canvas.style.height = `${size}px`;
+            this.ctx = canvas.getContext('2d');
+            this.ctx.scale(this.dpr, this.dpr);
+
+            this.o = opts; // { skin: 'mc'|'round', cycle, onState }
+            this.o.skin = opts.skin || 'mc';
+            this.speed = 1;
+            this.reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+            this.R = size * 0.36;
+            this.cx = size / 2;
+            this.cy = size / 2;
+
+            /* 活参数（全部向状态目标指数缓动 —— 状态间无硬切的实现方式） */
+            this.P = {
+              eyeH: 1, eyeW: 1, tilt: 0, energy: 0.15, happy: 0, gx: 0, gy: 0, yaw: 0,
+              mouthOpen: 0.1, mouthW: 2,
+            };
+            this.state = 'idle';
+            this.blinkP = 1; // 1 = 睁着；0..1 = 眨眼进行中
+            this.nextBlink = 1.2;
+            this.doubleBlink = 0;
+            this.saccadeAt = 0;
+            this.gazeTarget = { x: 0, y: 0 };
+            this.bobImpulse = 0;
+            this.parts = []; // MC 方块碎粒
+            this.flashT = 0; // 受伤反色闪倒计时
+            this.spawnAt = 0;
+            this.last = performance.now();
+            this.t = 0;
+
+            /* 颜色恒定（2026-11-22 用户口径）：黑身白五官，不随主题反转 */
+            this.bodyCol = '#1d1d1f';
+            this.eyeCol = '#ffffff';
+            this.textCol = '#1d1d1f';
+            this.inkArr = [29, 29, 31];
+            this.faceTop = '#45454a';
+            this.faceSide = '#2e2e33';
+            this.partCol = '#5a5a60';
+
+            if (this.reduce) this.renderStatic();
+            else requestAnimationFrame((n) => this.tick(n));
+          }
+
+          setSkin(s) {
+            this.o.skin = s;
+            if (this.reduce) this.renderStatic();
+          }
+
+          setState(s) {
+            if (!STATES[s] || this.state === s) return;
+            this.state = s;
+            if (s === 'done') {
+              this.bobImpulse = 1;
+              this.spawnBurst();
+            }
+            if (s === 'blocked') this.flashT = 0.09;
+            if (this.o.onState) this.o.onState(s);
+            if (this.reduce) this.renderStatic();
+          }
+
+          /* MC 方块破裂粒子：方块边缘溅出灰阶小方块，带重力 */
+          spawnBurst() {
+            for (let i = 0; i < 12; i += 1) {
+              this.parts.push({
+                x: this.cx + rand(-this.R * 0.5, this.R * 0.5),
+                y: this.cy - this.R * 0.6,
+                vx: rand(-40, 40),
+                vy: rand(-90, -30),
+                life: rand(0.4, 0.7),
+                age: 0,
+                cell: rand(1.5, 2.5),
+              });
+            }
+          }
+          spawnChip() {
+            this.parts.push({
+              x: this.cx + rand(-this.R * 0.5, this.R * 0.5),
+              y: this.cy + this.R * 0.55,
+              vx: rand(-18, 18),
+              vy: rand(-55, -25),
+              life: rand(0.3, 0.5),
+              age: 0,
+              cell: rand(1.2, 2),
+            });
+          }
+
+          /* 视线模式：每个状态一种「看」的方式（静止的生命感 = 视线漂移 + 眨眼） */
+          updateGaze(dt, now) {
+            const g = STATES[this.state].gaze;
+            const reach = this.R * 0.16;
+            let tx = 0;
+            let ty = 0;
+            if (g === 'drift') {
+              if (now > this.saccadeAt) {
+                this.gazeTarget = { x: rand(-1, 1), y: rand(-0.6, 0.6) };
+                this.saccadeAt = now + rand(900, 2200);
+              }
+              tx = this.gazeTarget.x * reach;
+              ty = this.gazeTarget.y * reach;
+            } else if (g === 'think') {
+              const ph = Math.sin(this.t * 1.6);
+              tx = ph * reach * 0.9 + Math.sin(this.t * 9) * reach * 0.06;
+              ty = -reach * 0.75 + Math.cos(this.t * 7) * reach * 0.08;
+            } else if (g === 'scan') {
+              tx = Math.sin(this.t * 6.5) * reach;
+              ty = reach * 0.18 + Math.sin(this.t * 13) * reach * 0.1;
+            } else if (g === 'up') {
+              tx = Math.sin(this.t * 0.7) * reach * 0.4;
+              ty = -reach * 0.95 + Math.sin(this.t * 1.1) * reach * 0.12;
+            } else if (g === 'down') {
+              tx = -reach * 0.5 + Math.sin(this.t * 0.9) * reach * 0.15;
+              ty = reach * 0.7;
+            }
+            const k = easeK(dt, 9);
+            this.P.gx += (tx - this.P.gx) * k;
+            this.P.gy += (ty - this.P.gy) * k;
+          }
+
+          updateBlink(dt) {
+            /* 眨眼：0.26s、45% 相位全闭（逆向测量值）；working/thinking 偶尔双连闪 */
+            if (this.blinkP < 1) {
+              this.blinkP += dt / 0.26;
+              if (this.blinkP >= 1) {
+                const base =
+                  STATES[this.state].gaze === 'scan' ? rand(1.4, 2.6) : rand(2.2, 4.6);
+                if (this.doubleBlink > 0) {
+                  this.doubleBlink -= 1;
+                  this.nextBlink = 0.12;
+                } else {
+                  this.nextBlink = base;
+                  if (
+                    (this.state === 'thinking' || this.state === 'working') &&
+                    Math.random() < 0.3
+                  ) {
+                    this.doubleBlink = 1;
+                  }
+                }
+                this.blinkP = 1;
+              }
+            } else {
+              this.nextBlink -= dt;
+              if (this.nextBlink <= 0) this.blinkP = 0;
+            }
+            let open = 1;
+            if (this.blinkP < 1) {
+              const bell = Math.exp(-Math.pow(this.blinkP - 0.45, 2) / (2 * 0.17 * 0.17));
+              open = Math.max(0, 1 - bell * 1.15);
+            }
+            this.openAmt = open;
+          }
+
+          tick(now) {
+            if (this.reduce) return;
+            const dt = Math.min(0.05, (now - this.last) / 1000) * this.speed;
+            this.last = now;
+            this.t += dt;
+            const st = STATES[this.state];
+
+            /* 自动循环：hold 秒后按生命周期顺序轮转（demo 用；线上由真实阶段驱动） */
+            if (this.o.cycle && now - (this.phaseAt || 0) > (st.hold * 1000) / this.speed) {
+              this.phaseAt = now;
+              const i = ORDER.indexOf(this.state);
+              this.setState(ORDER[(i + 1) % ORDER.length]);
+            }
+
+            /* 全参数指数缓动向状态目标收敛（状态间无硬切） */
+            const P = this.P;
+            const T = STATES[this.state];
+            const k1 = easeK(dt, 8);
+            const k2 = easeK(dt, 5);
+            P.eyeH += (T.eyeH - P.eyeH) * k1;
+            P.eyeW += (T.eyeW - P.eyeW) * k1;
+            P.happy += (T.happy - P.happy) * k1;
+            P.mouthOpen += (T.mouthOpen - P.mouthOpen) * k1;
+            P.mouthW += (T.mouthW - P.mouthW) * k1;
+            P.tilt += ((T.tilt * Math.PI) / 180 - P.tilt) * k2;
+            P.energy += (T.energy - P.energy) * k2;
+            P.yaw += (T.yaw - P.yaw) * k2;
+
+            this.updateGaze(dt, now);
+            this.updateBlink(dt);
+
+            /* done 的软弹跳：冲量指数衰减（变形不过冲，位移走弹簧） */
+            this.bobImpulse *= Math.pow(0.02, dt);
+            if (this.flashT > 0) this.flashT -= dt;
+
+            /* working：周期性溅方块碎粒（MC 破坏方块的粒子语言） */
+            if (this.o.skin === 'mc' && this.state === 'working' && this.t > this.spawnAt) {
+              this.spawnAt = this.t + 0.4;
+              this.spawnChip();
+              this.spawnChip();
+            }
+
+            const e = P.energy;
+            const bobY =
+              Math.sin(this.t * 9) * this.R * 0.055 * e - this.bobImpulse * this.R * 0.16;
+            const squash = 1 + 0.02 * Math.sin(this.t * 2) * (1 - e) + 0.05 * e * Math.sin(this.t * 9);
+
+            /* MC 方块碎粒物理（重力 + 衰减） */
+            for (const pt of this.parts) {
+              pt.age += dt;
+              pt.x += pt.vx * dt;
+              pt.y += pt.vy * dt;
+              pt.vy += 220 * dt;
+            }
+            this.parts = this.parts.filter((pt) => pt.age < pt.life);
+
+            this.draw(bobY, squash);
+            requestAnimationFrame((n) => this.tick(n));
+          }
+
+          /* ── 皮肤 A：原版圆 blob + 白胶囊眼 ── */
+          drawRound(bobY, squash) {
+            const ctx = this.ctx;
+            const { cx, cy, R, P } = this;
+            ctx.save();
+            ctx.translate(cx, cy + bobY);
+            ctx.rotate(P.tilt * 0.5);
+            ctx.scale(1 / Math.sqrt(squash), squash);
+            ctx.fillStyle = this.bodyCol;
+            ctx.beginPath();
+            const STEPS = 48;
+            for (let i = 0; i <= STEPS; i += 1) {
+              const th = (i / STEPS) * Math.PI * 2;
+              const wob =
+                1 + 0.014 * Math.sin(3 * th + this.t * 1.3) + 0.008 * Math.sin(5 * th - this.t * 0.9);
+              const r = R * wob;
+              if (i === 0) ctx.moveTo(Math.cos(th) * r, Math.sin(th) * r);
+              else ctx.lineTo(Math.cos(th) * r, Math.sin(th) * r);
+            }
+        ctx.closePath();
+        ctx.fill();
+        this.drawEyes(R);
+
+        /* 嘴巴（原版圆）：平线 / 张嘴椭圆 / ⌣笑弧 / ∩苦弧，随状态缓动 */
+        const mw2 = R * (0.34 + 0.1 * P.energy);
+        const my2 = R * 0.4;
+        ctx.strokeStyle = this.eyeCol;
+        ctx.fillStyle = this.eyeCol;
+        ctx.lineCap = 'round';
+        if (P.happy > 0.5) {
+          ctx.lineWidth = Math.max(2, R * 0.09);
+          ctx.beginPath();
+          ctx.arc(0, R * 0.28, mw2 * 0.7, Math.PI * 0.15, Math.PI * 0.85);
+          ctx.stroke();
+        } else if (this.state === 'blocked') {
+          ctx.lineWidth = Math.max(2, R * 0.08);
+          ctx.beginPath();
+          ctx.arc(0, R * 0.55, mw2 * 0.7, Math.PI * 1.15, Math.PI * 1.85);
+          ctx.stroke();
+        } else if (this.state === 'working' && P.mouthOpen > 0.5) {
+          ctx.beginPath();
+          ctx.ellipse(0, my2, mw2 * 0.3, mw2 * 0.4 * P.mouthOpen, 0, 0, Math.PI * 2);
+          ctx.fill();
+        } else {
+          ctx.lineWidth = Math.max(2, R * 0.07);
+          ctx.beginPath();
+          ctx.moveTo(-mw2 / 2, my2);
+          ctx.lineTo(mw2 / 2, my2);
+          ctx.stroke();
+        }
+        ctx.restore();
+      }
+
+          drawEyes(R) {
+            const ctx = this.ctx;
+            const P = this.P;
+            const lean = (-26 * Math.PI) / 180;
+            const ex = R * 0.4;
+            const ey = -R * 0.06;
+            const ew = R * 0.3;
+            const eh = R * 0.56 * P.eyeH * this.openAmt;
+            const eyeGx = P.gx * 0.5;
+            const eyeGy = P.gy * 0.5;
+            const happyMix = Math.max(0, Math.min(1, P.happy));
+            for (const side of [-1, 1]) {
+              ctx.save();
+              ctx.translate(side * ex + eyeGx, ey + eyeGy);
+              ctx.rotate(lean * (1 - happyMix));
+              if (happyMix < 0.97) {
+                ctx.globalAlpha = 1 - happyMix;
+                ctx.fillStyle = this.eyeCol;
+                const hh = Math.max(R * 0.05, eh);
+                ctx.beginPath();
+                ctx.roundRect(-ew / 2, -hh / 2, ew, hh, ew / 2);
+                ctx.fill();
+              }
+              if (happyMix > 0.03) {
+                ctx.globalAlpha = happyMix;
+                ctx.strokeStyle = this.eyeCol;
+                ctx.lineWidth = Math.max(2.5, ew * 0.36);
+                ctx.lineCap = 'round';
+                ctx.beginPath();
+                ctx.arc(0, R * 0.1, ew * 0.72, Math.PI * 1.12, Math.PI * 1.88);
+                ctx.stroke();
+              }
+              ctx.restore();
+            }
+          }
+
+          /* ── 皮肤 B：MC 方块头（等距三面 + 像素眼 + 步进时间）── */
+          drawMC(bobY, squash) {
+            const ctx = this.ctx;
+            const { cx, cy, R, P } = this;
+            const S = R * 1.8; // 方块头边长
+            const d = S * 0.3; // 深度
+            const CELL = S / 8; // 8 格脸（MC 贴图网格）
+            /* 低帧率步进：MC sprite 的灵魂 —— 绘制时间全部量化到 10fps */
+            const tq = Math.floor(this.t * 10) / 10;
+            const idleYaw = Math.sin(tq * 2.2) * 0.18 * (0.4 + P.energy);
+            const workYaw = this.state === 'working' ? Math.sin(tq * 18) * 0.1 : 0;
+            const yaw = P.yaw + idleYaw + workYaw;
+            const floatY = Math.round(Math.sin(tq * 2.2) * CELL * 0.5);
+
+            ctx.save();
+            ctx.translate(cx, cy + bobY + floatY);
+            ctx.rotate(P.tilt * 0.4);
+            ctx.scale(1 / Math.sqrt(squash), squash);
+
+            const flash = this.flashT > 0;
+            const frontCol = flash ? this.eyeCol : this.bodyCol;
+            const topCol = flash ? this.faceSide : this.faceTop;
+            const sideCol = flash ? this.bodyCol : this.faceSide;
+            const eyeCol = flash ? this.bodyCol : this.eyeCol;
+
+            /* 三面：正面 + 顶面 + 露出的侧面（oblique 投影，yaw 决定露出哪侧） */
+            const offX = yaw * d;
+            const offY = -d * 0.55;
+            const h = S / 2;
+            ctx.fillStyle = frontCol;
+            ctx.fillRect(-h, -h, S, S);
+            ctx.fillStyle = topCol;
+            ctx.beginPath();
+            ctx.moveTo(-h, -h);
+            ctx.lineTo(h, -h);
+            ctx.lineTo(h + offX, -h + offY);
+            ctx.lineTo(-h + offX, -h + offY);
+            ctx.closePath();
+            ctx.fill();
+            ctx.fillStyle = sideCol;
+            ctx.beginPath();
+            if (offX >= 0) {
+              ctx.moveTo(h, -h);
+              ctx.lineTo(h + offX, -h + offY);
+              ctx.lineTo(h + offX, h + offY);
+              ctx.lineTo(h, h);
+            } else {
+              ctx.moveTo(-h, -h);
+              ctx.lineTo(-h + offX, -h + offY);
+              ctx.lineTo(-h + offX, h + offY);
+              ctx.lineTo(-h, h);
+            }
+            ctx.closePath();
+            ctx.fill();
+
+            /* 像素眼：8 格脸网格，位置/尺寸对齐网格；
+               眨眼阶梯化 3 帧（半闭→全闭→半开，MC sprite 感）；happy → 像素「∩」笑眼 */
+            const g = CELL;
+            const blinkStep = this.blinkP < 1 ? Math.floor(this.blinkP * 3) : -1;
+            const gy = Math.round(P.gy / g) * g * 0.5;
+            const gx = Math.round(P.gx / g) * g * 0.5;
+            const eyeY = -g * 1.5 + gy;
+            const happyOn = P.happy > 0.5;
+            const lidPad = this.state === 'waiting' || this.state === 'blocked' ? g * 0.5 : 0;
+            const ehCells = Math.max(1, Math.min(3, Math.round(2 * P.eyeH)));
+            const ewCells = Math.max(2, Math.min(3, Math.round(2 * P.eyeW)));
+            for (const side of [-1, 1]) {
+              const exx = Math.round(side * g * 1.5 - (ewCells * g) / 2 + gx);
+              ctx.fillStyle = eyeCol;
+              if (happyOn) {
+                /* 像素「∩」：底层两角 + 顶层中间 */
+                const bx = Math.round(side * g * 1.5 - g * 1.5 + gx);
+                const by = eyeY + g * 0.5;
+                ctx.fillRect(bx, by, g, g);
+                ctx.fillRect(bx + g * 2, by, g, g);
+                ctx.fillRect(bx + g, by - g, g, g);
+              } else if (blinkStep === 1) {
+                ctx.fillRect(
+                  exx,
+                  eyeY + (ehCells * g) / 2 - g * 0.15,
+                  ewCells * g,
+                  Math.max(1, g * 0.3),
+                );
+              } else {
+                const half = blinkStep === 0 || blinkStep === 2;
+                const hh = Math.max(g * 0.6, ehCells * g * (half ? 0.5 : 1) - lidPad);
+                ctx.fillRect(exx, eyeY + lidPad, ewCells * g, hh);
+              }
+            }
+
+            /* 像素嘴：宽度/开合随状态缓动，形状量化到网格（flat / ⌣笑 / ∩苦）
+               —— MC 贴图里的嘴就是几个格子，逐状态换形状，步进切换 */
+            const mouthW = Math.max(1, Math.round(P.mouthW));
+            const openCells = P.mouthOpen > 0.55 ? 2 : P.mouthOpen > 0.3 ? 1 : 0;
+            const curve = happyOn ? 'smile' : this.state === 'blocked' ? 'frown' : 'flat';
+            const mw = mouthW * g;
+            const mx0 = Math.round(-mw / 2 + gx * 0.5);
+            const my0 = Math.round(g * 2.4 + gy * 0.5);
+            const lineH = g; // 整格高度：0.3 格细线看不见（2026-11-22 同款修复）
+            ctx.fillStyle = eyeCol;
+            if (curve === 'smile') {
+              /* ⌣：两端上一格、中间下沉一格；开口时中段再往下补格 */
+              ctx.fillRect(mx0, my0 - g * 0.45, g, lineH);
+              ctx.fillRect(mx0 + mw - g, my0 - g * 0.45, g, lineH);
+              ctx.fillRect(mx0 + g * 0.5, my0 + g * 0.35, mw - g, lineH);
+              if (openCells > 0) {
+                ctx.fillRect(mx0 + g * 0.7, my0 + g * 0.75, mw - g * 1.4, lineH * openCells);
+              }
+            } else if (curve === 'frown') {
+              /* ∩：两端下一格、中间上抬（卡住的苦脸） */
+              ctx.fillRect(mx0, my0 + g * 0.2, g, lineH);
+              ctx.fillRect(mx0 + mw - g, my0 + g * 0.2, g, lineH);
+              ctx.fillRect(mx0 + g * 0.5, my0 - g * 0.45, mw - g, lineH);
+            } else {
+              ctx.fillRect(mx0, my0, mw, lineH);
+              if (openCells > 0) {
+                ctx.fillRect(mx0 + g * 0.15, my0 + g * 0.35, mw - g * 0.3, lineH * openCells);
+              }
+            }
+            ctx.restore();
+
+            /* 方块碎粒（位置对齐网格 + 渐隐） */
+            ctx.fillStyle = this.partCol;
+            for (const pt of this.parts) {
+              ctx.globalAlpha = Math.max(0, 1 - pt.age / pt.life);
+              ctx.fillRect(
+                Math.round(pt.x) - pt.cell / 2,
+                Math.round(pt.y) - pt.cell / 2,
+                pt.cell,
+                pt.cell,
+              );
+            }
+            ctx.globalAlpha = 1;
+          }
+
+          draw(bobY, squash) {
+            const ctx = this.ctx;
+            ctx.clearRect(0, 0, this.size, this.size);
+            if (this.o.skin === 'mc') this.drawMC(bobY, squash);
+            else this.drawRound(bobY, squash);
+          }
+
+          renderStatic() {
+            this.openAmt = 1;
+            this.draw(0, 1);
+          }
+
+          setReduce(on) {
+            this.reduce = on;
+            if (on) this.renderStatic();
+            else {
+              this.last = performance.now();
+              requestAnimationFrame((n) => this.tick(n));
+            }
+          }
+        }
+
+        /* ── 实例化 ── */
+        const body = document.body;
+        const engines = [];
+        const tip = document.getElementById('hoverTip');
+        const big = new Avatar(document.getElementById('cvBig'), 180, {
+          skin: 'mc',
+          cycle: true,
+          onState: (s) => {
+            tip.textContent = `当前动作：${STATES[s].action}`;
+            document.querySelectorAll('#stateBtns button').forEach((b) =>
+              b.classList.toggle('on', b.dataset.s === s),
+            );
+          },
+        });
+        engines.push(big);
+    window.__big = big; // 调试：暴露引擎实例（评审用，落产品时移除）
+        big.cv.addEventListener('mouseenter', () => {
+          tip.textContent = `当前动作：${STATES[big.state].action}`;
+        });
+
+        /* 皮肤按钮（默认 MC 方块） */
+        const skinWrap = document.getElementById('skinBtns');
+        for (const s of ['mc', 'round']) {
+          const b = document.createElement('button');
+          b.textContent = s === 'mc' ? '⬛ MC 方块' : '⚪ 原版圆';
+          if (s === 'mc') b.classList.add('on');
+          b.addEventListener('click', () => {
+            for (const e of engines) e.setSkin(s);
+            skinWrap.querySelectorAll('button').forEach((x) => x.classList.remove('on'));
+            b.classList.add('on');
+          });
+          skinWrap.appendChild(b);
+        }
+
+        /* 状态按钮 + 自动循环 + 主题 */
+        const btnWrap = document.getElementById('stateBtns');
+        for (const s of ORDER) {
+          const b = document.createElement('button');
+          b.textContent = s;
+          b.dataset.s = s;
+          b.addEventListener('click', () => {
+            big.o.cycle = false;
+            big.phaseAt = performance.now();
+            big.setState(s);
+            tip.textContent = `当前动作：${STATES[s].action}`;
+          });
+          btnWrap.appendChild(b);
+        }
+        const cycleBtn = document.createElement('button');
+        cycleBtn.textContent = '↻ 自动循环';
+        cycleBtn.classList.add('on');
+        cycleBtn.addEventListener('click', () => {
+          big.o.cycle = !big.o.cycle;
+          big.phaseAt = performance.now();
+          cycleBtn.classList.toggle('on', big.o.cycle);
+        });
+        btnWrap.appendChild(cycleBtn);
+
+        const mini = new Avatar(document.getElementById('cvMini'), 32, { skin: 'mc', cycle: true });
+        engines.push(mini);
+
+        const themeBtn = document.createElement('button');
+        themeBtn.textContent = '🌙 暗色';
+        themeBtn.addEventListener('click', () => {
+          const dark = body.classList.toggle('dark');
+          themeBtn.textContent = dark ? '☀️ 亮色' : '🌙 暗色';
+              if (engines.some((e) => e.reduce)) for (const e of engines) e.renderStatic();
+        });
+        btnWrap.appendChild(themeBtn);
+      })();
+    </script>
+  </body>
+</html>

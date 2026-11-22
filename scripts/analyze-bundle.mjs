@@ -43,25 +43,8 @@ if (typeof data === 'object' && !Array.isArray(data)) {
 // 使用 tree 数据
 const treeData = data.tree || data;
 
-// 如果数据是对象，可能需要递归查找
-function findChunk(data, chunkName) {
-  if (Array.isArray(data)) {
-    for (const item of data) {
-      const found = findChunk(item, chunkName);
-      if (found) return found;
-    }
-  } else if (data.name && data.name.includes(chunkName)) {
-    return data;
-  } else if (data.groups) {
-    for (const group of data.groups) {
-      const found = findChunk(group, chunkName);
-      if (found) return found;
-    }
-  }
-  return null;
-}
-
 // 动态查找入口 chunk：优先 app-*.js，其次最大的 index-*.js
+// （2026-11-21 清理：旧 findChunk 已被本函数整体取代，零引用，删除以归还 lint 警告棘轮余量）
 function findEntryChunk(data) {
   let appChunk = null;
   let largestIndexChunk = null;
@@ -94,15 +77,15 @@ if (!indexChunk) {
   console.log('\n所有 chunk:');
   function listChunks(data, depth = 0) {
     if (Array.isArray(data)) {
-      data.forEach(item => listChunks(item, depth));
+      data.forEach((item) => listChunks(item, depth));
     } else if (data.name) {
       const sizeKB = data.size ? (data.size / 1024).toFixed(2) : 'N/A';
       console.log(`${' '.repeat(depth * 2)}${data.name} (${sizeKB} KB)`);
       if (data.groups) {
-        data.groups.forEach(group => listChunks(group, depth + 1));
+        data.groups.forEach((group) => listChunks(group, depth + 1));
       }
     } else if (data.groups) {
-      data.groups.forEach(group => listChunks(group, depth));
+      data.groups.forEach((group) => listChunks(group, depth));
     }
   }
   listChunks(treeData);
@@ -125,7 +108,7 @@ if (indexChunk.groups) {
   // 递归收集所有模块
   function collectModules(group, parentPath = '') {
     if (group.groups) {
-      group.groups.forEach(subGroup => {
+      group.groups.forEach((subGroup) => {
         collectModules(subGroup, parentPath + '/' + group.name);
       });
     } else {
@@ -133,12 +116,12 @@ if (indexChunk.groups) {
         name: group.name,
         size: group.size,
         gzipSize: group.gzipSize,
-        path: parentPath
+        path: parentPath,
       });
     }
   }
 
-  indexChunk.groups.forEach(group => {
+  indexChunk.groups.forEach((group) => {
     collectModules(group);
   });
 
@@ -155,17 +138,19 @@ if (indexChunk.groups) {
   });
 
   // 分析 node_modules 中的模块
-  const nodeModules = modules.filter(m => m.name.includes('node_modules'));
+  const nodeModules = modules.filter((m) => m.name.includes('node_modules'));
   console.log('\n========================================');
   console.log('node_modules 模块分析');
   console.log('========================================\n');
 
   console.log(`总计: ${nodeModules.length} 个模块`);
-  console.log(`总大小: ${(nodeModules.reduce((sum, m) => sum + m.size, 0) / 1024).toFixed(2)} KB\n`);
+  console.log(
+    `总大小: ${(nodeModules.reduce((sum, m) => sum + m.size, 0) / 1024).toFixed(2)} KB\n`,
+  );
 
   // 按包名分组
   const packages = {};
-  nodeModules.forEach(module => {
+  nodeModules.forEach((module) => {
     const match = module.name.match(/node_modules\/([^/]+)/);
     if (match) {
       const packageName = match[1];
@@ -173,7 +158,7 @@ if (indexChunk.groups) {
         packages[packageName] = {
           modules: [],
           totalSize: 0,
-          totalGzipSize: 0
+          totalGzipSize: 0,
         };
       }
       packages[packageName].modules.push(module);
@@ -183,8 +168,7 @@ if (indexChunk.groups) {
   });
 
   // 按总大小排序
-  const sortedPackages = Object.entries(packages)
-    .sort((a, b) => b[1].totalSize - a[1].totalSize);
+  const sortedPackages = Object.entries(packages).sort((a, b) => b[1].totalSize - a[1].totalSize);
 
   console.log('最大的包:\n');
   sortedPackages.slice(0, 20).forEach(([packageName, data], index) => {
@@ -195,13 +179,15 @@ if (indexChunk.groups) {
   });
 
   // 分析本地模块
-  const localModules = modules.filter(m => !m.name.includes('node_modules'));
+  const localModules = modules.filter((m) => !m.name.includes('node_modules'));
   console.log('\n========================================');
   console.log('本地模块分析');
   console.log('========================================\n');
 
   console.log(`总计: ${localModules.length} 个模块`);
-  console.log(`总大小: ${(localModules.reduce((sum, m) => sum + m.size, 0) / 1024).toFixed(2)} KB\n`);
+  console.log(
+    `总大小: ${(localModules.reduce((sum, m) => sum + m.size, 0) / 1024).toFixed(2)} KB\n`,
+  );
 
   // 按大小排序
   localModules.sort((a, b) => b.size - a.size);

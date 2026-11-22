@@ -1,0 +1,884 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>BOH 等待动画 V2 — 像素文字 · 常驻双环（方案比对）</title>
+    <style>
+      /* ════════════════════════════════════════════════════════════
+     BOH「等待动画」V2 概念 demo（2026-11-21 用户新口径）
+     ① 动作文字改成像素点阵 —— 与双环画进同一块画布，同一套粒子语言
+     ② 动画不再融合成文字：始终转圈，每一轮「散粒 → 聚合成环」有转换感
+     ③ 上一轮的 6 条优化建议（灰度叙事/拖尾/冲击波/同源点亮/螺旋吸积/故障抖动）
+        全部做成独立变体 + 推荐组合，逐行对比。
+     仅用于方案评审。全部灰阶读 tokens 的 --ink / --card（前景/底色），零彩色、零裸色。
+     --boh-text-2 / --boh-rainbow-lift，不新增裸色。
+     ════════════════════════════════════════════════════════════ */
+
+      body {
+        --lift: 0.7;
+        --bg: #f2f2f6;
+        --card: #ffffff;
+        --ink: #1d1d1f;
+        --ink-2: #86868b;
+        --ink-3: #aeaeb2;
+        --hairline: rgba(0, 0, 0, 0.08);
+      }
+      body.dark {
+        --lift: 1.15;
+        --bg: #0d0d0f;
+        --card: #1b1b1f;
+        --ink: #f5f5f7;
+        --ink-2: #98989d;
+        --ink-3: #636366;
+        --hairline: rgba(255, 255, 255, 0.1);
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Segoe UI', sans-serif;
+        background: var(--bg);
+        color: var(--ink);
+        min-height: 100vh;
+        padding: 20px 16px 60px;
+        transition:
+          background 0.3s,
+          color 0.3s;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      .controls {
+        position: sticky;
+        top: 12px;
+        z-index: 10;
+        max-width: 760px;
+        margin: 0 auto 24px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+        padding: 10px 16px;
+        background: var(--card);
+        border: 1px solid var(--hairline);
+        border-radius: 14px;
+        box-shadow: 0 6px 24px rgba(0, 0, 0, 0.08);
+      }
+      .controls button {
+        padding: 6px 14px;
+        border-radius: 999px;
+        cursor: pointer;
+        border: 1px solid var(--hairline);
+        background: transparent;
+        color: var(--ink);
+        font-size: 13px;
+        font-family: inherit;
+        transition: background 0.15s;
+      }
+      .controls button:hover {
+        background: var(--hairline);
+      }
+      .controls button.on {
+        background: var(--ink);
+        color: var(--card);
+        border-color: var(--ink);
+      }
+      .speed-wrap {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+        color: var(--ink-2);
+      }
+      .speed-wrap input {
+        accent-color: #288cff;
+        width: 120px;
+      }
+      .speed-val {
+        min-width: 38px;
+        font-variant-numeric: tabular-nums;
+      }
+
+      h1 {
+        max-width: 760px;
+        margin: 4px auto 6px;
+        font-size: 20px;
+        font-weight: 700;
+      }
+      .sub {
+        max-width: 760px;
+        margin: 0 auto 28px;
+        font-size: 13px;
+        color: var(--ink-2);
+        line-height: 1.6;
+      }
+      .sub b {
+        color: var(--ink-2);
+      }
+
+      .case {
+        max-width: 760px;
+        margin: 0 auto 18px;
+        background: var(--card);
+        border: 1px solid var(--hairline);
+        border-radius: 18px;
+        padding: 16px 20px 14px;
+        transition: background 0.3s;
+      }
+      .case-title {
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+        margin-bottom: 4px;
+        flex-wrap: wrap;
+      }
+      .case-title b {
+        font-size: 15px;
+      }
+      .case-title .tag {
+        font-size: 11px;
+        padding: 2px 8px;
+        border-radius: 999px;
+        background: var(--hairline);
+        color: var(--ink-2);
+        white-space: nowrap;
+      }
+      .case-title .tag.rec {
+        background: #288cff;
+        color: #fff;
+      }
+      .case-desc {
+        font-size: 12px;
+        color: var(--ink-2);
+        line-height: 1.7;
+        margin-top: 10px;
+      }
+      .case-desc code {
+        font-size: 11px;
+        padding: 1px 5px;
+        border-radius: 4px;
+        background: var(--hairline);
+        font-family: ui-monospace, Menlo, monospace;
+      }
+
+      .variant-row {
+        display: flex;
+        gap: 26px;
+        align-items: center;
+        justify-content: center;
+        flex-wrap: wrap;
+        padding: 12px 0 4px;
+      }
+      .vwrap {
+        display: inline-flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 6px;
+      }
+      .vtag {
+        font-size: 11px;
+        color: var(--ink-3);
+      }
+      canvas {
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>BOH 等待动画 V2 — 像素文字 · 常驻双环</h1>
+    <p class="sub">
+      新口径：<b>动画不再融合成文字</b>，双环<b>始终转圈</b>（散粒 → 聚合成环 → 互绕 →
+      溃散，循环带「粒子转成圈」的转换感）；
+      动作文字改成<b>像素点阵</b>画进同一块画布 —— 文字走<b>纯黑白实心</b>（看得清优先，
+      动效才用色），环也走<b>纯黑白灰阶</b>（A 环 ink、B 环混 30% 底色区分双环，靠深度明暗读 3D 交织）——
+      整套动画零彩色，割裂感从根上收掉。
+      下面第一行是新口径基线（含阶段文案轮替演示），①-⑥
+      是上一轮六条建议的落地形态，最后一行是推荐组合。每行左右两块 = 实际落位尺寸 / 1.8× 放大。
+    </p>
+
+    <div class="controls">
+      <button id="themeBtn">🌙 暗色</button>
+      <button id="reduceBtn">⏸ 静帧（关动效）</button>
+      <div class="speed-wrap">
+        速度
+        <input id="speed" type="range" min="0.5" max="3" step="0.25" value="1.5" />
+        <span class="speed-val" id="speedVal">1.5×</span>
+      </div>
+    </div>
+
+    <!-- 基线 -->
+    <section class="case">
+      <div class="case-title">
+        <b>基线 V2</b><span class="tag">新口径 · 常驻双环 + 像素文字</span
+        ><span class="tag">每轮循环轮替「正在思考 ↔ 网页搜索」</span>
+      </div>
+      <div class="variant-row">
+        <div class="vwrap"><canvas id="vBaseA"></canvas><span class="vtag">实际 1×</span></div>
+        <div class="vwrap"><canvas id="vBaseB"></canvas><span class="vtag">放大 1.8×</span></div>
+      </div>
+      <p class="case-desc">
+        循环：散粒（0.35s）→ 聚合（1.05s：粒子飞上环道、文字逐字浮现）→ 互绕（2.8s：双环 tumble）→
+        溃散（0.4s）→ 循环。 环<b>永不停转</b>（tumble/自流在全相位推进）；
+        文字 = 纯黑白实心点阵，静态高可读；换阶段文案 =
+        下一轮聚合时文字点阵重排。
+      </p>
+    </section>
+
+    <!-- ① -->
+    <section class="case">
+      <div class="case-title">
+        <b>① 灰度叙事</b><span class="tag">暗聚 → 常亮 → 高光闪 → 溃散</span>
+      </div>
+      <div class="variant-row">
+        <div class="vwrap"><canvas id="vC1A"></canvas><span class="vtag">实际 1×</span></div>
+        <div class="vwrap"><canvas id="vC1B"></canvas><span class="vtag">放大 1.8×</span></div>
+      </div>
+      <p class="case-desc">
+        散粒/聚合段整体压暗（蓄势），互绕段恢复常亮，互绕后段全体粒子提亮闪一拍（顿悟），溃散归暗。亮度随相位机走，纯灰阶实现（
+        <code>--ink</code> / <code>--card</code> 灰阶实现，零彩色、零裸色。
+      </p>
+    </section>
+
+    <!-- ② -->
+    <section class="case">
+      <div class="case-title"><b>② 粒子拖尾</b><span class="tag">彗尾流动感</span></div>
+      <div class="variant-row">
+        <div class="vwrap"><canvas id="vC2A"></canvas><span class="vtag">实际 1×</span></div>
+        <div class="vwrap"><canvas id="vC2B"></canvas><span class="vtag">放大 1.8×</span></div>
+      </div>
+      <p class="case-desc">
+        每帧不清屏，用 <code>destination-out</code> 低 alpha 擦除（透明底不破坏，暗色零耦合保持）⇒
+        粒子带 3~5 帧渐隐彗尾，互绕时两道光带交织、聚合时星轨入环。
+      </p>
+    </section>
+
+    <!-- ③ -->
+    <section class="case">
+      <div class="case-title">
+        <b>③ 聚合冲击波</b><span class="tag">「成环」那一拍有节拍器</span>
+      </div>
+      <div class="variant-row">
+        <div class="vwrap"><canvas id="vC3A"></canvas><span class="vtag">实际 1×</span></div>
+        <div class="vwrap"><canvas id="vC3B"></canvas><span class="vtag">放大 1.8×</span></div>
+      </div>
+      <p class="case-desc">
+        每轮聚合完成的瞬间，从环心向外炸一圈 16 颗短命粒子（~0.3s
+        消散）——「粒子转成圈」的转换被一个可感知的 pulse 收尾。是粒子冲击波，不是白光扫字。
+      </p>
+    </section>
+
+    <!-- ④ -->
+    <section class="case">
+      <div class="case-title">
+        <b>④ 文字-环同源点亮</b><span class="tag">文字的节拍由环驱动</span>
+      </div>
+      <div class="variant-row">
+        <div class="vwrap"><canvas id="vC4A"></canvas><span class="vtag">实际 1×</span></div>
+        <div class="vwrap"><canvas id="vC4B"></canvas><span class="vtag">放大 1.8×</span></div>
+      </div>
+      <p class="case-desc">
+        环自流每转过 1/4
+        圈，点亮下一个像素字（亮后指数衰减）——环的转动和文字的节拍是<b>同一个时钟</b>，两个元素变成一个有机体。对比基线的连续微弱波浪，这里是离散的、可数节拍的脉动。
+      </p>
+    </section>
+
+    <!-- ⑤ -->
+    <section class="case">
+      <div class="case-title">
+        <b>⑤ 螺旋吸积</b><span class="tag">粒子不是飞上去的，是卷进去的</span>
+      </div>
+      <div class="variant-row">
+        <div class="vwrap"><canvas id="vC5A"></canvas><span class="vtag">实际 1×</span></div>
+        <div class="vwrap"><canvas id="vC5B"></canvas><span class="vtag">放大 1.8×</span></div>
+      </div>
+      <p class="case-desc">
+        聚合段目标点沿螺旋插值（半径从 2.4×R 收到 R、角度多绕 5
+        rad）——「粒子转换成圈」从直线飞行升级成吸积盘式的卷入，天体感。
+      </p>
+    </section>
+
+    <!-- ⑥ -->
+    <section class="case">
+      <div class="case-title">
+        <b>⑥ 像素故障抖动</b><span class="tag">「还在想」的不稳定感（最激进）</span>
+      </div>
+      <div class="variant-row">
+        <div class="vwrap"><canvas id="vC6A"></canvas><span class="vtag">实际 1×</span></div>
+        <div class="vwrap"><canvas id="vC6B"></canvas><span class="vtag">放大 1.8×</span></div>
+      </div>
+      <p class="case-desc">
+        互绕期每 ~1.5% 帧率抽 1-2 颗粒子（或一个字）跳位 ~45ms 再归位 —— 传达「输出未定」的 glitch
+        质感。抖多了像 bug，所以频率压得很低。
+      </p>
+    </section>
+
+    <!-- 组合 -->
+    <section class="case">
+      <div class="case-title">
+        <b>推荐组合</b><span class="tag rec">①+②+③+④+⑥（⑤ 可叠加）</span>
+      </div>
+      <div class="variant-row">
+        <div class="vwrap"><canvas id="vComboA"></canvas><span class="vtag">实际 1×</span></div>
+        <div class="vwrap"><canvas id="vComboB"></canvas><span class="vtag">放大 1.8×</span></div>
+      </div>
+      <p class="case-desc">
+        灰度叙事 + 拖尾 + 冲击波 + 同源点亮 + 轻量故障。全部是引擎内部改动，布局不动、reduce
+        路径不变。
+      </p>
+    </section>
+
+    <script>
+      (() => {
+        'use strict';
+
+        /* ── 2026-11-21 用户口径：整套动画纯黑白 —— 不再读彩虹调色板，
+           环/文字/特效全部走 --ink 灰阶（双环用灰度分层区分：B 环混 30% 底色）── */
+
+        const PHASES = [
+          { key: 'scatter', dur: 0.35 },
+          { key: 'assemble', dur: 1.05 },
+          { key: 'orbit', dur: 2.8 },
+          { key: 'burst', dur: 0.4 },
+        ];
+
+        const rand = (a, b) => a + Math.random() * (b - a);
+
+        const rot3 = (x, y, z, ax, ay, az) => {
+          const cy = Math.cos(ax),
+            sy = Math.sin(ax);
+          const y1 = y * cy - z * sy,
+            z1 = y * sy + z * cy;
+          const cx = Math.cos(ay),
+            sx = Math.sin(ay);
+          const x1 = x * cx + z1 * sx,
+            z2 = -x * sx + z1 * cx;
+          const cz = Math.cos(az),
+            sz = Math.sin(az);
+          return [x1 * cz - y1 * sz, x1 * sz + y1 * cz, z2];
+        };
+
+        const mix = (a, b, t) => [
+          Math.round(a[0] + (b[0] - a[0]) * t),
+          Math.round(a[1] + (b[1] - a[1]) * t),
+          Math.round(a[2] + (b[2] - a[2]) * t),
+        ];
+        const rgb = (c) => `rgb(${c[0]},${c[1]},${c[2]})`;
+
+        /* 像素文字采样：逐字绘制 → 逐字采样（记录 charIdx）→ 归一化到 x≥0。
+       strokeText 加粗笔画（小字号中文的 1px 骨架太细） */
+        function sampleTextDots(text, w, h, fontPx, gap) {
+          const off = document.createElement('canvas');
+          off.width = w;
+          off.height = h;
+          const c = off.getContext('2d');
+          c.font = `900 ${fontPx}px -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif`;
+          c.textBaseline = 'middle';
+          c.textAlign = 'left';
+          c.fillStyle = '#fff';
+          c.strokeStyle = '#fff';
+          const chars = [...text];
+          const widths = chars.map((ch) => c.measureText(ch).width);
+          const totalW = widths.reduce((s2, x) => s2 + x, 0);
+          let x = Math.max(0, (w - totalW) / 2);
+          const dots = [];
+          chars.forEach((ch, ci) => {
+            c.clearRect(0, 0, w, h);
+            c.fillText(ch, x, h / 2 + fontPx * 0.04);
+            c.lineWidth = Math.max(1, fontPx * 0.09);
+            c.strokeText(ch, x, h / 2 + fontPx * 0.04);
+            const d = c.getImageData(0, 0, w, h).data;
+            for (let yy = 0; yy < h; yy += gap) {
+              for (let xx = 0; xx < w; xx += gap) {
+                if (d[(yy * w + xx) * 4 + 3] > 128) dots.push({ x: xx, y: yy, ci });
+              }
+            }
+            x += widths[ci];
+          });
+          const minX = Math.min(...dots.map((p) => p.x));
+          dots.forEach((p) => {
+            p.x -= minX;
+          });
+          return dots;
+        }
+
+        class OrbitV2 {
+          constructor(canvas, opts) {
+            this.cv = canvas;
+            this.o = opts;
+            this.zoom = opts.zoom || 1;
+            this.speed = 1.5; // 线上口径 1.5×
+            this.reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+            this.dpr = Math.min(2, window.devicePixelRatio || 1);
+
+            /* 世界几何（世界单位 = 实际落位像素；zoom 只影响渲染放大） */
+            this.H = 22;
+            this.fontPx = 13;
+            this.R = this.H * 0.42; // 环径 ~18.5，占满画布高
+            this.F = this.H * 4; // persp ∈ [0.90, 1.12]
+            this.zr = this.R;
+            this.sz = 2;
+
+            this.labelA = opts.label || '正在思考';
+            this.label = this.labelA;
+            this.labelB = opts.altLabel || '';
+            this.setLabel(this.labelA);
+
+            const perspMax = this.F / (this.F - this.R);
+            this.ringZone = Math.ceil(this.R * 2 * perspMax) + 2;
+            this.ringCx = 4 + this.ringZone / 2;
+            this.ringCy = this.H / 2;
+            this.textX0 = 4 + this.ringZone + 6;
+            this.W = Math.ceil(this.textX0 + this.textW) + 4;
+
+            canvas.width = Math.round(this.W * this.zoom * this.dpr);
+            canvas.height = Math.round(this.H * this.zoom * this.dpr);
+            canvas.style.width = `${this.W * this.zoom}px`;
+            canvas.style.height = `${this.H * this.zoom}px`;
+            this.ctx = canvas.getContext('2d');
+            this.ctx.scale(this.zoom * this.dpr, this.zoom * this.dpr);
+
+            this.readTheme();
+
+            /* 粒子：环按周长定密度（1.7px × 4 车道），文字一粒子一点 */
+            this.ringN = Math.ceil((2 * Math.PI * this.R) / 1.7) * 4;
+            this.textN = this.dots.length;
+            this.N = this.ringN * 2 + this.textN;
+            this.charCount = [...this.label].length;
+            this.lit = new Array(Math.max(4, this.charCount)).fill(0);
+            this.lastQ = -1;
+            this.pulses = [];
+            this.gl = null;
+
+            this.parts = [];
+            for (let i = 0; i < this.N; i += 1) {
+              const role = i < this.ringN ? 0 : i < this.ringN * 2 ? 1 : 2;
+              const ringFrac =
+                role === 0 ? i / this.ringN : role === 1 ? (i - this.ringN) / this.ringN : 0;
+              this.parts.push({
+                x: rand(0, this.W),
+                y: rand(0, this.H),
+                z: rand(-this.zr, this.zr),
+                vx: 0,
+                vy: 0,
+                vz: 0,
+                k: rand(0.08, 0.16),
+                role,
+                lane: (Math.random() * 4) | 0,
+                angleBase: ringFrac * Math.PI * 2 + rand(-0.06, 0.06),
+                textJ: role === 2 ? i - this.ringN * 2 : 0,
+                tx: 0,
+                ty: 0,
+                tz: 0,
+                sx: 0,
+                sy: 0,
+                sz0: 0,
+              });
+            }
+
+            this.ax = rand(0, 3);
+            this.ay = rand(0, 3);
+            this.flow = rand(0, Math.PI * 2);
+            this.phase = 0;
+            this.phaseStart = performance.now();
+            this.last = performance.now();
+            this.loop = 0;
+            this.solid = true;
+
+            if (this.reduce) this.renderStatic();
+            else requestAnimationFrame((t) => this.tick(t));
+          }
+
+          readTheme() {
+            const cs = getComputedStyle(this.cv);
+            const read = (n) => String(cs.getPropertyValue(n) || '').trim();
+            const parse = (s, fallback) => {
+              const m = s.match(/(\d+(?:\.\d+)?)[\s,]+(\d+(?:\.\d+)?)[\s,]+(\d+(?:\.\d+)?)/);
+              return m ? [Number(m[1]), Number(m[2]), Number(m[3])] : fallback;
+            };
+            /* 全员灰阶（2026-11-21 用户口径：整套纯黑白）：
+               ink = 主题前景色（亮色近黑 / 暗色近白），双环靠灰度分层区分 ——
+               A 环用 ink、B 环混 30% 底色（亮色下浅一档、暗色下深一档，对比恒定） */
+            this.textGray = parse(read('--ink'), [29, 29, 31]);
+            this.textCol = rgb(this.textGray);
+            this.ink = this.textGray;
+            const cardBg = parse(read('--card'), [255, 255, 255]);
+            this.ringA = rgb(this.ink);
+            this.ringB = rgb(mix(this.ink, cardBg, 0.3));
+            this.solid = true;
+          }
+
+          setLabel(text) {
+            this.label = text;
+            this.charCount = [...text].length;
+            const dots = sampleTextDots(text, 120, this.H, this.fontPx, 1);
+            this.dots = dots;
+            this.textW = Math.max(...dots.map((p) => p.x)) + 1;
+          }
+
+          setPhase(i) {
+            this.phase = i % PHASES.length;
+            this.phaseStart = performance.now();
+            const key = PHASES[this.phase].key;
+            if (key === 'assemble') {
+              this.loop += 1;
+              /* 基线演示阶段轮替：每逢奇数轮换文案，文字点阵在下一拍聚合时重排 */
+              if (this.o.altLabel && this.loop % 2 === 1) {
+                this.setLabel(this.loop % 4 === 1 ? this.o.altLabel : this.labelA);
+              }
+            }
+            if (key === 'burst') {
+              for (const p of this.parts) {
+                const a = rand(0, Math.PI * 2);
+                const b = rand(-1, 1);
+                const v = rand(1.2, 3.6);
+                const n = Math.sqrt(1 + b * b);
+                p.vx = (Math.cos(a) * v) / n;
+                p.vy = (b * v) / n;
+                p.vz = (Math.sin(a) * v) / n;
+              }
+            }
+            if (key === 'orbit' && this.o.shockwave) {
+              for (let i = 0; i < 16; i += 1)
+                this.pulses.push({ born: performance.now() + i * 2, a: (i / 16) * Math.PI * 2 });
+            }
+          }
+
+          tick(now) {
+            if (this.reduce) return;
+            const dt = Math.min(0.05, (now - this.last) / 1000) * this.speed;
+            this.last = now;
+            const ph = PHASES[this.phase];
+            const prog = (now - this.phaseStart) / ((ph.dur * 1000) / this.speed);
+            if (prog >= 1) {
+              this.setPhase(this.phase + 1);
+              return this.tick(now);
+            }
+
+            /* 环永不停转：tumble / 自流在全相位推进（burst 段加速 = 炸开的能量） */
+            const wob =
+              ph.key === 'orbit' ? 1 : ph.key === 'burst' ? 1.4 : ph.key === 'assemble' ? 0.5 : 0.3;
+            this.ax += dt * 0.37 * wob;
+            this.ay += dt * 0.62 * wob;
+            this.flow += dt * 1.7 * wob;
+
+            /* 文字节拍：基线 = 文字静态实心（纯黑白口径，不做花活）；④ = 环每转
+               1/4 圈点亮下一字（黑白脉动，同一时钟） */
+            if (this.o.beatText) {
+              const q = Math.floor(this.flow / (Math.PI / 2));
+              if (q !== this.lastQ) {
+                this.lastQ = q;
+                this.lit[q % this.charCount] = 1;
+              }
+              for (let i = 0; i < this.lit.length; i += 1) this.lit[i] *= Math.pow(0.9, dt * 60);
+            }
+
+            /* ⑥ 故障抖动（仅互绕期，低频） */
+            if (this.o.glitch && ph.key === 'orbit' && Math.random() < 0.025) {
+              this.gl = {
+                until: now + 45,
+                i1: (Math.random() * this.N) | 0,
+                i2: (Math.random() * this.N) | 0,
+                dx: rand(-2, 2),
+                dy: rand(-1.5, 1.5),
+                ci: (Math.random() * this.charCount) | 0,
+                cdx: rand(-1, 1),
+                cdy: rand(-1, 1),
+              };
+            }
+
+            this.updateTargets(ph.key, prog, now / 1000);
+            this.step(ph.key);
+            this.draw(ph, prog, now);
+
+            requestAnimationFrame((t) => this.tick(t));
+          }
+
+          updateTargets(key, prog, t) {
+            const { R, ax, ay, flow } = this;
+            for (let i = 0; i < this.N; i += 1) {
+              const p = this.parts[i];
+              if (key === 'scatter') {
+                p.tx = p.sx ||= rand(0, this.W);
+                p.ty = p.sy ||= rand(0, this.H);
+                p.tz = p.sz0 ||= rand(-this.zr, this.zr);
+              } else if (key === 'assemble') {
+                if (p.role <= 1) {
+                  const dir = p.role === 0 ? 1 : -1;
+                  if (this.o.spiral) {
+                    /* ⑤ 吸积：半径从 2.4R 卷到 R，角度多绕 5rad —— 移动目标 + 追踪 = 螺旋卷入 */
+                    const ease = 1 - Math.pow(1 - Math.min(1, prog), 2);
+                    const a = p.angleBase + dir * flow + (1 - ease) * 5;
+                    const r = R * (2.4 - 1.4 * ease) + (p.lane - 1.5) * R * 0.14;
+                    const local =
+                      p.role === 0
+                        ? [Math.cos(a) * r, Math.sin(a) * r, 0]
+                        : [Math.cos(a) * r, 0, Math.sin(a) * r];
+                    const w = rot3(local[0], local[1], local[2], ax, ay, dir * t * 0.22);
+                    p.tx = this.ringCx + w[0];
+                    p.ty = this.ringCy + w[1];
+                    p.tz = w[2];
+                  } else {
+                    const a = p.angleBase + dir * flow;
+                    const r = R + (p.lane - 1.5) * R * 0.14;
+                    const local =
+                      p.role === 0
+                        ? [Math.cos(a) * r, Math.sin(a) * r, 0]
+                        : [Math.cos(a) * r, 0, Math.sin(a) * r];
+                    const w = rot3(local[0], local[1], local[2], ax, ay, dir * t * 0.22);
+                    p.tx = this.ringCx + w[0];
+                    p.ty = this.ringCy + w[1];
+                    p.tz = w[2];
+                  }
+                } else {
+                  /* 文字逐字浮现：每个字有出场拍点，没到拍的字原地等 */
+                  const dot = this.dots[p.textJ % this.dots.length];
+                  const ready = prog > 0.2 + dot.ci * 0.1;
+                  if (ready) {
+                    p.tx = this.textX0 + dot.x;
+                    p.ty = dot.y;
+                    p.tz = 0;
+                  } else {
+                    p.tx = p.x;
+                    p.ty = p.y;
+                    p.tz = p.z;
+                  }
+                }
+              } else if (key === 'orbit') {
+                if (p.role <= 1) {
+                  const dir = p.role === 0 ? 1 : -1;
+                  const a = p.angleBase + dir * flow;
+                  const r = R + (p.lane - 1.5) * R * 0.14;
+                  const local =
+                    p.role === 0
+                      ? [Math.cos(a) * r, Math.sin(a) * r, 0]
+                      : [Math.cos(a) * r, 0, Math.sin(a) * r];
+                  const w = rot3(local[0], local[1], local[2], ax, ay, dir * t * 0.22);
+                  p.tx = this.ringCx + w[0];
+                  p.ty = this.ringCy + w[1];
+                  p.tz = w[2];
+                } else {
+                  const dot = this.dots[p.textJ % this.dots.length];
+                  p.tx = this.textX0 + dot.x;
+                  p.ty = dot.y;
+                  p.tz = 0;
+                }
+              } else {
+                // burst：炸向四周（目标 = 新散点，冲量在 setPhase 给过）
+                p.tx = p.sx ||= rand(0, this.W);
+                p.ty = p.sy ||= rand(0, this.H);
+                p.tz = p.sz0 ||= rand(-this.zr, this.zr);
+              }
+            }
+          }
+
+          step(key) {
+            const pursue =
+              key === 'orbit' ? 0.2 : key === 'assemble' ? 0.13 : key === 'burst' ? 0.05 : 0.08;
+            for (const p of this.parts) {
+              if (key === 'burst') {
+                p.x += p.vx;
+                p.y += p.vy;
+                p.z += p.vz;
+                p.vx *= 0.9;
+                p.vy *= 0.9;
+                p.vz *= 0.9;
+              }
+              const k = pursue * (key === 'burst' ? p.k : 1);
+              p.x += (p.tx - p.x) * k;
+              p.y += (p.ty - p.y) * k;
+              p.z += (p.tz - p.z) * k;
+            }
+          }
+
+          draw(ph, prog, now) {
+            const ctx = this.ctx;
+            const { W, H } = this;
+            if (this.o.trails) {
+              /* ② 拖尾：destination-out 渐擦（透明底保持，暗色零耦合不破坏） */
+              ctx.globalCompositeOperation = 'destination-out';
+              ctx.fillStyle = 'rgba(0, 0, 0, 0.22)';
+              ctx.fillRect(0, 0, W, H);
+              ctx.globalCompositeOperation = 'source-over';
+            } else {
+              ctx.clearRect(0, 0, W, H);
+            }
+
+            /* ① 灰度叙事：散/聚段整体压暗（蓄势），互绕段常亮，互绕后段全亮闪一拍（顿悟） */
+            let arcAlpha = 1;
+            if (this.o.arc) {
+              if (ph.key === 'scatter' || ph.key === 'assemble') arcAlpha = 0.55;
+              else if (ph.key === 'orbit' && prog > 0.72) arcAlpha = 1;
+            }
+
+            const t = now / 1000;
+            const order = this.parts
+              .map((p, i) => i)
+              .sort((a, b) => this.parts[b].z - this.parts[a].z);
+            for (const i of order) {
+              const p = this.parts[i];
+              let px = p.x,
+                py = p.y;
+              if (this.gl && now < this.gl.until && (i === this.gl.i1 || i === this.gl.i2)) {
+                px += this.gl.dx;
+                py += this.gl.dy; // ⑥ 粒子跳位
+              }
+              const persp = this.F / (this.F + p.z);
+              /* 透视缩放以**环心**为原点（画布左缘不是环心 —— 以左缘为原点环会左右漂）；
+             文字粒子恒在 z=0（persp=1），不受影响 */
+              const sx =
+                p.role <= 1 ? Math.round(this.ringCx + (px - this.ringCx) * persp) : Math.round(px);
+              const sy =
+                p.role <= 1 ? Math.round(this.ringCy + (py - this.ringCy) * persp) : Math.round(py);
+              const dsz = Math.max(1, Math.round(this.sz * persp));
+              if (p.role === 2) {
+                /* 像素文字：纯黑白实心（用户口径「看得清、不要花里胡哨」）。
+                   ④ 的节拍点亮也改黑白脉动：未亮字 0.4、亮字 1.0，不用彩色 */
+                const dot = this.dots[p.textJ % this.dots.length];
+                const lit = this.o.beatText ? this.lit[dot.ci % this.lit.length] || 0 : 0;
+                let gx = sx,
+                  gy = sy;
+                if (this.gl && now < this.gl.until && this.gl.ci === dot.ci) {
+                  gx += this.gl.cdx;
+                  gy += this.gl.cdy; // ⑥ 文字跳位
+                }
+                ctx.globalAlpha = this.o.beatText ? 0.4 + 0.6 * Math.min(1, lit) : 0.95;
+                ctx.fillStyle = this.textCol;
+                ctx.fillRect(gx, gy, dsz, dsz);
+              } else {
+                const nd = Math.min(1, Math.max(0, (p.z + this.zr) / (2 * this.zr)));
+                ctx.globalAlpha = (0.45 + 0.55 * nd) * arcAlpha;
+                ctx.fillStyle = p.role === 0 ? this.ringA : this.ringB;
+                ctx.fillRect(sx, sy, dsz, dsz);
+              }
+            }
+
+            /* ③ 冲击波：短命环形粒子，不进排序直接画 */
+            if (this.o.shockwave && this.pulses.length) {
+              const nowMs = performance.now();
+              this.pulses = this.pulses.filter((pu) => nowMs - pu.born < 320);
+              for (const pu of this.pulses) {
+                const age = Math.min(1, (nowMs - pu.born) / 320);
+                if (age < 0) continue;
+                const r = this.R * (0.5 + 1.5 * age);
+                ctx.globalAlpha = (1 - age) * 0.8;
+                ctx.fillStyle = rgb(this.ink);
+                ctx.fillRect(
+                  Math.round(this.ringCx + Math.cos(pu.a + t * 2) * r),
+                  Math.round(this.ringCy + Math.sin(pu.a + t * 2) * r * 0.9),
+                  2,
+                  2,
+                );
+              }
+            }
+            ctx.globalAlpha = 1;
+          }
+
+          renderStatic() {
+            const ctx = this.ctx;
+            ctx.clearRect(0, 0, this.W, this.H);
+            const t = 0.7;
+            for (const p of this.parts) {
+              let tx,
+                ty,
+                tz = 0;
+              if (p.role <= 1) {
+                const dir = p.role === 0 ? 1 : -1;
+                const a = p.angleBase + dir * t;
+                const r = this.R + (p.lane - 1.5) * this.R * 0.14;
+                const local =
+                  p.role === 0
+                    ? [Math.cos(a) * r, Math.sin(a) * r, 0]
+                    : [Math.cos(a) * r, 0, Math.sin(a) * r];
+                const w = rot3(local[0], local[1], local[2], 0.5, 0.9, 0);
+                tx = this.ringCx + w[0];
+                ty = this.ringCy + w[1];
+                tz = w[2];
+              } else {
+                const dot = this.dots[p.textJ % this.dots.length];
+                tx = this.textX0 + dot.x;
+                ty = dot.y;
+              }
+              const persp = this.F / (this.F + tz);
+              const sx =
+                p.role <= 1 ? Math.round(this.ringCx + (tx - this.ringCx) * persp) : Math.round(tx);
+              const sy =
+                p.role <= 1 ? Math.round(this.ringCy + (ty - this.ringCy) * persp) : Math.round(ty);
+              ctx.globalAlpha = p.role === 2 ? 0.85 : 0.9;
+              ctx.fillStyle = p.role === 2 ? this.textCol : p.role === 0 ? this.ringA : this.ringB;
+              ctx.fillRect(sx, sy, this.sz, this.sz);
+            }
+            ctx.globalAlpha = 1;
+          }
+
+          setReduce(on) {
+            this.reduce = on;
+            if (on) this.renderStatic();
+            else {
+              this.last = performance.now();
+              this.phaseStart = performance.now();
+              this.solid = true;
+              requestAnimationFrame((t) => this.tick(t));
+            }
+          }
+        }
+
+        /* ── 实例化：8 个变体 × 2 尺寸 ── */
+        const VARIANTS = [
+          { id: 'vBase', o: { altLabel: '网页搜索' }, name: '基线 V2' },
+          { id: 'vC1', o: { arc: true }, name: '① 灰度叙事' },
+          { id: 'vC2', o: { trails: true }, name: '② 粒子拖尾' },
+          { id: 'vC3', o: { shockwave: true }, name: '③ 聚合冲击波' },
+          { id: 'vC4', o: { beatText: true }, name: '④ 同源点亮' },
+          { id: 'vC5', o: { spiral: true }, name: '⑤ 螺旋吸积' },
+          { id: 'vC6', o: { glitch: true }, name: '⑥ 像素故障' },
+          {
+            id: 'vCombo',
+            o: { arc: true, trails: true, shockwave: true, beatText: true, glitch: true },
+            name: '推荐组合',
+          },
+        ];
+        const engines = [];
+        for (const v of VARIANTS) {
+          for (const zoom of [1, 1.8]) {
+            const el = document.getElementById(`${v.id}${zoom === 1 ? 'A' : 'B'}`);
+            if (el) engines.push(new OrbitV2(el, { ...v.o, zoom }));
+          }
+        }
+
+        /* ── 控制条 ── */
+        const body = document.body;
+        const themeBtn = document.getElementById('themeBtn');
+        const reduceBtn = document.getElementById('reduceBtn');
+        const speed = document.getElementById('speed');
+        const speedVal = document.getElementById('speedVal');
+
+        themeBtn.addEventListener('click', () => {
+          const dark = body.classList.toggle('dark');
+          themeBtn.textContent = dark ? '☀️ 亮色' : '🌙 暗色';
+          themeBtn.classList.toggle('on', dark);
+          for (const e of engines) e.readTheme();
+          if (body.classList.contains('reduce') || engines[0].reduce) {
+            for (const e of engines) e.renderStatic();
+          }
+        });
+
+        reduceBtn.addEventListener('click', () => {
+          const on = !engines[0].reduce;
+          reduceBtn.classList.toggle('on', on);
+          body.classList.toggle('reduce', on);
+          for (const e of engines) e.setReduce(on);
+        });
+
+        function applySpeed(v) {
+          for (const e of engines) e.speed = v;
+          speedVal.textContent = `${v}×`;
+        }
+        applySpeed(parseFloat(speed.value));
+        speed.addEventListener('input', () => applySpeed(parseFloat(speed.value)));
+      })();
+    </script>
+  </body>
+</html>
