@@ -581,6 +581,11 @@ onBeforeUnmount(() => {
   }
   bodyObserver?.disconnect();
   bodyObserver = null;
+  /* 「小方」状态总线复位（2026-11-22）：岛是 `v-if="rendered"` 关岛即卸载，而总线是
+     模块单例。不清的话，流式中途关岛会把 'thinking' 永久留在单例里 —— 挂件的自主动作
+     被 `busy` 守卫永久拦死、睡眠判定也永远不成立（表现为「小方卡在思考，不动了」）。
+     卸载本来就会 abort 流（引擎 onScopeDispose），这里补上状态的收尾。 */
+  setPetStage('', 'island');
 });
 </script>
 

@@ -166,13 +166,16 @@ export function useMemoryCapture(deps) {
   };
 
   // ── 公共记忆开关 ──────────────────────────────────────────────
+  /* 2026-11-22（plans/044 阶段 0 A）：开关已**持久化**（开过就记住），
+     文案必须能让人感知这个合同变化 —— 否则用户以为还是「只对本轮有效」，
+     下次发现它在替自己写公共库会觉得被偷偷改了设置。 */
   const toggleMemoryCapture = () => {
     isMemoryCaptureEnabled.value = !isMemoryCaptureEnabled.value;
     persistMemoryCaptureSetting();
     setMemoryCaptureStatusMessage(
       isMemoryCaptureEnabled.value
-        ? '公共记忆已开启：将写入 BOH AI 公共记忆库。'
-        : '公共记忆已关闭：本轮不会写入 BOH AI 公共记忆库。',
+        ? '公共记忆已开启：之后会持续写入（可随时在这里关闭）。'
+        : '公共记忆已关闭：不会再写入 BOH AI 公共记忆库。',
     );
   };
 

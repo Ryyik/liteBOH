@@ -12,6 +12,8 @@
  *   - none   ⇒ 走原有联合去重闸（现行跳过行为全部保留，本改动只新增 supersede 分支）
  */
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { resolveSharedCandidateWrite } from '@/utils/memory/memory-supersede.js';
 // 下沉后 dedupe.js 必须 re-export 同一批函数（useChatEngine / useActionDraft 的 import 一行没改）
 import { classifyMemoryWrite } from '@/views/BOHAI/utils/memory/dedupe.js';
@@ -89,5 +91,31 @@ describe('下沉后的单一真源（dedupe.js re-export 与 utils 层同源）'
     ).toBe('supersede');
     expect(classifyMemoryWrite('我现在住在上海', [{ content: '我现在住在上海' }])).toBe('exact');
     expect(classifyMemoryWrite('我这周开始学吉他', [{ content: '我现在住在上海' }])).toBe('none');
+  });
+
+  it('⭐ dedupe.js 只许 re-export，不许自己再实现一份判定（两份真源会漂移）', () => {
+    // 2026-11-22 实测：本次下沉后 dedupe.js 仍留着 150 行逐字重复的实现，
+    // 「单一真源」实际是两份 —— 只要有人只改一边（例如调 SAME_TOPIC_RATIO），
+    // 显式指令路径与自动沉淀路径就会给出不同结论，而单测两边都绿。
+    const dedupeSrc = readFileSync(
+      resolve(import.meta.dirname, '../../src/views/BOHAI/utils/memory/dedupe.js'),
+      'utf8',
+    );
+    expect(dedupeSrc).toContain("from '@/utils/memory/memory-supersede.js'");
+    /* 四个判定函数在 dedupe.js 里都必须是「导出」而非「实现」 */
+    expect(dedupeSrc).not.toContain('const isSubsetDuplicate');
+    expect(dedupeSrc).not.toContain('const longestCommonSubstringLength');
+    expect(dedupeSrc).not.toContain('const SAME_TOPIC_RATIO');
+    expect(dedupeSrc).not.toContain('export const classifyMemoryWrite');
+    expect(dedupeSrc).not.toContain('export const findSupersededMemory');
+    expect(dedupeSrc).not.toContain('export const isLikelyMemoryDuplicate');
+    expect(dedupeSrc).not.toContain('export const normalizeMemoryCompareText');
+    /* 算法真源只此一处 */
+    const supersedeSrc = readFileSync(
+      resolve(import.meta.dirname, '../../src/utils/memory/memory-supersede.js'),
+      'utf8',
+    );
+    expect(supersedeSrc).toContain('const SAME_TOPIC_RATIO');
+    expect(supersedeSrc).toContain('const SUBSET_DUPLICATE_LENGTH_RATIO');
   });
 });

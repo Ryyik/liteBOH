@@ -42,7 +42,11 @@ import {
   invalidateSharedMemoryCache,
   getSharedAIMemoriesForAI,
   createSharedAIMemory,
+  updateSharedAIMemoryStatus,
 } from './memory-api.js';
+/* 同主题改口判定（plans/044 阶段 0 B）：真源在 utils 层，utils/api 不再反向 import
+   views/BOHAI（那会是下层引上层的架构债）。 */
+import { resolveSharedCandidateWrite } from '../../memory/memory-supersede.js';
 
 const invalidateTreeholeCandidateCache = (userId) => {
   invalidateByTags(
@@ -720,12 +724,16 @@ export async function captureTreeholeMemoriesFromDialogue({
 
   let sharedTableAvailable = writeToShared;
   let existingSharedContents = [];
+  /* 归档要的是**行**（带 id），不是内容串 —— supersede 判定只认带 id 的对象
+     （findSupersededMemory 对字符串行直接跳过，退化成并存写入）。 */
+  let existingSharedRows = [];
   if (writeToShared) {
     const existingSharedResult = await getSharedAIMemoriesForAI({ limit: 240 });
     if (existingSharedResult.ok) {
-      existingSharedContents = Array.isArray(existingSharedResult.data)
-        ? existingSharedResult.data.map((item) => item.content)
+      existingSharedRows = Array.isArray(existingSharedResult.data)
+        ? existingSharedResult.data
         : [];
+      existingSharedContents = existingSharedRows.map((item) => item.content);
     } else if (isMissingSharedMemoryTableError(existingSharedResult.error)) {
       sharedTableAvailable = false;
     } else {
@@ -761,6 +769,9 @@ export async function captureTreeholeMemoriesFromDialogue({
     pendingCount: 0,
     rejectedCount: 0,
     duplicateCount: 0,
+    /* 同主题改口：归档了几条旧公共记忆（plans/044 阶段 0 B）。0 不代表失败 ——
+       归档失败是「并存写入」，只打 warn，不打断新事实落库。 */
+    supersededCount: 0,
     items: [],
     model: extractionResult.data?.model || '',
   };
@@ -799,6 +810,29 @@ export async function captureTreeholeMemoriesFromDialogue({
   };
 
   for (const candidate of extractedCandidates) {
+    /* ① 同主题改口（plans/044 · 阶段 0 B，2026-11-22）：先于联合去重闸判定。
+       为什么不放在去重闸之后：`isLikelyDuplicateText` 一旦命中就直接 `continue`，
+       而「我在上海 → 我现在在北京」正是被判成重复的那一类 —— 旧事实永久占位、
+       AI 持续答错。判定只用**公共记忆库的行**（带 id 才有归档语义）。
+       口径与显式指令路径（useChatEngine 的 classifyMemoryWrite/findSupersededMemory）同源，
+       真源都是 `utils/memory/memory-supersede.js`。 */
+    let supersededSharedId = '';
+    if (writeToShared && sharedTableAvailable) {
+      const decision = resolveSharedCandidateWrite(candidate.content, existingSharedRows);
+      if (decision.kind === 'exact') {
+        stats.duplicateCount += 1;
+        stats.items.push({
+          content: candidate.content,
+          status: 'duplicate',
+          confidence: candidate.confidence,
+        });
+        continue;
+      }
+      if (decision.kind === 'supersede') {
+        supersededSharedId = String(decision.supersededMemory?.id || '').trim();
+      }
+    }
+
     if (isLikelyDuplicateText(candidate.content, existingContents)) {
       stats.duplicateCount += 1;
       stats.items.push({
@@ -816,6 +850,26 @@ export async function captureTreeholeMemoriesFromDialogue({
     const shouldAttemptSharedSave = writeToShared && candidate.confidence >= safeMinConfidence;
 
     if (shouldAttemptSharedSave && sharedTableAvailable) {
+      /* 同主题改口：先归档旧事实再写新的（口径同显式指令路径 useChatEngine）。
+         ⚠️ 归档失败**不阻断**新记忆写入 —— 新事实是用户当下的表达，优先级更高；
+         两条并存最坏只是检索时可能取到旧的（打分层已有源权重兜底）。
+         ⚠️ 归属权：API 侧带 `.eq('owner_user_id')` + RLS `update_own`，
+         判定也只用了 getSharedAIMemoriesForAI 返回的行 ⇒ 归档别人的行物理不可能。 */
+      if (supersededSharedId) {
+        const archiveResult = await updateSharedAIMemoryStatus(
+          safeUserId,
+          supersededSharedId,
+          'archived',
+        );
+        if (!archiveResult.ok) {
+          console.warn(
+            '旧记忆归档失败，改为并存写入:',
+            archiveResult.error?.message || archiveResult.error,
+          );
+        } else {
+          stats.supersededCount += 1;
+        }
+      }
       const sharedSaveResult = await saveCandidateToShared(candidate);
       if (sharedSaveResult.ok) {
         status = 'auto_saved';

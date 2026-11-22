@@ -545,12 +545,17 @@ const lastAssistantIndex = computed(() => {
    最后一条且为 assistant。旧实现 isActivityHost 是**流级布尔**（只看最后一条
    是不是 assistant），而活动行的 v-if 在 v-for 里 —— 流一忙，每条 AI 消息都满足，
    已完成的对话头顶的角色就跟着新请求一起动（探针全是单轮对话所以没测出来）。
-   宿主必须逐消息判 idx；最后一条是用户消息（新问题刚发、AI 泡未落）⇒ -1 不渲染。 */
+   宿主必须逐消息判 idx；最后一条是用户消息（新问题刚发、AI 泡未落）⇒ -1 不渲染。
+   ⚠️ 必须返回**条目自身的 `index`**，不能返回数组下标：`messages` 是壳的
+   `visibleMessageItems`（`list.slice(start).map((m, o) => ({ index: start + o }))`），
+   模板里的 `idx` 是**全局下标**。长对话（> visibleMessageLimit 80 条）时 `start > 0`，
+   返回数组下标会让 v-if 永远匹配不到任何一条 ⇒ 活动行/角色整条消失且不报错。
+   守卫见 tests/unit/bohai-activity-host-index.test.js。 */
 const activityHostIdx = computed(() => {
   const n = props.messages.length;
   const last = props.messages[n - 1];
   if (!last || last.message?.role !== 'assistant') return -1;
-  return n - 1;
+  return Number.isFinite(last.index) ? last.index : -1;
 });
 
 /* ── 纯展示计算（原壳里同名逻辑，逐字保留口径） ── */
@@ -779,6 +784,11 @@ watch(
 onUnmounted(() => {
   stopTitleRotation();
   clearTimeout(revealTimer);
+  /* 「小方」状态总线复位（2026-11-22）：总线是模块单例，本组件只写不清。
+     `/ai-chat` 是 keepAlive（切走只 deactivated、不卸载），但退出该路由 / 壳重建
+     时会真卸载 —— 此时若停在 'thinking'/'working'，挂件会被 `busy` 守卫永久拦死，
+     睡眠也永远不成立。deactivated 不复位：那种情况下流还在跑、状态该保留。 */
+  setPetStage('', 'page');
 });
 
 const hostOf = (url) => {

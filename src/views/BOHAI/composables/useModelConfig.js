@@ -92,7 +92,12 @@ export function useModelConfig({ availableModels = [], chatModes = [] } = {}) {
 
   const isSearching = ref(false);
 
-  const isMemoryCaptureEnabled = ref(false);
+  /* 公共记忆开关（plans/044 · 阶段 0 A）：
+     默认仍是 **OFF**（产品口径不变：写公共库的首次授权必须是用户显式动作），
+     但**开过之后要记住** —— 之前 `persistMemoryCaptureSetting` 恒 `removeItem`，
+     于是每次会话重置 OFF，用户以为「AI 记不住」。
+     absent（键不存在）= 默认 OFF，与 `removeItem` 的语义一致，无存量数据要迁移。 */
+  const isMemoryCaptureEnabled = ref(readBooleanSetting(MEMORY_CAPTURE_SETTING_KEY, false));
 
   const isTreeholeMemoryEnabled = ref(
     readBooleanSetting(
@@ -230,9 +235,19 @@ export function useModelConfig({ availableModels = [], chatModes = [] } = {}) {
     }
   };
 
+  /* ON 写 '1'、OFF 删键（absent = 默认 OFF）。与 `readBooleanSetting` 的读取口径成对，
+     别改成「OFF 写 '0'」——两种写法语义相同但会让「从未授权过」与「显式关掉」不可区分。 */
   const persistMemoryCaptureSetting = () => {
     if (typeof window === 'undefined') return;
-    localStorage.removeItem(MEMORY_CAPTURE_SETTING_KEY);
+    try {
+      if (isMemoryCaptureEnabled.value) {
+        localStorage.setItem(MEMORY_CAPTURE_SETTING_KEY, '1');
+      } else {
+        localStorage.removeItem(MEMORY_CAPTURE_SETTING_KEY);
+      }
+    } catch {
+      /* 隐私模式 / 配额满：记住偏好失败不该影响本轮对话 */
+    }
   };
 
   const persistTreeholeMemorySetting = () => {

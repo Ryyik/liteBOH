@@ -518,8 +518,13 @@ export function useBohShell(props, emit) {
       switchSession(index);
       return;
     }
+    /* 重试窗口内用户可能已经自己切到别的会话了（2s 不算短）——
+       记下进入重试时的下标，一旦被改动就说明用户在操作，放弃交接。
+       不记的话表现是「我点了另一个对话，它自己跳回去了」。 */
+    const sessionIndexAtStart = currentSessionIndex.value;
     let retriesLeft = HANDOFF_RETRY_MAX;
     const retryFind = () => {
+      if (currentSessionIndex.value !== sessionIndexAtStart) return; // 用户已手动切换
       if (!reloadSessionsFromStorage()) return; // 进入流式就停手
       index = findAndSwitch();
       if (index >= 0) {

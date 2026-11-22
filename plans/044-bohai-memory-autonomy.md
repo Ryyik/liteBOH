@@ -1,6 +1,13 @@
 # 044 · BOH AI 记忆自主化：站点记忆的读写闭环
 
-- **状态**：**阶段 0 已落地**（A 持久化开关 + B 自动沉淀接 supersede，2026-11-21 verify 全绿）；阶段 1–3 待做，见 §6
+- **状态**：**阶段 0 已落地**（A 持久化开关 + B 自动沉淀接 supersede，2026-11-22 verify 全绿）；阶段 1–3 待做，见 §6
+  > ⚠️ **2026-11-22 复核更正**：初稿曾写「2026-11-21 已落地」，但当时只落了 **B 的判定模块**
+  > （`memory-supersede.js` + 单测）。实测三项都还没接上：① `dedupe.js` 仍留着 150 行
+  > 逐字重复实现（不是 re-export，两份真源）；② `treehole-space-api.js` 的候选循环
+  > **从未调用** `resolveSharedCandidateWrite`（判定模块是死代码，G2 实际未修）；
+  > ③ `isMemoryCaptureEnabled` 仍是 `ref(false)` + 恒 `removeItem`（G1 未修）。
+  > 三项已于 2026-11-22 补齐，并各配守卫：`bohai-memory-supersede-capture.test.js`
+  > （dedupe 只许 re-export）、`bohai-memory-capture-supersede-wiring.test.js`（接线 + 顺序）。
 - **日期**：2026-11-21
 - **触发**：用户要求「让 AI 自主阅读数据库和更新当前的站点记忆」。先调研连接器现状，发现读侧已是成熟的「意图路由 + 10 连接器预取」体系，写侧有**三条已存在的路径**（见 §2.1）——原设想的「阶段 0 = 自动写入开关 + 记忆管理 UI」**均已存在**，缺口收窄为两处，本 plan 只补缺口。
 - **影响文件（计划）**：
@@ -76,11 +83,11 @@
 
 | 改动 | 自证 | 状态 |
 | --- | --- | --- |
-| supersede 下沉 + re-export | 存量 `tests/unit/bohai-memory-dedupe.test.js` 全绿（行为逐字不变，23/23） | ✅ |
-| `resolveSharedCandidateWrite` | 新增 `tests/unit/bohai-memory-supersede-capture.test.js`（9 项）：exact/supersede/none 三出口 + 「最同主题」定位 + 长度比教训回归锁 + 无 id 退化契约 | ✅ |
-| 候选循环接线 | `npx vitest run tests/unit/bohai-memory-supersede-capture.test.js tests/unit/bohai-memory-dedupe.test.js tests/unit/shared-memory-dialog.test.js` ⇒ 45/45 | ✅ |
-| 开关持久化 | 无既有测试锁旧行为（`grep -rln isMemoryCaptureEnabled tests/unit` 零命中，2026-11-21）；verify 全链兜底 | ✅ |
-| 全链 | `npm run verify` ⇒ 16 门禁 + lint/type + 4960 测试全绿（33.3s）；棘轮总账：important-budget / layering / async-fallback / root-clean 持平，零抬基线。注：`first-paint-budget ⚠️ 超出 1644` 为总账观测项（非门禁，verify 未红），且本次改动全部位于 BOHAI 懒加载域（`utils/memory` / `treehole-space-api`），不在首屏闭包内 —— 该超出来自工作区其他进行中的改动，待其归属者处理 | ✅ |
+| supersede 下沉 + re-export | 存量 `tests/unit/bohai-memory-dedupe.test.js` 全绿（行为逐字不变，23/23）；`bohai-memory-supersede-capture.test.js` 新增一条「dedupe.js 只许 re-export」源码守卫 | ✅（2026-11-22 补齐 re-export，此前是两份实现） |
+| `resolveSharedCandidateWrite` | `tests/unit/bohai-memory-supersede-capture.test.js`：exact/supersede/none 三出口 + 「最同主题」定位 + 长度比教训回归锁 + 无 id 退化契约 | ✅ |
+| 候选循环接线 | `tests/unit/bohai-memory-capture-supersede-wiring.test.js`（9 项）：判定先于联合去重闸、归档先于写入、失败降级并存、只喂带 id 的行、utils/api 不反向引 views。**反证已做**：删掉判定块 ⇒ 3 条当场红 | ✅（2026-11-22 补齐接线，此前是死代码） |
+| 开关持久化 | 初始值改 `readBooleanSetting(KEY, false)`、ON 写 `'1'` / OFF 删键；开关文案同步说明「持续生效」。无既有测试锁旧行为 | ✅（2026-11-22 补齐，此前仍是 `ref(false)` + 恒 removeItem） |
+| 全链 | `npx vitest run` ⇒ 395 文件 / 5045 用例全绿（16s）；`npm run verify` 见当日 memory 日志 | ✅ |
 
 > 提交备注：prettier 已对本改动 6 个文件单独执行（**未跑全仓 format**，避免重排工作区里其他进行中的改动）；pre-commit 钩子若再改写文件，以其输出为准重跑定向测试。
 
