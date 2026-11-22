@@ -75,7 +75,7 @@
       <div class="g-quick-grid">
         <button type="button" class="g-quick-cell" @click="goToShopConsole">
           <StoreIcon :size="18" />
-          <span><strong>商城装修</strong><small>商品与展示</small></span>
+          <span><strong>商品编辑台</strong><small>商品与图片</small></span>
         </button>
         <button type="button" class="g-quick-cell" @click="goToHeroConsole">
           <LayoutIcon :size="18" />

@@ -4,7 +4,7 @@
       <header class="console-toolbar">
         <div class="toolbar-heading">
           <div>
-            <h1>商城管理</h1>
+            <h1>商品编辑台</h1>
             <p>
               {{ products.length }} 件商品<span v-if="dirtyCount">
                 · {{ dirtyCount }} 项未保存</span

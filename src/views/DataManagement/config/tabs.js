@@ -24,6 +24,9 @@ export const tabs = [
   { id: 'subscriptions', label: '订阅管理', icon: '💎', module: 'users' },
   { id: 'subscriptions-grant', label: '订阅发放', icon: '💳', module: 'users', type: 'page' },
   { id: 'anniversaryClaims', label: '周年领取', icon: '🎈', module: 'users' },
+  // 履约台（2026-11-21）：商城订单 / 抽奖自动单 / 赠礼合并成一条“待寄出→已寄出→已送达”
+  // 的队列。原「礼物管理」「商城订单」表格保留为原表入口，不删除历史深链。
+  { id: 'fulfillment', label: '履约台', icon: '📮', module: 'gifts', type: 'page' },
   { id: 'gifts', label: '礼物管理', icon: '📦', module: 'gifts' },
   { id: 'addresses', label: '地址管理', icon: '📍', module: 'gifts' },
   { id: 'shopOrders', label: '商城订单', icon: '🛒', module: 'shop' },
@@ -129,12 +132,13 @@ export const tabModules = [
   },
   {
     id: 'gifts',
-    label: '礼物',
+    label: '订单与礼物',
     icon: Gift,
     section: 'data',
-    defaultTab: 'gifts',
-    tabIds: ['gifts', 'addresses'],
-    description: '管理用户礼物、地址和快递信息',
+    // 默认落在履约台：日常要处理的是“哪些还没寄”，不是逐张表翻记录。
+    defaultTab: 'fulfillment',
+    tabIds: ['fulfillment', 'gifts', 'addresses'],
+    description: '商城订单、抽奖奖品和赠礼的统一履约队列',
   },
   {
     id: 'shop',
@@ -144,7 +148,7 @@ export const tabModules = [
     defaultTab: 'shopOrders',
     tabIds: ['shopOrders', 'products'],
     subPages: ['shop-console', 'shop-editor'],
-    description: '商品、订单和商城装修',
+    description: '商品、订单和商品编辑台',
   },
   {
     id: 'community',
@@ -178,39 +182,43 @@ export const tabModules = [
       'campaignEntries',
       'campaignRewards',
     ],
-    // 资讯就地编辑（2026-11-10）：后台直接渲染前台资讯页，点标题/摘要/封面即改
+    // 资讯页内编辑（2026-11-10）：后台直接渲染前台资讯页，点标题/摘要/封面即改
     subPages: ['news-editor'],
     description: '新闻、活动、官方事实、创作者和生日运营',
   },
   {
+    /* 商品编辑台（原「商城装修」，2026-11-21 更名）：独立页，左侧商品列表 +
+       右侧表单，批量维护商品字段与主图。它不改前台页面布局，所以不再叫「装修」。 */
     id: 'shop-console',
-    label: '商城装修',
+    label: '商品编辑台',
     icon: Store,
     section: 'data',
     type: 'page',
-    description: '可视化编辑商城商品与展示',
+    description: '用左侧商品列表 + 右侧表单批量编辑商品与主图',
   },
   {
-    /* 就地编辑（2026-11-09）：后台直接渲染前台商城页，点字段即改。
+    /* 商城页内编辑（2026-11-09；原「就地编辑」，2026-11-21 更名）：后台直接渲染
+       前台商城页，点字段即改。与「商品编辑台」的分工：那边是表单批量维护，
+       这边是在真实页面上单点微调（商品卡与抽奖卡都可改）。
        ⚠️ 必须登记进 tabModules + ROUTE_MAP —— 只建路由的话侧栏和命令面板都找不到，
        只能手敲地址。gate-console 当初就是这么漏的（见下面那条注释）。 */
     id: 'shop-editor',
-    label: '就地编辑',
+    label: '商城页内编辑',
     icon: Pencil,
     section: 'data',
     type: 'page',
-    description: '在真实商城页面上直接改标题、图片、价格和库存',
+    description: '打开真实商城页，直接点改商品与抽奖卡的标题、图片、价格',
   },
   {
-    /* 资讯就地编辑（2026-11-10）：与 shop-editor 同构 —— 后台渲染前台资讯页，
-       点标题 / 摘要 / 封面直接改。同样必须登记在这里 + ROUTE_MAP，否则侧栏与
-       命令面板都找不到，只能手敲地址。 */
+    /* 资讯页内编辑（2026-11-10；原「资讯编辑」，2026-11-21 更名）：与 shop-editor
+       同构 —— 后台渲染前台资讯页，点标题 / 摘要 / 封面直接改。同样必须登记在这里 +
+       ROUTE_MAP，否则侧栏与命令面板都找不到，只能手敲地址。 */
     id: 'news-editor',
-    label: '资讯编辑',
+    label: '资讯页内编辑',
     icon: Pencil,
     section: 'data',
     type: 'page',
-    description: '在真实资讯页面上直接改标题、摘要与封面',
+    description: '打开真实资讯页，直接点改标题、摘要与封面',
   },
   {
     id: 'hero-console',
@@ -329,6 +337,8 @@ export const TABS_ACTIONS = {
   subscriptions: ['view', 'create', 'edit', 'delete'],
   'subscriptions-grant': ['view'],
   anniversaryClaims: ['view'],
+  // page 型履约台：动作集只用于“能不能看到并推进”，写操作由页面内按钮控
+  fulfillment: ['view', 'manage'],
   gifts: ['view', 'create', 'edit', 'delete'],
   addresses: ['view', 'create', 'edit', 'delete'],
   shopOrders: ['view', 'edit'],
@@ -402,9 +412,9 @@ export const ADMIN_PAGE_META = {
     icon: Users,
   },
   gifts: {
-    eyebrow: 'Gifts',
-    title: '礼物管理',
-    description: '管理用户礼物、进度和快递信息。',
+    eyebrow: 'Fulfillment',
+    title: '订单与礼物',
+    description: '商城订单、抽奖奖品和赠礼统一在一个队列里推进寄出与送达。',
     icon: Gift,
   },
   content: {
@@ -428,7 +438,7 @@ export const ADMIN_PAGE_META = {
   shop: {
     eyebrow: 'Shop',
     title: '商城管理',
-    description: '管理商品、订单处理和商城装修。',
+    description: '管理商品、订单处理，并进入商品编辑台维护字段与图片。',
     icon: Store,
   },
   logs: {
@@ -438,9 +448,9 @@ export const ADMIN_PAGE_META = {
     icon: Activity,
   },
   'shop-console': {
-    eyebrow: 'Shop Console',
-    title: '商城装修',
-    description: '可视化编辑商城商品与展示，保存后立即生效。',
+    eyebrow: 'Product Editor',
+    title: '商品编辑台',
+    description: '左侧商品列表 + 右侧表单，批量编辑商品字段与主图，保存后立即生效。',
     icon: Store,
   },
   'hero-console': {

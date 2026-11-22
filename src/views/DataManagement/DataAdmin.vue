@@ -2186,6 +2186,7 @@ import AdminHeader from './components/AdminHeader.vue';
 import AdminOverview from './components/AdminOverview.vue';
 import AdminSidebar from './components/AdminSidebar.vue';
 import LotteryOperationsPanel from './components/LotteryOperationsPanel.vue';
+import FulfillmentWorkbench from './components/FulfillmentWorkbench.vue';
 import ApiKeyConsole from './components/ApiKeyConsole.vue';
 import KeysAndModels from './components/KeysAndModels.vue';
 import LabAiModelConfig from './components/LabAiModelConfig.vue';
@@ -3202,6 +3203,8 @@ const isSubscriptionTab = computed(() => currentTab.value === 'subscriptions');
 const currentTabInfo = computed(() => tabs.find((t) => t.id === currentTab.value));
 const isPageTab = computed(() => currentTabInfo.value?.type === 'page');
 const PAGE_TAB_COMPONENTS = {
+  // 订单与礼物履约台（2026-11-21）：商城订单 / 抽奖自动单 / 赠礼合并处理
+  fulfillment: FulfillmentWorkbench,
   'keys-models': KeysAndModels,
   // 过渡期保留旧页映射：新页若出问题，旧深链（?tab=api-keys / freemodels）还能兜底。
   // 新页验证稳定后连同 ApiKeyConsole / FreemodelsConfig 一起删。
@@ -8916,7 +8919,7 @@ const openCommandRecord = (result) => {
  * 因为输入了具体词的人多半是在找东西，而不是找命令。
  *
  * 功能这一档 2026-11-12 起与侧栏搜索共用 `config/function-index.js`：
- * 认别名（「补发」→ 积分发放）、覆盖独立控制台页（商城装修 / 开屏管理 / 头像框）
+ * 认别名（「补发」→ 积分发放）、覆盖独立控制台页（商品编辑台 / 开屏管理 / 头像框）
  * 与系统子页，且不再有「最多 3 条」的截断（原实现 `if (items.length >= 3) break`）。
  */
 const commandSearchDerivedItems = computed(() => {

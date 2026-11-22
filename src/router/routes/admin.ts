@@ -61,9 +61,10 @@ export const adminRoutes: RouteRecordRaw[] = [
     meta: { requiresAdmin: true, hideNavbar: true },
   },
   {
-    // 就地编辑宿主（2026-11-09）：直接渲染前台商城页，页面上叠一整层编辑能力。
-    // 与 ShopConsole 的分工不要混：那边是「左列表 + 右表单」的批量维护台，
-    // 这边是「所见即所得」的单点微调 —— 改标题、换图、删/增商品这些高频小动作走这里。
+    // 商城页内编辑宿主（2026-11-09；2026-11-21 更名）：直接渲染前台商城页，
+    // 页面上叠一整层编辑能力。与「商品编辑台」的分工不要混：那边是「左列表 +
+    // 右表单」的批量维护台，这边是「所见即所得」的单点微调 —— 改标题、换图、
+    // 删/增商品这些高频小动作走这里。
     path: '/admin/shop-editor',
     name: 'ShopEditor',
     component: () => import('../../views/ShopEditor/index.vue'),
@@ -73,7 +74,7 @@ export const adminRoutes: RouteRecordRaw[] = [
     meta: { requiresAdmin: true, hideNavbar: true, bodyClass: 'page-shop' },
   },
   {
-    // 资讯就地编辑宿主（2026-11-10）：与 shop-editor 同构，渲染的是前台 `/newsroom` 本身。
+    // 资讯页内编辑宿主（2026-11-10；2026-11-21 更名）：与 shop-editor 同构，渲染的是前台 `/newsroom` 本身。
     // bodyClass 必须覆盖成 `page-newsroom`：`body.page-newsroom` 下有一整套
     // 顶栏配色与内容区让位规则，默认的 `page-newseditor` 一条都不会命中。
     path: '/admin/news-editor',

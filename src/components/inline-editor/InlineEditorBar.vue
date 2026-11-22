@@ -4,7 +4,7 @@
   <div
     class="ieb liquid-glass liquid-glass--subtle liquid-glass--pill"
     role="toolbar"
-    aria-label="就地编辑工具栏"
+    aria-label="页内编辑工具栏"
   >
     <button
       type="button"
@@ -48,7 +48,8 @@ import { Check, Pencil, Undo2 } from 'lucide-vue-next';
 import { useInlineEditor } from '@/composables/useInlineEditor.js';
 
 /**
- * 就地编辑工具栏 + 提示条（商城 / 资讯 / 首页装修共用一份）。
+ * 页内编辑工具栏 + 提示条（商城 / 资讯 / 首页装修共用一份）。
+ * “页内编辑”= 在真实前台页面上直接点改；不要与后台「商品编辑台」的表单编辑混淆。
  *
  * 抽出来的理由很直接：这是**第二个**宿主就要用到的东西，而它包含 200 行定位与
  * 材质样式、两个 z-index 决策（工具栏 9000、提示条压过 2147482400 的弹层）、
