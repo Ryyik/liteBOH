@@ -9,6 +9,10 @@ import {
 // 逐字断言会因此假红（本文件 2026-09-28 就被咬过一次）。详见 helpers/source.js。
 import { squeezeSource, flattenSource, scriptSection, stripComments } from '../helpers/source.js';
 
+const sidebarCssPath = resolve(
+  import.meta.dirname,
+  '../../src/views/BOHAI/BOHAI/components/styles/boh-sidebar.css',
+);
 const sidebarPath = resolve(
   import.meta.dirname,
   '../../src/views/BOHAI/BOHAI/components/BohSidebar.vue',
@@ -158,10 +162,11 @@ describe('BOH AI motion system', () => {
     const layout = squeezeSource(readFileSync(layoutCssPath, 'utf8'));
     expect(layout).toContain('prefers-reduced-motion: reduce');
     expect(layout).not.toMatch(/prefers-reduced-motion[\s\S]{0,400}!/);
-    // 全仓两处循环动画：搜索文字流光（2026-10-08 由滑动进度条改版）/ 集群进度转圈
-    // （第三处「思考圆点呼吸」已于 2026-10-10 随圆点退役 —— 见下方断言）
+    // 全仓两处循环动画：集群进度转圈 / boh-beam 边界光束。
+    // （活动行逐字呼吸 2026-11-21 晚随「角色状态机 avatar」改版退役 —— 见下方断言）
     const streamCss = squeezeSource(readFileSync(streamCssPath, 'utf8'));
-    expect(streamCss).toContain('@keyframes boh-search-shimmer');
+    expect(streamCss).not.toContain('boh-breath-ch');
+    expect(streamCss).toContain('.boh-avatar');
     // 2026-10-10 用户拍板（**取代 10-08 的圆点口径**）：思考态改成纯文本「正在思考」
     // + 可展开的推理原文 ⇒ 旧圆点与它的呼吸动画一并退役；依旧不许引入三点打字动画。
     expect(streamCss).not.toContain('@keyframes boh-thinking-breath');
@@ -171,24 +176,36 @@ describe('BOH AI motion system', () => {
     expect(streamSrc).not.toContain('class="boh-thinking-dot"');
     // 2026-10-19 活动行改版：推理块并入活动行成为展开面 ⇒ 类名变为 `boh-reason is-panel`
     expect(streamSrc).toContain('class="boh-reason is-panel"');
-    // 2026-10-10 二次（用户「思考也改成流光」）+ 2026-10-19 活动行合流：
-    // 流光挂在活动行的**内层文字节点** `.boh-search-text`（外层 `.boh-search-line` 负责
-    // 截断 + 进场动画）—— 两层是因为「进场 keyframes」和「流光 keyframes」都要写
-    // `animation`，同一元素上会互相覆盖。
-    expect(streamCss).toContain('.boh-search-text.is-shimmer');
-    // ⚠️ 流光**只许有一条**：`boh-search-text` 的 is-shimmer 由 `activityShimmer` 门控，
-    // 而「网页搜索在途」与「正在思考」现在是**同一个阶段机**里的两个互斥取值。
-    expect(streamSrc).toContain("'is-shimmer': activityShimmer");
-    expect(streamSrc).not.toContain("'is-shimmer': webSearchActive");
+    // 2026-11-21（晚）口径：文字回归普通文本 —— 状态表达全权交给角色 avatar
+    // （BohActivityAvatar，MC 方块皮肤纯黑白）；呼吸/流光/图标全部退役。
+    expect(streamCss).not.toContain('is-shimmer');
+    expect(streamCss).not.toContain('boh-breath-ch');
+    expect(streamSrc).not.toContain('activityBreathing');
+    expect(streamSrc).not.toContain('activityShimmer');
+    expect(streamSrc).not.toContain('is-breathing');
+    // 角色接线：组件挂载 + 阶段 prop 直喂（STAGE_STATE 真源在 activity-avatar-engine.js）
+    expect(streamSrc).toContain('<BohActivityAvatar');
+    expect(streamSrc).toContain(':stage="activityStage"');
     // 一次性进场动画（不用 <Transition>：out-in 遇到同 tick 连拍换 key 会把离开中的节点
     // 留成孤儿，实测会永久停在 `leave-active leave-to`、旧文字压住新文字）。
     expect(streamCss).toContain('@keyframes boh-activity-swap-in');
     expect(streamCss).toContain('.boh-search-line.is-swap-in');
-    // 降级：reduced-motion 下 `--boh-dur-bob` 被归零，亮带停位 ⇒ 必须恢复实色，
-    // 否则 `color: transparent` 会让这两处状态文字**直接看不见**。
-    expect(streamCss).toMatch(
-      /@media \(prefers-reduced-motion: reduce\)[\s\S]{0,220}color: inherit/,
-    );
+  });
+
+  it('侧栏 ⋯ 菜单：Teleport 到 body + fixed 定位（2026-11-22 裁剪修复）', () => {
+    // 旧实现菜单挂在条目内部、absolute 向下弹 —— 被 .boh-sb-gbody-inner 的
+    // overflow: hidden（0fr↔1fr 折叠动画承重墙）与 .boh-sb-groups 的
+    // overflow-y: auto 两层祖先裁剪，组内末条的菜单整块被吃（用户报障「点三个点不显示」）。
+    // 修法 = Teleport 到 body + fixed + 按钮矩形定位；颜色走内联变量
+    // （Teleport 后脱离 .bohai-page var 作用域，且不写裸色进 CSS —— dark-tokens 棘轮）。
+    const sidebar = squeezeSource(readFileSync(sidebarPath, 'utf8'));
+    const sbCss = squeezeSource(readFileSync(sidebarCssPath, 'utf8'));
+    expect(sidebar).toContain('menuStyle');
+    expect(sidebar).toContain('v-if="menuIndex !== null && menuItem"');
+    expect(sidebar).toContain('onDocPointerDown'); // 外点关闭（捕获相位）
+    expect(sidebar).toContain('onDocScroll'); // 侧栏滚动即关（fixed 不跟随滚动）
+    expect(sbCss).toMatch(/\.boh-sb-menu\s*\{[^}]*position:\s*fixed/);
+    expect(sbCss).not.toMatch(/\.boh-sb-menu\s*\{[^}]*position:\s*absolute/);
   });
 
   it('快捷对话跳转条：常态只剩竖条，hover 才展开摘要', () => {
@@ -264,7 +281,7 @@ describe('BOH AI motion system', () => {
     expect(stream).toContain('reasoningOpen');
     expect(stream).not.toContain('reasoningClosed');
     expect(stream).not.toContain('正在读取近日帖子');
-    expect(streamCss).toContain('@keyframes boh-search-shimmer');
+    expect(streamCss).not.toContain('boh-breath-ch');
     expect(streamCss).not.toContain('boh-search-pill');
     expect(streamCss).not.toContain('boh-search-track');
     // 状态源仍在引擎侧（`webSearchActive` / `communitySearchActive` / 活动行实况由壳透传）
@@ -297,12 +314,12 @@ describe('BOH AI motion system', () => {
     expect(engine).toContain('webSearchResults');
     expect(main).toContain(':web-search-results="webSearchResults"');
     // 面板：折叠头 + 展开清单 + 轮换行（淡入动画挂在 :key 重放上）；
-    // 2026-10-08 三次改版：纯文本行 + 检索期流光（.is-shimmer），不再有卡片框。
-    // 2026-10-19 活动行改版：流光改由 activityShimmer（网页在途 + 正在思考两阶段）驱动。
+    // 2026-10-08 三次改版：纯文本行，不再有卡片框。
+    // 2026-11-21（晚）口径：状态表达全权交给角色 avatar，文字回归纯文本。
     expect(stream).toContain('class="boh-search-head"');
     expect(stream).toContain('boh-search-pages');
     expect(stream).toContain('boh-search-line');
-    expect(stream).toContain("'is-shimmer': activityShimmer");
+    expect(stream).toContain('<BohActivityAvatar');
     // 2026-10-19 活动行改版：轮换淡入从 `@keyframes boh-search-fade`（移除）换成
     // 「按 key 重挂 + 一次性 keyframes」（`boh-activity-swap-in`），整行不重建。
     expect(streamCss).not.toContain('@keyframes boh-search-fade');

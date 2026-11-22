@@ -258,22 +258,9 @@ body.page-aichat.nav-orb-mode .boh-stream-pad {
   min-width: 0;
 }
 
-/* 图标位：**宽度固定**，换图标（Globe ⇄ 对话气泡）时整行不横向跳。
-   两个图标叠在同一格里交叉淡入，而不是换 DOM 节点。 */
-.boh-search-ico-slot {
-  position: relative;
-  display: inline-flex;
-  flex: none;
-  align-items: center;
-  justify-content: center;
-  width: 13px;
-  height: 13px;
-}
-
-.boh-search-ico {
-  flex: none;
-  color: var(--boh-text-3);
-}
+/* 图标位已随 2026-11-21 改版退役：原 13×13 图标格换成 BohActivityAvatar 的
+   角色 canvas（见下方 .boh-avatar）—— 图标格「宽度固定防横跳」的职责由
+   canvas 的固定宽高自然继承。 */
 
 .boh-search-head {
   display: flex;
@@ -325,8 +312,7 @@ body.page-aichat.nav-orb-mode .boh-stream-pad {
    `animation-fill-mode: both` 在别处是坑（会让该属性不可过渡），这里**是刻意的**：
    这两条属性（opacity / transform）本来就不需要后续过渡，起止都由本动画独占。
    时长/缓动走令牌 ⇒ reduced-motion 把令牌归零后自动变瞬切。 */
-.boh-search-line.is-swap-in,
-.boh-search-ico.is-swap-in {
+.boh-search-line.is-swap-in {
   animation: boh-activity-swap-in var(--boh-dur-fast, 150ms) var(--boh-ease) both;
 }
 
@@ -342,89 +328,16 @@ body.page-aichat.nav-orb-mode .boh-stream-pad {
   }
 }
 
-/* 图标那一格不上浮（图标上下飘会显得抖），只用轻微缩放 + 淡入 */
-.boh-search-ico.is-swap-in {
-  animation-name: boh-activity-icon-in;
-}
-
-@keyframes boh-activity-icon-in {
-  from {
-    opacity: 0;
-    transform: scale(0.9);
-  }
-
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-/* ── 流光文字（**单源定义**）──────────────────────────────────────────────
-   亮带扫过文字本身（`background-clip: text`，clip 到字形）。
-   消费者：① 联网搜索在途的活动行（`.boh-search-text.is-shimmer`，仅在
-            `activityStage === 'web-searching'` 时挂，见 BohChatStream 的 `activityShimmer`）
-           ② 思考中的活动行（同上，`activityStage === 'thinking'`）。
-   2026-10-19 合并前是「网页搜索行」+「正在思考行」两个节点各挂一次 ⇒ 同屏两条光带在闪；
-   现在两阶段共用同一条行 + 同一份定义 ⇒ **任何时刻全屏只有一条光带**。
-   时长复用 `--boh-dur-bob` 单源。
-   ⚠️ **只许挂在纯文本节点上**：挂在含 SVG 的容器上会让 caret 一起 `color: transparent`
-      而消失（旧版 `.boh-reason-head span` 的教训）。
-   ⚠️ 想加第三个消费者？**追加到这个选择器组**，别再抄一份属性。
-   ⚠️ 2026-11-04 用户口径「等待 UI 改用彩虹光效流动」：原来的灰白亮带换成 BohBeam 那套
-      彩虹调色板（`--boh-beam-c*`，**同一份色值单源，不新增裸色**），语义仍是同一个
-      「正在执行」——DESIGN §0.1 的彩色例外本来就只给这一个语义，等待行是它的文字形态。
-      白底上亮色对比不足 ⇒ 只切 `--boh-rainbow-lift`（浅 0.7 / 暗 1.15），色相不动。 */
-.boh-search-text.is-shimmer,
-.boh-reason.is-live .boh-search-text {
-  background: linear-gradient(
-    90deg,
-    var(--boh-beam-c1) 0%,
-    var(--boh-beam-c7) 16%,
-    var(--boh-beam-c3) 32%,
-    var(--boh-beam-c4) 48%,
-    var(--boh-beam-c2) 64%,
-    var(--boh-beam-c9) 80%,
-    var(--boh-beam-c8) 92%,
-    var(--boh-beam-c1) 100%
-  );
-  background-size: 300% 100%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  filter: brightness(var(--boh-rainbow-lift, 1));
-  animation: boh-search-shimmer var(--boh-dur-bob, 2s) linear infinite;
-}
-
-/* 降级：reduced-motion 下 `layout.css` 把 `--boh-dur-bob` 归零 ⇒ 亮带停在非亮处，
-   而 `color: transparent` 还在 ⇒ **文字直接看不见**。这里恢复实色，保证活动行的
-   状态文字正常可读。 */
-@media (prefers-reduced-motion: reduce) {
-  .boh-search-text.is-shimmer,
-  .boh-reason.is-live .boh-search-text {
-    background: none;
-    color: inherit;
-    filter: none;
-    animation: none;
-  }
-}
-
-/* 同一份兜底也吃「界面动效」开关（`.reduce-motion` 只把令牌归零，不触发上面的媒体查询）。
-   ⚠️ 这是**补充**、不是替代：媒体查询那条管的是系统设置，这条管站点开关。 */
-.bohai-page.reduce-motion .boh-search-text.is-shimmer {
-  background: none;
-  color: inherit;
-  filter: none;
-  animation: none;
-}
-
-@keyframes boh-search-shimmer {
-  0% {
-    background-position: 130% 0;
-  }
-
-  100% {
-    background-position: -130% 0;
-  }
+/* ── 粒子双环 canvas（2026-11-21 接管原彩虹流光与阶段图标）──────────────────
+   BohActivityAvatar（activity-avatar-engine.js）在原图标位画「角色状态机」：
+   Grok 式六状态连续 morph（MC 方块皮肤，纯黑白），状态由 activityStage 经
+   STAGE_STATE 映射喂入。透明底（引擎 clearRect 不填色）⇒ 与消息区底色零耦合；
+   灰阶由引擎从 --ink / --card 现读，这里不出现任何裸色。
+   宽高由引擎写入（28×28，行内「字符级」元素）。
+   reduced-motion / 「界面动效」关闭时组件整块 v-if 退场（见组件注释）。 */
+.boh-avatar {
+  display: block;
+  flex: none;
 }
 
 .boh-search-chevron {

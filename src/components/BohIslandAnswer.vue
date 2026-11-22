@@ -119,10 +119,12 @@ import { ArrowUpRight, ChevronDown, Sparkles } from 'lucide-vue-next';
 import { useChatEngine } from '@/views/BOHAI/composables/useChatEngine.js';
 import { BOH_DEFAULT_MODE_ID } from '@/views/BOHAI/composables/chat-engine-config.js';
 import {
+  BOH_ACTIVITY_LOAD_TITLES,
   formatCommunityActivityLine,
   resolveActivityLine,
   resolveBohActivityStage,
 } from '@/views/BOHAI/BOHAI/components/boh-activity.js';
+import { setPetStage } from '@/utils/boh-pet-bus.js';
 import { renderMarkdown } from '@/views/BOHAI/BOHAI/components/boh-markdown.js';
 import { isGenerationErrorText } from '@/views/BOHAI/utils/chatErrorMessages.js';
 import { logger } from '@/utils/logger.js';
@@ -205,6 +207,9 @@ const activityStage = computed(() => {
   );
 });
 
+/* 全局挂件「小方」状态同步：岛回答面的阶段喂给 boh-pet-bus（关岛/流毕自动回落 ''） */
+watch(activityStage, (s) => setPetStage(s, 'island'), { immediate: true });
+
 const activityLine = computed(() => {
   const stage = activityStage.value;
   if (!stage) return '';
@@ -238,21 +243,12 @@ const hasAnswer = computed(
 const isErrorReply = computed(() => isGenerationErrorText(answerText.value));
 
 /**
- * 阶段 → 进行时文案。⚠️ **语义真源仍是 boh-activity.js 的 stage**，这里只做时态改写：
- * 那边给全页活动行的是「网页搜索」「正在思考」这类短标签，岛里这颗胶囊是
- * Siri 式的整句状态（「Searching events 2/5」），直接用标签会读成名词短语。
- * 键就是 stage 本身，不新增阶段、不改优先级。
+ * 阶段 → 进行时文案：真源在 boh-activity.js 的 `BOH_ACTIVITY_LOAD_TITLES`
+ * （2026-11-22 提取 —— 论坛内联回答卡片用同一套，不许第二份字面量）。
+ * 岛里这颗胶囊是 Siri 式整句状态，与全页活动行的短标签（BOH_ACTIVITY_LABELS）是两套时态。
  */
-const LOAD_TITLES = {
-  'web-searching': '正在搜索网页…',
-  'web-results': '正在阅读网页…',
-  community: '正在读取社区帖子…',
-  thinking: '正在思考…',
-  answering: '正在撰写回复…',
-};
-
 const loadingTitle = computed(
-  () => LOAD_TITLES[activityStage.value] || activityLine.value || '正在思考…',
+  () => BOH_ACTIVITY_LOAD_TITLES[activityStage.value] || activityLine.value || '正在思考…',
 );
 
 /* ---------------- 动作文案的「变换过程」：驻留窗口 + 交叉淡入（2026-11-12 用户口径） ----

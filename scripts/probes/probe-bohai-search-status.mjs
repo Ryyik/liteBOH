@@ -26,6 +26,14 @@
  * ⚠️ 社区阶段（A11）需要论坛连接器带回帖子 —— 本探针给 `boh-ai-retrieval` 之外的
  *    论坛列表 RPC mock 一条帖子，让 `communityActivity.postTitle` 有值。
  *
+ * ⭐ 2026-11-21 用户口径变更（A4 / A4b / A7 判据随之改写，晚间二次修订）：
+ *    活动行等待动画最终形态 = Grok 式「角色状态机」canvas（BohActivityAvatar +
+ *    activity-avatar-engine.js，MC 方块皮肤纯黑白，六状态连续 morph）；
+ *    文字回归普通文本（呼吸/流光/图标全退役 —— 文字不承担状态表达）。
+ *    ⇒ A4 判「角色在场 + data-avatar-state === 'thinking'」（锁 STAGE_STATE 映射）；
+ *    ⇒ A4b 的降级改为「canvas 整块退场（v-if）」；
+ *    ⇒ A7 的「呼吸收掉」改为「角色退场」。
+ *
  * 用法：BASE=http://localhost:5173 node scripts/probes/probe-bohai-search-status.mjs
  */
 import { chromium } from 'playwright';
@@ -251,14 +259,16 @@ const readActivity = () =>
     const rowCount = rowsAll.length;
     const el = blocks[blocks.length - 1] || rowsAll[rowsAll.length - 1] || null;
     const line = el?.querySelector('.boh-search-line')?.textContent.trim() || '';
-    const shimmerEl = el?.querySelector('.boh-search-text.is-shimmer') || null;
-    const cs = shimmerEl ? getComputedStyle(shimmerEl) : null;
+    // 2026-11-21（晚）：等待动画 = 角色 canvas（.boh-avatar），
+    //   data-avatar-state 记录当前角色状态（STAGE_STATE 映射的运行时事实）
+    const avatarEl = el?.querySelector('.boh-avatar') || null;
     return {
       rowCount,
       stage: el?.getAttribute('data-activity') || '',
       line,
       aria: el?.getAttribute('aria-label') || '',
-      shimmer: !!cs && /shimmer/.test(cs.animationName || '') && cs.webkitBackgroundClip === 'text',
+      avatar: !!avatarEl,
+      avatarState: avatarEl?.getAttribute('data-avatar-state') || '',
       reasoningPanels: document.querySelectorAll('.boh-reason').length,
       panelVisible: !!document.querySelector('.boh-reason-body')?.checkVisibility(),
     };
@@ -398,11 +408,12 @@ for (let i = 0; i < 40; i += 1) {
 }
 if (!thinkingState) thinkingState = await readActivity();
 check(
-  'A4 思考期：同一条行切到 thinking + 「正在思考」+ **流光**（不是第二条行）',
+  'A4 思考期：同一条行切到 thinking + 「正在思考」+ 角色 avatar 且状态 = thinking（不是第二条行）',
   thinkingState.stage === 'thinking' &&
     thinkingState.rowCount === 1 &&
     thinkingState.line === '正在思考' &&
-    thinkingState.shimmer,
+    thinkingState.avatar &&
+    thinkingState.avatarState === 'thinking',
   JSON.stringify({ ...thinkingState, seenStages: [...seenStages] }),
 );
 // 沿途**任何一拍**都不许出现第二条活动行（用户报的「两行同时在闪」）
@@ -424,24 +435,26 @@ check(
 await page.screenshot({ path: `${OUT}/bohai-search-status-rotating.png` });
 
 // A4b reduced-motion 降级（**必须真模拟**，不能只看源码写了没写）：
-//     `--boh-dur-bob` 被 layout.css 归零 ⇒ 亮带停在非亮处，若还留着 `color: transparent`
-//     状态文字会**直接看不见**。断言降级后恢复实色且动画停掉。
+//     2026-11-21（晚）口径：角色 canvas 整块退场（BohActivityAvatar 的 v-if），
+//     行内只剩普通文本（无任何动画元素）。
 await page.emulateMedia({ reducedMotion: 'reduce' });
-await page.waitForTimeout(160);
+await page.waitForTimeout(300);
 const reduced = await page.evaluate(() => {
+  const status = [...document.querySelectorAll('.boh-search-status')]
+    .filter((el) => el.checkVisibility())
+    .pop();
+  const canvas = status?.querySelector('.boh-avatar') || null;
   const span = document.querySelector('.boh-search-text');
-  const cs = span ? getComputedStyle(span) : null;
   return {
+    canvasGone: !canvas || !canvas.checkVisibility(),
     present: !!span,
-    color: cs?.color || '',
-    transparent: (cs?.color || '').replace(/\s/g, '') === 'rgba(0,0,0,0)',
-    animation: cs?.animationName || '',
+    line: span?.textContent.trim() || '',
   };
 });
 await page.emulateMedia({ reducedMotion: null });
 check(
-  'A4b reduced-motion：活动行文字恢复实色（不再透明）+ 流光停掉',
-  reduced.present && !reduced.transparent && reduced.animation === 'none',
+  'A4b reduced-motion：角色 canvas 退场 + 状态文字保持普通文本在场',
+  reduced.canvasGone && reduced.present && reduced.line.length > 0,
   JSON.stringify(reduced),
 );
 await page.waitForFunction(
@@ -463,22 +476,19 @@ const afterDone = await page.evaluate(() => {
     .join('');
   return {
     rowGone: rows.length === 0,
-    // 生成结束后推理面板必须收起，且不再有流光
+    // 生成结束后推理面板必须收起，角色 canvas 一并退场
     bodyHidden: !document.querySelector('.boh-reason-body')?.checkVisibility(),
-    shimmerGone: !/shimmer/.test(
-      getComputedStyle(document.querySelector('.boh-search-text') || document.body).animationName ||
-        '',
-    ),
+    avatarGone: !document.querySelector('.boh-avatar'),
     replyShown: replyText.includes('方块之家'),
     // ⚠️ 核心判据：推理原文**一个字都不能进正文**（分流不是新增可见文本）
     reasoningLeaked: replyText.includes('先联网确认最新帖'),
   };
 });
 check(
-  'A7 回复完成：活动行退场 + 推理收起（流光收掉）+ 正文在场且不含推理原文',
+  'A7 回复完成：活动行退场 + 推理收起 + 角色退场 + 正文在场且不含推理原文',
   afterDone.rowGone &&
     afterDone.bodyHidden &&
-    afterDone.shimmerGone &&
+    afterDone.avatarGone &&
     afterDone.replyShown &&
     !afterDone.reasoningLeaked,
   JSON.stringify(afterDone),
@@ -648,6 +658,55 @@ check(
 );
 clearInterval(keepAuthTimer2);
 await ctx2.close();
+
+// A12 第二轮发问：历史消息不得复现活动行/角色（2026-11-22 用户报障：
+//    「已完成的对话怎么还会因为发了新的内容而一起动」—— 旧实现 isActivityHost
+//    是流级布尔，v-for 里每条 AI 消息都满足；探针此前全是单轮对话所以没测出来）。
+//    判据：第二轮 busy 窗口内 rowCount === 1，且活动行只挂在**最后一条**消息上。
+await page.fill('.boh-composer-input', '再说说社区最近的活动');
+await page.locator('.boh-send').click();
+let secondTurn = null;
+for (let i = 0; i < 30; i += 1) {
+  const s = await readActivity();
+  if (s.rowCount > 1) {
+    secondTurn = { ...s, fail: 'rowCount > 1' };
+    break;
+  }
+  if (s.rowCount === 1 && s.avatar) {
+    const host = await page.evaluate(() => {
+      const blocks = [...document.querySelectorAll('.boh-search-status')].filter((el) =>
+        el.checkVisibility(),
+      );
+      const hostIdxs = blocks.map((el) => {
+        const msg = el.closest('.boh-msg');
+        return msg ? Number(msg.getAttribute('data-message-index')) : -1;
+      });
+      const allIdx = [...document.querySelectorAll('.boh-msg')].map((el) =>
+        Number(el.getAttribute('data-message-index')),
+      );
+      return {
+        hostIdxs,
+        maxMsgIdx: Math.max(...allIdx),
+        msgCount: allIdx.length,
+        onLastMsg: hostIdxs.length === 1 && hostIdxs[0] === Math.max(...allIdx),
+      };
+    });
+    if (
+      host.onLastMsg &&
+      (s.stage === 'web-searching' || s.stage === 'thinking' || s.stage === 'community')
+    ) {
+      secondTurn = { ...s, host };
+      break;
+    }
+  }
+  await page.waitForTimeout(200);
+}
+check(
+  'A12 第二轮发问：只有一行活动行/角色，且只挂在最后一条消息上（历史消息不再跟着动）',
+  !!secondTurn && secondTurn.rowCount === 1 && !!secondTurn.host?.onLastMsg,
+  JSON.stringify(secondTurn),
+);
+await page.screenshot({ path: `${OUT}/bohai-search-status-second-turn.png` });
 
 check('A8 零 pageerror', errors.length === 0, errors.slice(0, 3).join(' | '));
 

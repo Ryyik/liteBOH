@@ -160,9 +160,13 @@ describe('加载态：8 点环 + 状态 + 步骤（参考图 1）', () => {
     expect(frames).not.toContain('scale(0.78');
   });
 
-  it('状态文案按 stage 做进行时改写', () => {
-    expect(answer).toContain("'web-searching': '正在搜索网页…'");
-    expect(answer).toContain("thinking: '正在思考…'");
+  it('状态文案按 stage 做进行时改写（2026-11-22 真源提取到 boh-activity.js，岛只消费）', () => {
+    // 字面量搬去了 BOH_ACTIVITY_LOAD_TITLES（论坛内联卡片共用一份），岛里 import 进来；
+    // 这里锁两头：岛在消费，真源在 boh-activity.js 且字面量没被改。
+    expect(answer).toContain('BOH_ACTIVITY_LOAD_TITLES[activityStage.value]');
+    const activity = read('src/views/BOHAI/BOHAI/components/boh-activity.js');
+    expect(activity).toContain("'web-searching': '正在搜索网页…'");
+    expect(activity).toContain("thinking: '正在思考…'");
   });
 
   it('⭐ 不显示 1/3、2/3 这类进度（2026-11-05 口径）', () => {

@@ -95,6 +95,21 @@ export const BOH_ACTIVITY_LABELS = {
   answering: '正在撰写回复',
 };
 
+/**
+ * 阶段 → 进行时整句文案（Siri 式「Searching events 2/5」）。
+ * 2026-11-22 从 BohIslandAnswer.vue 的本地 LOAD_TITLES 提取上来 ——
+ * 论坛内联回答卡片（BohForumAnswerCard）用同一套等待文案，不许第二份字面量。
+ * ⚠️ 语义真源仍是上面的 stage（键 = stage 本身，不新增阶段、不改优先级）；
+ *    全页活动行用的短标签仍是 `BOH_ACTIVITY_LABELS`，两份各管各的时态。
+ */
+export const BOH_ACTIVITY_LOAD_TITLES = {
+  'web-searching': '正在搜索网页…',
+  'web-results': '正在阅读网页…',
+  community: '正在读取社区帖子…',
+  thinking: '正在思考…',
+  answering: '正在撰写回复…',
+};
+
 /** 阶段 → 行内展开面（只有这两阶段有可展开内容）；其余无。 */
 export const BOH_ACTIVITY_SURFACE = {
   'web-searching': 'web',

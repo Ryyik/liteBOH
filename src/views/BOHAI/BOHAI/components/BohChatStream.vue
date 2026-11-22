@@ -61,22 +61,19 @@
                  社区读取 → 无可展开内容（于是不出箭头，点了不会没反应）；
                · ⚠️ 不用 aria-live：网页标题 2.4s 一换会刷屏读屏。阶段名由 `aria-label` 给。 -->
             <div
-              v-if="activityStage && activityStage !== 'answering'"
+              v-if="idx === activityHostIdx && activityStage && activityStage !== 'answering'"
               class="boh-search-status"
               :data-activity="activityStage"
               role="group"
               :aria-label="activityAriaLabel"
             >
               <div class="boh-search-row is-web">
-                <span class="boh-search-ico-slot">
-                  <component
-                    :is="activityIcon"
-                    :key="`ico:${activityStage}`"
-                    :size="13"
-                    class="boh-search-ico is-swap-in"
-                    aria-hidden="true"
-                  />
-                </span>
+                <!-- 2026-11-21 用户口径（晚）：等待动画 = Grok 式角色状态机（MC 方块皮肤，
+                   纯黑白）—— 状态由 activityStage 经 STAGE_STATE 映射喂入
+                   （activity-avatar-engine.js），文字不承担状态表达（Grok 的教训：
+                   三点分不清工作/卡住），保持普通文本。
+                   reduced-motion / 站点「界面动效」关闭时组件整块 v-if 退场（不占行高）。 -->
+                <BohActivityAvatar :stage="activityStage" />
                 <!-- ⚠️ 这里**只能用同一个标签**（button），不可展开时用 `disabled` 表达。
                    别写 `v-if="活动可展开"` + `v-else` 的 button/span 双分支：分支切换会把
                    `<Transition>` 整个换掉，正在离场的那一帧变成孤儿节点（实测停在
@@ -97,12 +94,11 @@
                      孤儿（实测停在 `leave-active leave-to`、文本永久挡住新文案）。
                      一次性 keyframes 自带收尾（`animation-fill-mode: both` 之外不留中间态），
                      即使连续重挂也只是重放，不会留下残影。 -->
-                  <!-- 两层：外层只负责「进场」(opacity/transform)，内层只负责「流光」
-                     (background-clip: text)。两者都要写 `animation`，同一元素上会互相覆盖。 -->
+                  <!-- 内层 = 纯文本（2026-11-21 口径：文字不承担状态表达 —— 状态由左侧
+                     角色 avatar 的动效说，文字只负责可读的文案本身）。外层继续管
+                     「进场」opacity/transform 与 46vw 单行截断。 -->
                   <span :key="activityLineKey" class="boh-search-line is-swap-in">
-                    <span class="boh-search-text" :class="{ 'is-shimmer': activityShimmer }">{{
-                      activityLine
-                    }}</span>
+                    <span class="boh-search-text">{{ activityLine }}</span>
                   </span>
                   <ChevronDown
                     v-if="activityExpandable"
@@ -435,9 +431,7 @@ import {
   ChevronDown,
   Circle,
   Copy,
-  Globe,
   LoaderCircle,
-  MessageSquareText,
   MoreHorizontal,
   RotateCcw,
   Square,
@@ -446,6 +440,8 @@ import {
   Trash2,
 } from 'lucide-vue-next';
 import BohEmptyState from './BohEmptyState.vue';
+import BohActivityAvatar from './BohActivityAvatar.vue';
+import { setPetStage } from '@/utils/boh-pet-bus.js';
 import { renderMarkdown } from './boh-markdown.js';
 import BohKnowledgePatchCard from './BohKnowledgePatchCard.vue';
 import {
@@ -545,6 +541,18 @@ const lastAssistantIndex = computed(() => {
   return -1;
 });
 
+/* 活动行宿主（2026-11-22 用户报障修复）：本轮正在进行的 AI 消息 = messages 的
+   最后一条且为 assistant。旧实现 isActivityHost 是**流级布尔**（只看最后一条
+   是不是 assistant），而活动行的 v-if 在 v-for 里 —— 流一忙，每条 AI 消息都满足，
+   已完成的对话头顶的角色就跟着新请求一起动（探针全是单轮对话所以没测出来）。
+   宿主必须逐消息判 idx；最后一条是用户消息（新问题刚发、AI 泡未落）⇒ -1 不渲染。 */
+const activityHostIdx = computed(() => {
+  const n = props.messages.length;
+  const last = props.messages[n - 1];
+  if (!last || last.message?.role !== 'assistant') return -1;
+  return n - 1;
+});
+
 /* ── 纯展示计算（原壳里同名逻辑，逐字保留口径） ── */
 
 /* ── 展开态（纯 UI 状态，留在本组件）：网页清单 / 推理原文 ──
@@ -634,6 +642,9 @@ const activityStage = computed(() => {
   });
 });
 
+/* 全局挂件「小方」状态同步：BOHAI 在哪忙、小方就在哪演（boh-pet-bus 总线） */
+watch(activityStage, (s) => setPetStage(s, 'page'), { immediate: true });
+
 /** 展开面归属：'web'（网页清单）/ 'reason'（推理原文）/ ''（不可展开） */
 const activitySurface = computed(() => BOH_ACTIVITY_SURFACE[activityStage.value] || '');
 
@@ -664,13 +675,7 @@ const toggleActivity = () => {
   if (activitySurface.value === 'reason') toggleReasoning(lastAssistantIndex.value);
 };
 
-/** 图标随阶段换（Globe / 对话气泡），**图标位宽度固定** ⇒ 换图标时整行不横向跳。 */
-const activityIcon = computed(() => (activitySurface.value === 'web' ? Globe : MessageSquareText));
-
-/** 流光亮带**只跑一个**：网页搜索在途 + 正在思考（2026-10-08 / 10-10 两条口径合流）。 */
-const activityShimmer = computed(
-  () => activityStage.value === 'web-searching' || activityStage.value === 'thinking',
-);
+/** 文字保持普通文本（2026-11-21 口径：状态由角色 avatar 表达，文字不做花活）。 */
 
 /** 行内文案：网页两阶段轮换标题；社区阶段点名帖子；思考阶段固定「正在思考」。 */
 const activityLine = computed(() => {
@@ -786,7 +791,7 @@ const hostOf = (url) => {
 
 const webSearchLine = computed(() => {
   const items = props.webSearchResults;
-  // 检索在途 / 无结果：纯文字「网页搜索」（配流动光效，见 .is-shimmer）
+  // 检索在途 / 无结果：纯文字「网页搜索」（2026-11-21 起通用文案带「逐字呼吸」文字动作）
   if (!items.length) return '网页搜索';
   const current = items[webSearchRotateIndex.value % items.length];
   return current?.title || hostOf(current?.url) || '网页搜索';
