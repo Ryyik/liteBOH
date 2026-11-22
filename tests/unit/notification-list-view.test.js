@@ -15,7 +15,19 @@ import {
   getDateGroupKey,
 } from '../../src/utils/notification-list-view.js';
 
-const NOW = new Date('2026-11-21T12:00:00+08:00');
+/* ⚠️ fixture 一律按**本地时间**构造，不许写死 '+08:00' 偏移。
+   getDateGroupKey 的语义是「本地日历日差」（用户浏览器的时区），
+   本地时间构造在任意 TZ 下都自洽；写死偏移则会在 CI（UTC runner）翻车：
+   2026-11-21T07:00+08:00 = 2026-11-20T23:00Z，在 UTC 下落到前一天 ⇒
+   被判 yesterday 而非 today，组头数从 2 变 3（2026-11-22 CI 实测红）。 */
+const NOW = new Date(2026, 10, 21, 12, 0, 0);
+
+/** 相对 NOW 的本地日历日偏移，返回 ISO 串（create_at 的真实形状是 UTC ISO） */
+const atLocalDay = (daysAgo, hour = 8) => {
+  const d = new Date(2026, 10, 21, hour, 0, 0);
+  d.setDate(d.getDate() - daysAgo);
+  return d.toISOString();
+};
 
 const like = (id, postId, { sender = '星野', status = 'unread', daysAgo = 0 } = {}) => ({
   id,
@@ -39,14 +51,14 @@ const msg = (id, type, { daysAgo = 0, postId = 'p1', status = 'read' } = {}) => 
 
 describe('getDateGroupKey', () => {
   it('今天/昨天/7 天内/更早 的日历日边界', () => {
-    expect(getDateGroupKey('2026-11-21T08:00:00+08:00', NOW)).toBe('today');
-    expect(getDateGroupKey('2026-11-20T23:00:00+08:00', NOW)).toBe('yesterday');
-    expect(getDateGroupKey('2026-11-15T08:00:00+08:00', NOW)).toBe('week'); // 差 6 天
-    expect(getDateGroupKey('2026-11-14T08:00:00+08:00', NOW)).toBe('earlier'); // 差 7 天
+    expect(getDateGroupKey(atLocalDay(0), NOW)).toBe('today');
+    expect(getDateGroupKey(atLocalDay(1, 23), NOW)).toBe('yesterday');
+    expect(getDateGroupKey(atLocalDay(6), NOW)).toBe('week'); // 差 6 天
+    expect(getDateGroupKey(atLocalDay(7), NOW)).toBe('earlier'); // 差 7 天
   });
 
   it('未来时间/非法值归入 today/null,不抛错', () => {
-    expect(getDateGroupKey('2026-11-22T08:00:00+08:00', NOW)).toBe('today');
+    expect(getDateGroupKey(atLocalDay(-1), NOW)).toBe('today');
     expect(getDateGroupKey('not-a-date', NOW)).toBeNull();
     expect(getDateGroupKey('', NOW)).toBeNull();
     expect(getDateGroupKey(null, NOW)).toBeNull();
@@ -56,8 +68,8 @@ describe('getDateGroupKey', () => {
 describe('buildDateGroups', () => {
   it('组键变化处插组头,条目原样透传', () => {
     const entries = [
-      { kind: 'message', id: 'a', created_at: '2026-11-21T08:00:00+08:00' },
-      { kind: 'message', id: 'b', created_at: '2026-11-20T08:00:00+08:00' },
+      { kind: 'message', id: 'a', created_at: atLocalDay(0) },
+      { kind: 'message', id: 'b', created_at: atLocalDay(1) },
     ];
     const out = buildDateGroups(entries, NOW);
     expect(out.map((e) => e.kind)).toEqual(['header', 'message', 'header', 'message']);
@@ -67,9 +79,9 @@ describe('buildDateGroups', () => {
 
   it('非单调顺序下同组键不重复插头(seenKeys 守卫)', () => {
     const entries = [
-      { kind: 'message', id: 'a', created_at: '2026-11-21T08:00:00+08:00' },
-      { kind: 'message', id: 'b', created_at: '2026-11-14T08:00:00+08:00' },
-      { kind: 'message', id: 'c', created_at: '2026-11-21T07:00:00+08:00' }, // 乱序回跳
+      { kind: 'message', id: 'a', created_at: atLocalDay(0) },
+      { kind: 'message', id: 'b', created_at: atLocalDay(7) },
+      { kind: 'message', id: 'c', created_at: atLocalDay(0, 7) }, // 乱序回跳
     ];
     const out = buildDateGroups(entries, NOW);
     const headers = out.filter((e) => e.kind === 'header');
