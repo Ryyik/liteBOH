@@ -346,23 +346,25 @@
         <div v-if="ledgerLoading" class="ah-ledger-skeleton">
           <div v-for="n in 4" :key="n" class="ah-skeleton-block" />
         </div>
-        <div v-else-if="ledgerError" class="ah-empty-state">
-          <div class="ah-empty-icon"><ScrollText :size="26" :stroke-width="1.5" /></div>
-          <h3>积分明细暂时无法加载</h3>
-          <button type="button" class="ah-shop-btn ah-shop-btn-ghost" @click="retryLedger">
-            重试
-          </button>
-        </div>
-        <div v-else-if="ledger.length === 0" class="ah-empty-state">
-          <div class="ah-empty-icon"><ScrollText :size="26" :stroke-width="1.5" /></div>
-          <h3>暂无积分明细</h3>
-          <p>周签到、管理员发放与商城订单都会记录在这里</p>
-        </div>
-        <div v-else-if="filteredLedger.length === 0" class="ah-empty-state">
-          <div class="ah-empty-icon"><ScrollText :size="26" :stroke-width="1.5" /></div>
-          <h3>这个时间段暂无记录</h3>
-          <p>试试选择更长的时间范围</p>
-        </div>
+        <EmptyState
+          v-else-if="ledgerError"
+          :icon="ScrollText"
+          title="积分明细暂时无法加载"
+          action-text="重试"
+          @action="retryLedger"
+        />
+        <EmptyState
+          v-else-if="ledger.length === 0"
+          :icon="ScrollText"
+          title="暂无积分明细"
+          description="周签到、管理员发放与商城订单都会记录在这里"
+        />
+        <EmptyState
+          v-else-if="filteredLedger.length === 0"
+          :icon="ScrollText"
+          title="这个时间段暂无记录"
+          description="试试选择更长的时间范围"
+        />
         <!-- 2026-11-04 硬切审计：流水骨架⇄列表补内容侧淡入 -->
         <div v-else class="ah-ledger content-swap-in">
           <section v-for="group in ledgerGroups" :key="group.label" class="ah-ledger-group">
@@ -453,6 +455,7 @@ import {
   X,
 } from 'lucide-vue-next';
 import SubscriptionPlans from '@/components/SubscriptionPlans.vue';
+import EmptyState from '@/components/ui/EmptyState.vue';
 import sponsorQrImage from '@/assets/images/qrcode.webp';
 import { useAuthStore } from '@/stores/auth';
 import { supabase } from '@/utils/supabase-client.js';

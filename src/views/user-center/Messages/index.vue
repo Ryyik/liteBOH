@@ -361,24 +361,24 @@
       <!-- Notifications List -->
       <div class="x-list">
         <!-- Error State (优先显示错误状态) -->
-        <div v-if="!isLoggedIn" class="x-empty x-login-required">
-          <EmptyState
-            variant="inbox"
-            title="登录以查看消息"
-            description="登录后可以接收回复、点赞和系统通知。"
-            action-text="立即登录"
-            @action="showLoginModal = true"
-          />
-        </div>
-        <div v-else-if="notificationsLoadError" class="x-empty">
-          <EmptyState
-            variant="search"
-            title="通知加载失败"
-            :description="notificationsLoadError"
-            action-text="点击重试"
-            @action="loadNotifications"
-          />
-        </div>
+        <EmptyState
+          v-if="!isLoggedIn"
+          class="x-empty x-login-required"
+          variant="inbox"
+          title="登录以查看消息"
+          description="登录后可以接收回复、点赞和系统通知。"
+          action-text="立即登录"
+          @action="showLoginModal = true"
+        />
+        <EmptyState
+          v-else-if="notificationsLoadError"
+          class="x-empty"
+          variant="search"
+          title="通知加载失败"
+          :description="notificationsLoadError"
+          action-text="点击重试"
+          @action="loadNotifications"
+        />
         <!-- Skeleton Loading — 1:1 复刻 P1 左列表 + 右详情 -->
         <div v-else-if="loading && currentTab !== 'archived'" class="x-skeleton-wrap">
           <div class="x-skeleton-list">
@@ -833,22 +833,22 @@
             </button>
           </div>
         </div>
-        <div v-else-if="currentTab === 'archived'" class="x-empty">
-          <EmptyState
-            variant="inbox"
-            :title="emptyStateTitle"
-            :description="emptyStateDescription"
-          />
-        </div>
-        <div v-else-if="dataLoadedOnce" class="x-empty">
-          <EmptyState
-            variant="inbox"
-            :title="emptyStateTitle"
-            :description="emptyStateDescription"
-            action-text="刷新试试"
-            @action="loadNotifications"
-          />
-        </div>
+        <EmptyState
+          v-else-if="currentTab === 'archived'"
+          class="x-empty"
+          variant="inbox"
+          :title="emptyStateTitle"
+          :description="emptyStateDescription"
+        />
+        <EmptyState
+          v-else-if="dataLoadedOnce"
+          class="x-empty"
+          variant="inbox"
+          :title="emptyStateTitle"
+          :description="emptyStateDescription"
+          action-text="刷新试试"
+          @action="loadNotifications"
+        />
       </div>
     </div>
 

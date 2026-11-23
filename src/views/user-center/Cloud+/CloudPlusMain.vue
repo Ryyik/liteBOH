@@ -475,20 +475,21 @@
                 </button>
               </div>
 
-              <div v-if="isSharedContentCollapsed" class="empty-state shared-collapsed-state">
-                <ChevronDown class="empty-icon" :size="36" :stroke-width="1.7" aria-hidden="true" />
-                <h4>共享内容已折叠</h4>
-                <p>展开后可继续查看全部条目。</p>
-                <button type="button" class="primary-btn" @click="toggleSharedContentCollapse">
-                  展开共享内容
-                </button>
-              </div>
+              <EmptyState
+                v-if="isSharedContentCollapsed"
+                :icon="ChevronDown"
+                title="共享内容已折叠"
+                description="展开后可继续查看全部条目。"
+                action-text="展开共享内容"
+                @action="toggleSharedContentCollapse"
+              />
 
-              <div v-else-if="sharedEntries.length === 0" class="empty-state filter-empty-state">
-                <Cloud class="empty-icon" :size="40" :stroke-width="1.6" aria-hidden="true" />
-                <h4>这个共享频道还没有内容</h4>
-                <p>对方发布 Cloud+ 后，这里会显示 TA 的内容。</p>
-              </div>
+              <EmptyState
+                v-else-if="sharedEntries.length === 0"
+                :icon="Cloud"
+                title="这个共享频道还没有内容"
+                description="对方发布 Cloud+ 后，这里会显示 TA 的内容。"
+              />
 
               <TransitionGroup v-else name="list-transition" tag="div" class="gallery-grid" appear>
                 <article
@@ -593,11 +594,12 @@
             <div v-if="isTrashLoading && !trashItems.length" class="trash-empty">
               正在读取回收站…
             </div>
-            <div v-else-if="!trashItems.length" class="empty-state trash-page-empty">
-              <Trash2 class="empty-icon" :size="40" :stroke-width="1.6" aria-hidden="true" />
-              <h4>回收站是空的</h4>
-              <p>在图库里删除的图片会先放到这里，{{ TRASH_RETENTION_DAYS }} 天内都能恢复。</p>
-            </div>
+            <EmptyState
+              v-else-if="!trashItems.length"
+              :icon="Trash2"
+              title="回收站是空的"
+              :description="`在图库里删除的图片会先放到这里，${TRASH_RETENTION_DAYS} 天内都能恢复。`"
+            />
             <div v-else class="trash-grid">
               <button
                 v-for="item in trashItems"
@@ -953,28 +955,28 @@
                   </div>
                 </article>
               </div>
-              <div v-else-if="hasEntriesLoadFailure" class="empty-state loading-error">
-                <Cloud class="empty-icon" :size="40" :stroke-width="1.6" aria-hidden="true" />
-                <h4>Cloud+ 暂时没有连上</h4>
-                <p>{{ entriesLoadError }}</p>
-                <button type="button" class="primary-btn" @click="loadEntries">重新加载</button>
-              </div>
-              <div
+              <EmptyState
+                v-else-if="hasEntriesLoadFailure"
+                :icon="Cloud"
+                title="Cloud+ 暂时没有连上"
+                :description="entriesLoadError"
+                action-text="重新加载"
+                @action="loadEntries"
+              />
+              <EmptyState
                 v-else-if="filteredEntries.length === 0 && activeGalleryEntries.length === 0"
-                class="empty-state"
-              >
-                <Cloud class="empty-icon" :size="40" :stroke-width="1.6" aria-hidden="true" />
-                <h4>这里还空着</h4>
-                <p>发布第一条内容后，它会像相册卡片一样出现在这里。</p>
-              </div>
-              <div v-else-if="filteredEntries.length === 0" class="empty-state filter-empty-state">
-                <Search class="empty-icon" :size="38" :stroke-width="1.7" aria-hidden="true" />
-                <h4>没有匹配到结果</h4>
-                <p>试试更换关键词、放宽日期范围，或者清除当前筛选。</p>
-                <button type="button" class="secondary-btn" @click="resetGalleryFilters">
-                  清除筛选
-                </button>
-              </div>
+                :icon="Cloud"
+                title="这里还空着"
+                description="发布第一条内容后，它会像相册卡片一样出现在这里。"
+              />
+              <EmptyState
+                v-else-if="filteredEntries.length === 0"
+                :icon="Search"
+                title="没有匹配到结果"
+                description="试试更换关键词、放宽日期范围，或者清除当前筛选。"
+                action-text="清除筛选"
+                @action="resetGalleryFilters"
+              />
 
               <div v-else class="album-flow">
                 <!-- 2026-10-02 去掉月份分组：改回 iOS 图库那种「一整片图直接密铺」。
@@ -1266,6 +1268,7 @@ import {
 } from 'lucide-vue-next';
 import { takeCameraCaptures } from '@/utils/camera-capture-bridge.js';
 import UserCenterPageHeader from '@/components/UserCenterPageHeader.vue';
+import EmptyState from '@/components/ui/EmptyState.vue';
 import CloudStorageBar from './CloudStorageBar.vue';
 import { useAutoGrowTextarea } from '@/composables/useAutoGrowTextarea.js';
 /* 底栏滚动方向隐藏（2026-11-04 用户报障「竖屏滚动时底部导航栏不会消失」）：

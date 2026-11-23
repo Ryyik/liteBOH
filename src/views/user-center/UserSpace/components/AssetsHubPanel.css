@@ -300,46 +300,6 @@
   color: #8e8e93;
 }
 
-/* ─── 空状态 · 毛玻璃 ─── */
-.ah-empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  padding: 44px 24px;
-  text-align: center;
-  border-radius: 26px;
-  background: rgba(255, 255, 255, 0.5);
-  backdrop-filter: var(--liquid-filter);
-  -webkit-backdrop-filter: var(--liquid-filter);
-  border: 1px solid rgba(255, 255, 255, 0.74);
-  box-shadow:
-    0 20px 44px rgba(15, 23, 42, 0.09),
-    inset 0 1px 0 rgba(255, 255, 255, 0.88);
-}
-.ah-empty-icon {
-  width: 56px;
-  height: 56px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #8e8e93;
-  background: rgba(15, 23, 42, 0.04);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
-  margin-bottom: 4px;
-}
-.ah-empty-state h3 {
-  margin: 2px 0 0;
-  font-size: 16px;
-  font-weight: 800;
-  color: #1d1d1f;
-}
-.ah-empty-state p {
-  margin: 0;
-  font-size: 13px;
-  color: #8e8e93;
-}
 
 /* ─── 商城 ─── */
 .ah-shop-btn {
@@ -676,30 +636,8 @@
 .user-space-page[data-theme='dark'] .ah-ledger-title {
   color: #f5f7fa;
 }
-.user-space-page[data-theme='dark'] .ah-empty-state,
-.user-space-page[data-theme='dark'] .ah-ledger-item,
-.user-space-page[data-theme='dark'] .ah-gift-card,
-.user-space-page[data-theme='dark'] .ah-skeleton-block {
-  background: rgba(24, 26, 32, 0.55);
-  border-color: rgba(255, 255, 255, 0.1);
-  box-shadow:
-    0 12px 30px rgba(0, 0, 0, 0.28),
-    inset 0 1px 0 rgba(255, 255, 255, 0.06);
-}
-.user-space-page[data-theme='dark'] .ah-empty-state h3,
-.user-space-page[data-theme='dark'] .ah-gift-headinfo h3,
-.user-space-page[data-theme='dark'] .ah-gift-status-copy strong {
-  color: #f5f7fa;
-}
-.user-space-page[data-theme='dark'] .ah-empty-state p,
-.user-space-page[data-theme='dark'] .ah-ledger-remark,
-.user-space-page[data-theme='dark'] .ah-ledger-date,
-.user-space-page[data-theme='dark'] .ah-gift-header-date,
-.user-space-page[data-theme='dark'] .ah-gift-history-no,
-.user-space-page[data-theme='dark'] .ah-gift-status-copy p,
-.user-space-page[data-theme='dark'] .ah-gift-eyebrow {
-  color: #8b8e96;
-}
+
+
 .user-space-page[data-theme='dark'] .ah-gift-thumb:not(.has-image) {
   background: rgba(217, 119, 6, 0.16);
   color: #ffb340;
@@ -711,10 +649,7 @@
   background: rgba(255, 255, 255, 0.045);
   border-color: rgba(255, 255, 255, 0.08);
 }
-.user-space-page[data-theme='dark'] .ah-empty-icon {
-  background: rgba(255, 255, 255, 0.06);
-}
-.user-space-page[data-theme='dark'] .ah-shop-btn-ghost {
+.user-space-page[data-theme='dark'] .user-space-page[data-theme='dark'] .ah-shop-btn-ghost {
   background: rgba(41, 151, 255, 0.18);
   color: #2997ff;
 }
@@ -773,10 +708,7 @@
   .ah-ledger-amount {
     font-size: 14.5px;
   }
-  .ah-empty-state {
-    padding: 36px 18px;
-  }
-  .ah-gift-header {
+    .ah-gift-header {
     padding: 11px 14px;
   }
   .ah-gift-overview {
@@ -815,21 +747,7 @@
 /* ─── 赞助 横屏精细化 ─── */
 
 @media (prefers-reduced-transparency: reduce) {
-  /* 折射玻璃同回退（2026-10-15）：用户要求降透明度时藏玻璃层、恢复实心卡面 */
-  .ah-empty-state,
-  .ah-ledger-item,
-  .ah-gift-card,
-  .ah-gift-status-panel {
-    background: rgba(255, 255, 255, 0.94);
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-  }
-  .user-space-page[data-theme='dark'] .ah-empty-state,
-  .user-space-page[data-theme='dark'] .ah-ledger-item,
-  .user-space-page[data-theme='dark'] .ah-gift-card,
-  .user-space-page[data-theme='dark'] .ah-gift-status-panel {
-    background: #1c1e24;
-  }
+
 }
 
 /* 窄屏（≤768px）折射回退（2026-10-15）：与 liquid-glass.css「移动端仅保留外层玻璃」

@@ -5,17 +5,25 @@
       <p class="loading-text">正在加载最近生日...</p>
     </div>
 
-    <div v-else-if="users.length === 0" class="empty-state glass-empty">
-      <Cake class="empty-icon" :size="30" :stroke-width="1.7" aria-hidden="true" />
-      <p>暂时没有伙伴设置生日。</p>
-    </div>
+    <EmptyState v-else-if="users.length === 0" :icon="Cake" title="暂时没有伙伴设置生日" compact />
 
-    <button v-for="(user, index) in users" :key="`birthday-${user.id}`" type="button"
-      class="user-item glass-user birthday-user-glass" :style="{ '--item-index': index }"
-      @click="emit('open-profile', user.username)">
+    <button
+      v-for="(user, index) in users"
+      :key="`birthday-${user.id}`"
+      type="button"
+      class="user-item glass-user birthday-user-glass"
+      :style="{ '--item-index': index }"
+      @click="emit('open-profile', user.username)"
+    >
       <div class="user-avatar">
-        <img v-if="user.avatar_url" :src="user.avatar_url" alt="用户头像" class="avatar-image" loading="lazy"
-          decoding="async" />
+        <img
+          v-if="user.avatar_url"
+          :src="user.avatar_url"
+          alt="用户头像"
+          class="avatar-image"
+          loading="lazy"
+          decoding="async"
+        />
         <span v-else>{{ user.username ? user.username.charAt(0).toUpperCase() : 'U' }}</span>
       </div>
       <div class="user-info">
@@ -24,13 +32,21 @@
       </div>
       <div class="user-meta">
         <span class="meta-item birthday-meta">
-          <svg class="meta-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <svg
+            class="meta-icon"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
             <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
             <line x1="16" y1="2" x2="16" y2="6"></line>
             <line x1="8" y1="2" x2="8" y2="6"></line>
             <line x1="3" y1="10" x2="21" y2="10"></line>
           </svg>
-          {{ String(user.birth_month).padStart(2, '0') }}/{{ String(user.birth_day).padStart(2, '0') }}
+          {{ String(user.birth_month).padStart(2, '0') }}/{{
+            String(user.birth_day).padStart(2, '0')
+          }}
         </span>
       </div>
     </button>
@@ -39,21 +55,22 @@
 
 <script setup>
 import { Cake } from 'lucide-vue-next';
+import EmptyState from '@/components/ui/EmptyState.vue';
 
 defineProps({
   users: {
     type: Array,
-    default: () => []
+    default: () => [],
   },
   isLoading: Boolean,
   tierMap: {
     type: Object,
-    default: () => ({})
+    default: () => ({}),
   },
   formatBirthdayDistance: {
     type: Function,
-    required: true
-  }
+    required: true,
+  },
 });
 
 const emit = defineEmits(['open-profile']);

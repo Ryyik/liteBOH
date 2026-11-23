@@ -490,31 +490,6 @@ html[data-boh-detail-returning] .user-space-page .profile-service-panel {
   margin: 0;
 }
 
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 40px 20px;
-  color: var(--text-secondary);
-  gap: 12px;
-  text-align: center;
-}
-
-.empty-icon {
-  color: var(--text-muted);
-  opacity: 0.45;
-  transition: opacity 0.2s ease;
-}
-
-.empty-state p {
-  margin: 0;
-  font-size: 13px;
-  color: var(--text-muted);
-  font-weight: 500;
-  max-width: 260px;
-  line-height: 1.5;
-}
 
 .glass-empty {
   background: var(--glass-bg-secondary);
@@ -1861,10 +1836,6 @@ html[data-boh-detail-returning] .user-space-page .profile-service-panel {
     gap: 5px;
   }
 
-  .empty-state {
-    padding: 36px 16px;
-  }
-
   .loading-state {
     padding: 40px 16px;
   }
@@ -2032,7 +2003,6 @@ html[data-boh-detail-returning] .user-space-page .profile-service-panel {
   /* 搜索 / 筛选 / 空态 / 分页等整行元素占满两列 */
   .community-main-col .community-users-list > .community-search-bar-glass,
   .community-main-col .community-users-list > .community-filter-tabs,
-  .community-main-col .community-users-list > .empty-state,
   .community-main-col .community-users-list > .community-pagination,
   .community-main-col .community-users-list > .community-load-more {
     grid-column: 1 / -1;

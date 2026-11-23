@@ -371,11 +371,14 @@
           </button>
         </div>
       </div>
-      <div v-else-if="activeContentTab === 'posts'" class="profile-content-empty">
-        <h3>还没有作品</h3>
-        <p>发布的帖子和公开的 Cloud+ 笔记都会出现在这里。</p>
-        <button type="button" @click="$emit('compose')">去发帖</button>
-      </div>
+      <EmptyState
+        v-else-if="activeContentTab === 'posts'"
+        title="还没有作品"
+        description="发布的帖子和公开的 Cloud+ 笔记都会出现在这里。"
+        action-text="去发帖"
+        @action="$emit('compose')"
+        compact
+      />
 
       <div
         v-else-if="activeContentTab === 'replies' && repliesLoading"
@@ -400,11 +403,14 @@
           <small>{{ formatProfilePostDate(reply) }}</small>
         </button>
       </div>
-      <div v-else-if="activeContentTab === 'replies'" class="profile-content-empty">
-        <h3>还没有回复</h3>
-        <p>参与讨论后，回复会集中出现在这里。</p>
-        <button type="button" @click="$emit('switch-tab', 'community')">去社区看看</button>
-      </div>
+      <EmptyState
+        v-else-if="activeContentTab === 'replies'"
+        title="还没有回复"
+        description="参与讨论后，回复会集中出现在这里。"
+        action-text="去社区看看"
+        @action="$emit('switch-tab', 'community')"
+        compact
+      />
 
       <!-- 印象（2026-10-26：接替原「草稿」席）：
            草稿 tab 删掉 —— 单草稿模型下草稿只有一份，且它本来就只在编辑器里出现
@@ -444,6 +450,7 @@
 import { computed, reactive, ref, watch, onMounted } from 'vue';
 import FollowListModal from '@/components/FollowListModal.vue';
 import PointsCard from './PointsCard.vue';
+import EmptyState from '@/components/ui/EmptyState.vue';
 import ActivityHeatmapLauncher from './ActivityHeatmapLauncher.vue';
 import ProfileImpressionsSection from './ProfileImpressionsSection.vue';
 import {
@@ -1370,38 +1377,6 @@ watch(
   color: var(--text-tertiary, #8a8a8a);
   font-size: 11.5px;
   font-weight: 500;
-}
-
-.profile-content-empty {
-  text-align: center;
-  padding: 48px 20px;
-  color: var(--text-secondary);
-}
-
-.profile-content-empty h3 {
-  margin: 0;
-  font-size: 17px;
-  font-weight: 900;
-  color: var(--text-primary);
-}
-
-.profile-content-empty p {
-  margin: 8px 0 0;
-  font-size: 14px;
-  line-height: 1.5;
-}
-
-.profile-content-empty button {
-  margin-top: 16px;
-  min-height: 38px;
-  padding: 0 18px;
-  border: 0;
-  border-radius: 999px;
-  background: #1d1d1f;
-  color: #ffffff;
-  font-size: 14px;
-  font-weight: 800;
-  cursor: pointer;
 }
 
 .user-space-page[data-theme='dark'] .profile-settings-btn {

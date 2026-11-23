@@ -207,13 +207,13 @@
                   {{ communityUsers.length }} 位成员，可能未覆盖全部社区伙伴
                 </p>
 
-                <div
+                <EmptyState
                   v-if="visibleCommunityUsers.length === 0 && !isLoadingCommunity"
-                  class="empty-state glass-empty"
-                >
-                  <Users class="empty-icon" :size="30" :stroke-width="1.7" aria-hidden="true" />
-                  <p>{{ communityEmptyText }}</p>
-                </div>
+                  :icon="Users"
+                  title="还没有社区伙伴"
+                  :description="communityEmptyText"
+                  compact
+                />
 
                 <button
                   v-for="(user, index) in visibleCommunityUsers"
@@ -487,6 +487,7 @@ import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
 import { storeToRefs } from 'pinia';
 import { Users, Cake, ChevronRight, Play } from 'lucide-vue-next';
+import EmptyState from '@/components/ui/EmptyState.vue';
 import HomeCatMascot from '@/components/HomeCatMascot.vue';
 import CommunityBirthdayList from './CommunityBirthdayList.vue';
 import { useAuthStore } from '@/stores/auth';
