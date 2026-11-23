@@ -352,6 +352,78 @@ const openResult = async (page) => {
     }),
   );
 
+  /* G5b 卡片下沿必须干净：① 卡面底部到 body 顶边之间留出空隙 —— 滚动内容在
+     body 顶边被裁切，紧贴卡面会形成「内容被切开」的糊边（截图为证）；
+     ② 卡面右下角（BOH 所在）的 hitTest 仍命中卡片本身，说明没有遮罩压上来。
+     🔴 这条抓过两次真回归：先是用 ::after 渐变收口、起点写成 `bottom: -14px`，
+     直接糊掉「BOH」；改留间距后，又要防止有人把间距改回 0。 */
+  const cardBottom = await page.evaluate(() => {
+    const face = document.querySelector('.payment-card-face');
+    /* 内衬在宿主自己的 .payment-success-body 上（壳的 .boh-modal__body 只是外层滚动体，
+       它的 padding 被 flush 为零）。量错层会让 padTop 恒为 0，判据形同虚设。 */
+    const host = document.querySelector('.payment-success-body');
+    if (!face || !host) return null;
+    const f = face.getBoundingClientRect();
+    const b = host.getBoundingClientRect();
+    const hit = document.elementFromPoint(f.right - 24, f.bottom - 12);
+    const scene = document.querySelector('.payment-card-scene');
+    /* 量"第一块内容的绘制起点"，不是 body 的 border box：
+       内衬加在 body 内部时 body.top 不会变，只有内容起点变了。 */
+    const firstContent = document.querySelector('.payment-success-copy');
+    const fc = firstContent ? firstContent.getBoundingClientRect() : null;
+    return {
+      gap: fc ? Math.round(fc.top - f.bottom) : -1,
+      faceBottom: Math.round(f.bottom),
+      bodyTop: Math.round(b.top),
+      firstContentTop: fc ? Math.round(fc.top) : null,
+      padTop: Math.round(parseFloat(getComputedStyle(host).paddingTop) || 0),
+      hitClass: hit ? String(hit.className || hit.tagName) : 'none',
+      hitIsCard: Boolean(hit && scene && (scene === hit || scene.contains(hit))),
+    };
+  });
+  check(
+    'G5b 卡面下沿干净（有间隙、BOH 处没被压住）',
+    Boolean(cardBottom) &&
+      cardBottom.gap >= 18 &&
+      cardBottom.padTop >= 10 &&
+      cardBottom.hitIsCard === true,
+    JSON.stringify(cardBottom),
+  );
+
+  /* G5c 滚动中段：文字必须在滚动体顶边**淡出**，而不是被硬切成半行。
+     🔴 这条抓过真回归：卡片钉住后文字在它下面滚，滚到中段时
+     「55 积分 + ¥11.90」半边露在卡片下沿、半边被裁 —— 截图一眼看出是 bug，
+     而 G1–G5 全绿（几何、滚动行为都对）。修法是在**壳的滚动体**上加 mask 渐隐；
+     试过的三条歪路都别走回去：head 加渐变遮罩（玻璃上糊白带 + 盖掉 BOH）、
+     head 加不透明底（硬色带 + 管不到 body 内部）、只加 padding（裁切线不动）。
+     判据：滚动体 computed mask-image 必须是 linear-gradient 且带透明起点。
+     ⚠️ 必须用 :global —— 宿主 scoped 写出的是后代选择器，而壳的元素不是宿主后代。 */
+  await page.evaluate(() => {
+    const body = document.querySelector('.boh-modal__body');
+    if (body) body.scrollTop = 120;
+  });
+  await page.waitForTimeout(400);
+  const fade = await page.evaluate(() => {
+    const body = document.querySelector('.boh-modal__body');
+    if (!body) return null;
+    const cs = getComputedStyle(body);
+    const mask = cs.maskImage || cs.webkitMaskImage || 'none';
+    const r = body.getBoundingClientRect();
+    // 顶边处命中的必须仍是滚动体内元素（说明内容确实滚到了那儿）
+    const topEl = document.elementFromPoint(r.left + r.width / 2, r.top + 4);
+    return {
+      mask,
+      hasFade: mask.includes('linear-gradient') && /rgba\(0, 0, 0, 0\)|transparent/.test(mask),
+      topHit: topEl ? String(topEl.className || topEl.tagName) : 'none',
+      scrolled: body.scrollTop,
+    };
+  });
+  check(
+    'G5c 滚动中段文字在顶边淡出（不是被硬切）',
+    Boolean(fade) && fade.hasFade === true && fade.scrolled === 120,
+    JSON.stringify(fade),
+  );
+
   // 滚到底：卡片与关闭钮必须仍在原位（这是那条报障的判据）
   const snapshot = () =>
     page.evaluate(() => {

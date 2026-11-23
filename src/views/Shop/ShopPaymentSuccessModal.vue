@@ -250,6 +250,24 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+/* 🔴 滚动体顶部的渐隐必须打在**壳的滚动容器**上（.boh-modal__body），
+   不是里面那层 .payment-success-body —— 裁切线在外层，内层加 mask 无效（实测）。
+   为什么一定要这道渐隐：卡片是钉住的、文字在它下面滚，滚到中段时文字会在
+   body 顶边被硬切（"55 积分 + ¥11.90"半边露在卡片下沿，截图可见）。
+   为什么不用别的做法（三条都试过，都有明显副作用）：
+     ① head 加 ::after 渐变遮罩 —— 弹窗是半透明玻璃，遮罩会在玻璃上糊出可见白带，
+        起点写负值还会盖掉卡面下沿的「BOH」；
+     ② head 加不透明页面色底 —— 头部变成实心白块、与玻璃形成硬色带，且管不到
+        body 内部，文字照样从下面冒出来；
+     ③ 只给 body 加 padding-top —— 裁切线仍在 body 顶边，间距只是把内容往下推。
+   mask 不依赖任何底色，玻璃质感一点不动。 */
+/* ⚠️ 必须用 :global —— 壳的元素带的是壳自己的 data-v，宿主 scoped 的
+   `[data-v-xxx] .boh-modal__body` 是**后代**选择器，而壳根不是宿主后代，匹配不到（实测 mask=none）。 */
+:global(.boh-modal__body) {
+  mask-image: linear-gradient(to bottom, transparent 0, #000 22px);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 22px);
+}
+
 /* 旧外层（.payment-success-overlay / .payment-success-dialog / 进出场 keyframes）
    已随迁移删除：层级（--boh-z-modal，压过导航 9999 与灵动岛）、遮罩、滚锁、
    窄屏贴底 / 横屏居中的几何全部由 BohModal 承担。
@@ -272,20 +290,9 @@ onBeforeUnmount(() => {
   width: 100%;
   padding: 31px 31px 0;
   text-align: center;
+
   /* 同 .payment-success-body：不依赖壳的继承色（见那处注释） */
   color: var(--boh-text-primary, #1d1d1f);
-}
-.payment-success-head::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: -14px;
-  height: 22px;
-  pointer-events: none;
-  /* 基色必须用壳的玻璃底（--liquid-bg-strong）而不是 --boh-page-bg：
-     后者是不透明纯色，渐变会糊出一条实心白带，而弹窗本身是半透明玻璃。 */
-  background: linear-gradient(to bottom, var(--liquid-bg-strong) 30%, transparent);
 }
 
 .payment-success-close {
@@ -420,7 +427,18 @@ onBeforeUnmount(() => {
    这里只负责内衬与左右对齐。⚠️ 不要再给它 overflow-y —— 双层滚动容器会让
    「卡片钉住、只滚文字」的分区失效（滚动会落到内层，壳的 max-height 白写）。 */
 .payment-success-body {
-  padding: 0 31px 28px;
+  padding: 12px 31px 28px;
+  /* 🔴 顶部 24px 用 mask 渐隐，解决「文字从卡片下沿穿出被切断」。
+     为什么不是别的做法（三条都试过，都有副作用）：
+       ① head 加 ::after 渐变遮罩 —— 弹窗是半透明玻璃，遮罩会糊出可见白带，
+          起点写成负值还会盖掉卡面下沿的「BOH」（实测）；
+       ② head 加不透明页面色底 —— 头部变成一条实心白块，与玻璃弹窗形成硬色带，
+          而且它管不到 body **内部**：裁切线在 body 顶边，文字照样从下面冒出来；
+       ③ 只在 body 上部加 padding —— 裁切线仍在 body 顶边，间距只是把内容往下推，
+          滚起来照样切。
+     mask 不依赖任何底色，直接在裁切线附近把内容淡掉，玻璃质感一点不动。
+     ⚠️ 用 -webkit-mask 双写（Safari 旧版仍要前缀）。 */
+
   text-align: center;
   /* 基色必须显式给：旧实现在 .payment-success-overlay 上写了
      `color: var(--boh-text-primary)`，整屏（含 h2）靠它继承。
@@ -706,7 +724,8 @@ onBeforeUnmount(() => {
     padding: 27px 22px 0;
   }
   .payment-success-body {
-    padding: 0 22px calc(22px + env(safe-area-inset-bottom));
+    /* 上部 12px 与基值一致：窄屏同样不能让滚动内容贴着卡面裁切（见基值那处注释） */
+    padding: 12px 22px calc(22px + env(safe-area-inset-bottom));
   }
   .payment-success-kicker {
     margin-bottom: 19px;
@@ -737,7 +756,7 @@ onBeforeUnmount(() => {
     padding: 20px 22px 0;
   }
   .payment-success-body {
-    padding: 0 22px calc(18px + env(safe-area-inset-bottom));
+    padding: 12px 22px calc(18px + env(safe-area-inset-bottom));
   }
   .payment-success-kicker {
     margin-bottom: 13px;
