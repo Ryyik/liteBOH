@@ -224,14 +224,13 @@
                 </tbody>
               </table>
             </div>
-            <div v-else class="empty-state">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
-                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
-              </svg>
-              <span class="empty-title">暂时为空</span>
-              <p class="empty-desc">角色分配确认后会在这里展示。</p>
-            </div>
+            <EmptyState
+              v-else
+              class="boh8-empty"
+              title="暂时为空"
+              description="角色分配确认后会在这里展示。"
+              compact
+            />
           </div>
         </article>
 
@@ -262,19 +261,13 @@
                 <p class="setting-desc">{{ item.description }}</p>
               </article>
             </div>
-            <div v-else class="empty-state">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                <path d="M3 21h18" />
-                <path d="M5 21V7l8-4v18" />
-                <path d="M19 21V11l-6-4" />
-                <path d="M9 9v.01" />
-                <path d="M9 12v.01" />
-                <path d="M9 15v.01" />
-                <path d="M9 18v.01" />
-              </svg>
-              <span class="empty-title">暂时为空</span>
-              <p class="empty-desc">校园世界观、场景与设定资料会在这里整理。</p>
-            </div>
+            <EmptyState
+              v-else
+              class="boh8-empty"
+              title="暂时为空"
+              description="校园世界观、场景与设定资料会在这里整理。"
+              compact
+            />
           </div>
         </article>
 
@@ -391,6 +384,7 @@ import { ref, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { storeToRefs } from 'pinia';
 import { useAuthStore } from '@/stores/auth';
+import EmptyState from '@/components/ui/EmptyState.vue';
 
 const router = useRouter();
 const authStore = useAuthStore();

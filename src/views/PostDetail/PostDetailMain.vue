@@ -13,6 +13,7 @@ import {
   insetOpen,
   peekOrigin,
 } from '@/utils/motion-origin.js';
+import EmptyState from '@/components/ui/EmptyState.vue';
 import { motionEase, motionMs, motionNum } from '@/utils/motion.js';
 import { playCollapseMorph } from '@/utils/morph-layer.js';
 import { mountPageSnapshot } from '@/utils/page-snapshot.js';
@@ -2665,14 +2666,15 @@ const handleChangeCommentSortMode = async (mode) => {
           </div>
         </div>
 
-        <div v-else-if="!post" class="empty-state glass-panel">
-          <div class="empty-icon">🏜️</div>
-          <h3>帖子已失效</h3>
-          <p>抱歉，该帖子可能已被作者删除或链接有误。</p>
-          <button @click="goBack" class="home-btn">
-            {{ modalMode ? '关闭' : '返回方块社区' }}
-          </button>
-        </div>
+        <EmptyState
+          v-else-if="!post"
+          class="glass-panel pd-empty"
+          variant="spark"
+          title="帖子已失效"
+          description="抱歉，该帖子可能已被作者删除或链接有误。"
+          :action-text="modalMode ? '关闭' : '返回方块社区'"
+          @action="goBack"
+        />
 
         <div
           v-else-if="modalMode"

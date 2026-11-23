@@ -50,12 +50,16 @@
           <p>正在加载公共记忆...</p>
         </div>
 
-        <div v-else-if="sharedMemories.length === 0" class="empty-state">
-          <Archive class="state-icon" :size="32" :stroke-width="1.7" aria-hidden="true" />
-          <h3>暂无公共记忆</h3>
-          <p>你可以先去 BOH AI 开启“公共记忆”，再回来管理。</p>
-          <button class="ghost-btn" @click="router.push('/ai-chat')">前往 BOH AI</button>
-        </div>
+        <EmptyState
+          v-else-if="sharedMemories.length === 0"
+          class="sm-empty"
+          :icon="Archive"
+          title="暂无公共记忆"
+          description="你可以先去 BOH AI 开启“公共记忆”，再回来管理。"
+          action-text="前往 BOH AI"
+          compact
+          @action="router.push('/ai-chat')"
+        />
 
         <div v-else class="memory-list">
           <article v-for="item in sharedMemories" :key="item.id" class="memory-card">
@@ -142,6 +146,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { storeToRefs } from 'pinia';
 import { Archive, LockKeyhole } from 'lucide-vue-next';
 import UserCenterPageHeader from '@/components/UserCenterPageHeader.vue';
+import EmptyState from '@/components/ui/EmptyState.vue';
 import { useAuthStore } from '@/stores/auth';
 import {
   getMySharedAIMemories,
@@ -760,7 +765,6 @@ onUnmounted(() => {
 }
 
 .login-card,
-.empty-state,
 .loading-state {
   border: 1px dashed #cfd9e4;
   background: #fff;
@@ -769,19 +773,24 @@ onUnmounted(() => {
   text-align: center;
 }
 
+/* 空态改用 components/ui/EmptyState（plans/045 阶段 1）：保留本页虚线卡壳 */
+.sm-empty {
+  border: 1px dashed #cfd9e4;
+  background: #fff;
+  border-radius: 14px;
+}
+
 .state-icon {
   font-size: 26px;
   margin-bottom: 10px;
 }
 
-.login-card h3,
-.empty-state h3 {
+.login-card h3 {
   margin: 0 0 8px;
   color: #1f3347;
 }
 
 .login-card p,
-.empty-state p,
 .loading-state p {
   margin: 0;
   color: #597086;

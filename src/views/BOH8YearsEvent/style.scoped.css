@@ -491,37 +491,9 @@
   color: #86868b;
 }
 
-.empty-state {
-  min-height: 140px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  padding: 24px 0;
-  text-align: center;
-  color: #86868b;
+/* 空态改用 components/ui/EmptyState（plans/045 阶段 1）：卡片内嵌留底部虚线分隔 */
+.boh8-empty {
   border-top: 0.5px solid rgba(0, 0, 0, 0.08);
-}
-
-.empty-state svg {
-  width: 34px;
-  height: 34px;
-  opacity: 0.45;
-}
-
-.empty-title {
-  font-size: 17px;
-  font-weight: 700;
-  color: #86868b;
-  letter-spacing: 0.08em;
-}
-
-.empty-desc {
-  margin: 0;
-  font-size: 13px;
-  line-height: 1.5;
-  color: #86868b;
 }
 
 /* ===== 拼豆 MC 皮肤 ===== */
@@ -967,8 +939,6 @@ html[data-theme='dark'] .boh-8-years-event .map-status,
 html[data-theme='dark'] .boh-8-years-event .step-desc,
 html[data-theme='dark'] .boh-8-years-event .step-or,
 html[data-theme='dark'] .boh-8-years-event .setting-desc,
-html[data-theme='dark'] .boh-8-years-event .empty-title,
-html[data-theme='dark'] .boh-8-years-event .empty-desc,
 html[data-theme='dark'] .boh-8-years-event .bead-skin-label,
 html[data-theme='dark'] .boh-8-years-event .bead-skin-credit,
 html[data-theme='dark'] .boh-8-years-event .footer-text,
@@ -993,7 +963,7 @@ html[data-theme='dark'] .boh-8-years-event .map-preview,
 html[data-theme='dark'] .boh-8-years-event .character-table th,
 html[data-theme='dark'] .boh-8-years-event .character-table td,
 html[data-theme='dark'] .boh-8-years-event .setting-item,
-html[data-theme='dark'] .boh-8-years-event .empty-state,
+html[data-theme='dark'] .boh-8-years-event .boh8-empty,
 html[data-theme='dark'] .boh-8-years-event .page-footer,
 html[data-theme='dark'] .boh-8-years-event .modal-header,
 html[data-theme='dark'] .boh-8-years-event .poster-preview,
