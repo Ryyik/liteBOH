@@ -362,16 +362,16 @@ const buttonLabel = (camp) => {
    的 32px 内衬在首屏占掉近半屏（实测截图），而 activity_campaigns 长期 0 行
    （见文件头），用户几乎永远看到这个空态。只在本组件内收窄，不动全局 EmptyState
    （那是其它页面共用的观感基线）。 */
-.signup-section :deep(.empty-state--compact) {
+.signup-section :deep(.boh-empty-state--compact) {
   padding: 20px 20px 18px;
 }
-.signup-section :deep(.empty-state__art) {
+.signup-section :deep(.boh-empty-state__art) {
   width: 56px;
   height: 56px;
   margin-bottom: 10px;
   border-radius: 20px;
 }
-.signup-section :deep(.empty-state__art svg) {
+.signup-section :deep(.boh-empty-state__art svg) {
   width: 40px;
   height: 40px;
 }

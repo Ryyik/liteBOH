@@ -35,12 +35,12 @@
   min-height: 100vh;
   min-height: 100dvh;
   padding-top: 0;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   width: 100%;
   /* 确保外层页面占满宽度 */
 }
 
-.profile-page[data-theme="dark"] {
+.profile-page[data-theme='dark'] {
   --bg: #181a20;
   --text-primary: #f5f5f7;
   --text-secondary: #a1a1aa;
@@ -65,7 +65,7 @@
    所以这里必须把局部变量整体接上，否则 token 层只会改 body 底色，
    页面根、hero、作品卡、tab 仍是硬编码白。
    颜色与 tokens.css 的 :root[data-theme] 块保持同源，改一处要两处一起改。 */
-.profile-page[data-theme="home-cat"] {
+.profile-page[data-theme='home-cat'] {
   --bg: #fffdf8;
   --text-primary: #2f2f2f;
   --text-secondary: #6f6960;
@@ -84,11 +84,10 @@
   --glass-border-strong: rgba(232, 222, 209, 0.95);
   background:
     radial-gradient(680px 280px at 12% 0%, rgba(255, 216, 168, 0.2), transparent 62%),
-    radial-gradient(520px 240px at 100% 0%, rgba(255, 232, 239, 0.22), transparent 60%),
-    #fffdf8;
+    radial-gradient(520px 240px at 100% 0%, rgba(255, 232, 239, 0.22), transparent 60%), #fffdf8;
 }
 
-.profile-page[data-theme="anniversary-mc"] {
+.profile-page[data-theme='anniversary-mc'] {
   --bg: #e9eee3;
   --text-primary: #292923;
   --text-secondary: #5f5b50;
@@ -114,25 +113,25 @@
 
 /* 作品卡在 profile-base.css 里是硬编码 #ffffff，局部变量接不住，单点补一条。
    用 surface-elevated 而不是 surface：浅色主题下要和页面底拉开一档。 */
-.profile-page[data-theme="home-cat"] .profile-post-card,
-.profile-page[data-theme="anniversary-mc"] .profile-post-card {
+.profile-page[data-theme='home-cat'] .profile-post-card,
+.profile-page[data-theme='anniversary-mc'] .profile-post-card {
   background: var(--surface-elevated);
   border-color: var(--stroke);
 }
 
-.profile-page[data-theme="dark"] .tier-badge.tier-plus {
+.profile-page[data-theme='dark'] .tier-badge.tier-plus {
   background: rgba(106, 143, 201, 0.15);
   color: #8ab4f8;
 }
-.profile-page[data-theme="dark"] .tier-badge.tier-pro {
+.profile-page[data-theme='dark'] .tier-badge.tier-pro {
   background: rgba(142, 154, 175, 0.15);
   color: #b0bcc9;
 }
-.profile-page[data-theme="dark"] .tier-badge.tier-max {
+.profile-page[data-theme='dark'] .tier-badge.tier-max {
   background: rgba(184, 137, 11, 0.15);
   color: #d4a843;
 }
-.profile-page[data-theme="dark"] .tier-badge.tier-ultra {
+.profile-page[data-theme='dark'] .tier-badge.tier-ultra {
   background: rgba(155, 89, 182, 0.15);
   color: #c084d8;
 }
@@ -307,7 +306,9 @@
   justify-content: center;
   border: 3px solid #fff;
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-  transition: opacity 0.3s ease, transform 0.3s ease;
+  transition:
+    opacity 0.3s ease,
+    transform 0.3s ease;
 }
 
 .avatar-edit-icon-profile.uploading {
@@ -418,7 +419,10 @@
   font-weight: 700;
   font-size: 15px;
   cursor: pointer;
-  transition: background 0.2s, border-color 0.2s, color 0.2s;
+  transition:
+    background 0.2s,
+    border-color 0.2s,
+    color 0.2s;
 }
 
 .follow-btn:hover {
@@ -509,7 +513,6 @@
   border-radius: 4px;
   transition: width 0.3s ease;
 }
-
 
 .handle-name {
   font-size: 15px;
@@ -880,7 +883,7 @@
 .profile-skeleton-avatar::after,
 .profile-feed-avatar::after,
 .impression-skeleton-card::after {
-  content: "";
+  content: '';
   position: absolute;
   inset: 0;
   transform: translateX(-100%);
@@ -1101,41 +1104,6 @@
   100% {
     transform: rotate(360deg);
   }
-}
-
-.empty-list-state {
-  padding: 40px 20px;
-  text-align: center;
-}
-
-.empty-list-state h3 {
-  font-size: 31px;
-  font-weight: 800;
-  margin-bottom: 8px;
-}
-
-.empty-list-state p {
-  color: #536471;
-  font-size: 15px;
-}
-
-.empty-action-btn {
-  margin-top: 14px;
-  border: 1px solid #d7e1e8;
-  border-radius: 999px;
-  background: #fff;
-  color: #0f1419;
-  font-size: 14px;
-  font-weight: 700;
-  padding: 8px 16px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.empty-action-btn:hover {
-  color: #1d9bf0;
-  border-color: #1d9bf0;
-  background: rgba(29, 155, 240, 0.06);
 }
 
 .list-load-more-wrap {
@@ -1607,7 +1575,9 @@
   outline: none;
   min-height: 110px;
   background: #fff;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
 .form-group textarea:focus {
@@ -1624,7 +1594,9 @@
   font-size: 15px;
   background: #fff;
   outline: none;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
 .date-input-v2:focus,
@@ -2051,7 +2023,6 @@
   line-height: 1.2;
 }
 
-
 /* 内容面板（2026-11-05 对齐「我的」）：卡壳从 .tab-content-list 上提到这一层，
    页签也搬进来 —— 「我的」页的页签就在 panel 里，两页要同一棵树。 */
 .profile-content-panel {
@@ -2129,7 +2100,11 @@
   border-radius: 20px;
   border: 1px solid rgba(15, 23, 42, 0.07);
   box-shadow: 0 8px 28px rgba(15, 23, 42, 0.045);
-  transition: opacity 0.3s ease, background-color 0.22s ease, border-color 0.22s ease, box-shadow 0.22s ease;
+  transition:
+    opacity 0.3s ease,
+    background-color 0.22s ease,
+    border-color 0.22s ease,
+    box-shadow 0.22s ease;
   cursor: pointer;
   position: relative;
   animation: profilePostCardEnter 0.42s cubic-bezier(0.16, 1, 0.3, 1) both;
@@ -2378,7 +2353,11 @@
   min-height: 32px;
   padding: 5px 9px;
   border-radius: 999px;
-  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, opacity 0.2s ease;
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease,
+    opacity 0.2s ease;
   white-space: nowrap;
 }
 
@@ -2475,16 +2454,33 @@
 }
 
 @keyframes profileHeartBeat {
-  0%, 100% { transform: scale(1); }
-  25% { transform: scale(1.25); }
-  50% { transform: scale(0.95); }
-  75% { transform: scale(1.1); }
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  25% {
+    transform: scale(1.25);
+  }
+  50% {
+    transform: scale(0.95);
+  }
+  75% {
+    transform: scale(1.1);
+  }
 }
 
 @keyframes profileActionCountPop {
-  0%, 100% { transform: scale(1); }
-  35% { transform: scale(1.22); color: #ff3b30; }
-  65% { transform: scale(0.96); }
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  35% {
+    transform: scale(1.22);
+    color: #ff3b30;
+  }
+  65% {
+    transform: scale(0.96);
+  }
 }
 
 /* Home Cat 主题装饰 */
@@ -2499,7 +2495,9 @@
   line-height: 0;
   opacity: 0.46;
   transform: translateY(4px) rotate(4deg);
-  transition: opacity 0.22s ease, transform 0.22s ease;
+  transition:
+    opacity 0.22s ease,
+    transform 0.22s ease;
   pointer-events: none;
   user-select: none;
   z-index: 0;
@@ -2556,20 +2554,26 @@
   z-index: 0;
 }
 
-.profile-page[data-theme="home-cat"] .public-profile-post-card:hover .post-card-theme-cat {
+.profile-page[data-theme='home-cat'] .public-profile-post-card:hover .post-card-theme-cat {
   opacity: 0.9;
   transform: translateY(0) rotate(0deg);
 }
 
-.profile-page[data-theme="home-cat"] .public-profile-post-card:hover .post-card-theme-cat.cat-variant-1 {
+.profile-page[data-theme='home-cat']
+  .public-profile-post-card:hover
+  .post-card-theme-cat.cat-variant-1 {
   transform: translateY(0) rotate(-2deg);
 }
 
-.profile-page[data-theme="home-cat"] .public-profile-post-card:hover .post-card-theme-cat.cat-variant-2 {
+.profile-page[data-theme='home-cat']
+  .public-profile-post-card:hover
+  .post-card-theme-cat.cat-variant-2 {
   transform: translateY(-50%) rotate(0deg);
 }
 
-.profile-page[data-theme="home-cat"] .public-profile-post-card:hover .post-card-theme-cat.cat-variant-3 {
+.profile-page[data-theme='home-cat']
+  .public-profile-post-card:hover
+  .post-card-theme-cat.cat-variant-3 {
   opacity: 0.62;
   transform: translateY(0) rotate(-3deg);
 }
@@ -2842,10 +2846,6 @@
   flex-direction: column;
 }
 
-
-
-
-
 /* 帖子网格：在 base 的 grid 基础上增强卡片细节 */
 .profile-post-grid {
   gap: 16px;
@@ -2917,8 +2917,8 @@
 }
 
 .profile-post-meta span + span::before {
-  content: "·";
-  color: rgba(15,23,42,0.22);
+  content: '·';
+  color: rgba(15, 23, 42, 0.22);
   margin-right: 8px;
 }
 
@@ -2931,7 +2931,7 @@
 
 .replies-list .feed-item {
   padding: 16px;
-  border: 1px solid rgba(15,23,42,0.06);
+  border: 1px solid rgba(15, 23, 42, 0.06);
   border-radius: 16px;
   background: var(--surface-soft);
   transition: all 0.16s ease;
@@ -2940,8 +2940,8 @@
 
 .replies-list .feed-item:hover {
   background: #fff;
-  border-color: rgba(15,23,42,0.10);
-  box-shadow: 0 8px 24px rgba(15,23,42,0.06);
+  border-color: rgba(15, 23, 42, 0.1);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
   transform: translateY(-1px);
 }
 
@@ -2967,7 +2967,7 @@
   margin: 6px 0 8px;
   font-size: 13px;
   color: var(--text-secondary);
-  background: rgba(15,23,42,0.04);
+  background: rgba(15, 23, 42, 0.04);
   padding: 6px 10px;
   border-radius: 999px;
   display: inline-flex;
@@ -2989,27 +2989,27 @@
   padding: 14px;
   border-radius: 12px;
   background: #fff;
-  border: 1px solid rgba(15,23,42,0.06);
+  border: 1px solid rgba(15, 23, 42, 0.06);
   cursor: pointer;
   transition: all 0.16s ease;
 }
 
 .quoted-post:hover {
-  border-color: rgba(37,99,235,0.18);
-  background: rgba(37,99,235,0.02);
+  border-color: rgba(37, 99, 235, 0.18);
+  background: rgba(37, 99, 235, 0.02);
 }
 
 /* 印象墙：2列网格，输入区更融合 */
 .add-impression-section {
   padding: 16px;
   background: var(--surface-soft);
-  border: 1px solid rgba(15,23,42,0.06);
+  border: 1px solid rgba(15, 23, 42, 0.06);
   border-radius: 16px;
   margin-bottom: 16px;
 }
 
 .add-impression-section textarea {
-  border: 1px solid rgba(15,23,42,0.10);
+  border: 1px solid rgba(15, 23, 42, 0.1);
   border-radius: 12px;
   padding: 14px;
   font-size: 14px;
@@ -3019,8 +3019,8 @@
 }
 
 .add-impression-section textarea:focus {
-  border-color: rgba(37,99,235,0.32);
-  box-shadow: 0 0 0 4px rgba(37,99,235,0.08);
+  border-color: rgba(37, 99, 235, 0.32);
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.08);
   background: #fff;
 }
 
@@ -3040,13 +3040,13 @@
   padding: 0 20px;
   border-radius: 999px;
   font-weight: 800;
-  box-shadow: 0 8px 20px rgba(37,99,235,0.18);
+  box-shadow: 0 8px 20px rgba(37, 99, 235, 0.18);
   transition: all 0.16s var(--ease-out);
 }
 
 .submit-imp-btn:hover:not(:disabled) {
   transform: translateY(-1px);
-  box-shadow: 0 12px 28px rgba(37,99,235,0.22);
+  box-shadow: 0 12px 28px rgba(37, 99, 235, 0.22);
 }
 
 .impressions-wall-profile {
@@ -3066,57 +3066,10 @@
 
 .imp-footer {
   padding-top: 12px;
-  border-top: 1px solid rgba(15,23,42,0.06);
+  border-top: 1px solid rgba(15, 23, 42, 0.06);
 }
 
-/* 空状态：更友好、带插画感 */
-.empty-list-state {
-  padding: 48px 24px;
-  text-align: center;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-}
-
-.empty-list-state h3 {
-  font-size: 17px;
-  font-weight: 800;
-  letter-spacing: -0.01em;
-  color: var(--text-primary);
-  margin: 0;
-}
-
-.empty-list-state p {
-  font-size: 14px;
-  line-height: 1.6;
-  color: var(--text-secondary);
-  margin: 0;
-  max-width: 320px;
-}
-
-.empty-action-btn {
-  margin-top: 16px;
-  min-height: 38px;
-  padding: 0 20px;
-  border-radius: 999px;
-  background: #0f172a;
-  color: #fff;
-  border: 0;
-  font-weight: 700;
-  box-shadow: 0 8px 20px rgba(15,23,42,0.12);
-  transition: all 0.16s var(--ease-out);
-}
-
-.empty-action-btn:hover {
-  background: #000;
-  transform: translateY(-1px);
-  box-shadow: 0 12px 28px rgba(15,23,42,0.16);
-  color: #fff;
-  border-color: transparent;
-}
-
-/* 加载更多：更轻量 */
+/* 空态外观由 EmptyState 提供，分栏布局行为见 .empty-list-state 的 break-inside 规则 */
 .list-load-more-wrap {
   padding: 20px 0 8px;
 }
@@ -3126,18 +3079,18 @@
   padding: 0 22px;
   border-radius: 999px;
   background: #fff;
-  border: 1px solid rgba(15,23,42,0.10);
+  border: 1px solid rgba(15, 23, 42, 0.1);
   font-weight: 700;
   font-size: 13px;
-  box-shadow: 0 4px 12px rgba(15,23,42,0.04);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.04);
   transition: all 0.16s ease;
 }
 
 .load-more-btn:hover:not(:disabled) {
-  border-color: rgba(15,23,42,0.16);
+  border-color: rgba(15, 23, 42, 0.16);
   background: #f8fafc;
   transform: translateY(-1px);
-  box-shadow: 0 8px 20px rgba(15,23,42,0.06);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
   color: #0f172a;
 }
 
@@ -3156,56 +3109,55 @@
 }
 
 /* 深色模式适配 */
-.profile-page[data-theme="dark"] {
+.profile-page[data-theme='dark'] {
   background:
-    radial-gradient(900px 320px at 50% -120px, rgba(59,130,246,0.10), transparent 60%),
-    #0f1115 !important;
+    radial-gradient(900px 320px at 50% -120px, rgba(59, 130, 246, 0.1), transparent 60%), #0f1115 !important;
 }
 
-.profile-page[data-theme="dark"] .profile-hero-panel,
-.profile-page[data-theme="dark"] .profile-content-panel,
-.profile-page[data-theme="dark"] .tab-content-list,
-.profile-page[data-theme="dark"] .add-impression-section {
-  background: rgba(24,26,32,0.96) !important;
-  border-color: rgba(255,255,255,0.08) !important;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.24) !important;
+.profile-page[data-theme='dark'] .profile-hero-panel,
+.profile-page[data-theme='dark'] .profile-content-panel,
+.profile-page[data-theme='dark'] .tab-content-list,
+.profile-page[data-theme='dark'] .add-impression-section {
+  background: rgba(24, 26, 32, 0.96) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.24) !important;
 }
 
-.profile-page[data-theme="dark"] .profile-post-card,
-.profile-page[data-theme="dark"] .replies-list .feed-item,
-.profile-page[data-theme="dark"] .impression-card-profile,
-.profile-page[data-theme="dark"] .quoted-post {
+.profile-page[data-theme='dark'] .profile-post-card,
+.profile-page[data-theme='dark'] .replies-list .feed-item,
+.profile-page[data-theme='dark'] .impression-card-profile,
+.profile-page[data-theme='dark'] .quoted-post {
   background: #1a1a24 !important;
-  border-color: rgba(255,255,255,0.06) !important;
+  border-color: rgba(255, 255, 255, 0.06) !important;
 }
 
-.profile-page[data-theme="dark"] .tab-item {
+.profile-page[data-theme='dark'] .tab-item {
   color: #a1a1aa;
 }
 
-.profile-page[data-theme="dark"] .tab-item:hover {
-  background: rgba(255,255,255,0.06);
+.profile-page[data-theme='dark'] .tab-item:hover {
+  background: rgba(255, 255, 255, 0.06);
   color: #f5f5f7;
 }
 
-.profile-page[data-theme="dark"] .tab-item.active {
+.profile-page[data-theme='dark'] .tab-item.active {
   background: #f5f5f7;
   color: #18181b;
 }
 
-.profile-page[data-theme="dark"] .profile-bio,
-.profile-page[data-theme="dark"] .profile-name,
-.profile-page[data-theme="dark"] .item-text,
-.profile-page[data-theme="dark"] .imp-text,
-.profile-page[data-theme="dark"] .profile-post-copy h3 {
+.profile-page[data-theme='dark'] .profile-bio,
+.profile-page[data-theme='dark'] .profile-name,
+.profile-page[data-theme='dark'] .item-text,
+.profile-page[data-theme='dark'] .imp-text,
+.profile-page[data-theme='dark'] .profile-post-copy h3 {
   color: #f5f5f7 !important;
 }
 
-.profile-page[data-theme="dark"] .profile-handle,
-.profile-page[data-theme="dark"] .profile-bio-toggle,
-.profile-page[data-theme="dark"] .profile-post-copy p,
-.profile-page[data-theme="dark"] .item-handle,
-.profile-page[data-theme="dark"] .imp-date {
+.profile-page[data-theme='dark'] .profile-handle,
+.profile-page[data-theme='dark'] .profile-bio-toggle,
+.profile-page[data-theme='dark'] .profile-post-copy p,
+.profile-page[data-theme='dark'] .item-handle,
+.profile-page[data-theme='dark'] .imp-date {
   color: #a1a1aa !important;
 }
 
@@ -3381,7 +3333,10 @@
   background: var(--liquid-bg-subtle);
   color: var(--text-primary);
   font-family: inherit;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    background-color 0.2s ease;
 }
 
 .add-impression-section textarea::placeholder {
@@ -3421,13 +3376,20 @@
   font-weight: 800;
   letter-spacing: 0.01em;
   cursor: pointer;
-  box-shadow: 0 8px 20px rgba(0, 113, 227, 0.24), var(--liquid-inner-highlight);
-  transition: transform 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease;
+  box-shadow:
+    0 8px 20px rgba(0, 113, 227, 0.24),
+    var(--liquid-inner-highlight);
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    opacity 0.18s ease;
 }
 
 .submit-imp-btn:hover:not(:disabled) {
   transform: translateY(-1px);
-  box-shadow: 0 12px 26px rgba(0, 113, 227, 0.3), var(--liquid-inner-highlight);
+  box-shadow:
+    0 12px 26px rgba(0, 113, 227, 0.3),
+    var(--liquid-inner-highlight);
 }
 
 .submit-imp-btn:active:not(:disabled) {
@@ -3454,7 +3416,9 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  transition: transform 0.22s ease, box-shadow 0.22s ease;
+  transition:
+    transform 0.22s ease,
+    box-shadow 0.22s ease;
   animation: impression-profile-in 0.4s cubic-bezier(0.34, 1.2, 0.64, 1) both;
   animation-delay: var(--stagger-delay, 0ms);
 }
@@ -3462,7 +3426,10 @@
 .impression-card-profile:hover {
   transform: translateY(-2px);
   border-color: var(--liquid-border);
-  box-shadow: var(--liquid-shadow), 0 12px 28px rgba(15, 23, 42, 0.08), var(--liquid-inner-highlight);
+  box-shadow:
+    var(--liquid-shadow),
+    0 12px 28px rgba(15, 23, 42, 0.08),
+    var(--liquid-inner-highlight);
 }
 
 @keyframes impression-profile-in {
@@ -3587,14 +3554,15 @@
   justify-content: center;
   cursor: pointer;
   padding: 0;
-  transition: background-color 0.2s ease, color 0.2s ease;
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease;
 }
 
 .delete-imp-btn:hover {
   background: rgba(255, 59, 48, 0.09);
   color: #ff3b30;
 }
-
 
 /* 纯文字作品卡：没有封面挡着，「置顶」角标和「⋯」会直接压在标题上（长标题更明显）。
    ⚠️ 为什么写在这里而不是 profile-base.css：组件 scoped 样式在全局样式之后注入，

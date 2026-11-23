@@ -4,7 +4,7 @@
  * ============================================
  */
 
-[data-theme="dark"] {
+[data-theme='dark'] {
   --uc-dark-bg: #09111d;
   --uc-dark-bg-soft: #0f1a2b;
   --uc-dark-surface: rgba(15, 24, 39, 0.86);
@@ -20,13 +20,14 @@
   --uc-dark-shadow: 0 18px 48px rgba(0, 0, 0, 0.34);
 }
 
-[data-theme="dark"] :is(
-  .account-security-page,
-  .address-page,
-  .subscription-page,
-  .notification-settings-page,
-  .shared-memory-page
-) {
+[data-theme='dark']
+  :is(
+    .account-security-page,
+    .address-page,
+    .subscription-page,
+    .notification-settings-page,
+    .shared-memory-page
+  ) {
   color: var(--uc-dark-text);
   background:
     radial-gradient(circle at top left, rgba(90, 151, 255, 0.16), transparent 30%),
@@ -34,311 +35,344 @@
     linear-gradient(180deg, var(--uc-dark-bg) 0%, #0c1625 54%, #0f1a2b 100%) !important;
 }
 
-[data-theme="dark"] :is(
-  .account-security-page,
-  .address-page,
-  .subscription-page,
-  .notification-settings-page,
-  .shared-memory-page
-) :is(.x-header-title, .page-title, .section-title, .list-title, .card-title) {
+[data-theme='dark']
+  :is(
+    .account-security-page,
+    .address-page,
+    .subscription-page,
+    .notification-settings-page,
+    .shared-memory-page
+  )
+  :is(.x-header-title, .page-title, .section-title, .list-title, .card-title) {
   color: var(--uc-dark-text) !important;
 }
 
-[data-theme="dark"] :is(
-  .account-security-page,
-  .address-page,
-  .subscription-page,
-  .notification-settings-page,
-  .shared-memory-page
-) :is(.history-toggle-btn, .page-btn, .pag-btn, .collapse-toggle) {
+[data-theme='dark']
+  :is(
+    .account-security-page,
+    .address-page,
+    .subscription-page,
+    .notification-settings-page,
+    .shared-memory-page
+  )
+  :is(.history-toggle-btn, .page-btn, .pag-btn, .collapse-toggle) {
   background: var(--uc-dark-surface-strong) !important;
   color: var(--uc-dark-text) !important;
   border: 1px solid var(--uc-dark-border) !important;
   box-shadow: none;
 }
 
-[data-theme="dark"] :is(
-  .account-security-page,
-  .address-page,
-  .subscription-page,
-  .notification-settings-page,
-  .shared-memory-page
-) :is(.history-toggle-btn, .page-btn, .pag-btn, .collapse-toggle):hover:not(:disabled) {
+[data-theme='dark']
+  :is(
+    .account-security-page,
+    .address-page,
+    .subscription-page,
+    .notification-settings-page,
+    .shared-memory-page
+  )
+  :is(.history-toggle-btn, .page-btn, .pag-btn, .collapse-toggle):hover:not(:disabled) {
   background: #1a2840 !important;
   border-color: var(--uc-dark-border-strong) !important;
   color: #ffffff !important;
 }
 
-[data-theme="dark"] :is(
-  .account-security-page,
-  .address-page,
-  .subscription-page,
-  .notification-settings-page,
-  .shared-memory-page
-) :is(
-  .glass-card,
-  .glass-container-light,
-  .hero-card,
-  .security-card,
-  .entry-card,
-  .settings-card,
-  .status-card,
-  .guide-card,
-  .section-card,
-  .info-card,
-  .memory-card,
-  .login-card,
-  .stat-card,
-  .points-balance-pill,
-  .nav-card,
-  .summary-table,
-  .index-header,
-  .index-section,
-  .apple-order-status,
-  .address-section-bottom,
-  .history-card,
-  .history-empty-card,
-  .gift-edit-modal,
-  .ai-confirm-modal
-) {
+[data-theme='dark']
+  :is(
+    .account-security-page,
+    .address-page,
+    .subscription-page,
+    .notification-settings-page,
+    .shared-memory-page
+  )
+  :is(
+    .glass-card,
+    .glass-container-light,
+    .hero-card,
+    .security-card,
+    .entry-card,
+    .settings-card,
+    .status-card,
+    .guide-card,
+    .section-card,
+    .info-card,
+    .memory-card,
+    .login-card,
+    .stat-card,
+    .points-balance-pill,
+    .nav-card,
+    .summary-table,
+    .index-header,
+    .index-section,
+    .apple-order-status,
+    .address-section-bottom,
+    .history-card,
+    .history-empty-card,
+    .gift-edit-modal,
+    .ai-confirm-modal
+  ) {
   background: var(--uc-dark-surface) !important;
   border-color: var(--uc-dark-border) !important;
   color: var(--uc-dark-text);
   box-shadow: var(--uc-dark-shadow);
 }
 
-[data-theme="dark"] .account-security-page .danger-card {
+[data-theme='dark'] .account-security-page .danger-card {
   border-color: rgba(255, 140, 140, 0.24) !important;
 }
 
-[data-theme="dark"] :is(
-  .account-security-page,
-  .address-page,
-  .subscription-page,
-  .notification-settings-page,
-  .shared-memory-page
-) :is(
-  h1,
-  h2,
-  h3,
-  h4,
-  strong,
-  th,
-  label,
-  .highlight-1200,
-  .stat-value,
-  .product-name,
-  .status-title,
-  .detail-primary,
-  .settings-title,
-  .guide-content h4
-) {
+[data-theme='dark']
+  :is(
+    .account-security-page,
+    .address-page,
+    .subscription-page,
+    .notification-settings-page,
+    .shared-memory-page
+  )
+  :is(
+    h1,
+    h2,
+    h3,
+    h4,
+    strong,
+    th,
+    label,
+    .highlight-1200,
+    .stat-value,
+    .product-name,
+    .status-title,
+    .detail-primary,
+    .settings-title,
+    .guide-content h4
+  ) {
   color: var(--uc-dark-text) !important;
 }
 
-[data-theme="dark"] :is(
-  .account-security-page,
-  .address-page,
-  .subscription-page,
-  .notification-settings-page,
-  .shared-memory-page
-) :is(
-  p,
-  span,
-  td,
-  li,
-  .card-desc,
-  .card-route,
-  .section-kicker,
-  .entry-kicker,
-  .section-desc,
-  .form-help-text,
-  .sync-hint,
-  .status-desc,
-  .guide-content p,
-  .info-text p,
-  .count-badge,
-  .meta-time,
-  .meta-source,
-  .meta-confidence,
-  .evidence-hint,
-  .stat-label,
-  .stat-unit,
-  .pag-info,
-  .page-description p,
-  .input-hint,
-  .help-link,
-  .feature-list li
-) {
+[data-theme='dark']
+  :is(
+    .account-security-page,
+    .address-page,
+    .subscription-page,
+    .notification-settings-page,
+    .shared-memory-page
+  )
+  :is(
+    p,
+    span,
+    td,
+    li,
+    .card-desc,
+    .card-route,
+    .section-kicker,
+    .entry-kicker,
+    .section-desc,
+    .form-help-text,
+    .sync-hint,
+    .status-desc,
+    .guide-content p,
+    .info-text p,
+    .count-badge,
+    .meta-time,
+    .meta-source,
+    .meta-confidence,
+    .evidence-hint,
+    .stat-label,
+    .stat-unit,
+    .pag-info,
+    .page-description p,
+    .input-hint,
+    .help-link,
+    .feature-list li
+  ) {
   color: var(--uc-dark-text-soft) !important;
 }
 
-[data-theme="dark"] :is(
-  .account-security-page,
-  .address-page,
-  .subscription-page,
-  .notification-settings-page,
-  .shared-memory-page
-) :is(
-  .security-input,
-  .delete-account-input,
-  .sidebar-search,
-  .search-input,
-  .form-input,
-  input,
-  textarea,
-  select
-) {
+[data-theme='dark']
+  :is(
+    .account-security-page,
+    .address-page,
+    .subscription-page,
+    .notification-settings-page,
+    .shared-memory-page
+  )
+  :is(
+    .security-input,
+    .delete-account-input,
+    .sidebar-search,
+    .search-input,
+    .form-input,
+    input,
+    textarea,
+    select
+  ) {
   background: var(--uc-dark-bg-soft) !important;
   color: var(--uc-dark-text) !important;
   border: 1px solid var(--uc-dark-border) !important;
   box-shadow: none !important;
 }
 
-[data-theme="dark"] :is(
-  .account-security-page,
-  .address-page,
-  .subscription-page,
-  .notification-settings-page,
-  .shared-memory-page
-) :is(
-  .security-input,
-  .delete-account-input,
-  .sidebar-search,
-  .search-input,
-  .form-input,
-  input,
-  textarea,
-  select
-)::placeholder {
+[data-theme='dark']
+  :is(
+    .account-security-page,
+    .address-page,
+    .subscription-page,
+    .notification-settings-page,
+    .shared-memory-page
+  )
+  :is(
+    .security-input,
+    .delete-account-input,
+    .sidebar-search,
+    .search-input,
+    .form-input,
+    input,
+    textarea,
+    select
+  )::placeholder {
   color: var(--uc-dark-text-muted) !important;
 }
 
-[data-theme="dark"] :is(
-  .account-security-page,
-  .address-page,
-  .subscription-page,
-  .notification-settings-page,
-  .shared-memory-page
-) :is(
-  .security-input,
-  .delete-account-input,
-  .sidebar-search,
-  .search-input,
-  .form-input,
-  input,
-  textarea,
-  select
-):focus {
+[data-theme='dark']
+  :is(
+    .account-security-page,
+    .address-page,
+    .subscription-page,
+    .notification-settings-page,
+    .shared-memory-page
+  )
+  :is(
+    .security-input,
+    .delete-account-input,
+    .sidebar-search,
+    .search-input,
+    .form-input,
+    input,
+    textarea,
+    select
+  ):focus {
   border-color: rgba(103, 162, 255, 0.44) !important;
   box-shadow: 0 0 0 4px rgba(103, 162, 255, 0.12) !important;
 }
 
-[data-theme="dark"] :is(
-  .account-security-page,
-  .address-page,
-  .subscription-page,
-  .notification-settings-page,
-  .shared-memory-page
-) :is(.secondary-btn, .ghost-btn, .btn-secondary, .action-btn-outline, .filter-chip, .btn-clear) {
+[data-theme='dark']
+  :is(
+    .account-security-page,
+    .address-page,
+    .subscription-page,
+    .notification-settings-page,
+    .shared-memory-page
+  )
+  :is(.secondary-btn, .ghost-btn, .btn-secondary, .action-btn-outline, .filter-chip, .btn-clear) {
   background: var(--uc-dark-surface-strong) !important;
   color: var(--uc-dark-text-soft) !important;
   border-color: var(--uc-dark-border) !important;
 }
 
-[data-theme="dark"] :is(
-  .account-security-page,
-  .address-page,
-  .subscription-page,
-  .notification-settings-page,
-  .shared-memory-page
-) :is(.secondary-btn, .ghost-btn, .btn-secondary, .action-btn-outline, .filter-chip, .btn-clear):hover:not(:disabled) {
+[data-theme='dark']
+  :is(
+    .account-security-page,
+    .address-page,
+    .subscription-page,
+    .notification-settings-page,
+    .shared-memory-page
+  )
+  :is(
+    .secondary-btn,
+    .ghost-btn,
+    .btn-secondary,
+    .action-btn-outline,
+    .filter-chip,
+    .btn-clear
+  ):hover:not(:disabled) {
   background: #1a2840 !important;
   color: #ffffff !important;
 }
 
-[data-theme="dark"] .subscription-page .card-note {
+[data-theme='dark'] .subscription-page .card-note {
   color: rgba(255, 255, 255, 0.18) !important;
 }
 
-[data-theme="dark"] .subscription-page .action-btn.btn-primary {
+[data-theme='dark'] .subscription-page .action-btn.btn-primary {
   background: var(--uc-dark-text) !important;
   color: var(--uc-dark-bg) !important;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3) !important;
 }
 
-[data-theme="dark"] .subscription-page .action-btn.btn-primary:hover {
+[data-theme='dark'] .subscription-page .action-btn.btn-primary:hover {
   background: #e0e0e0 !important;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4) !important;
 }
 
-[data-theme="dark"] :is(.account-security-page, .shared-memory-page, .notification-settings-page) :is(.primary-danger-btn, .danger-btn, .confirm-danger) {
+[data-theme='dark']
+  :is(.account-security-page, .shared-memory-page, .notification-settings-page)
+  :is(.primary-danger-btn, .danger-btn, .confirm-danger) {
   background: var(--uc-dark-danger-soft) !important;
   color: #ffc1c1 !important;
   border-color: rgba(255, 140, 140, 0.26) !important;
 }
 
-[data-theme="dark"] :is(.address-page, .shared-memory-page) :is(
-  .user-item,
-  .memory-card,
-  .history-card
-) {
+[data-theme='dark']
+  :is(.address-page, .shared-memory-page)
+  :is(.user-item, .memory-card, .history-card) {
   background: var(--uc-dark-surface-strong) !important;
   border-color: var(--uc-dark-border) !important;
 }
 
-[data-theme="dark"] :is(.address-page, .shared-memory-page) :is(
-  .user-item,
-  .history-card
-):hover {
+[data-theme='dark'] :is(.address-page, .shared-memory-page) :is(.user-item, .history-card):hover {
   background: #18253a !important;
 }
 
-[data-theme="dark"] :is(.address-page) :is(.meta-status.active, .filter-chip.active) {
+[data-theme='dark'] :is(.address-page) :is(.meta-status.active, .filter-chip.active) {
   background: var(--uc-dark-accent-soft) !important;
   color: var(--uc-dark-accent) !important;
   border-color: rgba(103, 162, 255, 0.28) !important;
 }
 
-[data-theme="dark"] .shared-memory-page .meta-status.archived,
-
-[data-theme="dark"] .notification-settings-page .card-header {
+[data-theme='dark'] .shared-memory-page .meta-status.archived,
+[data-theme='dark'] .notification-settings-page .card-header {
   background: linear-gradient(135deg, #13233a 0%, #18304d 100%) !important;
 }
 
-[data-theme="dark"] .notification-settings-page :is(.status-card, .guide-card) {
+[data-theme='dark'] .notification-settings-page :is(.status-card, .guide-card) {
   background: var(--uc-dark-surface-strong) !important;
   border-color: var(--uc-dark-border) !important;
 }
 
-[data-theme="dark"] .notification-settings-page .guide-card:hover {
+[data-theme='dark'] .notification-settings-page .guide-card:hover {
   background: #17293d !important;
   border-color: rgba(99, 214, 162, 0.28) !important;
 }
 
-[data-theme="dark"] .notification-settings-page :is(.divider::before, .divider::after) {
+[data-theme='dark'] .notification-settings-page :is(.divider::before, .divider::after) {
   background: rgba(255, 255, 255, 0.08) !important;
 }
 
-[data-theme="dark"] :is(
-  .account-security-page,
-  .address-page,
-  .subscription-page,
-  .notification-settings-page,
-  .shared-memory-page
-) :is(.loading-state, .empty-state, .login-card) {
+[data-theme='dark']
+  :is(
+    .account-security-page,
+    .address-page,
+    .subscription-page,
+    .notification-settings-page,
+    .shared-memory-page
+  )
+  :is(.loading-state, .empty-state, .sm-empty, .login-card) {
   background: rgba(15, 24, 39, 0.74) !important;
   border-color: rgba(255, 255, 255, 0.12) !important;
 }
 
-[data-theme="dark"] :is(.address-page, .shared-memory-page) .custom-scrollbar::-webkit-scrollbar-track {
+[data-theme='dark']
+  :is(.address-page, .shared-memory-page)
+  .custom-scrollbar::-webkit-scrollbar-track {
   background: rgba(255, 255, 255, 0.03);
 }
 
-[data-theme="dark"] :is(.address-page, .shared-memory-page) .custom-scrollbar::-webkit-scrollbar-thumb {
+[data-theme='dark']
+  :is(.address-page, .shared-memory-page)
+  .custom-scrollbar::-webkit-scrollbar-thumb {
   background: rgba(142, 160, 184, 0.45);
 }
 
-[data-theme="dark"] :is(.address-page, .shared-memory-page) .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+[data-theme='dark']
+  :is(.address-page, .shared-memory-page)
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: rgba(199, 211, 227, 0.54);
 }

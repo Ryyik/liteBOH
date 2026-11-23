@@ -32,22 +32,25 @@
         </article>
       </section>
 
-      <section v-else-if="loadError" class="ca-empty">
-        <h2>影集加载失败</h2>
-        <p>{{ loadError }}</p>
-        <button type="button" class="ca-btn ghost" @click="loadAlbums">重试</button>
-      </section>
+      <EmptyState
+        v-else-if="loadError"
+        class="ca-empty"
+        variant="search"
+        title="影集加载失败"
+        :description="loadError"
+        action-text="重试"
+        @action="loadAlbums"
+      />
 
-      <section v-else-if="!albums.length" class="ca-empty">
-        <span class="ca-empty-icon"
-          ><Camera :size="30" :stroke-width="1.6" aria-hidden="true"
-        /></span>
-        <h2>还没有人分享影集</h2>
-        <p>第一本被装帧好的影集，会出现在这里。</p>
-        <RouterLink v-if="isLoggedIn" to="/user-space/albums" class="ca-btn primary"
-          >去做一本影集</RouterLink
-        >
-      </section>
+      <EmptyState
+        v-else-if="!albums.length"
+        class="ca-empty"
+        :icon="Camera"
+        title="还没有人分享影集"
+        description="第一本被装帧好的影集，会出现在这里。"
+        :action-text="isLoggedIn ? '去做一本影集' : ''"
+        @action="router.push('/user-space/albums')"
+      />
 
       <!-- 2026-11-04 硬切审计：骨架⇄社区影集网格补内容侧淡入 -->
       <template v-else>
@@ -112,15 +115,18 @@
 
 <script setup>
 import { computed, onMounted, ref } from 'vue';
+import { useRouter } from 'vue-router';
 import { useImageLoaded } from '@/composables/useImageLoaded.js';
 import { Camera, Images, BookOpen } from 'lucide-vue-next';
 import { useAuthStore } from '@/stores/auth';
 import { getPosts } from '@/utils/api/forum-api.js';
+import EmptyState from '@/components/ui/EmptyState.vue';
 import MyAlbumBook from '@/views/Forum/components/MyAlbumBook.vue';
 
 /* 一次拉多少条影集帖用于聚合（一人一本 ⇒ 24 条可能只聚出几本，给到 60） */
 const FEED_LIMIT = 60;
 
+const router = useRouter();
 const authStore = useAuthStore();
 const isLoggedIn = computed(() => Boolean(authStore?.isLoggedIn));
 
@@ -456,35 +462,9 @@ onMounted(loadAlbums);
   text-align: center;
 }
 
+/* 空态改用 components/ui/EmptyState（plans/045 阶段 1）：只保留本页上边距 */
 .ca-empty {
   margin-top: 48px;
-  text-align: center;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-}
-
-.ca-empty-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 64px;
-  height: 64px;
-  border-radius: 22px;
-  background: var(--surface-primary, #fff);
-  color: var(--text-tertiary, #86868b);
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
-}
-
-.ca-empty h2 {
-  margin: 4px 0 0;
-  font-size: 20px;
-}
-.ca-empty p {
-  margin: 0;
-  font-size: 14px;
-  color: var(--text-secondary, #515154);
 }
 
 .ca-btn {

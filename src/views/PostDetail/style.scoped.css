@@ -134,7 +134,7 @@
   --mc-header-surface: rgba(231, 238, 224, 0.94);
 }
 
-.post-detail-page[data-anniversary-skin='active'] :deep(.empty-state__action),
+.post-detail-page[data-anniversary-skin='active'] :deep(.boh-empty-state__action),
 .post-detail-page[data-anniversary-skin='active'] .submit-reply-btn {
   border: 2px solid #3e5f28;
   border-radius: 2px;
@@ -1422,8 +1422,8 @@
 }
 
 /* 空态改用 components/ui/EmptyState（plans/045 阶段 1）：整页级空态保留宽松留白 */
-/* 双类选择器压过组件内同特异性的 .empty-state 内边距，与样式注入顺序无关 */
-.pd-empty.empty-state {
+/* 双类选择器压过组件内同特异性的 padding，与样式注入顺序无关 */
+.pd-empty.boh-empty-state {
   padding: 100px 40px;
 }
 

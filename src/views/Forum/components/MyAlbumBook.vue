@@ -11,6 +11,7 @@
  */
 import { computed, onMounted, ref, watch } from 'vue';
 import { BookOpen, Loader2 } from 'lucide-vue-next';
+import EmptyState from '@/components/ui/EmptyState.vue';
 import { supabase } from '@/utils/supabase-client.js';
 import { getUserPosts, toggleLike } from '@/utils/api/forum-api.js';
 import AlbumPostCard from './AlbumPostCard.vue';
@@ -112,11 +113,14 @@ watch(() => props.authorId, load);
 
     <div v-else-if="errorText" class="my-album-state">{{ errorText }}</div>
 
-    <div v-else-if="!posts.length" class="my-album-empty">
-      <BookOpen :size="26" aria-hidden="true" />
-      <p class="my-album-empty-title">还没有发过图文</p>
-      <p class="my-album-empty-sub">发帖时把格式切到「图文」，照片和每张的配字会收在这里。</p>
-    </div>
+    <EmptyState
+      v-else-if="!posts.length"
+      class="my-album-empty"
+      :icon="BookOpen"
+      title="还没有发过图文"
+      description="发帖时把格式切到「图文」，照片和每张的配字会收在这里。"
+      compact
+    />
 
     <div v-else class="my-album-list">
       <AlbumPostCard
@@ -212,29 +216,18 @@ watch(() => props.authorId, load);
   }
 }
 
-.my-album-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  padding: 52px 20px 60px;
-  text-align: center;
-  color: var(--liquid-text-tertiary, #8e8e93);
+.my-album-empty.boh-empty-state {
+  padding: 40px 20px 48px;
 }
 
-.my-album-empty-title {
-  margin: 6px 0 0;
+/* 图文册的标题保留书页感的衬线体，不与其它空态完全同形 */
+.my-album-empty.boh-empty-state :deep(.boh-empty-state__title) {
+  margin-top: 6px;
   font-family: var(--serif, 'Songti SC', 'Noto Serif SC', serif);
   font-size: 16px;
+  font-weight: 400;
   letter-spacing: 0.08em;
   color: var(--liquid-text-secondary, #6e6e73);
-}
-
-.my-album-empty-sub {
-  margin: 0;
-  max-width: 24em;
-  font-size: 12.5px;
-  line-height: 1.9;
 }
 
 @media (prefers-reduced-motion: reduce) {

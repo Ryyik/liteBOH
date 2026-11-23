@@ -84,23 +84,29 @@
         </article>
       </section>
 
-      <section v-else-if="loadError" class="pa-empty">
-        <h2>影集加载失败</h2>
-        <p>{{ loadError }}</p>
-        <button type="button" class="pa-secondary-btn" @click="loadAlbums">重试</button>
-      </section>
+      <EmptyState
+        v-else-if="loadError"
+        class="pa-empty"
+        variant="search"
+        title="影集加载失败"
+        :description="loadError"
+        action-text="重试"
+        @action="loadAlbums"
+      />
 
-      <section v-else-if="!albums.length" class="pa-empty">
-        <span class="pa-empty-icon"
-          ><Camera :size="30" :stroke-width="1.6" aria-hidden="true"
-        /></span>
-        <h2>还没有影集</h2>
-        <p>从一次旅行、一个季节或一段故事开始，装帧你的第一本影集。</p>
-        <div class="pa-empty-actions">
-          <RouterLink to="/albums/demo" class="pa-secondary-btn">先看一本示例</RouterLink>
-          <button type="button" class="pa-primary-btn" @click="openCreateModal">新建影集</button>
-        </div>
-      </section>
+      <EmptyState
+        v-else-if="!albums.length"
+        class="pa-empty"
+        :icon="Camera"
+        title="还没有影集"
+        description="从一次旅行、一个季节或一段故事开始，装帧你的第一本影集。"
+        action-text="新建影集"
+        @action="openCreateModal"
+      >
+        <RouterLink to="/albums/demo" class="pa-secondary-btn pa-empty-demo-link"
+          >先看一本示例</RouterLink
+        >
+      </EmptyState>
 
       <!-- 2026-11-04 硬切审计：骨架⇄影集网格补内容侧淡入；增删位移动画见下方 TransitionGroup -->
       <TransitionGroup v-else tag="section" name="pa-grid-anim" class="pa-grid content-swap-in">
@@ -273,6 +279,7 @@ import {
   Sparkles,
 } from 'lucide-vue-next';
 import AvatarCropModal from '@/components/AvatarCropModal.vue';
+import EmptyState from '@/components/ui/EmptyState.vue';
 import { showIsland } from '@/composables/useIsland.js';
 import { useConfirmDialog } from '@/composables/useConfirmDialog.js';
 import {
@@ -1064,48 +1071,13 @@ onMounted(loadAlbums);
   cursor: default;
 }
 
+/* 空态改用 components/ui/EmptyState（plans/045 阶段 1）：只保留本页上边距与次要入口 */
 .pa-empty {
   margin-top: 48px;
-  text-align: center;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
 }
 
-.pa-empty-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 64px;
-  height: 64px;
-  border-radius: 22px;
-  background: transparent;
-  color: var(--text-tertiary, #86868b);
-  border: 1px solid var(--liquid-border-hairline, rgba(15, 23, 42, 0.08));
-  box-shadow: var(--liquid-shadow-sm, 0 8px 24px rgba(15, 23, 42, 0.06));
-}
-
-.pa-empty h2 {
-  margin: 4px 0 0;
-  font-size: 20px;
-}
-.pa-empty p {
-  margin: 0;
-  font-size: 14px;
-  color: var(--text-secondary, #515154);
-}
-
-.pa-empty-actions {
-  margin-top: 6px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  justify-content: center;
-}
-
-.pa-empty-actions .pa-secondary-btn {
+.pa-empty-demo-link {
+  margin-top: 10px;
   display: inline-flex;
   align-items: center;
   text-decoration: none;

@@ -107,7 +107,7 @@ await page.goto(BASE + '/#/newsroom?tab=activities', { waitUntil: 'domcontentloa
 // 报名区（campaigns）与月份轨道（activities）是两条独立的异步链，
 // 只等其中一条会让另一条还在 loading 时就被断言 —— 分别等各自的终态。
 await page
-  .locator('.signup-section .empty-state, .signup-section .signup-hero')
+  .locator('.signup-section .boh-empty-state, .signup-section .signup-hero')
   .first()
   .waitFor({ timeout: 15000 })
   .catch(() => {});
@@ -126,7 +126,7 @@ const signupState = await page.evaluate(() => {
   const section = document.querySelector('.signup-section');
   return {
     hero: box('.signup-section .signup-hero'),
-    empty: box('.signup-section .empty-state'),
+    empty: box('.signup-section .boh-empty-state'),
     pane: pane ? getComputedStyle(pane).display : 'no-pane',
     section: section ? getComputedStyle(section).display : 'no-section',
   };

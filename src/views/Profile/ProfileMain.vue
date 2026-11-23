@@ -481,20 +481,15 @@
                 </div>
               </div>
             </div>
-            <div v-else-if="profileWorkItems.length === 0" class="empty-list-state">
-              <h3>暂无发布过的帖子</h3>
-              <p>发布的帖子和公开的 Cloud+ 笔记会出现在这里。</p>
-              <button v-if="isOwnProfile" class="empty-action-btn" @click="showPostModal = true">
-                立即发帖
-              </button>
-              <button
-                v-else
-                class="empty-action-btn"
-                @click="router.push('/user-space?tab=community')"
-              >
-                去方块社区看看
-              </button>
-            </div>
+            <EmptyState
+              v-else-if="profileWorkItems.length === 0"
+              class="empty-list-state"
+              variant="inbox"
+              title="暂无发布过的帖子"
+              description="发布的帖子和公开的 Cloud+ 笔记会出现在这里。"
+              :action-text="isOwnProfile ? '立即发帖' : '去方块社区看看'"
+              @action="handleEmptyWorkAction"
+            />
             <!-- 2026-11-04 硬切审计：骨架⇄帖子网格补内容侧淡入 -->
             <div v-else class="profile-post-grid content-swap-in">
               <template v-for="(item, index) in profileWorkItems" :key="item.key">
@@ -639,13 +634,15 @@
                 </div>
               </div>
             </div>
-            <div v-else-if="comments.length === 0" class="empty-list-state">
-              <h3>暂无回复</h3>
-              <p>对他人的回复会出现在这里。</p>
-              <button class="empty-action-btn" @click="router.push('/user-space?tab=community')">
-                去方块社区互动
-              </button>
-            </div>
+            <EmptyState
+              v-else-if="comments.length === 0"
+              class="empty-list-state"
+              variant="inbox"
+              title="暂无回复"
+              description="对他人的回复会出现在这里。"
+              action-text="去方块社区互动"
+              @action="router.push('/user-space?tab=community')"
+            />
             <!-- 2026-11-04 硬切审计：骨架⇄回复列表补内容侧淡入 -->
             <div v-else class="replies-list content-swap-in">
               <article v-for="comment in comments" :key="comment.id" class="feed-item reply-item">
@@ -734,16 +731,13 @@
                 </button>
               </div>
             </div>
-            <div
+            <EmptyState
               v-if="!isTabLoading.impressions && impressions.length === 0"
               class="empty-list-state"
-            >
-              <EmptyState
-                variant="inbox"
-                title="暂无他人印象"
-                :description="`关于 ${profile.username} 的印象会出现在这里。`"
-              />
-            </div>
+              variant="inbox"
+              title="暂无他人印象"
+              :description="`关于 ${profile.username} 的印象会出现在这里。`"
+            />
             <div v-if="impressions.length > 0" class="impressions-wall-profile">
               <div
                 v-for="(imp, index) in impressions"
@@ -1270,6 +1264,11 @@ const submittingImpression = ref(false);
 // 发帖相关
 const showPostModal = ref(false);
 const isSubmittingPost = ref(false);
+
+const handleEmptyWorkAction = () => {
+  if (isOwnProfile.value) showPostModal.value = true;
+  else router.push('/user-space?tab=community');
+};
 
 const showEditModal = ref(false);
 const showcasePostsFetched = ref([]);

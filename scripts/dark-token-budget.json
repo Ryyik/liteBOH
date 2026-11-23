@@ -1,13 +1,13 @@
 {
-  "total": 2410,
+  "total": 2412,
   "perFile": {
     "src/styles/themes/bolek-dark.css": 225,
     "src/styles/themes/forum-dark.css": 178,
     "src/styles/themes/user-space-dark.css": 153,
     "src/styles/themes/post-detail-dark.css": 120,
     "src/views/Newsroom/style.scoped.css": 103,
-    "src/views/user-center/Messages/style.scoped.css": 102,
-    "src/views/user-center/UserSpace/components/AssetsHubPanel.css": 99,
+    "src/views/user-center/Messages/style.scoped.css": 100,
+    "src/views/user-center/UserSpace/components/AssetsHubPanel.css": 91,
     "src/views/user-center/UserSpace/styles/shell-community.css": 90,
     "src/styles/themes/messages-dark.css": 79,
     "src/styles/themes/dark-mode.css": 70,
@@ -21,12 +21,12 @@
     "src/views/user-center/UserSpace/styles/settings-glass.css": 41,
     "src/views/CommunityLotteries/style.scoped.css": 38,
     "src/views/Profile/style.scoped.css": 38,
+    "src/styles/common/tokens.css": 37,
     "src/views/CommunityLotteries/PityIslandCard.vue": 37,
     "src/components/AdminContentPublishModal.vue": 34,
     "src/views/AlertStyleEditor/style.scoped.css": 32,
     "src/views/user-center/UserSpace/components/bottom-nav.css": 27,
     "src/components/UnifiedNavbar/ContentDetailIsland.vue": 25,
-    "src/styles/common/tokens.css": 25,
     "src/views/user-center/UserSpace/styles/profile-base.css": 24,
     "src/views/Forum/styles/weekly-report.css": 23,
     "src/components/SubscriptionNavIsland.vue": 22,
@@ -91,5 +91,5 @@
     "src/views/user-center/UserSpace/components/ShippingAddressPanel.vue": 1,
     "src/views/user-center/UserSpace/styles/profile-panels.css": 1
   },
-  "updatedAt": "2026-11-22"
+  "updatedAt": "2026-11-23"
 }
