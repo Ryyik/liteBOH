@@ -119,3 +119,13 @@ Kit 原则：**动画长在组件里，tokens 是唯一参数**。
 - Demo（视觉与交互口径真源）：`docs/demos/boh-ui-kit-demo.html`
 - 探针：`scripts/probes/probe-ui-kit-demo.mjs`（24 断言，`DEMO_FILE` 可覆盖被测文件）
 - 扫描证据：2026-11-23 工作日志（`.workbuddy/memory/2026-11-23.md`）
+
+## 5. 执行进度（按 commit 追加）
+
+| 日期 | 批次 | 结果 |
+| --- | --- | --- |
+| 2026-11-23 | 阶段 0 + 首批组件（`70a45ba7`） | 语义色层 + motion.css + BohButton/BohModal/BohToast + 21 断言 |
+| 2026-11-23 | Toast 统一（`e8e0b591`） | 9 处手写 toast → bohtoast，18 文件净删 348 行 |
+| 2026-11-23 | 确认框清尾（`7f538b26` `ce0571e9`） | 5 处原生 confirm → useConfirmDialog，全仓归零 |
+| 2026-11-23 | EmptyState 第一批（`05b5220b`） | user-center 域 7 文件 14 处，净删 123 行 |
+| 2026-11-23 | EmptyState 第二批 | BOH8YearsEvent ×2、SharedMemoryManagement、PostDetail（4 处结构简单空态）；**例外保留**：ForumMain（4 分支 + chip）、DataAdmin（3 分支 + 筛选 chip）——强收会让结构退化。BohEmptyState 不是「双胞胎」：只有一行品牌字标、形态不同，不收编（死 props 另清）。28/28 验收断言 + 双主题截图人眼过 |
