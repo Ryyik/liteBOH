@@ -25,6 +25,9 @@ alter table public.bohai_model_configs rename to bolek_model_configs;
 alter index if exists bohai_model_configs_status_sort_idx
   rename to bolek_model_configs_status_sort_idx;
 
+alter table public.bolek_model_configs
+  rename constraint bohai_strategy_candidates_shape to bolek_strategy_candidates_shape;
+
 -- 约束名动态枚举（存在才 rename，避免历史约束被后续迁移增删导致失败）
 do $$
 declare c record;
