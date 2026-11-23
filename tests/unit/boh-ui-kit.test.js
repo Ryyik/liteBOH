@@ -264,6 +264,36 @@ describe('BohModal · 商城规格面板接线（ProductSpecsSheet）', () => {
   });
 });
 
+/* 第三家族（Shop 商品设置面板）：与规格面板同源，同一套壳 + 两个动作按钮槽。 */
+describe('BohModal · 商城商品设置面板接线（ProductEditSheet）', () => {
+  const src = () => squeezeSource(stripComments(read('src/views/Shop/ProductEditSheet.vue')));
+
+  it('壳走 BohModal，头部与底栏走槽位', () => {
+    const code = src();
+    expect(code).toContain('BohModal');
+    expect(code).toContain('v-model="modalOpen"');
+    expect(code).toContain('max-width="600px"');
+    expect(code).toContain('template #head');
+    expect(code).toContain('template #footer');
+  });
+
+  it('关闭统一走 requestClose（saving 闸门只此一处）', () => {
+    const code = src();
+    expect(code).toContain('const modalOpen = computed');
+    expect(code).toContain('requestClose');
+    // 组件级 Esc 监听已交给焦点陷阱，别再手写一份
+    expect(code).not.toContain("addEventListener('keydown'");
+  });
+
+  it('旧壳（Teleport/根/面板/过渡名）不再回来', () => {
+    const code = src();
+    expect(code).not.toContain('Teleport');
+    expect(code).not.toContain('pes-root');
+    expect(code).not.toContain('pes-panel');
+    expect(code).not.toContain('pes-enter');
+  });
+});
+
 describe('BohToastHost · 渲染层守卫', () => {
   it('消费单例 bohtoast + aria-live + TransitionGroup 预设', () => {
     const src = hostSrc();
