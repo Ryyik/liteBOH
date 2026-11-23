@@ -43,7 +43,7 @@ describe('密钥与模型：tab 合并的接线', () => {
     // 模块，合法新增成员，顺序随 tabs.js
     expect(aiConfigTabIds.match(/'[^']+'/g)).toEqual([
       "'keys-models'",
-      "'bohaiModels'",
+      "'bolekModels'",
       "'aiMemories'",
       "'forumMemories'",
       "'ai-quota'",

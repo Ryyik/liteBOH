@@ -9,9 +9,9 @@ import {
   shouldAdoptRewrite,
   createGuardStats,
   bumpGuardStats,
-  shouldRewrite
-} from '../../src/views/BOHAI/expert-roles/guards.js';
-import { createBohAIChatSessionSanitizer } from '../../src/utils/bohai-chat-session-store.js';
+  shouldRewrite,
+} from '../../src/views/Bolek/expert-roles/guards.js';
+import { createBolekChatSessionSanitizer } from '../../src/utils/bolek-chat-session-store.js';
 
 /**
  * 守门「重写是否更优」的判据，以及触发率统计。
@@ -31,15 +31,18 @@ describe('守门 · 违规加权分', () => {
     HARD_VIOLATIONS.forEach((type) => {
       expect(scoreViolations([{ type }])).toBe(HARD_VIOLATION_WEIGHT);
     });
-    const softTypes = Object.values(VIOLATION_TYPES).filter((type) => !HARD_VIOLATIONS.includes(type));
+    const softTypes = Object.values(VIOLATION_TYPES).filter(
+      (type) => !HARD_VIOLATIONS.includes(type),
+    );
     softTypes.forEach((type) => {
       expect(scoreViolations([{ type }])).toBe(SOFT_VIOLATION_WEIGHT);
     });
   });
 
   it('1 个硬违规重于 2 个软违规', () => {
-    expect(scoreViolations([{ type: VIOLATION_TYPES.PARROT }]))
-      .toBeGreaterThan(scoreViolations([{ type: VIOLATION_TYPES.TERMS }, { type: VIOLATION_TYPES.ADVICE }]));
+    expect(scoreViolations([{ type: VIOLATION_TYPES.PARROT }])).toBeGreaterThan(
+      scoreViolations([{ type: VIOLATION_TYPES.TERMS }, { type: VIOLATION_TYPES.ADVICE }]),
+    );
   });
 
   it('未知类型按软违规计，不产生 NaN', () => {
@@ -63,8 +66,9 @@ describe('守门 · 采纳判据（重写必须严格更优）', () => {
 
   it('重写稿比原稿更差（多问 + 术语）→ 不采纳，保留原稿', () => {
     const worse = '你通常怎么应对？有没有例外问句的向下箭头？';
-    expect(scoreViolations(detectViolations(worse, {})))
-      .toBeGreaterThanOrEqual(scoreViolations(originalFindings));
+    expect(scoreViolations(detectViolations(worse, {}))).toBeGreaterThanOrEqual(
+      scoreViolations(originalFindings),
+    );
     expect(shouldAdoptRewrite(originalFindings, worse)).toBe(false);
   });
 
@@ -89,8 +93,12 @@ describe('守门 · 采纳判据（重写必须严格更优）', () => {
     const context = { prevUserText: '上周三晚上我列了特别详细的一周计划，周四中午就全废了。' };
     const parrotRewrite = '上周三晚上你列了特别详细的一周计划，周四中午就全废了。那意味着什么？';
     // 复述型重写稿带上上下文后会被判为 parrot（硬违规），因此不会胜出
-    expect(detectViolations(parrotRewrite, context).map((f) => f.type)).toContain(VIOLATION_TYPES.PARROT);
-    expect(shouldAdoptRewrite([{ type: VIOLATION_TYPES.TERMS }], parrotRewrite, context)).toBe(false);
+    expect(detectViolations(parrotRewrite, context).map((f) => f.type)).toContain(
+      VIOLATION_TYPES.PARROT,
+    );
+    expect(shouldAdoptRewrite([{ type: VIOLATION_TYPES.TERMS }], parrotRewrite, context)).toBe(
+      false,
+    );
   });
 });
 
@@ -104,7 +112,7 @@ describe('守门 · 触发率统计', () => {
       checked: 3,
       triggered: 2,
       adopted: 1,
-      byType: { parrot: 2, terms: 1 }
+      byType: { parrot: 2, terms: 1 },
     });
   });
 
@@ -116,7 +124,7 @@ describe('守门 · 触发率统计', () => {
 });
 
 describe('会话存储 · 守门留痕能存下来', () => {
-  const sanitize = createBohAIChatSessionSanitizer({});
+  const sanitize = createBolekChatSessionSanitizer({});
 
   it('lastViolations 与 guardStats 进入白名单', () => {
     const saved = sanitize({
@@ -125,15 +133,15 @@ describe('会话存储 · 守门留痕能存下来', () => {
       expertState: {
         roleId: 'psychologist',
         lastViolations: 'parrot,terms',
-        guardStats: { checked: 5, triggered: 2, adopted: 1, byType: { parrot: 2, terms: 1 } }
-      }
+        guardStats: { checked: 5, triggered: 2, adopted: 1, byType: { parrot: 2, terms: 1 } },
+      },
     });
     expect(saved.expertState.lastViolations).toBe('parrot,terms');
     expect(saved.expertState.guardStats).toEqual({
       checked: 5,
       triggered: 2,
       adopted: 1,
-      byType: { parrot: 2, terms: 1 }
+      byType: { parrot: 2, terms: 1 },
     });
   });
 
@@ -141,7 +149,7 @@ describe('会话存储 · 守门留痕能存下来', () => {
     const saved = sanitize({
       title: 't',
       messages: [],
-      expertState: { roleId: 'psychologist', someUnknownField: 'x' }
+      expertState: { roleId: 'psychologist', someUnknownField: 'x' },
     });
     expect(saved.expertState.someUnknownField).toBeUndefined();
   });
@@ -157,8 +165,8 @@ describe('会话存储 · 守门留痕能存下来', () => {
       messages: [],
       expertState: {
         roleId: 'x',
-        guardStats: { checked: -5, triggered: 'abc', adopted: null, byType: { ok: 3, zero: 0 } }
-      }
+        guardStats: { checked: -5, triggered: 'abc', adopted: null, byType: { ok: 3, zero: 0 } },
+      },
     });
     expect(saved.expertState.guardStats).toMatchObject({ checked: 0, triggered: 0, adopted: 0 });
     expect(saved.expertState.guardStats.byType).toEqual({ ok: 3 });

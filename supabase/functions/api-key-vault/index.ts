@@ -1910,7 +1910,7 @@ const PRICING_CONFIG_DEFAULT: PricingConfig = {
 
 // 5 分钟内存缓存：减少 runtime-chat 热路径上的 DB 往返。
 // - USER_TIER_CACHE: user_subscriptions 行级数据，按 user_id 索引
-// - MODEL_CONFIG_CACHE: bohai_model_configs 原始行（active 状态），按 mode_id 小写索引
+// - MODEL_CONFIG_CACHE: bolek_model_configs 原始行（active 状态），按 mode_id 小写索引
 // 缓存命中时仍会基于当前 tier 重新计算策略，避免 tier 变更导致越权。
 const RUNTIME_CACHE_TTL_MS = 5 * 60_000;
 type UserTierRow = { plans: string[] };
@@ -1922,7 +1922,7 @@ type ModelConfigRow = Record<string, unknown> & { min_tier?: string };
 const MODEL_CONFIG_CACHE = new Map<string, { row: ModelConfigRow; fetchedAt: number }>();
 
 /* ── 策略行：候选池的解析与加权挑选（2026-10-22，plans/030 阶段 6）──────────────
-   数据形状：`bohai_model_configs.strategy_candidates = [{mode_id, weight}, ...]`
+   数据形状：`bolek_model_configs.strategy_candidates = [{mode_id, weight}, ...]`
    ⚠️ 池子里**只存 mode_id**，不存 provider/model_id/api_url —— 那些一律回查本表。
       理由见迁移 `2026102201` 的文件头：存两份就是第二份真源，且 jsonb 自由文本
       能当 SSRF 跳板（填个任意 URL 就把全站请求发出去）。
@@ -1980,7 +1980,7 @@ async function loadModelConfigRow(
     return cached.row;
   }
   const { data, error } = await client
-    .from('bohai_model_configs')
+    .from('bolek_model_configs')
     .select(
       'mode_id, provider, model_id, api_url, max_tokens, temperature, top_p, frequency_penalty, quota_multiplier, status, min_tier, strategy_candidates, fallback_mode_ids',
     )
@@ -2365,14 +2365,14 @@ async function resolveRuntimeModelPolicy(
     throw runtimeAccessError('模式 ID 格式无效。', 400, 'MODE_ID_INVALID');
   }
   // 审核专用模式（mode_id 以 'moderation-' 开头）只服务审核链路。
-  // 用户侧模式列表已由 list_public_bohai_modes 排除（迁移 2026101801），
+  // 用户侧模式列表已由 list_public_bolek_modes 排除（迁移 2026101801），
   // 但 mode 是请求体字段 —— 直连 runtime-chat 仍可伪造，所以必须在这里按 purpose 兜底：
   // 少了这道闸门，0.1x 的审核行就是一条公开的廉价 gemini 通道。
-  // 前缀真源见 src/views/DataManagement/config/bohai-internal-modes.js。
+  // 前缀真源见 src/views/DataManagement/config/bolek-internal-modes.js。
   if (mode.startsWith('moderation-') && purpose !== 'moderation') {
     throw runtimeAccessError('该模式仅供内容审核使用。', 403, 'MODE_INTERNAL_ONLY');
   }
-  // 用户自定义模型（BYOK）走独立解析：不去 bohai_model_configs 查、不受 tier 限制、
+  // 用户自定义模型（BYOK）走独立解析：不去 bolek_model_configs 查、不受 tier 限制、
   // 也不走全局 vault 密钥。放在最前面 —— 这条路径与官方模式的配置来源完全不同。
   if (mode.startsWith(USER_MODE_PREFIX)) {
     return resolveUserModelPolicy(client, mode, userId);

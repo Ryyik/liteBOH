@@ -9,7 +9,7 @@
  * 仓库里已有正确范式，但只是约定、没有牙：
  *   · `AsyncForum` / `AsyncCommunity`（async-loaders.js）= 对象式 + onError 退避重试
  *   · `PostDetailMain`（PostDetailModal.vue）        = 对象式 + errorComponent
- *   · `AsyncBOHAI`                                   = 对象式 + loadingComponent + errorComponent
+ *   · `AsyncBolek`                                   = 对象式 + loadingComponent + errorComponent
  *
  * 摸底（2026-10-13）：全仓 25 处裸简写 / 4 处带兜底。一次迁移 25 处不现实，
  * 所以按仓库既有纪律做成**台账棘轮**：存量只许降，新增一处当场红。

@@ -14,7 +14,7 @@
  * ⚠️ 为什么 DOMPurify 的行为不在本文件里用 DOM 断言：
  *   仓库的 vitest 是 `environment: 'node'`，且没装 jsdom/happy-dom；
  *   `utils/dompurify.js` 在无 `window` 时走 escapeHtml 兜底分支，DOM 断言无从谈起。
- *   所以这里退化为**源码守卫**（与 `bohai-autogrow-wiring.test.js` 同款做法），
+ *   所以这里退化为**源码守卫**（与 `bolek-autogrow-wiring.test.js` 同款做法），
  *   真正的浏览器行为留给渲染路径的人工冒烟。
  *
  * ⚠️ 断言只认代码、不认注释：所有源码断言先过 `stripComments()`，
@@ -151,7 +151,7 @@ describe('两个白名单的不变量', () => {
 
 describe('接线守卫', () => {
   it('markdown 渲染器放行 img，且把白名单交给 sanitize 校验', () => {
-    const code = codeOf('src/views/BOHAI/BOHAI/components/boh-markdown.js');
+    const code = codeOf('src/views/Bolek/Bolek/components/boh-markdown.js');
     expect(code).toContain(
       flattenSource("import { AI_ANSWER_IMAGE_ORIGINS } from '@/utils/image-origins.js';"),
     );
@@ -178,7 +178,7 @@ describe('接线守卫', () => {
   });
 
   it('论坛上下文把配图 URL 带给模型，并附「不得编造图片」的约束', () => {
-    const code = codeOf('src/views/BOHAI/composables/useKnowledgeRetrieval.js');
+    const code = codeOf('src/views/Bolek/composables/useKnowledgeRetrieval.js');
     // 用同一份白名单在**上下文构建期**先筛一遍（渲染侧是第二道防线，不是唯一一道）
     expect(code).toContain(
       flattenSource('isAllowedImageSrc(rawImageUrl, AI_ANSWER_IMAGE_ORIGINS)'),

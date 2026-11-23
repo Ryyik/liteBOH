@@ -818,7 +818,7 @@ const loadLedger = async () => {
             icon: isAiUsage ? Sparkles : isCatsRedemption ? Coins : Send,
             tone: isAiUsage ? 'gray' : isCatsRedemption ? 'orange' : 'blue',
             title: isAiUsage
-              ? 'BOHAI 服务计费'
+              ? '博莱克服务计费'
               : isCatsRedemption
                 ? '兑换全员小猫卡面'
                 : '管理员发放',

@@ -93,7 +93,7 @@ check('该平台 4 个模型', s.models === 4, String(s.models));
 check('免费 / 按量徽标各 2 个', s.free === 2 && s.paid === 2, `${s.free}/${s.paid}`);
 check(
   '模型行标出场景引用（含未被引用态）',
-  s.sceneCells.some((t) => t.includes('BOHAI 对话')) &&
+  s.sceneCells.some((t) => t.includes('博莱克对话')) &&
     s.sceneCells.some((t) => t.includes('未被任何场景引用')),
   s.sceneCells.join(' | '),
 );

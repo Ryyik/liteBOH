@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createAgentRegistry } from '../../src/views/BOHAI/agents/core/AgentRegistry.js';
+import { createAgentRegistry } from '../../src/views/Bolek/agents/core/AgentRegistry.js';
 
 const makeAgent = (name, overrides = {}) => ({
   name,

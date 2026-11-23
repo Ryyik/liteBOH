@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ref } from 'vue';
-import { useContextCompression } from '../../src/views/BOHAI/composables/useContextCompression.js';
+import { useContextCompression } from '../../src/views/Bolek/composables/useContextCompression.js';
 
 const createCompression = (percent) => {
   const refreshConversationSummaryCache = vi.fn(async () => {});
@@ -9,7 +9,7 @@ const createCompression = (percent) => {
     isCompressingContext: ref(false),
     compressingSessionIndex: ref(-1),
     computeContextBudgetUsage: () => ({ historyPercent: percent }),
-    refreshConversationSummaryCache
+    refreshConversationSummaryCache,
   });
   return { api, refreshConversationSummaryCache };
 };

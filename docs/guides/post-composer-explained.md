@@ -226,7 +226,7 @@ savedPostDraft = ref(null); postDraftSaveTimer; postDraftRestoreSeq;
 ### 7.5 上传/检测层（forum-images-api.js）
 
 - `moderateForumImage`：先 validateForumImageFile（仅 PNG/JPG/WebP，GIF 拒绝；大小上限 FORUM_IMAGE_MAX_SIZE_MB）→ 动态 import 检测模块。
-- **服务端降级链（2026-10-29）**：云端失败不再「一次就落到本地」。`bohai_model_configs.fallback_mode_ids`
+- **服务端降级链（2026-10-29）**：云端失败不再「一次就落到本地」。`bolek_model_configs.fallback_mode_ids`
   存一串 mode_id，`api-key-vault` 的 `resolveRuntimePolicyChain` 逐跳重试（0/400/403/404/408/429/5xx 都换，
   **401 不换**——链上共用一把 key，换模型救不了）。当前链（2026-10-29 实测定序）：
   `gemini-3.5-flash-lite` → `gemini-3.5-flash` → `gemini-3.6-flash`。
@@ -243,7 +243,7 @@ savedPostDraft = ref(null); postDraftSaveTimer; postDraftRestoreSeq;
   | `gemini-3.8-flash` | ❌ 503 / 30s 超时 | ❌ | — |
 
   `gemini-3.8-flash` **纯文本就挂**（与带不带图无关），写进配置前必须先跑一次真请求；
-  守卫在 `tests/unit/bohai-model-fallback-chain.test.js` 的 `VERIFIED_MODELS` 白名单里。
+  守卫在 `tests/unit/bolek-model-fallback-chain.test.js` 的 `VERIFIED_MODELS` 白名单里。
 - ✅ **已解（2026-10-29）**：客户端 `CLOUD_TIMEOUT_MS` 2500 → **6000**，服务端降级链改成
   「整条链共用一份预算」而不是每跳各拿满额。2500 比最快一跳 2.8s 还短 ⇒ 在此之前
   图片云端审核**从未真正生效过**（每次都在客户端先超时，回落本地 nsfwjs 从宽判定）。
@@ -251,7 +251,7 @@ savedPostDraft = ref(null); postDraftSaveTimer; postDraftRestoreSeq;
   两个慢跳全串行（≈6.4s）会超时回落本地 —— **刻意接受**。
   代价：真不可达时单批等待 2.5s → 6s，但论坛侧 3 路并发 + 连续失败 3 次即冷却，
   最坏只付一波。守卫：`image-moderation-pipeline.test.js`（超时契约）+
-  `bohai-model-fallback-chain.test.js`（每跳按剩余预算）。
+  `bolek-model-fallback-chain.test.js`（每跳按剩余预算）。
 - `preloadForumImageModeration`：模型预载（选图时 `scheduleForumImageModerationPreload({immediate:true})` 调用，与压缩并行）。
 - **本地模型改走自托管二进制（2026-10-29）**：nsfwjs 只分发「权重内联成 base64 的 3.49MB JS」，
   浏览器要下载 → 当 JS 解析（单行 349 万字符）→ base64 解码，全在主线程 —— 这是「预热卡输入」

@@ -7,7 +7,7 @@
  *
  * 两个消费方：
  *   ① CSP `img-src` —— `scripts/cloudflare-security-headers.mjs`
- *   ② AI 回答的渲染白名单 —— `views/BOHAI/BOHAI/components/boh-markdown.js`
+ *   ② AI 回答的渲染白名单 —— `views/Bolek/Bolek/components/boh-markdown.js`
  *
  * 两个清单**刻意不同**，不是笔误：
  *   - `CSP_IMAGE_ORIGINS` 是**页面级外边界**（还要覆盖头像、论坛封面、活动图等所有历史数据），

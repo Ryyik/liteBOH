@@ -1703,7 +1703,7 @@ const handleBack = () => {
   }
 }
 
-/* 双写伪类：全局 .bohai-page :focus-visible 与这里特异性打平且更靠后，单写会静默失效 */
+/* 双写伪类：全局 .bolek-page :focus-visible 与这里特异性打平且更靠后，单写会静默失效 */
 .gs-id-email:focus-visible:focus-visible {
   outline: 2px solid var(--liquid-accent, #0071e3);
   outline-offset: 2px;

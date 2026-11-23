@@ -39,7 +39,7 @@ try {
   await page.waitForTimeout(6000);
 
   const boot = await page.evaluate(() => ({
-    // plans/025 v2 · Step 6-1：壳重写为 `.boh-shell`（旧 `.bohai-container` 随旧 DOM 删除）
+    // plans/025 v2 · Step 6-1：壳重写为 `.boh-shell`（旧 `.bolek-container` 随旧 DOM 删除）
     container: !!document.querySelector('.boh-shell'),
     sidebar: !!document.querySelector('.boh-sidebar'),
     // 2026-10-08：顶栏整条已删，入口收成主区右上角的浮动操作组

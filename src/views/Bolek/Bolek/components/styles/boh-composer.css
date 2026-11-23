@@ -1,0 +1,1389 @@
+/**
+ * boh-composer.css — 输入区（BohComposer.vue 私有）
+ *
+ * 口径真源：`output/boh-ui-demo/index.html` 的 `§5 输入区` 段。
+ * 只消费 `--boh-*`（零裸色值、零 `!important`）。断点与基座同文件（见 `styles/layout.css` 头）。
+ */
+
+.boh-composer-wrap {
+  flex: none;
+  /* 2026-10-22：原为 `calc(12px + var(--boh-sab, 0px))` —— `--boh-sab` 全仓**零定义**
+     （Grep 只有这一处消费），fallback 恒 0 ⇒ 等价于 12px，删掉幻影令牌（plans/031 S0 ⑤）。 */
+  padding: 6px 16px 12px;
+  /* 空态（壳在 `.boh-main` 上挂 `is-empty`）：整组「虚影字 + 输入框」垂直居中，
+     这里吃掉剩余空间的**另一半**（另一半在 `.boh-stream` 的 `margin-top: auto`）。
+     ⚠️ 两边必须各占一半 —— 两处都写成 `margin: auto` 会把空间对半分到两者**之间**，
+        实测裂开 309px 空洞（见 `boh-stream.css` 同名注释）。 */
+  margin-bottom: 0;
+  /* ⚠️ 这条 transition 是**给 FLIP 用的**，不是给 hover 用的：空态居中 → 贴底的那段位移
+     由壳写成 inline `transform` 再清空（`BolekMain.animateComposerHome`）。
+     时长走 `--boh-dur-med` ⇒ reduced-motion 把令牌归零后自动变瞬移，不需要另判一次。
+     `will-change` 不写：FLIP 只在发第一条消息时跑一次，常驻会白占一层合成内存。 */
+  transition: transform var(--boh-dur-med) var(--boh-ease);
+}
+
+/* 输入框 = **纯白底 + 一道灰框线**（2026-10-08「不要原生的框」+ 2026-10-11「要白色底」
+   与「加灰色框线」）。三者的分寸：不要的是**聚焦光圈与投影**（那两层读成「原生输入框」），
+   要的是**常态 1px 灰线**—— 页面本身也是白的，没有这道线输入框就化进背景里。
+   ⚠️ 底色走 `--boh-composer-bg`（tokens.css 的单源），**不要**在这里写 `#fff`：
+      亮色是纯白、暗色要退回卡片色，一处写死就等于把暗色也刷白。
+   ⚠️ 框线走 `--boh-border` 同一个语义令牌（跟随博莱克主题切暗色），
+      不要写死 `#e5e5e5` —— 那会被 `check:dark-tokens` 记成暗色裸色。 */
+/* ⚠️ 折射玻璃锚（2026-10-14，§21.7）：`max-width / 横向对齐` 从 `.boh-composer` 上移到这里，
+   玻璃层（BohGlassRefract，inset:0）才与输入框等宽；`.boh-composer` 本体只留内盒几何。 */
+.boh-composer-anchor {
+  position: relative;
+  max-width: var(--boh-content-w);
+  /* 与消息流同一条列 ⇒ 横向对齐必须共用令牌，否则输入框会和 AI 回复错开。 */
+  margin: 0 var(--boh-content-mr) 0 var(--boh-content-ml);
+}
+
+.boh-composer {
+  position: relative;
+  padding: 11px 13px 9px;
+  border: 1px solid var(--boh-border);
+  border-radius: var(--boh-radius-shell);
+  background: var(--boh-composer-bg);
+}
+
+/* ⚠️ `max-height` 是**自动增高的唯一上限声明**（`composables/useAutoGrowTextarea.js` 读
+   getComputedStyle 取用，JS 里不许再写第二份像素值）。2026-10-08 由 160px 提到 min(40vh, 340px)：
+   长输入（贴代码/长需求）到 160px 就停住，读起来像被截断，而参考图那种输入区要能长到半屏。 */
+.boh-composer-input {
+  display: block;
+  width: 100%;
+  min-height: 24px;
+  max-height: min(40vh, 340px);
+  padding: 2px 4px 6px;
+  border: 0;
+  outline: 0;
+  background: none;
+  color: var(--boh-text-1);
+  font-family: inherit;
+  font-size: 14.5px;
+  line-height: 1.55;
+  resize: none;
+}
+
+/* 消除原生聚焦框：`layout.css` 的 `.bolek-page :focus-visible` 会给文本域套
+   2px 墨色 outline —— 它是按 `--boh-accent`（浅色 = 墨色 #0a0a0a）画的，正是用户截图里的粗黑框。
+   ⚠️ 两条规则**同特异性**（scoped 后各是 0,3,0）⇒ 只能靠加载顺序决胜，而 layout.css 由父组件
+   BolekMain 引入、BohComposer 是它的子组件 ⇒ **父的样式后注入、反而赢**（2026-10-08 实测：
+   只写 `.boh-composer-input:focus-visible { outline: none }` 时框线还在）。
+   这里把选择器提到 `.boh-composer .boh-composer-input`（0,4,0），用特异性稳压，不靠顺序。 */
+.boh-composer .boh-composer-input:focus,
+.boh-composer .boh-composer-input:focus-visible {
+  outline: none;
+}
+
+.boh-composer-input::placeholder {
+  color: var(--boh-text-3);
+}
+
+.boh-composer-input:disabled {
+  opacity: 0.6;
+}
+
+/* 空态（壳在 `.boh-main` 上挂 `is-empty`）：这一条与上面 `.boh-composer-wrap` 的
+   `margin-bottom: 0` 是同一件事的两半，单独成条是为了让两侧的 auto 看得见一对应一。 */
+.boh-main.is-empty .boh-composer-wrap {
+  margin-bottom: auto;
+}
+
+/* 空态：输入框**水平居中**（2026-10-13 用户报「空状态的输入框不居中」）。
+   根因：`.boh-composer` 的列对齐是 `margin: 0 var(--boh-content-mr) 0 var(--boh-content-ml)`
+   = `0 auto 0 0`（ml=0 / mr=auto）⇒ 限宽 880 后**靠左**。会话态这是刻意的（与 AI 回复同列），
+   但空态没有任何内容要对齐，虚影字又是居中排的 ⇒ 输入框贴左、右侧空一大片（1440 下实测
+   左留白 40 / 右留白 432）。
+   ⚠️ 只覆盖空态：会话态写 auto 会把输入框推到视口中间，与上方消息列错开。
+   2026-10-14：横向对齐随 `max-width` 一起上移到锚（`.boh-composer-anchor`，§21.7）。 */
+.boh-main.is-empty .boh-composer-anchor {
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* 输入框**浮在消息流之上**（2026-10-12 用户口径「液态玻璃，滚动时透出下面的内容」）——
+   玻璃的全部价值就是「透出底下的内容」，而输入区在流式布局里与消息区**不重叠** ⇒
+   底下只有页面底色，玻璃等于白上。
+   做法：`margin-top` 负掉自身高度，把输入区**拉回**消息区之上；消息区再补等高的
+   `padding-bottom`（见 `boh-stream.css` 同名注释），否则最后一条消息会被压在输入框底下。
+   ⚠️ 高度由壳实测后写 `--boh-composer-h`（textarea 会自动长高，写死必错）。
+   ⚠️ 只作用于**非空态**：空态靠 `margin-bottom: auto` 做整组垂直居中，负 margin 会拆掉那套布局。 */
+.boh-main:not(.is-empty) .boh-composer-wrap {
+  margin-top: calc(-1 * var(--boh-composer-h, 0px));
+}
+
+/* ── 底行 ───────────────────────────────────────────────────── */
+.boh-cp-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.boh-cp-spacer {
+  flex: 1;
+}
+
+.boh-cp-icon {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--boh-radius-md);
+  color: var(--boh-text-2);
+  transition:
+    background var(--boh-dur-fast) var(--boh-ease),
+    color var(--boh-dur-fast) var(--boh-ease);
+}
+
+.boh-cp-icon:hover {
+  background: var(--boh-bg-hover);
+  color: var(--boh-text-1);
+}
+
+.boh-cp-icon.is-on {
+  background: var(--boh-bg-active);
+  color: var(--boh-text-1);
+}
+
+/* ── 用量圆钮（上下文环 + 数字） ─────────────────────────────── */
+.boh-usage-wrap {
+  position: relative;
+  flex: none;
+}
+
+.boh-usage {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  cursor: default;
+}
+
+.boh-usage i {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  /* 额度刷新时环走一段过渡而不是瞬间跳（2026-10-12）。`--boh-ring-p` 已在
+     `styles/tokens.css` 用 `@property` 注册成 `<number>` —— **未注册的自定义属性
+     不可插值**，不注册这条 transition 是空转。reduce 下 `--boh-dur-med` 归零即瞬变。 */
+  transition: --boh-ring-p var(--boh-dur-med) var(--boh-ease);
+  background: conic-gradient(
+    var(--boh-accent) 0 calc(var(--boh-ring-p, 0) * 1%),
+    var(--boh-border) 0
+  );
+  -webkit-mask: radial-gradient(circle 6.5px, transparent 98%, #000) center / 100% 100%;
+  mask: radial-gradient(circle 6.5px, transparent 98%, #000) center / 100% 100%;
+}
+
+.boh-usage.is-warn i {
+  background: conic-gradient(
+    var(--boh-warn) 0 calc(var(--boh-ring-p, 0) * 1%),
+    var(--boh-border) 0
+  );
+}
+
+.boh-usage.is-danger i {
+  background: conic-gradient(
+    var(--boh-danger) 0 calc(var(--boh-ring-p, 0) * 1%),
+    var(--boh-border) 0
+  );
+}
+
+.boh-usage b {
+  color: var(--boh-text-3);
+  font-size: 10.5px;
+  font-weight: 600;
+}
+
+/* 折射玻璃锚（2026-10-14，§21.8 线1）：定位（right/bottom/宽）从浮层上移到锚 ——
+   与 `.boh-menu-anchor` 同款。⚠️ 锚本身**不许带 z-index**：堆叠上下文会裁掉玻璃的
+   背板采样（§21.7「采样根」硬约束）。浮层的 z-index 22 由**兄弟**（浮层自己）带。 */
+.boh-usage-anchor {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 10px);
+  width: 264px;
+}
+
+.boh-usage-pop {
+  position: relative;
+  /* 2026-10-14：42 → 22（同 `.boh-mode-menu` 的让位原因，§21.7）。 */
+  z-index: 22;
+  /* 宽度由锚给（264px）⇒ 浮层撑满锚，玻璃（inset:0）才与浮层等大。 */
+  width: 100%;
+  /* 与 `.boh-mode-menu` 同一条安全网：矮横屏下不许被推出视口顶部 */
+  max-height: calc(100vh - 120px);
+  overflow-y: auto;
+  padding: 12px 14px;
+  border: 1px solid var(--boh-border);
+  border-radius: var(--boh-radius-lg);
+  background: var(--boh-bg-page);
+  box-shadow: var(--boh-shadow-lg);
+}
+
+.boh-usage-pop-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  color: var(--boh-text-1);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.boh-usage-pop-head button {
+  color: var(--boh-text-3);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.boh-usage-pop-head button:hover {
+  color: var(--boh-text-1);
+}
+
+.boh-usage-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  color: var(--boh-text-2);
+  font-size: 12.5px;
+}
+
+.boh-usage-row > span:nth-child(2) {
+  flex: 1;
+}
+
+.boh-usage-row b {
+  color: var(--boh-text-1);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.boh-usage-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--boh-accent);
+}
+
+.boh-usage-dot.is-quota {
+  background: var(--boh-text-3);
+}
+
+.boh-usage-meter {
+  overflow: hidden;
+  height: 4px;
+  margin-top: 6px;
+  border-radius: 999px;
+  background: var(--boh-border);
+}
+
+.boh-usage-meter > i {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--boh-accent);
+}
+
+.boh-usage-meter.is-quota > i {
+  background: var(--boh-text-2);
+}
+
+.boh-usage-foot {
+  margin-top: 6px;
+  color: var(--boh-text-3);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+.boh-usage-pop-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.boh-usage-pop-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 11px;
+  border: 1px solid var(--boh-border);
+  border-radius: var(--boh-radius-sm);
+  color: var(--boh-text-2);
+  font-size: 12.5px;
+}
+
+.boh-usage-pop-actions button:hover {
+  background: var(--boh-bg-hover);
+  color: var(--boh-text-1);
+}
+
+.boh-usage-pop-actions button.is-primary {
+  border-color: var(--boh-accent);
+  background: var(--boh-accent);
+  color: var(--boh-accent-contrast);
+}
+
+.boh-usage-pop-actions button:disabled {
+  opacity: 0.5;
+}
+
+.boh-usage-done {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  color: var(--boh-text-2);
+  font-size: 12px;
+}
+
+/* ── 两颗胶囊：模型 / 工具（2026-10-11 用户样稿）────────────────────────
+   原先底行只有**一颗**「模型名 + 强度」胶囊 → 点开一个装两视图（强度 / 模型）的浮层。
+   现在拆成两颗：模型（左）、工具（左），各点各的浮层。
+   ⚠️ 胶囊**视觉不变**（沿用原 `.boh-mode-pill` 的高度/圆角/描边），只改了内容与分工；
+      工具复用模型那颗的几何 ⇒ 用组合选择器一次写完，别给它另写一份。 */
+.boh-mode-wrap,
+.boh-tools-wrap {
+  position: relative;
+  display: flex;
+  flex: none;
+  min-width: 0;
+}
+
+.boh-mode-pill,
+.boh-tools-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  height: 30px;
+  padding: 0 10px 0 12px;
+  border: 1px solid var(--boh-border);
+  border-radius: 999px;
+  color: var(--boh-text-2);
+  font-size: 12.5px;
+  transition:
+    background var(--boh-dur-fast) var(--boh-ease),
+    color var(--boh-dur-fast) var(--boh-ease);
+}
+
+.boh-mode-pill:hover,
+.boh-tools-pill:hover,
+.boh-mode-pill.is-open,
+.boh-tools-pill.is-open {
+  background: var(--boh-bg-hover);
+  color: var(--boh-text-1);
+}
+
+.boh-mode-pill > svg,
+.boh-tools-pill > svg {
+  flex: none;
+  color: var(--boh-text-3);
+}
+
+/* 模型名可能很长（「LongCat 2.5 Preview Free」这类）⇒ 单行省略，绝不把底行撑破。
+   `min-width: 0` 必须在 flex 子项上，否则省略号不生效（这是 flex 的老规矩）。 */
+.boh-mode-pill-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 工具是纯图标胶囊（不占模型名那么多横向空间） */
+.boh-tools-pill {
+  gap: 3px;
+  padding: 0 8px 0 10px;
+}
+
+/* 两个浮层的共同外壳：贴着自己的胶囊**向上**弹出。
+   ⚠️ 两颗胶囊的触发键都在底行**左侧** ⇒ 面板一律左对齐（`right: 10px` 会把 252px 的
+   模型面板推到视口左边之外）。 */
+/* 折射玻璃锚（2026-10-14，§21.7）：定位（bottom/left/宽）从菜单上移到锚；
+   玻璃（BohGlassRefract，v-if 与菜单同开同关）与菜单同尺寸（inset:0 + glass-size 100%）。 */
+.boh-menu-anchor {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  width: 252px;
+}
+
+/* 小手机 ≤480：面板宽度受视口约束（左下对齐，别写回 right）。
+   2026-10-14：从 `layout.css` 迁入 —— 那边是 scoped 到 BolekMain 的，选择器带
+   `[data-v-main]`、够不到本组件模板内的元素（半死规则），迁到本文件才真生效。 */
+@media (max-width: 480px) {
+  /* 2026-10-15 竖屏修复：两个菜单锚统一「全宽减边距」（action-sheet 式）——
+     原先锚随胶囊左对齐、宽 252，工具胶囊在底行偏右（x≈170）时菜单右缘越出视口 32px
+     （390 实测 right=422）。⚠️ 锚的定位父级是胶囊 wrap（relative）——
+     left/right 直接写会把面板钳进 wrap 里（实测 w=76 / h=1845），
+     必须先让 wrap 退为 static、把锚上交给 .boh-composer（relative）承载。
+     usage-anchor 右对齐不受影响（usage-wrap 保持 relative）。 */
+  .boh-mode-wrap,
+  .boh-tools-wrap {
+    position: static;
+  }
+  .boh-menu-anchor {
+    left: 12px;
+    right: 12px;
+    width: auto;
+    /* 2026-10-22 删除一条**永不生效**的规则（plans/031 评审 C4）：
+       原为 `max-height: calc(100dvh - 140px)`，注释声称「把锚的最大高度压一档 = 给顶部留白」。
+       实测不成立：锚是 height:auto 的绝对定位盒子，子元素 `.boh-mode-menu` 自带
+       `max-height: min(44dvh, 360px)`，要触发父级这条 clamp 需 `100dvh-140 < 44dvh`
+       ⇒ 视口高 < 250px（不存在）。锚本身也没有背景/边框 ⇒ 即便 clamp 生效也看不见"留白"。
+       真正的顶部让位靠的是子元素那条 44dvh —— 别再在这里加第二条高度约束。 */
+  }
+}
+
+/* ⚠️ 2026-10-14：z-index 40 → 20 —— `.boh-main` 的 `z-index: 1` 让位后（§21.7 采样根
+   硬约束），本层不再被 `.boh-main` 的堆叠上下文兜底，必须自行落在抽屉遮罩
+   （`.boh-backdrop`，z 25）之下，否则浮层会盖到遮罩上面。 */
+.boh-mode-menu,
+.boh-tools-menu {
+  position: relative;
+  z-index: 20;
+  padding: 6px;
+  border: 1px solid var(--boh-border);
+  border-radius: var(--boh-radius-lg);
+  background: var(--boh-bg-page);
+  box-shadow: var(--boh-shadow-lg);
+  /* ⚠️ 外层**不裁**：模型面板的 hover 详情卡要伸到面板外侧去。
+     封顶 + 内层滚动搬在 `.boh-mm-body` 上。 */
+  overflow: visible;
+  /* ⚠️ 2026-10-20 用户口径：「横竖屏的模式选择框都放小，支持滚动，但不显示滚动条」。
+     这里给**面板自身**一个可预测的小高度 —— 实测 9 行满列表是 502px，
+     在 375×667 的竖屏里必然会顶出视口顶部（top=-172 且滚不动）。
+     `min()` 取两档较小值：60dvh 保证短视口也有余量，420px 防止高屏上铺得过满。
+     高度一旦确定，内层 `.boh-mm-body` 的 `overflow-y: auto` 才真正生效
+     （父级 auto 高度下，子项 max-height 百分比/视口式约束都不落定）。 */
+  /* 竖屏实测（375×667）：面板底边固定在胶囊上方 y=330，故可用高度只有
+     `330 - 12(安全边)` = 318px。取 46dvh 与 380px 的较小值后，
+     667×0.46 ≈ 307 ⇒ 顶部落到 y≈11，不越界。
+     ⚠️ 别再用「胶囊距顶」动态算：那是 JS 测量方案，已试过且被用户否掉
+     （要的是「放小 + 滚动」，不是自适应）。 */
+  max-height: min(44dvh, 360px);
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── 浮层进场（2026-10-12）────────────────────────────────────────────
+   模式 / 工具 / 用量三个面板此前是**瞬间弹出**（`v-show` 切的是 `display`，零 transition）。
+   按本仓既有的 `<Transition>` 约定（`-enter-active` / `-enter-from`，与 App.vue 的 toast、
+   PhotoAlbums 的 pa-modal 同款）补齐 —— 不引入第二种机制。
+   ⚠️ 只用 `opacity` + 4px 位移，**不用 `scale`**：`probe-bolek-composer` 打开菜单后最快
+      200ms 就量几何，而 `transform: scale` 会让动画窗口内的 `getBoundingClientRect`
+      返回**缩放后**的盒子 ⇒ 假红。150ms 进场在 200ms 采样点已经落定。
+   ⚠️ 时长走 `--boh-dur-fast` ⇒ `prefers-reduced-motion` / `.reduce-motion` 下令牌被
+      `layout.css` 归零，自动退化成瞬显 —— **不要**另写一份 reduce 查询（那是第二份真源）。 */
+.boh-pop-enter-active,
+.boh-pop-leave-active {
+  transition:
+    opacity var(--boh-dur-fast) var(--boh-ease),
+    transform var(--boh-dur-fast) var(--boh-ease);
+}
+
+.boh-pop-enter-from,
+.boh-pop-leave-to {
+  opacity: 0;
+  transform: translateY(4px);
+}
+
+/* 视图内容的封顶 + 内层滚动（原 `.boh-mode-menu` 的 max-height/overflow-y 搬到这里）。
+   矮横屏实测：面板高 381px 而输入框上方可用高度约 288px ⇒ 顶部会被推出视口（y=-87），
+   故必须封顶并允许内部滚动。 */
+/* 内层滚动容器：吃满锚、可滚。
+   ⚠️ 用户口径（2026-10-20）：「放小、支持滚动，但是不显示滚动条」——
+      所以 `overflow-y: auto` + 三件套隐藏法（Firefox / WebKit / 新版标准）。
+      不要换成 `overflow: hidden`：那会变成**真的滚不动**，正是修这个 bug 前的状态。 */
+.boh-mm-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.boh-mm-body::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
+/* ── 模型菜单：扁平列表（无返回行、无分组头） ── */
+.boh-mm-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: var(--boh-radius-md);
+  color: var(--boh-text-1);
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+  transition: background var(--boh-dur-fast) var(--boh-ease);
+}
+
+.boh-mm-item:hover {
+  background: var(--boh-bg-hover);
+}
+
+/* 选中项常驻浅底（与 hover 同一个 token；鼠标移开后仍能看见当前模式） */
+.boh-mm-item.is-on {
+  background: var(--boh-bg-hover);
+}
+
+/* ⚠️ 这条 `> svg { opacity: 0 }` 是给「选中勾」用的（只有 .is-on 才显形），
+   但它会**顺带命中同一行的锁图标** —— 2026-10-20 实测：`<Lock>` 的 computed
+   `opacity: 0`，DOM 在、视觉全无（截图里锁定行右侧空白）。
+   修法：把隐形规则收窄到 `.boh-mm-chevron`（选中勾专用类），
+   其余 svg 不再被这条波及。 */
+.boh-mm-item > .boh-mm-chevron {
+  flex: none;
+  opacity: 0;
+}
+
+.boh-mm-item.is-on > .boh-mm-chevron {
+  opacity: 1;
+}
+
+/* ── 策略 / 模型 分隔线（2026-10-20，plans/030 §3.6）────────────────────────
+   单一列表不分组，但策略区与模型区之间必须有视觉断点：
+   否则 `Balance 1.10x` 紧挨 `GLMZ1Flash 1.5x` 会让人以为两者同级可选。
+   只做一条线，不加标题 —— 用户口径是"还是一个列表，不分组"。
+   ⚠️ 颜色必须复用 --boh-border（tokens.css 已有，随主题切换），
+      不要写裸 rgba() —— 那会撞 check:dark-tokens 棘轮，且暗色下不可见。 */
+.boh-mm-divider {
+  height: 1px;
+  margin: 6px 10px;
+  background: var(--boh-border);
+}
+
+/* ── 游客锁定行（2026-10-20，plans/030 §3.4）────────────────────────────────
+   游客只能用 GLM4；其余行可见但灰掉，点击给出「登录后可用」提示。
+   ⚠️ 用 opacity 而不是 color: 灰色值 —— 后者要新增暗色 token，
+      会撞 check:dark-tokens:strict 棘轮。opacity 在两种主题下都成立。 */
+/* 2026-10-20 截图复核后调重：原先只用 opacity 0.45，在浅色玻璃面板上几乎看不出
+   "这一行不可点"（实测截图里锁定行与可用行差别很小）。改为：
+   · opacity 提到 0.55（文字仍可读，但明显灰于可用行）
+   · 锁图标单独给一次更实的颜色，不再跟着整行一起被稀释
+   · 光标 + a11y 属性已在模板里，这里只管视觉 */
+.boh-mm-item.is-locked {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* 锁定行不参与 hover 高亮：避免看起来"可以点" */
+.boh-mm-item.is-locked:hover {
+  background: transparent;
+}
+
+/* 锁定图标：与倍率位同排，左于倍率。用实色而不继承整行的 opacity ——
+   否则叠加后会淡到看不见（这正是首版截图的问题）。 */
+/* 锁图标：作为名字后缀，比副标题再弱半档。
+   不继承整行 opacity（那会淡到看不见），单独给一个稳定的弱色。 */
+.boh-mm-lock {
+  flex: none;
+  color: var(--boh-text-3);
+  opacity: 0.85;
+}
+
+/* 锁定行不显示「选中勾」，但**必须放过锁图标**。
+   ⚠️ 这里踩过一次：原写 `.boh-mm-item.is-locked > svg { display: none; }`，
+      本意是藏 Check，结果把后来加的 <Lock> 一起吃掉了 —— 截图里锁直接消失。
+      现在用 `.boh-mm-chevron`（Check 专用类）精确定位，不再用 `> svg` 一刀切。 */
+.boh-mm-item.is-locked > .boh-mm-chevron {
+  display: none;
+}
+
+/* ── 名称 + 策略副标题（plans/030 §3.6）────────────────────────────────────
+   `.boh-mm-text` 是一个纵向两行容器：上一行名称，下一行只在策略行出现。
+   ⚠️ 不能把副标题塞进 `.boh-mm-name` 里 —— 那个类被 A2a 之类断言读作"名字"，
+      混进描述会让 `textContent` 变成「Cost性价比优先」。 */
+.boh-mm-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+/* 副标题：比名称小一号、更弱，不抢倍率位的注意力 */
+.boh-mm-sub {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--boh-text-2);
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── 锁定行的视觉强化（2026-10-20 截图复核后补）─────────────────────────────
+   opacity 0.45 + 🔒 在浅色玻璃面板上仍然偏"可读"，用户不易察觉"这一行点不了"。
+   加 a11y 兜底：`not-allowed` 光标已经在了，再补一条极浅的底，让它成块地"退后"。 */
+.boh-mm-item.is-locked {
+  background: transparent;
+}
+
+/* ⚠️ 这里**不能**写 `flex: 1`（原值）：`.boh-mm-name` 现在是 `.boh-mm-name-line`
+   的子项，撑满会把锁图标推到行尾、离名字很远 —— 那正是二改前的观感问题。
+   名字按内容自然宽，锁紧跟其后，整体在左栏里左对齐。 */
+/* ── 名字 + 锁（同一行，2026-10-20 二改）────────────────────────────────────
+   锁读作名字的后缀（「Balance 🔒」），不再是被 space-between 甩到中间的独立列。
+   `align-items: center` 让 12px 图标与 13px 文字视觉居中（实测垂直偏差 0）；
+   `gap: 4px` 是实测过的值 —— 5px 在 13px 字下已显松散，锁会读成独立字段；
+   再小（3px）又会与大写字母的右侧留白挤在一起。 */
+.boh-mm-name-line {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.boh-mm-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.boh-mm-rate {
+  flex: none;
+  color: var(--boh-text-3);
+  font-size: 11.5px;
+  font-weight: 400;
+}
+
+.boh-mm-rate.is-free {
+  color: var(--boh-text-2);
+}
+
+/* ── 视图二：扁平列表 + hover 详情卡（2026-10-10 用户样稿）────────────── */
+.boh-mm-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* 行容器只负责「挂 hover 事件 + 给详情卡当定位参考」；视觉全在里面的 `.boh-mm-item` 上 */
+.boh-mm-row {
+  position: relative;
+}
+
+/* 底部「配置自定义模型」→ 打开设置页（BYOK 在那边） */
+.boh-mm-custom {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: 4px;
+  padding: 9px 10px;
+  border-radius: var(--boh-radius-md);
+  color: var(--boh-text-2);
+  font-size: 13px;
+  text-align: left;
+  transition:
+    background var(--boh-dur-fast) var(--boh-ease),
+    color var(--boh-dur-fast) var(--boh-ease);
+}
+
+.boh-mm-custom:hover {
+  background: var(--boh-bg-hover);
+  color: var(--boh-text-1);
+}
+
+/* hover 详情卡：**面板右侧**（2026-10-11 面板改左对齐，触发键在底行左侧 ⇒ 镜像）。
+   2026-10-15（§21.8 线 1 收尾）：定位上移到 `.boh-mm-detail-anchor`（挂在 `.boh-menu-anchor`
+   里、面板外）—— 卡整体悬在面板右外侧，留在面板 z20 堆叠上下文里采样必被裁空（§21.11）。
+   锚无 z-index；`is-flipped` = 右侧放不下时翻回左侧（窄横屏 / 岛形态）。 */
+.boh-mm-detail-anchor {
+  position: absolute;
+  left: calc(100% + 8px);
+  width: 232px;
+  /* 无 z-index：锚不许建堆叠上下文（§21.7）。 */
+}
+
+.boh-mm-detail-anchor.is-flipped {
+  right: calc(100% + 8px);
+  left: auto;
+}
+
+.boh-mm-detail {
+  /* ⚠️ 2026-10-16 同 `.boh-slash` 的事故修复：锚（无 z）扛定位后，面板自己没补回 position/z
+     ⇒ 静态元素 + 无 z，玻璃画到卡的文字上（实测「文字可见−隐藏」增量 0.02，卡面全糊）。
+     这里补回它升级前原有的 `z-index: 1`（当时在面板 z20 上下文内；现在作为锚内兄弟自成一档，
+     卡与菜单无重叠、不需要更高）。 */
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-height: calc(100vh - 120px);
+  overflow-y: auto;
+  padding: 14px 16px;
+  border: 1px solid var(--boh-border);
+  border-radius: var(--boh-radius-lg);
+  background: var(--boh-bg-page);
+  box-shadow: var(--boh-shadow-lg);
+  text-align: left;
+}
+
+.boh-mm-detail-name {
+  color: var(--boh-text-1);
+  font-size: 14.5px;
+  font-weight: 500;
+}
+
+.boh-mm-detail-desc {
+  margin: 6px 0 0;
+  color: var(--boh-text-2);
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+.boh-mm-detail-sep {
+  height: 1px;
+  margin: 12px 0;
+  background: var(--boh-border);
+}
+
+.boh-mm-detail-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--boh-text-2);
+  font-size: 13px;
+}
+
+.boh-mm-detail-row + .boh-mm-detail-row {
+  margin-top: 10px;
+}
+
+.boh-mm-detail-row b {
+  color: var(--boh-text-1);
+  font-weight: 500;
+}
+
+/* 「使用此模式」CTA（博莱克文案，不加促销/免费药丸） */
+.boh-mm-detail-use {
+  display: inline-flex;
+  margin-top: 10px;
+  padding: 3px 0;
+  color: var(--boh-brand-blue, #0071e3);
+  font-size: 13px;
+  font-weight: 500;
+  transition: opacity var(--boh-dur-fast) var(--boh-ease);
+}
+
+.boh-mm-detail-use:hover:not(:disabled) {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.boh-mm-detail-use:disabled {
+  color: var(--boh-text-3);
+  cursor: default;
+}
+
+/* 竖屏不挂 hover 详情卡（2026-10-22 从 `styles/layout.css` 迁入，plans/031 §2.5）。
+   ⚠️ 原规则写在 `layout.css` 里是**死规则**：那个文件 scoped 到 `BolekMain`（选择器带
+      `[data-v-main]`），而 `.boh-mm-detail` 在 `BohComposer` 模板内部、只带 `[data-v-composer]`
+      ⇒ 一条都没命中。实测竖屏 hover 后卡片仍挂出，且 `left=-215 / right=17`
+      —— 整卡在视口左侧之外、只露 17px 的一条玻璃边，比不显示更糟。
+   ⚠️ 触屏本来就没有 hover；竖屏也没有并排空间（卡是向右展开的）。
+      模型行仍可直接点选，详情信息在桌面形态保留。 */
+@media (orientation: portrait) {
+  .boh-mm-detail {
+    display: none;
+  }
+}
+
+/* 工具菜单内衬（2026-10-11 起「高级」四工具独立成浮层，这层只做内边距） */
+.boh-mm-adv {
+  padding: 2px 0 4px;
+}
+
+.boh-mm-tool {
+  display: flex;
+  /* ⚠️ 顶对齐而非居中：「心理分析」那行说明会折成两行，垂直居中会把图标甩到第二行旁边 */
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: var(--boh-radius-md);
+  color: var(--boh-text-2);
+  text-align: left;
+  transition: background var(--boh-dur-fast) var(--boh-ease);
+}
+
+.boh-mm-tool:hover {
+  background: var(--boh-bg-hover);
+}
+
+.boh-mm-tool.is-on {
+  background: var(--boh-bg-active);
+  color: var(--boh-text-1);
+}
+
+.boh-mm-tool > svg {
+  flex: none;
+  /* 顶对齐后补一点位移，让 16px 图标 optical 居中在首行文字上 */
+  margin-top: 2px;
+}
+
+.boh-mm-tool span {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.boh-mm-tool strong {
+  color: inherit;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.boh-mm-tool small {
+  color: var(--boh-text-3);
+  font-size: 11.5px;
+}
+
+.boh-mm-loading {
+  padding: 6px 10px 10px;
+}
+
+.boh-mm-loading p {
+  margin-top: 8px;
+  color: var(--boh-text-3);
+  font-size: 11.5px;
+}
+
+.boh-mm-skeleton {
+  display: block;
+  height: 12px;
+  margin-bottom: 9px;
+  border-radius: 6px;
+  background: var(--boh-bg-active);
+}
+
+.boh-mm-skeleton.is-short {
+  width: 58%;
+}
+
+.boh-mm-empty {
+  padding: 12px 10px;
+  color: var(--boh-text-3);
+  font-size: 12.5px;
+}
+
+/* ── 发送键 ─────────────────────────────────────────────────── */
+.boh-send {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--boh-accent);
+  color: var(--boh-accent-contrast);
+  transition:
+    filter var(--boh-dur-fast) var(--boh-ease),
+    transform var(--boh-dur-fast) var(--boh-ease),
+    opacity var(--boh-dur-fast) var(--boh-ease);
+}
+
+.boh-send:hover {
+  filter: brightness(1.08);
+}
+
+.boh-send:active {
+  transform: scale(0.94);
+}
+
+.boh-send:disabled {
+  opacity: 0.35;
+  cursor: default;
+  filter: none;
+  transform: none;
+}
+
+/* ── 底部说明 / 提示 ──────────────────────────────────────────
+   ⚠️ `.boh-cp-note`（「内容由 AI 生成，请注意核实」）已于 2026-10-13 按用户口径删除 ——
+   元素、规则、矮横屏与岛形态的两条 `display: none` 一并清掉，别只删模板留死 CSS。 */
+.boh-cp-alert,
+.boh-cp-notice {
+  max-width: var(--boh-content-w);
+  margin: 6px var(--boh-content-mr) 0 var(--boh-content-ml);
+  color: var(--boh-danger);
+  font-size: 12px;
+  text-align: center;
+}
+
+.boh-cp-notice {
+  color: var(--boh-text-2);
+}
+
+.boh-cp-warn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  max-width: var(--boh-content-w);
+  margin: 6px var(--boh-content-mr) 0 var(--boh-content-ml);
+  color: var(--boh-warn);
+  font-size: 12px;
+}
+
+/* ── 上下文 chip ────────────────────────────────────────────── */
+.boh-ctx {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 2px 8px;
+}
+
+.boh-ctx-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 4px 10px;
+  border: 1px solid var(--boh-border);
+  border-radius: 999px;
+  background: var(--boh-bg-card);
+  color: var(--boh-text-2);
+  font-size: 12px;
+}
+
+.boh-ctx-chip:hover {
+  border-color: var(--boh-border-strong);
+  color: var(--boh-text-1);
+}
+
+.boh-ctx-label {
+  overflow: hidden;
+  max-width: 180px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.boh-ctx-badge {
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--boh-bg-active);
+  color: var(--boh-text-2);
+  font-size: 10.5px;
+}
+
+.boh-ctx-tokens {
+  color: var(--boh-text-3);
+  font-size: 11px;
+}
+
+/* ── 已开启开关的 chip 行（2026-10-16）─────────────────────────────
+   斜杠命令 / 设置面板把「下一条消息」开关打开后，这一行给**可删除的 chip 反馈**
+   （用户口径：「输入框里带着一个 tag 官方记忆，然后用户可以继续打字」+「可以删除的
+   那种感觉」）。状态真源 = 壳里的 `activeComposerFlags`；删除入口 = 点 chip 的 ×
+   或空输入框按 Backspace（壳里 `toggleComposerFlag`），chip 本身只发删除意图。 */
+.boh-flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 2px 8px;
+}
+
+.boh-flag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  padding: 3px 9px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--boh-bg-active);
+  color: var(--boh-text-2);
+  font-size: 11.5px;
+  line-height: 1.4;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background var(--boh-dur-fast) var(--boh-ease),
+    color var(--boh-dur-fast) var(--boh-ease);
+}
+
+/* 可删除 affordance：悬停加深 + × 由半透明转实（点击即移除并关掉对应开关） */
+.boh-flag:hover {
+  background: var(--boh-bg-hover);
+  color: var(--boh-text-1);
+}
+
+.boh-flag > svg {
+  flex: none;
+  opacity: 0.55;
+}
+
+.boh-flag:hover > svg {
+  opacity: 1;
+}
+
+/* 「已开启」状态点：accent 实心点（同语言里的状态符号，不抢正文） */
+.boh-flag i {
+  flex: none;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--boh-accent);
+}
+
+/* ── 斜杠命令 ───────────────────────────────────────────────── */
+/* 紧凑档（2026-10-11 用户口径）：原先是 `left/right: 10px` ⇒ 左右撑满输入框（桌面 742px），
+   15 条命令每行只用到左半边、右半边整片空白。收窄到 420px 左对齐后，宽度还顺带变成
+   **常量** —— 过滤时不再随最长项（`/model` 那条 22 字 description）跳动。
+   行高同步收紧：item padding `8px 10px` → `6px 8px`、gap `11px` → `8px`
+   （吸附 DESIGN-博莱克 §2.2 的 4px 刻度，`6` 是文档允许的细调值）。
+   材质仍是**共用的那套液态玻璃圆角矩形**（下面 `@supports` 六选择器块，圆角取
+   DESIGN §2.3 的浮层口径 `--boh-radius-lg` = 12px）—— 这里不重复声明任何材质属性。 */
+.boh-slash-anchor {
+  /* 无 z-index 锚（§21.7 采样根，§21.10 用量浮层同款）：定位与宽度从 .boh-slash 上移到此，
+     玻璃（inset:0）才与面板等大；回滚 = 删锚 + 玻璃两层。 */
+  position: absolute;
+  bottom: calc(100% + 8px);
+  /* ⚠️ 2026-10-20 用户口径改版：「直接在输入框上方显示命令框，与输入框等宽」。
+     原先 `left: 10px` + `width: min(420px, 100% - 20px)` 是**左对齐的窄浮层**，
+     现在改成 **left/right 双 0 ⇒ 与 `.boh-composer` 等宽**（锚的包含块就是它）。
+     ⚠️ 必须是 `-1px` 而不是 `0`：锚的包含块是 `.boh-composer` 的 **padding box**
+        （border 之内），而输入框的 1px 边框在它外面。写 `left/right: 0` 会让面板
+        比输入框**两侧各窄 1px**（实测 878 vs 880、364 vs 366）。外扩 1px 才与
+        输入框外沿严格等宽，视觉上两侧笔直对齐。 */
+  left: -1px;
+  right: -1px;
+  width: auto;
+}
+
+.boh-slash {
+  /* 定位与宽度已上移到锚；**本面板自己必须保留 position + z-index** ——
+     z-index 只对定位元素生效，静态元素上写了等于没写：玻璃（兄弟，absolute）会画到文字上，
+     整面菜单糊成一团（2026-10-16 用户截图事故；同款还有下面的 `.boh-mm-detail`）。
+     §21.10 模式：锚只扛定位（无 z），面板 relative + z-index 自负层级。
+     层级口径不变 —— 2026-10-14：41 → 21（与 `.boh-mode-menu` 同因：
+     落到抽屉遮罩 z 25 之下，§21.7）。相对次序保持「用量 22 > 斜杠 21 > 模型/工具 20」。 */
+  position: relative;
+  z-index: 21;
+  width: 100%;
+  /* 两条上限取小：
+     ① `100vh - 120px` 是老的安全网（输入框贴底时够用）；
+     ② `--boh-slash-top - 16px` 是**空态**才需要的 —— 那里「虚影字 + 输入框」整组垂直居中，
+        输入框顶只剩 ~460px，而菜单内容要 ~780px，只靠 ① 会把顶端推出视口
+        （实测 1440×900 菜单 `top = −318`，前 7 条命令够不到）。
+     变量由 `BohComposer` 在菜单打开 / 窗口 resize 时写入「量到的输入框顶」；
+     未写入时回退 `100vh` ⇒ 等价于旧行为。 */
+  /* ⚠️ 2026-10-20 用户口径：「不要太高，支持滚动」。
+     原先是 `min(100vh - 120px, --boh-slash-top - 16px)` —— 那是「尽量塞满可用高度」
+     的思路（空态时能到 400+px，17 条命令全铺开）。现在改成**紧凑档**：
+     `min(38dvh, 320px)` 封顶，超出即滚动。
+     滚动条沿用模式面板那套隐藏三件套（用户明确要求「不显示滚动条」）；
+     ⚠️ 探针 A8b 会读 `scrollbarWidth === 'none'`，这条不能退回默认值。 */
+  max-height: min(38dvh, 320px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  /* 滚动条隐藏但**保留滚动**（2026-10-11 用户口径「不要滚动条」）：超出时仍可滚轮 / 拖动 /
+     键盘循环，只是不画条 —— 玻璃面上的系统默认滚动条太抢眼。
+     `scrollbar-width` 管 Firefox，`::-webkit-scrollbar` 管 Chrome/Safari（见下）。
+     ⚠️ 这两行曾因两次追加而**重复出现**（2026-10-20 清理），改这块时留意别再叠一份。 */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  /* ⚠️ 2026-10-20：隐藏滚动条后**必须**给一个「还有更多」的视觉提示。
+     实测 17 条命令共 796px，而面板封顶 320px ⇒ 只看得到 6 条，用户会以为
+     命令就这么几个（这是 Hide-scrollbar 的经典代价）。
+     做法：内容区上下各留一条渐隐带（mask-image），让边缘的内容"淡出"而不是
+     被硬切 —— 淡出本身就是可滚动的信号，且不需要画滚动条、不破坏圆角。
+     `mask-composite: intersect` 让上下两条渐变同时生效（只写一个方向会互相覆盖）。
+     ⚠️ 不支持 mask 的浏览器会退化成"没有渐隐"，但滚动照旧 —— 可接受的降级。 */
+  mask-image:
+    linear-gradient(to bottom, transparent 0, #000 10px, #000 calc(100% - 10px), transparent 100%);
+  -webkit-mask-image:
+    linear-gradient(to bottom, transparent 0, #000 10px, #000 calc(100% - 10px), transparent 100%);
+
+  /* ── 材质：方块之家标准液态玻璃（2026-10-20 用户口径）────────────────────────
+     从 `BohGlassRefract`（折射/磨砂组件）换成**论坛同款** token 组：
+       `--glass-bg` / `--glass-border` / `--glass-filter-sm`
+     真源在 `src/styles/common/glass-aliases.css`（:root 一次定义，main.js 全局引入）。
+     ⚠️ 不要再写裸 `blur(18px)` 之类 —— 那会绕过 `--liquid-blur-sm`，
+        用户在「设置→外观」调模糊度时这块玻璃不会跟着变（§21.12 的坑）。
+     ⚠️ 论坛是这么用的：`background: var(--glass-bg); backdrop-filter: var(--glass-filter-sm)`，
+        且有 `-webkit-` 前缀一份（Safari 必须）。
+     ⚠️ 玻璃面上的描边走 `--glass-border`（hairline），不是通用的 `--boh-border`：
+        后者在浅色底上过深，会把玻璃读成"实心卡片"。 */
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--boh-radius-lg);
+  backdrop-filter: var(--glass-filter-sm);
+  -webkit-backdrop-filter: var(--glass-filter-sm);
+  box-shadow: var(--boh-shadow-lg);
+}
+
+.boh-slash::-webkit-scrollbar {
+  display: none;
+}
+
+/* ── 斜杠菜单：分组 + 双列行（2026-10-20 布局改版）────────────────────────────
+   行结构：`/关键词`（等宽胶囊，定宽列） · 名称 · 描述（右对齐、撑满剩余、单行省略）
+   ⚠️ 行高必须落在 36–48px（探针 A8b 的 `itemH` 断言），padding 6px + 行内容
+      约 24px ≈ 36px，是这个区间的下沿。加大 padding 会当场把它顶出去。
+   ⚠️ `min-width: 0` 给描述列：flex 子项默认 `min-width: auto`，
+      长描述会把行撑出面板（而不是省略号），这条踩过。 */
+.boh-slash-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 6px 8px;
+  border-radius: var(--boh-radius-md);
+  text-align: left;
+  transition: background var(--boh-dur-fast) var(--boh-ease);
+}
+
+/* 分组标题：小一号、弱化，贴着上一组分隔线 */
+.boh-slash-group {
+  margin: 6px 0 2px;
+  padding: 0 8px;
+  color: var(--boh-text-3);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+/* 组间分隔线（首组之前不画，由模板的 groupIndex > 0 控制） */
+.boh-slash-divider {
+  height: 1px;
+  margin: 6px 8px 0;
+  background: var(--boh-border);
+}
+
+/* 名称：紧跟关键词之后，不压缩 */
+.boh-slash-label {
+  flex: none;
+  color: var(--boh-text-1);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+/* 描述：吃满剩余宽度、右对齐、单行省略（参考图里描述都在右侧） */
+.boh-slash-desc {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--boh-text-3);
+  font-size: 12px;
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.boh-slash-item:hover,
+.boh-slash-item.is-current {
+  background: var(--boh-bg-hover);
+}
+
+.boh-slash-cmd {
+  flex: none;
+  padding: 3px 8px;
+  border-radius: 7px;
+  /* ⚠️ 2026-10-20：底色由 `--boh-bg-active`（rgba(0,0,0,0.08)）换成更轻的
+     `--boh-bg-hover`（0.043）。原因：面板现在是**玻璃底**，0.08 的黑在
+     半透明白上会被读成"这一行被选中了"，而它其实只是关键词胶囊。
+     观感上要的是「淡底胶囊」，不是「选中态」。 */
+  background: var(--boh-bg-hover);
+  color: var(--boh-text-2);
+  font-family: var(--boh-font-mono);
+  font-size: 12.5px;
+  /* 行高见下面 `.boh-slash-copy` 那条注释：全局继承 1.9，这里显式按住，
+     否则 12.5px 的芯片会被撑成 29.8px 高、反过来顶高整行。 */
+  line-height: 1.3;
+  font-weight: 600;
+}
+
+.boh-slash-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.boh-slash-copy strong {
+  color: var(--boh-text-1);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.boh-slash-copy small {
+  color: var(--boh-text-3);
+  font-size: 11.5px;
+}
+
+/* ⭐ 紧凑档的**真正杠杆是行高，不是 padding**（2026-10-11 浏览器实测）。
+   全局 `src/main.js:44` 引入了 `styles/pages/globalpage.css`，它给 `body` 写死
+   `line-height: 1.9`（实测 `body` 30.4px），博莱克所有弹层都继承它 ——
+   于是 13px 的 label 单行 24.7px、11.5px 的 description 单行 21.85px，
+   两条叠起来 46.5px，加上 padding 单行菜单就是 **58.5px**（调研里按 `normal`≈1.2 估的
+   45.4px 是错的）。只压 padding 从 8→6 仅省 4px（7%）；按住行高才省下真正的 15px。
+   两件事一起写在这条规则里：
+   ① `line-height: 1.3` —— 显式给行高（菜单项用 1.3，不走正文的 1.65~1.75 口径）；
+   ② 单行省略 —— 收窄到 420px 后长文案会换行把那一行撑成两倍高（动态模式项的
+      `description` 取自线上 `mode.tagline`，长度不可控），省略号保证**所有行等高**。
+   ⚠️ `.boh-slash-copy` 已 `min-width: 0`、列方向 `align-items: stretch` ⇒ 子项宽度被列宽约束，
+   `text-overflow` 才成立；别顺手把 `min-width: 0` 删了。 */
+.boh-slash-copy strong,
+.boh-slash-copy small {
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.boh-slash-empty {
+  padding: 10px 8px;
+  color: var(--boh-text-3);
+  font-size: 12.5px;
+}
+
+/* 触屏（无 hover）⇒ 把命中区补回 44px：紧凑档行高 ≈43.8px，鼠标够用，手指点选偏小。
+   判据用 `hover: none` 而不是宽度断点（照 `boh-stream.css` 的 `@media (hover: none)` 口径：
+   平板横屏 ≥1024 也可能是触屏，两者不是一回事）。
+   2026-10-22（plans/031 §2.6 / S0 ①）：原规则**只覆盖 `.boh-slash-item`**，模型行实测 41px
+   —— 竖屏切模式的主路径恰好就是这一排，漏在这里等于最该达标的那一排不达标。
+   取 48px（HIG 44 + 触摸误差）；策略行有两行文字天然 ≥55px，不受影响。 */
+@media (hover: none) {
+  .boh-slash-item {
+    min-height: 44px;
+  }
+
+  .boh-mm-item {
+    min-height: 48px;
+  }
+}
+
+/* ── 模糊级消费者清零（2026-10-15 §21.8 线 1 收尾）──────────────────────────
+   最后两个模糊级消费者（斜杠菜单、模型面板 hover 详情卡）已升级为**折射级**
+   （`BohGlassRefract` 锚模式，见模板 `.boh-slash-anchor` / `.boh-mm-detail-anchor`）——
+   本文件不再有任何 backdrop-filter 声明，材质只剩「基座实底兑底 + 折射级撤实底让位」。
+   历史口径存档：2026-10-10「A 档」、2026-10-12 扩输入框、2026-10-14 四面升折射（§21.7）。
+   输入框浮在消息流之上（2026-10-12 用户口径「带点透明、滚动时透出下面的内容」）——
+   那条负 margin 仍有效，见上面 `.boh-main:not(.is-empty) .boh-composer-wrap`。
+   常驻面板 / 阅读主体（侧栏、工作台、用户气泡）仍然**刻意不做**：它们底下没有可透的内容。 */
+
+/* ── 折射级（2026-10-14，§21.7；§21.8 线1 加用量浮层）：输入框 + 模型/工具浮层 + 用量浮层 ──
+   玻璃由 `BohGlassRefract`（JS 覆盖层）提供；本段只做两件事：
+   ① 支持 backdrop-filter 时**撤掉 CSS 层材质**（避免双层过滤叠色）；
+   ② 不支持时**藏掉玻璃**、保留各自基座的实底兜底（输入框的 `--boh-composer-bg`、
+      浮层的 `--boh-bg-page` + 边框 + 阴影，均在各自基座块里）。
+   ⚠️ 同批硬约束：玻璃祖先链不得有堆叠上下文 ⇒ 见 `.boh-main`（layout.css，z-index 已让位）、
+      上方 `.boh-mode-menu` 的 `z-index: 20`、以及 `.boh-usage-anchor` 的无 z-index 注释。 */
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .boh-composer {
+    background: transparent;
+  }
+
+  /* ⚠️ 官方样貌要素 B（liquid-glass-spec.js）：玻璃模式**只撤实底**——
+     边框与投影必须保留，白底上玻璃的轮廓识别全靠它们。
+     2026-10-14 两次事故（本仓 + 并行会话）都是在这里多撤了一手，别再犯。 */
+  .boh-mode-menu,
+  .boh-tools-menu {
+    background: transparent;
+  }
+
+  /* 用量浮层（§21.8 线1）：与两个菜单同款让位 —— 材质改由锚里的折射玻璃提供。 */
+  .boh-usage-pop {
+    background: transparent;
+  }
+
+  /* ⚠️ 2026-10-20：**`.boh-slash` 已移出这条让位规则**。
+     它原先跟着 `.boh-mm-detail` 一起 `background: transparent`，是因为材质由
+     锚里的 `BohGlassRefract` 提供。现在斜杠菜单改回**自带**方块之家标准液态玻璃
+     （`--glass-bg` + `--glass-filter-sm`，见 `.boh-slash` 同名注释）⇒ 再让它透明
+     就变成"没有背景的浮字"。
+     `.boh-mm-detail`（hover 详情卡）仍走折射组件，保留透明。 */
+  .boh-mm-detail {
+    background: transparent;
+  }
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .boh-glass-under {
+    display: none;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   断点（与基座同文件）
+   ══════════════════════════════════════════════════════════════ */
+
+/* 桌面 ≥1024×600 */
+@media (orientation: landscape) and (min-width: 1024px) and (min-height: 600px) {
+  .boh-composer-wrap {
+    padding: 8px 32px 16px;
+  }
+}
+
+/* 宽屏 ≥1440 */
+@media (orientation: landscape) and (min-width: 1440px) {
+  .boh-composer-wrap {
+    padding: 8px 40px 18px;
+  }
+}
+
+/* 横屏（够高，>600px）：输入区给**两行**的高度（2026-10-11 用户口径「横屏再高一些」）。
+   单行 24px 的输入框在宽屏上读起来像一条细缝，不像「可以往里写东西」的地方；
+   44px 恰好容纳两行正文（14.5px × 1.55 行高 ≈ 23px）。
+   ⚠️ 阈值写 601px 而不是 600px：矮横屏那条是 `max-height: 600px`，两条必须**恰好互补**，
+     写成 `min-height: 600px` 会在正好 600px 时两条都命中、靠加载顺序决胜（极易踩）。
+   ⚠️ 只改 `min-height`（自动增高的**上限**仍是 `max-height`，由 JS 读 getComputedStyle 取用，
+     这里不许出现第二个像素上限）。 */
+@media (orientation: landscape) and (min-height: 601px) {
+  .boh-composer-input {
+    min-height: 44px;
+  }
+}
+
+/* 矮横屏：输入框收矮、隐藏底部说明 */
+@media (orientation: landscape) and (max-height: 600px) {
+  .boh-composer {
+    padding: 6px;
+  }
+
+  .boh-composer-input {
+    min-height: 30px;
+    max-height: min(38vh, 180px);
+  }
+}
+
+/* 小手机 ≤480：底行只留图标 */
+@media (max-width: 480px) {
+  .boh-composer-wrap {
+    padding: 6px 12px 10px;
+  }
+
+  /* 两颗胶囊一起收窄。⚠️ 底行现在有 5 个元素（联网 / 模型 / 工具 / 用量 / 发送），
+     390px 竖屏下必须靠「模型名单行省略」才挤得下 —— 别改成隐藏模型名，那会让用户
+     看不到当前用的是哪个模型。 */
+  .boh-mode-pill,
+  .boh-tools-pill {
+    padding: 0 7px 0 9px;
+  }
+
+  .boh-mode-pill {
+    max-width: 148px;
+  }
+}
+
+/* 岛形态 */
+.boh-composer-wrap.is-island {
+  padding: 6px 12px 12px;
+}

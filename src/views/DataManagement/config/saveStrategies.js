@@ -4,7 +4,7 @@ import {
   EMAIL_REGEX,
   normalizeNewsContent,
 } from '../composables/useDataAdminValidation.js';
-import { getDefaultApiUrlForBohaiProvider } from '@/utils/api/bohai-model-config-api.js';
+import { getDefaultApiUrlForBolekProvider } from '@/utils/api/bolek-model-config-api.js';
 import { TAB_WRITABLE_FIELDS } from './index.js';
 import { normalizeActivityDateInput } from '@/utils/activity-date.js';
 import { normalizeCardLayout } from '@/config/product-card-layout.js';
@@ -320,7 +320,7 @@ export const SAVE_STRATEGIES = {
     });
   },
 
-  bohaiModels: async ({ editingItem, userId, isEditing }) => {
+  bolekModels: async ({ editingItem, userId, isEditing }) => {
     const normalizedModeId = String(editingItem.mode_id || '').trim();
     const normalizedDisplayName = String(editingItem.display_name || '').trim();
     const normalizedProvider = String(editingItem.provider || 'siliconflow')
@@ -401,7 +401,7 @@ export const SAVE_STRATEGIES = {
     )
       throw new Error('显示排序必须是 0-10000 的整数');
 
-    const payload = pickWritableFields('bohaiModels', {
+    const payload = pickWritableFields('bolekModels', {
       mode_id: normalizedModeId,
       display_name: normalizedDisplayName,
       tagline: String(editingItem.tagline || '').trim(),
@@ -411,7 +411,7 @@ export const SAVE_STRATEGIES = {
       model_id: normalizedModelId,
       api_url:
         String(editingItem.api_url || '').trim() ||
-        getDefaultApiUrlForBohaiProvider(normalizedProvider),
+        getDefaultApiUrlForBolekProvider(normalizedProvider),
       capability: normalizedCapability,
       icon: normalizedIcon,
       temperature: normalizedTemperature,

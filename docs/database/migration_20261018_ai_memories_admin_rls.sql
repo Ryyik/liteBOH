@@ -3,13 +3,13 @@
 -- 数据管理面板新增「AI 沉淀记忆」tab 的 DB 侧配套（2026-10-18）
 --
 -- 背景：
---   BOHAI 对话的「自动记忆沉淀」写入 boh_ai_shared_memories（用户维度，
+--   博莱克对话的「自动记忆沉淀」写入 boh_ai_shared_memories（用户维度，
 --   owner_user_id 归属聊天者本人）。此前该表没有任何管理员旁路策略 ——
 --   管理员在数据管理面板里只能看到「自己拥有的 + 公开已审核」的行，
 --   跨用户的沉淀内容完全不可见（面板 52 个 tab 也确实没有这张表）。
 --
 -- 本次只加两条策略（沿用 current_user_is_admin() 惯例，同
---   user_addresses / lottery_* / bohai_model_configs 等 admin 策略）：
+--   user_addresses / lottery_* / bolek_model_configs 等 admin 策略）：
 --   1. SELECT  —— 管理员可读全部用户的沉淀（面板列表/搜索/计数）。
 --   2. UPDATE  —— 管理员可归档/恢复（status: active <-> archived）。
 --

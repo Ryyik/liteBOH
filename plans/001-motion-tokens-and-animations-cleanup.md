@@ -8,7 +8,7 @@
 
 ## Problem
 
-[animations.css](file:///Users/ryyik/Documents/BOHLITEForMacLatest/BOHLITEBeta2.5/src/styles/common/animations.css) 包含 30+ 个 keyframes，全部使用 `ease` 弱缓动；同时存在 `scale(0)` 违规。项目已有 BOHAI [motion-system.css:1-7](file:///Users/ryyik/Documents/BOHLITEForMacLatest/BOHLITEBeta2.5/src/views/BOHAI/BOHAI/styles/motion-system.css#L1) 的 token 化样板，但全局 animations.css 没有引用，造成两套并存的 easing 体系。
+[animations.css](file:///Users/ryyik/Documents/BOHLITEForMacLatest/BOHLITEBeta2.5/src/styles/common/animations.css) 包含 30+ 个 keyframes，全部使用 `ease` 弱缓动；同时存在 `scale(0)` 违规。项目已有博莱克 [motion-system.css:1-7](file:///Users/ryyik/Documents/BOHLITEForMacLatest/BOHLITEBeta2.5/src/views/Bolek/Bolek/styles/motion-system.css#L1) 的 token 化样板，但全局 animations.css 没有引用，造成两套并存的 easing 体系。
 
 **当前代码（节选自 [animations.css](file:///Users/ryyik/Documents/BOHLITEForMacLatest/BOHLITEBeta2.5/src/styles/common/animations.css)）：**
 
@@ -76,13 +76,13 @@
  * ==============================================
  * Motion Tokens — 全站动效 token 单一来源
  * ==============================================
- * 与 BOHAI motion-system.css 命名对齐（--bohai-motion-*）
+ * 与博莱克 motion-system.css 命名对齐（--bolek-motion-*）
  * 但放在全局，供所有页面/组件引用。
  * 推荐自 AUDIT.md:
  *   --ease-out: cubic-bezier(0.23, 1, 0.32, 1)
  *   --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1)
  * 项目既有（保持兼容）:
- *   cubic-bezier(0.16, 1, 0.3, 1)   ← BOHAI/CommonAlertModal/login-modal 已用
+ *   cubic-bezier(0.16, 1, 0.3, 1)   ← Bolek/CommonAlertModal/login-modal 已用
  * ==============================================
  */
 
@@ -90,8 +90,8 @@
   /* Easing — UI 强曲线 */
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
-  --ease-emphasized: cubic-bezier(0.16, 1, 0.3, 1);  /* BOHAI 既有 emphasized，保留 */
-  --ease-standard: cubic-bezier(0.2, 0, 0, 1);       /* BOHAI 既有 standard，保留 */
+  --ease-emphasized: cubic-bezier(0.16, 1, 0.3, 1);  /* 博莱克既有 emphasized，保留 */
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);       /* 博莱克既有 standard，保留 */
   --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);     /* iOS-like drawer 曲线 */
 
   /* Duration — UI 动画 < 300ms */
@@ -190,9 +190,9 @@ import "./styles/common/animations.css";
 
 ## Repo conventions to follow
 
-- **Token 命名**：与 [motion-system.css:1-7](file:///Users/ryyik/Documents/BOHLITEForMacLatest/BOHLITEBeta2.5/src/views/BOHAI/BOHAI/styles/motion-system.css#L1) 对齐（`--ease-emphasized` / `--ease-standard`），新增 `--ease-out` / `--ease-in-out` / `--ease-drawer` 三个 AUDIT.md 推荐的 token。
+- **Token 命名**：与 [motion-system.css:1-7](file:///Users/ryyik/Documents/BOHLITEForMacLatest/BOHLITEBeta2.5/src/views/Bolek/Bolek/styles/motion-system.css#L1) 对齐（`--ease-emphasized` / `--ease-standard`），新增 `--ease-out` / `--ease-in-out` / `--ease-drawer` 三个 AUDIT.md 推荐的 token。
 - **import 顺序**：tokens.css 必须在 animations.css 之前导入（main.js L13 → L14）。
-- **BOHAI 工作区**保留其局部 `.bohai-page { --bohai-motion-*: ... }` 不动 — 它使用同名 token 但作用域更具体，符合"扩展而非平行"原则。后续 Plan 004 可让 BOHAI 也引用全局 token，本 plan 不动 BOHAI。
+- **博莱克工作区**保留其局部 `.bolek-page { --bolek-motion-*: ... }` 不动 — 它使用同名 token 但作用域更具体，符合"扩展而非平行"原则。后续 Plan 004 可让博莱克也引用全局 token，本 plan 不动博莱克。
 
 ## Steps
 
@@ -206,7 +206,7 @@ import "./styles/common/animations.css";
 
 ## Boundaries
 
-- **不动** [motion-system.css](file:///Users/ryyik/Documents/BOHLITEForMacLatest/BOHLITEBeta2.5/src/views/BOHAI/BOHAI/styles/motion-system.css)（BOHAI 已是样板，本 plan 只让全局对齐它）。
+- **不动** [motion-system.css](file:///Users/ryyik/Documents/BOHLITEForMacLatest/BOHLITEBeta2.5/src/views/Bolek/Bolek/styles/motion-system.css)（博莱克已是样板，本 plan 只让全局对齐它）。
 - **不动** [variabls.css](file:///Users/ryyik/Documents/BOHLITEForMacLatest/BOHLITEBeta2.5/src/styles/helpers/variabls.css) 中的 `.transition { all !important }`（那是 Plan 002 的范围）。
 - **不动** [unified-nav.css](file:///Users/ryyik/Documents/BOHLITEForMacLatest/BOHLITEBeta2.5/src/styles/vendor/unified-nav.css)（Plan 004 的范围）。
 - **不动** reduce-motion 媒体查询（Plan 003 的范围）。

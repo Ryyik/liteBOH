@@ -4,7 +4,7 @@
     :class="{ 'is-error': isErrorReply }"
     @click="handleCardClick"
   >
-    <!-- 头部：BOHAI 标记 + 原句回显（原句进引擎的是干净提问，不是拼好的长 prompt ——
+    <!-- 头部：博莱克标记 + 原句回显（原句进引擎的是干净提问，不是拼好的长 prompt ——
          检索证据走 attachedContext 的 evidenceBlock 进 system prompt，见 script 注释） -->
     <header class="boh-forum-answer-head">
       <span class="boh-forum-answer-mark" aria-hidden="true">
@@ -59,22 +59,22 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { ArrowUpRight, Sparkles } from 'lucide-vue-next';
-import { useChatEngine } from '@/views/BOHAI/composables/useChatEngine.js';
-import { BOH_DEFAULT_MODE_ID } from '@/views/BOHAI/composables/chat-engine-config.js';
+import { useChatEngine } from '@/views/Bolek/composables/useChatEngine.js';
+import { BOH_DEFAULT_MODE_ID } from '@/views/Bolek/composables/chat-engine-config.js';
 import {
   BOH_ACTIVITY_LOAD_TITLES,
   formatCommunityActivityLine,
   resolveActivityLine,
   resolveBohActivityStage,
-} from '@/views/BOHAI/BOHAI/components/boh-activity.js';
-import { renderMarkdown } from '@/views/BOHAI/BOHAI/components/boh-markdown.js';
-import { isGenerationErrorText } from '@/views/BOHAI/utils/chatErrorMessages.js';
+} from '@/views/Bolek/Bolek/components/boh-activity.js';
+import { renderMarkdown } from '@/views/Bolek/Bolek/components/boh-markdown.js';
+import { isGenerationErrorText } from '@/views/Bolek/utils/chatErrorMessages.js';
 import { FORUM_TAG_MAP } from '@/views/Forum/forum-config.js';
-import { requestBohAISessionOpen } from '@/utils/boh-ai-session-handoff.js';
+import { requestBolekSessionOpen } from '@/utils/boh-ai-session-handoff.js';
 import { logger } from '@/utils/logger.js';
 
 /**
- * BohForumAnswerCard —— 论坛搜索「问 BOHAI」的内联回答卡片（2026-11-22）。
+ * BohForumAnswerCard —— 论坛搜索「问博莱克」的内联回答卡片（2026-11-22）。
  *
  * 设计口径（plans 口径定稿）：
  *   · **纯展示**：不带追问输入框；点卡片 → `/ai-chat` 自动打开这条对话继续聊。
@@ -83,7 +83,7 @@ import { logger } from '@/utils/logger.js';
  *     引擎里发送的原句干净地落进会话历史 —— 全页交接后看到的是「原句 → 回答」。
  *   · 引擎归属：本组件持有**自己的** useChatEngine 实例（与 BohIslandAnswer 同款先例），
  *     origin='quick-ask' 复用（侧栏「在搜索里问过」分组 / 提升主会话 / 批量清理零改动继承）。
- *     多实例共写 boh_chat_sessions 由写入守卫仲裁（bohai-chat-session-store.js）；
+ *     多实例共写 boh_chat_sessions 由写入守卫仲裁（bolek-chat-session-store.js）；
  *     组件卸载时引擎经 onScopeDispose 自行中止流。
  *   · 本组件由宿主经 createPanelAsync **懒加载**：它 import 了 boh-markdown
  *     （markdown-vendor + ui-sanitize），静态引入会把这两个 chunk 拽进 ForumMain 图
@@ -287,15 +287,15 @@ watch(bodyRef, (el) => {
  *      中止让 finally 立即收尾（partial 内容保留为 generationStoppedWithContent）；
  *   ② flushSessionsToStorage：落盘平时是 500ms 防抖 + idle 排队，交接按 timestamp
  *      在存储里找会话，防抖窗口内裸跳会让全页扑空；
- *   ③ requestBohAISessionOpen + push：消费方在 useBohShell 的 onMounted/onActivated。
+ *   ③ requestBolekSessionOpen + push：消费方在 useBohShell 的 onMounted/onActivated。
  */
 const openFullConversation = () => {
   if (streaming.value) engine.stopGeneration();
   engine.flushSessionsToStorage();
   const session = engine.chatSessions[engine.currentSessionIndex.value];
   const timestamp = session?.timestamp;
-  if (!timestamp || !requestBohAISessionOpen(timestamp)) {
-    logger.warn('forum-bohai-card', '会话交接登记失败，退化为裸跳', { timestamp });
+  if (!timestamp || !requestBolekSessionOpen(timestamp)) {
+    logger.warn('forum-bolek-card', '会话交接登记失败，退化为裸跳', { timestamp });
   }
   router.push('/ai-chat');
 };
@@ -326,7 +326,7 @@ onMounted(async () => {
     await engine.sendMessage();
   } catch (error) {
     // sendMessage 内部已把可恢复错误写进助手消息；这里只兜真正的异常
-    logger.warn('forum-bohai-card', '内联提问失败', error);
+    logger.warn('forum-bolek-card', '内联提问失败', error);
   }
 });
 

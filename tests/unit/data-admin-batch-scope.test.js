@@ -73,13 +73,13 @@ describe('buildBatchDeleteConditions（plans/027 E6.3）', () => {
     }
   });
 
-  it('bohaiModels：基础过滤是 not_like，服务端不支持 → 明确 block，而不是丢掉这条条件', () => {
+  it('bolekModels：基础过滤是 not_like，服务端不支持 → 明确 block，而不是丢掉这条条件', () => {
     // 丢掉这条条件会变成「连内部模型一起删」，所以宁可拒绝整次操作
-    expect(getBaseScopeConditions('bohaiModels')).toEqual([
+    expect(getBaseScopeConditions('bolekModels')).toEqual([
       { column: 'mode_id', op: 'not_like', value: 'moderation-%' },
     ]);
     const scope = buildBatchDeleteScope({
-      tabId: 'bohaiModels',
+      tabId: 'bolekModels',
       searchQuery: 'x',
       searchColumns: ['display_name'],
     });

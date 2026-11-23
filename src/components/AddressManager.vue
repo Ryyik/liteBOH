@@ -225,9 +225,9 @@ import { supabase } from '@/utils/supabase-client.js';
 import { logger } from '@/utils/logger.js';
 import { callVaultSiliconChat } from '@/utils/api/api-key-runtime-api.js';
 import {
-  listActiveBohaiModelConfigs,
-  buildBohaiRuntimeModels,
-} from '@/utils/api/bohai-model-config-api.js';
+  listActiveBolekModelConfigs,
+  buildBolekRuntimeModels,
+} from '@/utils/api/bolek-model-config-api.js';
 import { useConfirmDialog } from '@/composables/useConfirmDialog.js';
 
 const props = defineProps({
@@ -509,16 +509,16 @@ const aiFastModel = ref(null);
 
 const loadAIFastModel = async () => {
   try {
-    const result = await listActiveBohaiModelConfigs();
+    const result = await listActiveBolekModelConfigs();
     if (!result.ok || !Array.isArray(result.data) || result.data.length === 0) {
       logger.warn(
         'address-manager',
-        'BOHAI 模型配置读取失败:',
+        '博莱克模型配置读取失败:',
         result.error?.message || 'no config',
       );
       return null;
     }
-    const { chatModes, availableModels } = buildBohaiRuntimeModels(result.data);
+    const { chatModes, availableModels } = buildBolekRuntimeModels(result.data);
     const mode = chatModes.find((m) => m.id === 'fast') || chatModes[0];
     const resolved = availableModels.find((m) => m.id === mode?.model) || availableModels[0];
     aiFastModel.value = {
@@ -529,7 +529,7 @@ const loadAIFastModel = async () => {
     };
     return aiFastModel.value;
   } catch (err) {
-    logger.warn('address-manager', '加载 BOHAI Fast 模型配置失败:', err);
+    logger.warn('address-manager', '加载博莱克 Fast 模型配置失败:', err);
     return null;
   }
 };

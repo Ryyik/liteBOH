@@ -15,7 +15,7 @@ export const PLAN_DISPLAY_NAMES = {
  *   · `PLAN_DISPLAY_NAMES` = **产品名**（Free / Plus / Pro …），用于权益表、营销页；
  *   · 本表 = **「你现在是什么」的口语文案**，用于设置面板的用量卡与侧栏账号浮层，
  *     并且必须覆盖 `guest`（未登录）这一档 —— 那是 `PLAN_DISPLAY_NAMES` 没有的。
- * 2026-10-08 从 `BohaiSettingsPanel` 的局部常量收敛过来：侧栏账号浮层也要显示同一文案，
+ * 2026-10-08 从 `BolekSettingsPanel` 的局部常量收敛过来：侧栏账号浮层也要显示同一文案，
  * 留在组件里就会让同一个用户在两处看到两种叫法。
  */
 export const TIER_DISPLAY_LABELS = {
@@ -126,7 +126,7 @@ export const PLAN_AI_POINT_MULTIPLIERS = {
    行保留以留审计痕迹；购买 RPC 的 EXECUTE 已 revoke。
    若要恢复：优先从 git 历史取这段定义，而不是凭记忆重写。 */
 /** 实验室（/lab）已于 2026-10-19 退场：PLAN_LAB_QUOTAS 展示口径同步删除；
- *  配额 enforcement（TIER_QUOTA_MAP，composables/useLabQuota.js）保留待 BOHAI Work 接管。 */
+ *  配额 enforcement（TIER_QUOTA_MAP，composables/useLabQuota.js）保留待博莱克 Work 接管。 */
 
 export const PLAN_LOTTERY_PITY_THRESHOLDS = {
   free: null,

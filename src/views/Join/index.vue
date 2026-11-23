@@ -101,7 +101,7 @@
                           type="text"
                           name="username"
                           autocomplete="username"
-                          placeholder="例如 bohai_2026"
+                          placeholder="例如 bolek_2026"
                           maxlength="20"
                           aria-describedby="joinMsgAccount joinHintAccount"
                           :aria-invalid="!!fieldMsg.account || accountState === 'err'"

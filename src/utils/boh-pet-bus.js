@@ -1,7 +1,7 @@
 /**
- * boh-pet-bus —— BOHAI 忙闲状态 → 全局挂件「小方」（BohPetBlock）的状态总线。
+ * boh-pet-bus —— 博莱克忙闲状态 → 全局挂件「小方」（BohPetBlock）的状态总线。
  *
- * 2026-11-22 用户口径：小方挂在全站所有页面上，BOHAI 在哪忙、它就在哪演。
+ * 2026-11-22 用户口径：小方挂在全站所有页面上，博莱克在哪忙、它就在哪演。
  *
  * 写入方（两个 AI 面，各写各的）：
  *   ① BohChatStream watch(activityStage) —— 全页 /ai-chat 的活动行阶段

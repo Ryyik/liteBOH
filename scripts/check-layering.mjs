@@ -18,7 +18,7 @@
  *      （组件里这类调用的真问题是「该用 authStore」，那是另一条规则。）
  *   2. `supabase.channel()` / `removeChannel()` —— 组件生命周期绑定的订阅。
  *   3. **把 supabase 当参数传递的依赖注入**：`addExperience(supabase, ...)`、
- *      `deps.supabase`（`utils/xp.js`、`BOHAI/useKnowledgeRetrieval.js`）。
+ *      `deps.supabase`（`utils/xp.js`、`Bolek/useKnowledgeRetrieval.js`）。
  *      那是比直连更好的写法，不该被判违规 —— 所以本脚本要求「文件自身 import 了
  *      supabase-client」才纳入管辖，DI 写法天然出局。
  *

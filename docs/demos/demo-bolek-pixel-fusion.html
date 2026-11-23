@@ -1,0 +1,645 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>博莱克思考动画 · 像素粒子双环融合 Demo</title>
+    <style>
+      /* ════════════════════════════════════════════════════════════
+     博莱克「正在思考」— 像素粒子方案 Demo
+     概念：像素粒子聚合成两个环 → 双环互绕转圈 → 融合成博莱克
+           字样（卫星粒子绕字继续转圈）→ 溃散 → 循环。
+     仅用于方案评审，不是线上代码。
+     粒子色取线上彩虹调色板 tokens.css --boh-beam-c*；
+     明暗亮度提升同 --boh-rainbow-lift（浅 0.7 / 暗 1.15）。
+     ════════════════════════════════════════════════════════════ */
+
+      :root {
+        --c1: rgb(255, 50, 100);
+        --c2: rgb(40, 140, 255);
+        --c3: rgb(50, 200, 80);
+        --c4: rgb(30, 185, 170);
+        --c5: rgb(100, 70, 255);
+        --c7: rgb(255, 120, 40);
+        --c8: rgb(240, 50, 180);
+        --c9: rgb(180, 40, 240);
+      }
+
+      body {
+        --lift: 0.7;
+        --bg: #f2f2f6;
+        --card: #ffffff;
+        --ink: #1d1d1f;
+        --ink-2: #86868b;
+        --ink-3: #aeaeb2;
+        --hairline: rgba(0, 0, 0, 0.08);
+      }
+      body.dark {
+        --lift: 1.15;
+        --bg: #0d0d0f;
+        --card: #1b1b1f;
+        --ink: #f5f5f7;
+        --ink-2: #98989d;
+        --ink-3: #636366;
+        --hairline: rgba(255, 255, 255, 0.1);
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Segoe UI', sans-serif;
+        background: var(--bg);
+        color: var(--ink);
+        min-height: 100vh;
+        padding: 20px 16px 60px;
+        transition:
+          background 0.3s,
+          color 0.3s;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      .controls {
+        position: sticky;
+        top: 12px;
+        z-index: 10;
+        max-width: 720px;
+        margin: 0 auto 24px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+        padding: 10px 16px;
+        background: var(--card);
+        border: 1px solid var(--hairline);
+        border-radius: 14px;
+        box-shadow: 0 6px 24px rgba(0, 0, 0, 0.08);
+      }
+      .controls button {
+        padding: 6px 14px;
+        border-radius: 999px;
+        cursor: pointer;
+        border: 1px solid var(--hairline);
+        background: transparent;
+        color: var(--ink);
+        font-size: 13px;
+        font-family: inherit;
+        transition: background 0.15s;
+      }
+      .controls button:hover {
+        background: var(--hairline);
+      }
+      .controls button.on {
+        background: var(--ink);
+        color: var(--card);
+        border-color: var(--ink);
+      }
+      .speed-wrap {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+        color: var(--ink-2);
+      }
+      .speed-wrap input {
+        accent-color: var(--c2);
+        width: 120px;
+      }
+      .speed-val {
+        min-width: 34px;
+        font-variant-numeric: tabular-nums;
+      }
+
+      h1 {
+        max-width: 720px;
+        margin: 4px auto 6px;
+        font-size: 20px;
+        font-weight: 700;
+      }
+      .sub {
+        max-width: 720px;
+        margin: 0 auto 28px;
+        font-size: 13px;
+        color: var(--ink-2);
+        line-height: 1.6;
+      }
+
+      .case {
+        max-width: 720px;
+        margin: 0 auto 18px;
+        background: var(--card);
+        border: 1px solid var(--hairline);
+        border-radius: 18px;
+        padding: 18px 20px 16px;
+        transition: background 0.3s;
+      }
+      .case-title {
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+        margin-bottom: 6px;
+      }
+      .case-title b {
+        font-size: 15px;
+      }
+      .case-title .tag {
+        font-size: 11px;
+        padding: 2px 8px;
+        border-radius: 999px;
+        background: var(--hairline);
+        color: var(--ink-2);
+        white-space: nowrap;
+      }
+      .case-desc {
+        font-size: 12px;
+        color: var(--ink-2);
+        line-height: 1.7;
+        margin-top: 12px;
+      }
+      .case-desc code {
+        font-size: 11px;
+        padding: 1px 5px;
+        border-radius: 4px;
+        background: var(--hairline);
+        font-family: ui-monospace, Menlo, monospace;
+      }
+
+      /* 大预览 */
+      .stage {
+        display: flex;
+        justify-content: center;
+        padding: 10px 0 4px;
+      }
+      canvas {
+        display: block;
+      }
+
+      /* 阶段指示 */
+      .phase-line {
+        text-align: center;
+        font-size: 12px;
+        color: var(--ink-3);
+        margin-top: 6px;
+        font-variant-numeric: tabular-nums;
+      }
+      .phase-line b {
+        color: var(--ink-2);
+        font-weight: 600;
+      }
+
+      /* 小尺寸（真实落位形态）：活动行内嵌迷你画布 */
+      .act {
+        display: inline-flex;
+        align-items: center;
+        gap: 9px;
+        font-size: 15px;
+        color: var(--ink-2);
+      }
+      .act .chev {
+        color: var(--ink-3);
+        display: inline-flex;
+      }
+      .act .chev svg {
+        width: 14px;
+        height: 14px;
+      }
+      .mini-stage {
+        display: flex;
+        justify-content: center;
+        padding: 14px 0 4px;
+      }
+
+      .body-fake {
+        margin-top: 14px;
+        font-size: 14px;
+        line-height: 1.7;
+        color: var(--ink-3);
+      }
+    </style>
+  </head>
+  <body>
+    <h1>博莱克思考动画 — 像素粒子 · 双环互绕 · 融合成字</h1>
+    <p class="sub">
+      状态机五段循环：<b
+        >散粒 → 聚合成双环 → 双环互绕转圈 → 融合成博莱克（卫星粒子绕字继续转圈）→ 溃散重生</b
+      >。 粒子为像素方块，颜色取线上彩虹调色板；明暗档同
+      <code style="font-size: 11px">--boh-rainbow-lift</code>（浅 0.7 / 暗 1.15）。
+    </p>
+
+    <div class="controls">
+      <button id="themeBtn">🌙 暗色</button>
+      <button id="reduceBtn">⏸ 静帧（关动效）</button>
+      <div class="speed-wrap">
+        速度
+        <input id="speed" type="range" min="0.5" max="3" step="0.25" value="1" />
+        <span class="speed-val" id="speedVal">1×</span>
+      </div>
+    </div>
+
+    <!-- 大预览 -->
+    <section class="case">
+      <div class="case-title"><b>完整循环</b><span class="tag">460×150 放大预览</span></div>
+      <div class="stage"><canvas id="cvBig"></canvas></div>
+      <div class="phase-line">阶段：<b id="phaseLabel">—</b></div>
+      <p class="case-desc">
+        ① 散粒（0.9s）→ ② 聚合成双环（1.4s）→ ③
+        双环互绕（2.2s，两环沿公共中心反向公转、环上粒子自流）→ ④
+        融合（1.3s，全体粒子飞向文字采样点，环当场散架汇成字）→ ⑤ 驻留（2.0s，博莱克成形 +
+        流光扫过，卫星粒子绕字继续转圈）→ ⑥ 溃散（0.9s）→ 回 ②。
+      </p>
+    </section>
+
+    <!-- 真实落位形态 -->
+    <section class="case">
+      <div class="case-title"><b>真实落位形态</b><span class="tag">200×48 活动行内嵌</span></div>
+      <div class="mini-stage">
+        <span class="act">
+          <canvas id="cvMini"></canvas>
+          <span class="chev"
+            ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M6 9l6 6 6-6" /></svg
+          ></span>
+        </span>
+      </div>
+      <p class="body-fake">
+        （AI 回复正文会从这里开始……判断这个图形状态行替换「正在思考」文字后的存在感。）
+      </p>
+      <p class="case-desc">
+        同一台引擎按比例缩放（粒子更小、环更细、卫星更少）。落线上时它就是活动行左侧那个状态元素，替代纯文本「正在思考」；
+        右侧仍可保留展开 caret 与推理块（点击展开看推理原文的交互不受影响）。
+      </p>
+    </section>
+
+    <script>
+      (() => {
+        'use strict';
+
+        /* ── 线上彩虹调色板（tokens.css --boh-beam-c*，去掉重复的 c6 蓝）── */
+        const BEAM = [
+          [255, 50, 100],
+          [40, 140, 255],
+          [50, 200, 80],
+          [30, 185, 170],
+          [100, 70, 255],
+          [255, 120, 40],
+          [240, 50, 180],
+          [180, 40, 240],
+        ];
+
+        const rand = (a, b) => a + Math.random() * (b - a);
+
+        /* ── 文字采样：离屏 canvas 画字 → 按 gap 步进读 alpha → 得到像素点阵 ── */
+        function sampleText(text, w, h, fontPx, gap) {
+          const off = document.createElement('canvas');
+          off.width = w;
+          off.height = h;
+          const c = off.getContext('2d');
+          c.fillStyle = '#fff';
+          c.font = `900 ${fontPx}px -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif`;
+          try {
+            c.letterSpacing = `${Math.round(fontPx * 0.04)}px`;
+          } catch (e) {
+            /* 老内核忽略 */
+          }
+          c.textAlign = 'center';
+          c.textBaseline = 'middle';
+          c.fillText(text, w / 2, h / 2 + fontPx * 0.04);
+          const data = c.getImageData(0, 0, w, h).data;
+          const pts = [];
+          for (let y = 0; y < h; y += gap) {
+            for (let x = 0; x < w; x += gap) {
+              if (data[(y * w + x) * 4 + 3] > 128) pts.push({ x, y });
+            }
+          }
+          return pts;
+        }
+
+        const PHASES = [
+          ['scatter', 0.9, '散粒'],
+          ['assemble', 1.4, '聚合成双环'],
+          ['orbit', 2.2, '双环互绕'],
+          ['merge', 1.3, '融合博莱克'],
+          ['hold', 2.0, '驻留 · 卫星绕字'],
+          ['burst', 0.9, '溃散重生'],
+        ];
+
+        class Fusion {
+          constructor(canvas, W, H) {
+            this.cv = canvas;
+            this.W = W;
+            this.H = H;
+            this.s = W / 460; // 相对大预览的缩放系数
+            this.dpr = Math.min(2, window.devicePixelRatio || 1);
+            canvas.width = Math.round(W * this.dpr);
+            canvas.height = Math.round(H * this.dpr);
+            canvas.style.width = W + 'px';
+            canvas.style.height = H + 'px';
+            this.ctx = canvas.getContext('2d');
+            this.ctx.scale(this.dpr, this.dpr);
+
+            this.speed = 1;
+            this.reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+            this.onThemeChange(); // 读 CSS 变量拿底色/亮度档
+
+            this.textPts = sampleText(
+              'Bolek',
+              W,
+              H,
+              Math.round(H * 0.58),
+              Math.max(2, Math.round(3 * this.s)),
+            );
+            this.textW =
+              Math.max(...this.textPts.map((p) => p.x)) - Math.min(...this.textPts.map((p) => p.x));
+            this.textL = Math.min(...this.textPts.map((p) => p.x));
+
+            this.buildParticles();
+            this.cx = W / 2;
+            this.cy = H / 2;
+            this.rx = 52 * this.s;
+            this.ry = 16 * this.s; // 双环公转椭圆
+            this.ringR = 30 * this.s; // 环基础半径
+            this.theta = Math.random() * Math.PI * 2;
+
+            this.phaseIdx = 0;
+            this.phaseStart = performance.now();
+            this.last = performance.now();
+            this.jitter = new Float32Array(this.parts.length * 2);
+
+            if (this.reduce) {
+              this.renderStatic();
+            } else {
+              requestAnimationFrame((t) => this.tick(t));
+            }
+          }
+
+          buildParticles() {
+            const pts = this.textPts;
+            // 分配约束：2×ringN + dustN = pts.length，卫星是额外加的
+            const ringN = Math.floor(pts.length * 0.3); // 双环粒子（每环各占）
+            const satN = Math.max(10, Math.floor(pts.length * 0.09)); // 卫星（绕字转圈）
+            const N = pts.length + satN;
+            this.satN = satN;
+            this.ringN = ringN;
+
+            this.parts = [];
+            // 文字点阵随机洗牌后按序分配，融合时颜色混合自然
+            const perm = pts.map((_, i) => i);
+            for (let i = perm.length - 1; i > 0; i--) {
+              const j = (Math.random() * (i + 1)) | 0;
+              [perm[i], perm[j]] = [perm[j], perm[i]];
+            }
+            this.perm = perm;
+
+            for (let i = 0; i < N; i++) {
+              const role = i < ringN ? 0 : i < ringN * 2 ? 1 : i < pts.length ? 2 : 3; // 0环A 1环B 2星尘 3卫星
+              this.parts.push({
+                x: rand(0, this.W),
+                y: rand(0, this.H),
+                vx: 0,
+                vy: 0,
+                k: rand(0.07, 0.15), // 追踪系数（个体差异 → 聚合有先后，更活）
+                lane:
+                  Math.floor(
+                    (role < 2 ? (role === 0 ? i : i - ringN) : 0) /
+                      Math.max(1, Math.ceil(ringN / 3)),
+                  ) % 3,
+                angleBase: rand(0, Math.PI * 2),
+                w: rand(0.25, 0.7) * (Math.random() < 0.5 ? 1 : -1), // 星尘各自角速度
+                rOff: rand(-14, 14) * this.s,
+                role,
+                tx: 0,
+                ty: 0,
+              });
+            }
+          }
+
+          onThemeChange() {
+            const cs = getComputedStyle(document.body);
+            this.bg = cs.getPropertyValue('--card').trim() || '#fff';
+            this.lift = document.body.classList.contains('dark') ? 1.15 : 0.7;
+            this.cols = BEAM.map(
+              (c) =>
+                `rgb(${Math.round(c[0] * this.lift)},${Math.round(c[1] * this.lift)},${Math.round(c[2] * this.lift)})`,
+            );
+            this.solid = true; // 换底色后先实刷一帧，避免残影串色
+          }
+
+          setPhase(i) {
+            this.phaseIdx = i % PHASES.length;
+            this.phaseStart = performance.now();
+            if (PHASES[this.phaseIdx][0] === 'burst') {
+              for (const p of this.parts) {
+                // 溃散：向四周炸开的冲量
+                const a = rand(0, Math.PI * 2),
+                  v = rand(1.2, 4.2) * Math.max(0.6, this.s);
+                p.vx = Math.cos(a) * v;
+                p.vy = Math.sin(a) * v;
+              }
+            }
+          }
+
+          tick(now) {
+            const dt = Math.min(0.05, (now - this.last) / 1000) * this.speed;
+            this.last = now;
+            this.theta += dt * 1.1;
+
+            const [key, durS, label] = PHASES[this.phaseIdx];
+            const dur = (durS * 1000) / this.speed;
+            let prog = (now - this.phaseStart) / dur;
+            if (prog >= 1) {
+              this.setPhase(this.phaseIdx + 1);
+              return this.tick(now);
+            }
+            this.updateTargets(key, prog);
+            this.step(dt, key);
+            this.draw(key, now / 1000);
+
+            if (this.labelEl) this.labelEl.textContent = `${label} · ${(prog * 100) | 0}%`;
+            requestAnimationFrame((t) => this.tick(t));
+          }
+
+          updateTargets(key, prog) {
+            const { cx, cy, rx, ry, ringR, s, theta } = this;
+            const oA = { x: Math.cos(theta) * rx, y: Math.sin(theta) * ry };
+            const oB = { x: -oA.x, y: -oA.y };
+            const flowA = theta * 2.4,
+              flowB = -theta * 2.4;
+            const t = performance.now() / 1000;
+            const satRX = this.textW / 2 + 18 * s,
+              satRY = this.H * 0.34;
+
+            for (let i = 0; i < this.parts.length; i++) {
+              const p = this.parts[i];
+              if (key === 'assemble' || key === 'orbit') {
+                if (p.role <= 1) {
+                  const o = p.role === 0 ? oA : oB;
+                  const flow = p.role === 0 ? flowA : flowB;
+                  const a = p.angleBase + flow;
+                  const r = ringR + p.lane * 3.2 * s;
+                  p.tx = cx + o.x + Math.cos(a) * r;
+                  p.ty = cy + o.y + Math.sin(a) * r * 0.92;
+                } else if (p.role === 2) {
+                  // 星尘：围绕双环的松散星云，各自反向漂移
+                  const a = p.angleBase + t * p.w;
+                  const r = rx * 1.5 + p.rOff * 2;
+                  p.tx = cx + Math.cos(a) * r;
+                  p.ty = cy + Math.sin(a) * r * 0.42 + Math.sin(a * 3 + i) * 4 * s;
+                } else {
+                  // 卫星提前绕外圈
+                  const a = p.angleBase + t * 1.2;
+                  p.tx = cx + Math.cos(a) * (satRX + 10 * s);
+                  p.ty = cy + Math.sin(a) * (satRY + 10 * s);
+                }
+              } else if (key === 'merge' || key === 'hold') {
+                if (p.role === 3) {
+                  const a = p.angleBase + t * 1.4; // ⭐ 融合成字后卫星粒子继续绕字转圈
+                  p.tx = cx + Math.cos(a) * satRX;
+                  p.ty = cy + Math.sin(a) * satRY;
+                } else {
+                  const tp = this.textPts[this.perm[i]];
+                  p.tx = tp.x;
+                  p.ty = tp.y;
+                }
+              } else {
+                // scatter / burst：随机散点
+                p.tx = p.sx ??= rand(0, this.W);
+                p.ty = p.sy ??= rand(0, this.H);
+              }
+            }
+          }
+
+          step(dt, key) {
+            const pursue =
+              key === 'hold'
+                ? 0.22
+                : key === 'merge'
+                  ? 0.16
+                  : key === 'scatter' || key === 'burst'
+                    ? 0.05
+                    : 0.11;
+            for (const p of this.parts) {
+              if (key === 'burst') {
+                p.x += p.vx;
+                p.y += p.vy;
+                p.vx *= 0.93;
+                p.vy *= 0.93;
+              }
+              const k = pursue * (key === 'scatter' || key === 'burst' ? p.k : 1);
+              p.x += (p.tx - p.x) * k;
+              p.y += (p.ty - p.y) * k;
+            }
+          }
+
+          draw(key, t) {
+            const ctx = this.ctx,
+              sz = Math.max(2, Math.round(3 * this.s));
+            if (this.solid) {
+              ctx.fillStyle = this.bg;
+              ctx.fillRect(0, 0, this.W, this.H);
+              this.solid = false;
+            } else {
+              ctx.fillStyle = this.bg + '99';
+              ctx.fillRect(0, 0, this.W, this.H);
+            } // 轻拖影
+
+            // 驻留期的流光波峰（贴线上：扫过文字本身）
+            const shimmer = key === 'hold';
+            const band = 0.14;
+            for (const p of this.parts) {
+              const x = Math.round(p.x),
+                y = Math.round(p.y);
+              ctx.fillStyle = this.cols[this.colIdx(p)];
+              ctx.fillRect(x, y, sz, sz);
+              if (shimmer && p.role !== 3) {
+                const g = ((p.x - this.textL) / this.textW + t * 0.5) % 1;
+                if (g < band) {
+                  ctx.fillStyle = 'rgba(255,255,255,0.9)';
+                  ctx.fillRect(x, y, sz, sz);
+                }
+              }
+            }
+          }
+
+          colIdx(p) {
+            return (p.colorSeed ??= Math.floor(Math.random() * BEAM.length));
+          }
+
+          /* 关动效：渲染最终成形的一帧（文字实色 + 卫星停在轨道上），不进 rAF */
+          renderStatic() {
+            const ctx = this.ctx,
+              sz = Math.max(2, Math.round(3 * this.s));
+            ctx.fillStyle = this.bg;
+            ctx.fillRect(0, 0, this.W, this.H);
+            for (let i = 0; i < this.textPts.length; i++) {
+              const tp = this.textPts[this.perm[i]];
+              ctx.fillStyle = this.cols[this.colIdx(this.parts[i])];
+              ctx.fillRect(Math.round(tp.x), Math.round(tp.y), sz, sz);
+            }
+            for (let i = 0; i < this.satN; i++) {
+              const p = this.parts[this.textPts.length + i];
+              const a = p.angleBase,
+                rx = this.textW / 2 + 18 * this.s,
+                ry = this.H * 0.34;
+              ctx.fillStyle = this.cols[this.colIdx(p)];
+              ctx.fillRect(
+                Math.round(this.W / 2 + Math.cos(a) * rx),
+                Math.round(this.H / 2 + Math.sin(a) * ry),
+                sz,
+                sz,
+              );
+            }
+          }
+
+          setReduce(on) {
+            this.reduce = on;
+            if (on) this.renderStatic();
+            else {
+              this.last = performance.now();
+              this.solid = true;
+              requestAnimationFrame((t) => this.tick(t));
+            }
+          }
+        }
+
+        /* ── 实例化：大预览 + 真实落位迷你版 ── */
+        const big = new Fusion(document.getElementById('cvBig'), 460, 150);
+        big.labelEl = document.getElementById('phaseLabel');
+        const mini = new Fusion(document.getElementById('cvMini'), 200, 48);
+
+        /* ── 控制条 ── */
+        const body = document.body;
+        const themeBtn = document.getElementById('themeBtn');
+        const reduceBtn = document.getElementById('reduceBtn');
+        const speed = document.getElementById('speed');
+        const speedVal = document.getElementById('speedVal');
+
+        themeBtn.addEventListener('click', () => {
+          const dark = body.classList.toggle('dark');
+          themeBtn.textContent = dark ? '☀️ 亮色' : '🌙 暗色';
+          themeBtn.classList.toggle('on', dark);
+          big.onThemeChange();
+          mini.onThemeChange();
+          if (big.reduce) {
+            big.renderStatic();
+            mini.renderStatic();
+          }
+        });
+
+        reduceBtn.addEventListener('click', () => {
+          const on = !big.reduce;
+          reduceBtn.classList.toggle('on', on);
+          big.setReduce(on);
+          mini.setReduce(on);
+          document.getElementById('phaseLabel').textContent = on ? '静帧（关动效态）' : '—';
+        });
+
+        speed.addEventListener('input', () => {
+          big.speed = mini.speed = parseFloat(speed.value);
+          speedVal.textContent = speed.value + '×';
+        });
+      })();
+    </script>
+  </body>
+</html>

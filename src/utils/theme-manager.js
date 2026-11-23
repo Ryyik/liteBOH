@@ -106,7 +106,7 @@ class ThemeManager {
         '.notification-settings-page',
         '.shared-memory-page',
         '#unified-nav-container',
-        '.bohai-page',
+        '.bolek-page',
         '.x-notifications-container',
       ];
 

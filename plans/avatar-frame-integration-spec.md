@@ -30,7 +30,7 @@
 | 个人主页评论/印象 | ProfileMain `.avatar-mini` / `.imp-avatar` | 48 / 30 |
 | 商店 | Shop `.avatar-button` | 42 |
 | Cloud+ 共享者 | CloudPlusMain | 34 |
-| BOHAI 侧栏 | adaptive-layout.css | 40 |
+| 博莱克侧栏 | adaptive-layout.css | 40 |
 | 生日英雄/翻牌 | BirthdayHero 96 / Birthday 56·48 | — |
 | 其他（成员详情/授权台/中奖者等） | — | 32–100 |
 
@@ -197,7 +197,7 @@
 | P1 | 关注/粉丝列表 | FollowListModal.vue | 40 |
 | P2 | 概览卡 | OverviewCard.vue | 22 |
 | P2 | 个人主页评论/印象 | ProfileMain.vue | 48/30 |
-| P2 | Cloud+ 共享者 / BOHAI 侧栏 / 生日系列 / 抽奖中奖者 | 各自文件 | 32–100 |
+| P2 | Cloud+ 共享者 / 博莱克侧栏 / 生日系列 / 抽奖中奖者 | 各自文件 | 32–100 |
 | 不接入 | 树洞匿名、官方账号、Lab 对话占位、周年皮肤期间 | — | — |
 
 ### 6.3 风险与陷阱备忘

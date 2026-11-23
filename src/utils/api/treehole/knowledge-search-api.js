@@ -11,7 +11,7 @@ import { toTrimmedText, TREEHOLE_SHARED_MEMORY_CACHE_TAG } from '../treehole-hel
  * 三处任一漏加都会表现为「检索静默少一类结果」，不报错。
  * 2026-10-16 新增 `forum_memory`（论坛事实卡）；
  * 2026-10-17 新增 `site_news` / `site_activity`（官方新闻与活动自动扩充知识库）。
- * （三处一致性守卫：tests/unit/bohai-knowledge-source-types-consistency.test.js）
+ * （三处一致性守卫：tests/unit/bolek-knowledge-source-types-consistency.test.js）
  */
 const ALLOWED_KNOWLEDGE_SOURCE_TYPES = [
   'core_memory',
@@ -23,7 +23,7 @@ const ALLOWED_KNOWLEDGE_SOURCE_TYPES = [
   'site_activity',
 ];
 
-export async function searchBohAIKnowledgeForAI({
+export async function searchBolekKnowledgeForAI({
   query = '',
   sourceTypes = ALLOWED_KNOWLEDGE_SOURCE_TYPES,
   limit = 8,

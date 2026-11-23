@@ -18,7 +18,7 @@
 - 确认组件目录导入已经在使用新的 `ComponentName/index.vue` 模式。
 - 将 `src/router/index.js` 拆分为按领域组织的路由文件：公共页面、社区、个人空间、创作者工作台、管理后台和重定向。
 - 将管理后台路由统一改为 `meta.requiresAdmin`，包括 `/admin/data-management` 和 `/admin/alert-style-editor`。
-- 将 BOH AI 聊天引擎的配置常量、模型列表、关键词和阈值抽到 `src/views/BOHAI/composables/chat-engine-config.js`。
+- 将 BOH AI 聊天引擎的配置常量、模型列表、关键词和阈值抽到 `src/views/Bolek/composables/chat-engine-config.js`。
 - 将部分高频页面/组件调试输出迁移到 `src/utils/logger.js`，包括 App、PWA、Shop、Mailbox、Messages、BOHDesktop 和 BOH AI 聊天引擎。
 - 在 `auth` Pinia store 中增加统一的 `isAdmin`，并让路由守卫、个人中心导航、个人中心索引和礼物地址页使用同一权限判断来源。
 
@@ -44,7 +44,7 @@
 
 ## 较大的清理目标
 
-- `src/views/BOHAI/composables/useChatEngine.js` 仍然很大，但配置层已经拆出。后续建议继续按关注点拆成更小的模块：提示词构建、检索、记忆捕获、审核/grounding，以及 UI 会话状态。
+- `src/views/Bolek/composables/useChatEngine.js` 仍然很大，但配置层已经拆出。后续建议继续按关注点拆成更小的模块：提示词构建、检索、记忆捕获、审核/grounding，以及 UI 会话状态。
 - 一些页面样式文件非常大，尤其是 `Home`、`Cloud+`、`UserSpace`、`Forum` 和 `VideoScriptEditor`。建议只在多个页面重复使用时，再抽取共享布局/控件样式。
 - 页面组件中的控制台输出仍有剩余，尤其是大型页面中的错误处理日志。已迁移一批高频 debug 输出，后续可以继续把 page-level 日志迁移到 logger，或删除纯调试日志。
 - 一些根目录文档和生成产物与源代码混在一起。长期来看，建议将产品/项目文档放在 `docs/` 下，数据库快照放在 `docs/database/` 下，生成产物不要纳入源代码追踪。

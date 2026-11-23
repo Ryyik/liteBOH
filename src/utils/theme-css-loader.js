@@ -28,7 +28,7 @@ const DARK_THEME_CSS = [
   { key: 'post-detail-dark', load: () => import('@/styles/themes/post-detail-dark.css') },
   { key: 'user-space-dark', load: () => import('@/styles/themes/user-space-dark.css') },
   { key: 'user-center-dark', load: () => import('@/styles/themes/user-center-dark.css') },
-  { key: 'bohai-dark', load: () => import('@/styles/themes/bohai-dark.css') },
+  { key: 'bolek-dark', load: () => import('@/styles/themes/bolek-dark.css') },
   { key: 'messages-dark', load: () => import('@/styles/themes/messages-dark.css') },
 ];
 

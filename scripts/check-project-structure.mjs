@@ -29,16 +29,16 @@ const LARGE_FILE_LINE_LIMITS = {
   '.ts': 2500,
   '.vue': 2500,
 };
-/* plans/025 v2 · Step 7-1：BOHAI 目录行数阈值收紧 —— 组件（.vue）400 行 /
-   模块（.js/.ts）500 行。BOHAI 是「重写范围」内收敛的目录（plans/025 §0.3），
-   阈值只对 BOHAI 生效，且**不受 top-20 窗口限制**（§1.2 的教训：窗口会让
+/* plans/025 v2 · Step 7-1：博莱克目录行数阈值收紧 —— 组件（.vue）400 行 /
+   模块（.js/.ts）500 行。博莱克是「重写范围」内收敛的目录（plans/025 §0.3），
+   阈值只对博莱克生效，且**不受 top-20 窗口限制**（§1.2 的教训：窗口会让
    排名靠后的大文件永不被报）。
-   ⚠️ 与全局阈值的关系：BOHAI 文件取两者中更严的一档，同一文件只报一次。
-   ⚠️ 现状仍是 WARN 不是 error：BohaiSettingsPanel.vue（2712）/ useChatEngine.js
+   ⚠️ 与全局阈值的关系：博莱克文件取两者中更严的一档，同一文件只报一次。
+   ⚠️ 现状仍是 WARN 不是 error：BolekSettingsPanel.vue（2712）/ useChatEngine.js
    （2107）等存量文件尚待继续拆分（Step 6 遗留），硬 error 门禁当下不可绿；
    本档先让「新增/继续膨胀」可见，拆分收敛后再升 error。 */
-const BOHAI_ROOT = 'src/views/BOHAI';
-const BOHAI_LINE_LIMITS = {
+const BOLEK_ROOT = 'src/views/Bolek';
+const BOLEK_LINE_LIMITS = {
   '.css': 2000,
   '.js': 500,
   '.ts': 500,
@@ -143,7 +143,7 @@ const collectReExportIssuesFromSource = (source, displayPath) => {
   // ⚠️ 用 `[^{}]*` 而不是 `[\s\S]*?`：名字列表里不可能有花括号，而 `[\s\S]*?` 会**跨块**
   // 懒匹配到后面第一个 `} from '…'`（例如紧跟其后的 `import { … } from '…'`），
   // 把 import 的绑定名误判成「转发导出未创建本地绑定」—— 2026-10-07 在
-  // `bohai-engine-helpers.js` 的 barrel 上实测踩到（8 条假阳性）。
+  // `bolek-engine-helpers.js` 的 barrel 上实测踩到（8 条假阳性）。
   const reExportPattern = /export\s*\{([^{}]*)\}\s*from\s*["'][^"']+["'];?/g;
   const reExports = [];
   let match;
@@ -268,21 +268,21 @@ const collectStructureReport = (projectRoot = process.cwd()) => {
     errors.push(`运行时图片目录只保留 WebP/SVG，请将原图归档到 docs/assets-source/images: ${file}`);
   }
 
-  // BOHAI 文件按收紧阈值全量扫（Step 7-1）；其余文件维持既有口径：只扫全仓
+  // 博莱克文件按收紧阈值全量扫（Step 7-1）；其余文件维持既有口径：只扫全仓
   // top-20（`slice(0, 20)` 的缺陷登记在 plans/025 §1.2，是独立任务）。
-  const bohaiFiles = lineStats.filter((item) =>
-    normalize(projectRoot, item.file).startsWith(`${BOHAI_ROOT}/`),
+  const bolekFiles = lineStats.filter((item) =>
+    normalize(projectRoot, item.file).startsWith(`${BOLEK_ROOT}/`),
   );
   const otherTopFiles = lineStats
-    .filter((item) => !normalize(projectRoot, item.file).startsWith(`${BOHAI_ROOT}/`))
+    .filter((item) => !normalize(projectRoot, item.file).startsWith(`${BOLEK_ROOT}/`))
     .slice(0, 20);
 
-  for (const item of [...bohaiFiles, ...otherTopFiles]) {
+  for (const item of [...bolekFiles, ...otherTopFiles]) {
     const relative = normalize(projectRoot, item.file);
     const ext = path.extname(item.file);
-    const isBohai = relative.startsWith(`${BOHAI_ROOT}/`);
+    const isBolek = relative.startsWith(`${BOLEK_ROOT}/`);
     const limit =
-      (isBohai ? BOHAI_LINE_LIMITS[ext] : undefined) ?? LARGE_FILE_LINE_LIMITS[ext] ?? 3000;
+      (isBolek ? BOLEK_LINE_LIMITS[ext] : undefined) ?? LARGE_FILE_LINE_LIMITS[ext] ?? 3000;
     if (item.lines >= limit) {
       warnings.push(`超大文件建议拆分: ${relative} (${item.lines} 行，建议阈值 ${limit} 行)`);
     }

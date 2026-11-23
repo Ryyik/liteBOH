@@ -5,12 +5,12 @@
  * 本文件收纳三族 token，都以 :root 全局生效（main.js 加载）：
  *
  * 1. Motion Tokens — 全站动效（--ease-* / --duration-* / --motion-*）
- *    与 BOHAI motion-system.css 命名对齐（--bohai-motion-*），但放全局。
+ *    与博莱克 motion-system.css 命名对齐（--bolek-motion-*），但放全局。
  *    推荐自 AUDIT.md:
  *      --ease-out: cubic-bezier(0.23, 1, 0.32, 1)
  *      --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1)
  *    项目既有（保持兼容）:
- *      cubic-bezier(0.16, 1, 0.3, 1)   ← BOHAI/CommonAlertModal/login-modal 已用
+ *      cubic-bezier(0.16, 1, 0.3, 1)   ← Bolek/CommonAlertModal/login-modal 已用
  *
  * 2. Liquid Glass Tokens — iOS 26/27 液态玻璃（--liquid-*，共 26 个）
  *    四层结构：:root 亮色 → [data-theme="dark"] 暗色 → @supports 无滤镜降级
@@ -33,8 +33,8 @@
   /* Easing — UI 强曲线 */
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
-  --ease-emphasized: cubic-bezier(0.16, 1, 0.3, 1);  /* BOHAI 既有 emphasized，保留 */
-  --ease-standard: cubic-bezier(0.2, 0, 0, 1);       /* BOHAI 既有 standard，保留 */
+  --ease-emphasized: cubic-bezier(0.16, 1, 0.3, 1);  /* 博莱克既有 emphasized，保留 */
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);       /* 博莱克既有 standard，保留 */
   --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);     /* iOS-like drawer 曲线 */
   /* 形变专用：drawer 曲线在 45% 时间点就走完 94% 的位移，用它做「卡片长大」
      会变成「亮起来的时候已经基本长完了」＝ 看着像一闪而过。这条把速度峰值
@@ -199,15 +199,15 @@
         不在这里。这里只放 CSS 侧两件：
           ① 白膜 RGB 三元组（随**站点**主题翻转）；
           ② 无 JS 时的白膜 α 兜底（值必须等于 spec.tintAlphaDefault，由守卫锁「两处一致」）。
-     ⚠️ BOHAI 域内**不跟站点主题联动**（由 `[data-boh-theme]` 表达）⇒ BOHAI 在自己的
-        tokens.css 里按 `.bohai-page` 作用域覆写 `--refract-tint-rgb`。 */
+     ⚠️ 博莱克域内**不跟站点主题联动**（由 `[data-boh-theme]` 表达）⇒ 博莱克在自己的
+        tokens.css 里按 `.bolek-page` 作用域覆写 `--refract-tint-rgb`。 */
   --refract-tint-rgb-light: 255, 255, 255;
   --refract-tint-rgb-dark: 38, 38, 48;
   --refract-tint-rgb: var(--refract-tint-rgb-light);
   /* 站点级默认档（= spec.tintAlphaDefault，守卫锁两处一致）。站点 chrome（顶栏）显式引用它，
-     从而**不跟着** BOHAI 的「玻璃透明度」用户偏好走。 */
+     从而**不跟着** 博莱克的「玻璃透明度」用户偏好走。 */
   --refract-alpha-default: 0.1;
-  /* 实际生效值：默认 = 站点默认档；BOHAI 域内由 useBohShell 按用户偏好覆写（写根元素）。 */
+  /* 实际生效值：默认 = 站点默认档；博莱克域内由 useBohShell 按用户偏好覆写（写根元素）。 */
   --refract-alpha: var(--refract-alpha-default);
   --refract-tint: rgba(var(--refract-tint-rgb), var(--refract-alpha));
 }
@@ -235,7 +235,7 @@
   --liquid-text-tertiary: #8a919c;
 
   /* 折射级白膜：只切 RGB 三元组（α 是共享的 `--refract-alpha`，两主题同值）。
-     ⚠️ 这里必须写**站点**主题（`[data-theme="dark"]`）；BOHAI 域内由 `.bohai-page` 覆写。 */
+     ⚠️ 这里必须写**站点**主题（`[data-theme="dark"]`）；博莱克域内由 `.bolek-page` 覆写。 */
   --refract-tint-rgb: var(--refract-tint-rgb-dark);
 
   /* Heatmap 暗色：0 档必须能浮现在深底上（略高于面板底），1→4 走拾色变亮 */

@@ -47,7 +47,7 @@ export const SITE_NAV_ITEMS: SiteNavNode[] = [
     label: '探索',
     children: [
       { name: 'boh-app', path: '/app', label: 'BOH App' },
-      // 「BOHAI Work」不设独立子导航（2026-10-19）：Work 是 /ai-chat 的形态维度，
+      // 「博莱克 Work」不设独立子导航（2026-10-19）：Work 是 /ai-chat 的形态维度，
       // 深链 ?surface=work 仍可用（useBohShell 解析），但不占导航层级。
       { name: 'ai-chat', path: '/ai-chat', label: 'BOH AI' },
       { name: 'mbti', path: '/mbti', label: 'MBTI' },

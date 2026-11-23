@@ -6,7 +6,7 @@ import {
   isFanoutTrigger,
   resolveClusterMode,
   estimateClusterBudget,
-} from '../../src/views/BOHAI/agents/core/agent-cluster-config.js';
+} from '../../src/views/Bolek/agents/core/agent-cluster-config.js';
 
 describe('agent-cluster-config: isFanoutTrigger', () => {
   it('returns false for empty string', () => {
@@ -70,7 +70,9 @@ describe('agent-cluster-config: estimateClusterBudget', () => {
   });
 
   it('returns HIGH for 12000+ chars', () => {
-    expect(estimateClusterBudget({ agentCount: 1, totalInputChars: 12000 })).toBe(AGENT_CLUSTER_BUDGET_TIER.HIGH);
+    expect(estimateClusterBudget({ agentCount: 1, totalInputChars: 12000 })).toBe(
+      AGENT_CLUSTER_BUDGET_TIER.HIGH,
+    );
   });
 
   it('returns NORMAL for 3-4 agents', () => {
@@ -79,11 +81,15 @@ describe('agent-cluster-config: estimateClusterBudget', () => {
   });
 
   it('returns NORMAL for 6000-11999 chars', () => {
-    expect(estimateClusterBudget({ agentCount: 1, totalInputChars: 6000 })).toBe(AGENT_CLUSTER_BUDGET_TIER.NORMAL);
+    expect(estimateClusterBudget({ agentCount: 1, totalInputChars: 6000 })).toBe(
+      AGENT_CLUSTER_BUDGET_TIER.NORMAL,
+    );
   });
 
   it('returns LOW for small inputs', () => {
-    expect(estimateClusterBudget({ agentCount: 1, totalInputChars: 100 })).toBe(AGENT_CLUSTER_BUDGET_TIER.LOW);
+    expect(estimateClusterBudget({ agentCount: 1, totalInputChars: 100 })).toBe(
+      AGENT_CLUSTER_BUDGET_TIER.LOW,
+    );
   });
 
   it('returns LOW for empty defaults', () => {

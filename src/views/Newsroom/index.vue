@@ -959,7 +959,7 @@ onMounted(async () => {
   }
 });
 
-// 全局导航是 position:fixed，其实际高度与 --bohai-standalone-nav-height 声明值
+// 全局导航是 position:fixed，其实际高度与 --bolek-standalone-nav-height 声明值
 // 并不一致（同 Health 页的发现）。filter-bar 用 --nav-h 做 sticky 吸顶避让，
 // 这里实测导航真实高度写回页面根节点，避免吸顶时与导航叠压。
 let navResizeObserver = null;

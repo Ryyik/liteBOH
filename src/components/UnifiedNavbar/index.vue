@@ -756,7 +756,7 @@ const { isSearchOpen, toggleSearch } = useGlobalSearch({
 });
 
 // ============================================
-// 竖屏唤起 BOHAI：抓导航胶囊往下拉（plans/038 §3.7；2026-11-04 用户口径）
+// 竖屏唤起博莱克：抓导航胶囊往下拉（plans/038 §3.7；2026-11-04 用户口径）
 // 竖屏不再有常驻悬浮气泡 —— 导航本身是唯一定位点，拉它就是「把岛拉出来」。
 //   · 起手 12px 内不判定：点击（logo / 菜单 / 头像）与横向滑动都放行；
 //   · 竖向位移过 48px 松手才开，避免误触；
@@ -769,14 +769,14 @@ const navHamburger = ref(null);
 const bohIsland = useBohIsland();
 
 /**
- * 岛展开了 ⇒ 整块 surface 切到 dark（2026-11-05 用户口径「唤起 BOHAI 整个岛自动变成深色」）。
+ * 岛展开了 ⇒ 整块 surface 切到 dark（2026-11-05 用户口径「唤起博莱克整个岛自动变成深色」）。
  *
  * 只切 `data-theme` 这一个开关，其余全部复用现成的暗色导航样式
  * （`src/styles/themes/navbar-dark.css` 里 .nav-logo-text / .nav-menu a / .nav-link-wrapper
  *  等一整套白字规则）——不在这里再抄一份颜色，否则两处真源必然漂移。
  * surface 自己的深色底由 style.scoped.css 的 `.has-boh-island` 提供。
  *
- * ⚠️ 只在**容器**上切，不动 `<html data-theme>`：站点主题、BOHAI 全页、其它岛都不受影响。
+ * ⚠️ 只在**容器**上切，不动 `<html data-theme>`：站点主题、博莱克全页、其它岛都不受影响。
  */
 const surfaceTheme = computed(() => (bohIsland.isOpen.value ? 'dark' : currentTheme.value));
 
@@ -1755,8 +1755,8 @@ const isExpandedLooking = computed(() =>
 );
 
 /* 「球态」写到 body 上供页面侧消费 —— 目前只有 AI 页用：
-   `body.page-aichat.nav-orb-mode` 把 `--bohai-standalone-nav-height` 归零，
-   于是 `.bohai-page` 不再避让导航高度、整页顶到满屏（用户口径「页面高度提升上去」）。
+   `body.page-aichat.nav-orb-mode` 把 `--bolek-standalone-nav-height` 归零，
+   于是 `.bolek-page` 不再避让导航高度、整页顶到满屏（用户口径「页面高度提升上去」）。
    ⚠️ 与球的显隐共用 isExpandedLooking 同一处判定，不要再造第二个真源。 */
 let orbTransitionTimer = null;
 watch(
@@ -1765,7 +1765,7 @@ watch(
     if (typeof document === 'undefined') return;
     document.body.classList.toggle('nav-orb-mode', Boolean(immersive) && !expanded);
     // 页面高度的过渡只在**形态切换窗口内**挂：常驻 transition 会把软键盘的
-    // `--kb-inset` 适配（同样改 .bohai-page 的 height）一起拖慢 460ms。
+    // `--kb-inset` 适配（同样改 .bolek-page 的 height）一起拖慢 460ms。
     document.body.classList.add('nav-orb-transitioning');
     if (orbTransitionTimer) clearTimeout(orbTransitionTimer);
     orbTransitionTimer = setTimeout(() => {
@@ -2140,7 +2140,7 @@ onMounted(() => {
   // Esc：二级菜单 / mini 钉住态的键盘出口
   document.addEventListener('keydown', handleNavEsc);
 
-  // 竖屏下拉唤起 BOHAI：touchmove 必须 non-passive 才能 preventDefault 掉页面滚动
+  // 竖屏下拉唤起博莱克：touchmove 必须 non-passive 才能 preventDefault 掉页面滚动
   const surfaceEl = navSurface.value;
   surfaceEl?.addEventListener('touchstart', onPullTouchStart, { passive: true });
   surfaceEl?.addEventListener('touchmove', onPullTouchMove, { passive: false });

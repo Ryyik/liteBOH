@@ -1,7 +1,7 @@
 // 云端优先、本地兜底的图片审核管线（2026-09-17 审核降级改造）
 //
 // 第一层：Gemini 云端审核 —— 走 api-key-vault runtime-chat，mode='moderation-image'
-//         （模型/上游/温度全部由 bohai_model_configs 的 moderation-image 行服务端裁决）。
+//         （模型/上游/温度全部由 bolek_model_configs 的 moderation-image 行服务端裁决）。
 //         Gemini OpenAI 兼容层支持 image_url base64 dataURL，Worker 对 messages 原样透传。
 // 兜底层：本地 nsfwjs（forum-image-moderation.js），仅在云端不可达/未配置时进入，
 //         且判定从宽：仅 rejected（≥0.75 阈值）拦截，needs_review 放行 ——

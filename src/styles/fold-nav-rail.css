@@ -52,9 +52,9 @@
     padding-right: var(--fold-nav-gutter, 88px);
   }
 
-  /* BOH AI 整页：整页右移，聊天区 / 输入区 / ☰ 按钮（absolute 在 .bohai-container 内）
+  /* BOH AI 整页：整页右移，聊天区 / 输入区 / ☰ 按钮（absolute 在 .bolek-container 内）
      全部自动跟着走，不需要逐个子元素改 */
-  body.page-aichat .bohai-page {
+  body.page-aichat .bolek-page {
     padding-right: var(--fold-nav-gutter, 88px);
   }
 

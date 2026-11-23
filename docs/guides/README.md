@@ -11,7 +11,7 @@
 | [规范体系设计-2026-09-28.md](规范体系设计-2026-09-28.md) | 规则如何才算生效、棘轮与交付证据的设计原则 |
 | [报告模板.md](报告模板.md) | 报告/方案/审查类文档的结论—判据—实测日期模板 |
 | [重构验证协议.md](重构验证协议.md) | 拆组件、搬代码、外置 CSS 的 L1–L6 验证协议 |
-| [DESIGN-BOHAI.md](DESIGN-BOHAI.md) | BOH AI 的视觉/交互规格真源 |
+| [DESIGN-Bolek.md](DESIGN-Bolek.md) | BOH AI 的视觉/交互规格真源 |
 | [SOP.md](SOP.md) | 项目标准操作流程（6 步工作流） |
 | [boot-js-notes.md](boot-js-notes.md) | `public/boot.js` 首屏启动脚本的设计说明 |
 | [post-composer-explained.md](post-composer-explained.md) | 发帖编辑器（PostComposer）的代码地图与上下文交接 |

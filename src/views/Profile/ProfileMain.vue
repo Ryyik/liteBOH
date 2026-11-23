@@ -844,7 +844,7 @@
 
 <script setup>
 /* 横屏左右分栏的页面级规则（他人空间段落，body.page-userprofile 前缀）。与
-   UserSpaceMain / Home / BOHAI / Cloud+ / Shop 共用同一份真源，判据单源。
+   UserSpaceMain / Home / 博莱克 / Cloud+ / Shop 共用同一份真源，判据单源。
    ⚠️ 必须用 JS import，不能写 `<style src>`：同一份 CSS 只要同时存在「JS import」
    与「<style src>」两种引入形态，CSS 去重后 vite-plugin-pwa 的 buildEnd 会拿到
    undefined descriptor（`reading 'scoped'`）随机崩构建 —— 2026-11-17 CI run 44039482216 复现。

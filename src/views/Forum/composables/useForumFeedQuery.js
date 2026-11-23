@@ -12,13 +12,13 @@
  *
  * ── 唯一搬走的状态：searchDebounceTimer ──────────────────────────────
  * 它是搜索防抖的句柄，只有本模块需要（写入在 `watch(searchQuery)` 里）。
- * 但宿主的 `askBohai`（问 BOHAI 前要先掐掉待发的检索）也要动它，
+ * 但宿主的 `askBolek`（问博莱克前要先掐掉待发的检索）也要动它，
  * 于是对外暴露 `cancelPendingSearch()` —— 比让宿主跨文件去 clearTimeout 一个
  * 别人的 `let` 干净，也顺手消掉「三处各写一遍 clearTimeout」。
  *
  * ⚠️ 调用点放在宿主原位置（不要挪到 setup 尾部）：这里注入的 fetchForumData /
  * focusForumSearch / isLoggedIn 都在它之上声明完毕，就地挂载反而是最安全的，
- * 挪到尾部会让 `askBohai` 里的 stripTagTokens 变成「先用后声明」。
+ * 挪到尾部会让 `askBolek` 里的 stripTagTokens 变成「先用后声明」。
  */
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { FORUM_TAG_OPTIONS, SEARCH_DEBOUNCE_MS } from '../forum-config.js';
@@ -306,7 +306,7 @@ export function useForumFeedQuery(deps) {
     }, delay);
   });
 
-  /* 掐掉待发的检索（宿主「问 BOHAI」要在检索前调用）：防抖窗口里再打一次全表查询，
+  /* 掐掉待发的检索（宿主「问博莱克」要在检索前调用）：防抖窗口里再打一次全表查询，
      既浪费一次请求，又会把用户刚问的问题覆盖成列表结果。 */
   const cancelPendingSearch = () => {
     if (!searchDebounceTimer) return;

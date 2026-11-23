@@ -238,7 +238,7 @@ export const buildResourceSearchQuery = (
     .slice(0, 180);
 };
 
-export const detectBohAIResourceSearchIntent = (text = '') => {
+export const detectBolekResourceSearchIntent = (text = '') => {
   const source = normalizeText(text);
   if (!source) {
     return { matched: false, query: '', type: 'all', loader: '', version: '' };
@@ -310,7 +310,7 @@ export const normalizeModrinthResource = (item = {}) => {
   };
 };
 
-export async function searchMinecraftResourcesForBohAI({
+export async function searchMinecraftResourcesForBolek({
   query = '',
   type = 'all',
   version = '',

@@ -18,7 +18,7 @@ import { resolveForumSection } from '../../config/forum-sections';
  *   · 旧用户中心 /user-center/*（引入 ≤2026-06）：12 条折叠为 2 条（见下方分节）
  *   · 旧用户空间深链（引入 2026-09-30，tab 语义迁移）：8 条
  *   · Beta 6 退场（引入 2026-09-27）：/forum、/activities(×3)、/block-wall、/tutorial
- *   · 实验室退场（引入 2026-10-19）：/lab → BOHAI Work
+ *   · 实验室退场（引入 2026-10-19）：/lab → 博莱克 Work
  *   · 礼物中心退场（引入 2026-11-02）：/user-space/gifts → 购物袋「订单」/ 商城「地址」
  *   · 管理台补漏（引入 2026-11-14）：/admin → /admin/overview（裸路径原先 404）
  *
@@ -206,7 +206,7 @@ export const compatRoutes: RouteRecordRaw[] = [
     redirect: (to: any) => ({ path: '/newsroom', query: { ...to.query, filter: 'show:all' } }),
   },
   {
-    // 实验室退场兼容（2026-10-19）：/lab → BOHAI Work（/ai-chat 的 work 大模式）。
+    // 实验室退场兼容（2026-10-19）：/lab → 博莱克 Work（/ai-chat 的 work 大模式）。
     // 引入 2026-10-19，默认 6 个月生命期，到期按 unknown_route 埋点决定续或删。
     path: '/lab',
     name: 'Lab',

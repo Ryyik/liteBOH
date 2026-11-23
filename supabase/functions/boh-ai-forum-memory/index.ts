@@ -97,7 +97,7 @@ const clampInt = (value: unknown, fallback: number, min: number, max: number) =>
   return Math.min(max, Math.max(min, Math.trunc(parsed)));
 };
 
-/** 与前端 `getPostTitleAndBody`（`views/BOHAI/utils/format/post.js`）同一口径：先看显式 title/body，再退回 content。 */
+/** 与前端 `getPostTitleAndBody`（`views/Bolek/utils/format/post.js`）同一口径：先看显式 title/body，再退回 content。 */
 const resolvePostText = (post: Record<string, unknown>) => {
   const title = toText(post.title, 200);
   const body = toText(post.body, POST_BODY_MAX_CHARS);

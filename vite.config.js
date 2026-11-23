@@ -226,6 +226,13 @@ const SHELL_CHUNKS = [
   // **修法不是把它们加进本名单，而是把回答面改回懒加载**（BohIsland.vue 用
   // defineAsyncComponent）：加进名单只是让白屏不白，首屏仍要多下 40KB，
   // frontend-performance 的反向断言也会拦住。名单保持不含它们。
+  // 2026-11-23：8cc83e53「开屏期间不挂载导航栏」把 useHomeGate 引入 App.vue 的静态
+  // import 图，rollup 顺势把它和 bottom-nav 各拆成独立 chunk，但没同步到本名单 ⇒
+  // check:shell-precache 断言 B 报「壳依赖未进 SW 预缓存」。这两个是**真·壳依赖**
+  //（导航栏开屏门控在 Vue mount 前就要判），与上面 BohIsland 那条的性质不同：那条
+  // 该懒加载，这两条本来就该在壳里。补名单是正确修法。
+  'useHomeGate',
+  'bottom-nav',
 ];
 // 入口 chunk 的产物名由 entryFileNames 固定为 app-[hash].js
 const SHELL_CHUNKS_WITH_ENTRY = ['app', ...SHELL_CHUNKS];
@@ -811,7 +818,7 @@ export default defineConfig({
           if (id.includes('node_modules/@vueuse/motion')) return 'vue-utils-vendor';
 
           // ============================================
-          // Markdown 和代码高亮（BOHAI/论坛使用）
+          // Markdown 和代码高亮（Bolek/论坛使用）
           // ============================================
           if (id.includes('node_modules/marked')) return 'markdown-vendor';
           if (id.includes('node_modules/highlight.js')) return 'markdown-vendor';

@@ -21,10 +21,10 @@
 /**
  * BohGlassRefract — 「折射级」液态玻璃覆盖层（**站点级共享组件**，2026-10-14）
  *
- * ⚠️ 2026-10-14 §21.11：本组件已从 `views/BOHAI/BOHAI/components/` **提升到 `src/components/ui/`**
- *    —— 折射级是**站点级材质**，不再锁在 BOHAI 域内（顶栏等站点 chrome 也用它）。
+ * ⚠️ 2026-10-14 §21.11：本组件已从 `views/Bolek/Bolek/components/` **提升到 `src/components/ui/`**
+ *    —— 折射级是**站点级材质**，不再锁在博莱克域内（顶栏等站点 chrome 也用它）。
  *    白膜令牌随之提为站点级 `--refract-tint-rgb` / `--refract-alpha`
- *    （定义在 `src/styles/common/tokens.css`；BOHAI 只在 `.bohai-page` 作用域内覆写三元组）。
+ *    （定义在 `src/styles/common/tokens.css`；博莱克只在 `.bolek-page` 作用域内覆写三元组）。
  *
  * 口径真源：`docs/未完成任务清单.md` §21.7（原型实测 + 硬约束）+ §21.11（站点级登记）。要点：
  *  1. **覆盖层而非包裹层**：`inset:0` + `pointer-events:none` 垫在原内容之下 ⇒
@@ -112,8 +112,8 @@ const GLASS_STYLE = {
 }
 
 /* 白膜 tint：组件无 tint 属性，用内容层白膜等效调节透明度。
-   RGB 三元组随**站点主题**翻转（BOHAI 域内由 `.bohai-page` 覆写）；
-   α 默认来自 spec，BOHAI 域内可被 设置→外观 的用户偏好覆写。 */
+   RGB 三元组随**站点主题**翻转（博莱克域内由 `.bolek-page` 覆写）；
+   α 默认来自 spec，博莱克域内可被 设置→外观 的用户偏好覆写。 */
 .boh-glass-tint {
   width: 100%;
   height: 100%;

@@ -3,14 +3,14 @@
  *
  * ## 为什么要有这个文件
  *
- * 2026-10-22 用户报障「BOHAI 里有模型把思考过程直接输出在正文里」→ 实测定位到 Z1
+ * 2026-10-22 用户报障「博莱克里有模型把思考过程直接输出在正文里」→ 实测定位到 Z1
  * （`Code` 模式 / GLM-Z1-Flash）。成因不是「某个标签没写全」，而是**同一条规则被写了四份、
  * 四份都只认 `think`/`thinking`**：
  *
  *   · `useGenerationPipeline.filterThinkingContent`（非流式）—— 有 `^[\s\S]*</think>` 兜底；
  *   · `useGenerationPipeline.filterThinkingContentStream`（流式）—— 只在见到**开口标签**
  *     时才进入思考态；
- *   · `bohai-model-client.extractBohAIJsonObject` 与 `orchestrator-prompt.parseOrchestratorPlan`
+ *   · `bolek-model-client.extractBolekJsonObject` 与 `orchestrator-prompt.parseOrchestratorPlan`
  *     —— 各自一份只剥 `<think>` 的正则。
  *
  * ⇒ 症状是「同一个模型，非流式正常、流式泄漏」。**看到这种不对称，几乎一定是这个模块
@@ -102,7 +102,7 @@ export const stripReasoningBlocks = (text) => {
 
 /**
  * **只剥完整成对标签**的保守版，给「要从文本里提取 JSON」的调用方用
- * （`bohai-model-client.extractBohAIJsonObject` / `orchestrator-prompt.parseOrchestratorPlan`）。
+ * （`bolek-model-client.extractBolekJsonObject` / `orchestrator-prompt.parseOrchestratorPlan`）。
  *
  * ⚠️ 为什么这两个地方不能用 `stripReasoningBlocks`：它的规则 ②（只有开口 ⇒ 删到结尾）
  *   和 ③（只有闭合 ⇒ 从开头删）是**按「思考一定在正文外侧」**设计的。JSON 提取器面对的
@@ -138,8 +138,8 @@ export const hasReasoningTag = (text) => {
  * 不发请求、不改配置、不影响任何可见文本。
  *
  * ⚠️ 为什么是启发式：**上游真实模型名不在前端**。前端拿到的是
- *   `availableModels[].id = 'boh:<mode_id>'`（见 `bohai-model-config-api.js` 的
- *   `buildBohaiRuntimeModels`），真实 provider/model 由 Edge Function 在服务端决定 ——
+ *   `availableModels[].id = 'boh:<mode_id>'`（见 `bolek-model-config-api.js` 的
+ *   `buildBolekRuntimeModels`），真实 provider/model 由 Edge Function 在服务端决定 ——
  *   策略行（`balance` / `intelligence`）甚至按「北京日期 + 用户 + mode_id」加权抽候选
  *   （`supabase/functions/api-key-vault/index.ts` 的 `resolveStrategyCandidate`）。
  *   所以这里刻意同时匹配 displayName 与 mode_id，**宁可多认几个**：

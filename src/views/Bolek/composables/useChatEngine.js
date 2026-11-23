@@ -1,0 +1,2167 @@
+import { ref, computed, nextTick, watch, onScopeDispose } from 'vue';
+import {
+  isPsychInterviewState,
+  buildStateBlock,
+  buildAnchorBlock,
+  pickL2Rules,
+  recordUserTurn,
+  recordAssistantTurn,
+  findTrack,
+} from '../expert-roles/interview-engine.js';
+import {
+  PSYCH_L0_RULES,
+  PSYCH_L1_RULES,
+  PSYCH_INTERVIEW_APPENDIX,
+} from '../expert-roles/psychologist.js';
+import {
+  detectViolations,
+  shouldRewrite,
+  buildRewriteInstruction,
+  summarizeViolations,
+  shouldAdoptRewrite,
+  bumpGuardStats,
+} from '../expert-roles/guards.js';
+import { storeToRefs } from 'pinia';
+import { getPosts, getUserPosts } from '@/utils/api/forum-api.js';
+import {
+  getSharedAIMemoriesForAI,
+  searchSharedAIMemoriesForAI,
+  searchBolekKnowledgeForAI,
+  createSharedAIMemory,
+  updateSharedAIMemoryStatus,
+  createTreeholeMemory,
+  captureTreeholeMemoriesFromDialogue,
+} from '@/utils/api/treehole-api.js';
+import { getMyCloudEntriesForAI } from '@/utils/api/boh-cloud-api.js';
+import { callVaultSiliconChatStream } from '@/utils/api/api-key-runtime-api.js';
+import { getMySubscriptions } from '@/utils/api/subscription-api.js';
+import {
+  buildBolekRuntimeModels,
+  listActiveBolekModelConfigs,
+} from '@/utils/api/bolek-model-config-api.js';
+// 用户自带 Key（BYOK）的自定义模型：与官方模式合并进同一个模式选择器（2026-10-08）
+import {
+  loadUserEndpoints,
+  resetUserEndpoints,
+  userAiAvailableModels,
+  userAiChatModes,
+  userAiGenerationProfiles,
+} from './useUserEndpoints.js';
+import { useAuthStore } from '@/stores/auth';
+import { supabase } from '@/utils/supabase-client.js';
+import { isPostDraftRequest } from '@/utils/bolek-action-draft-intent.js';
+import { isLikelyPersonalSupportRequest } from '@/views/Bolek/engine/bolek-auto-router.js';
+import { resolveAutoModeDecisionLocally } from '@/views/Bolek/engine/bolek-auto-decision.js';
+
+import { useActionDraft } from './useActionDraft.js';
+import { useMemoryCapture } from './useMemoryCapture.js';
+import { useThinkingTimer } from './useThinkingTimer.js';
+import { useWebSearchLifecycle } from './useWebSearchLifecycle.js';
+import { useRateLimiter } from './useRateLimiter.js';
+import { useContextCompression } from './useContextCompression.js';
+import { useResourceSearch } from './useResourceSearch.js';
+import { summarizeThinkingSubject } from './useIntentDetection.js';
+import { logger } from '@/utils/logger.js';
+import {
+  isAbortError,
+  CHAT_ERROR_KINDS,
+  CHAT_ERROR_MESSAGES,
+  classifyChatError,
+  getAbortMessage,
+  sanitizeErrorDetail,
+} from '../utils/chatErrorMessages.js';
+import { buildKnowledgePatchPromptAppendix } from '../utils/retrieval/knowledge-patch.js';
+import {
+  BASE_SYSTEM_PROMPT,
+  MAX_CONTEXT_MESSAGES,
+  MAX_FINAL_PROMPT_CHARS,
+  MAX_HISTORY_CONTEXT_CHARS,
+  MAX_HISTORY_MESSAGE_CHARS,
+  MAX_PROMPT_EXTRA_CHARS,
+  MAX_USER_INPUT_CHARS,
+  MEMORY_CAPTURE_CONTEXT_ITEMS,
+  MEMORY_CAPTURE_MIN_DIALOGUE_ITEMS,
+  MEMORY_CAPTURE_MIN_USER_CHARS,
+  MEMORY_NOTICE_MAX_ITEMS,
+  SHOW_INTERNAL_PROGRESS_NOTES,
+  THINKING_SPEED_DELTAS_BY_ID,
+  BOH_DEFAULT_MODE_ID,
+} from './chat-engine-config.js';
+import { useConversationManager, updateLastActualExtraChars } from './useConversationManager.js';
+import { useGenerationPipeline } from './useGenerationPipeline.js';
+import { useModelConfig } from './useModelConfig.js';
+import { useMessageManager } from './useMessageManager.js';
+import { useKnowledgeRetrieval } from './useKnowledgeRetrieval.js';
+import { useAgentClusterSources } from './useAgentClusterSources.js';
+import { TASK_GENERATION_PRESETS } from '../generation-params.js';
+import { NO_FABRICATION_RULE } from '../shared-rules.js';
+import { createContextBudgetTracker, CONTEXT_CATEGORIES } from '../utils/context-budget.js';
+import { getAllEntityAliases } from '@/utils/boh-entity-resolver.js';
+import {
+  cleanAssistantVisibleReply,
+  isDegenerateAssistantReply,
+  isDegenerateStreamOutput,
+} from '../utils/degenerate-guard.js';
+import {
+  GENERATION_STALL_TIMEOUT_MS,
+  getGenerationProfile as getDefaultGenerationProfile,
+} from '../utils/generation-profile.js';
+import {
+  classifyMemoryWrite,
+  extractExplicitMemoryContent,
+  findSupersededMemory,
+} from '../utils/memory/dedupe.js';
+import {
+  CONVERSATION_SUMMARY_RECENT_MESSAGES,
+  CONVERSATION_SUMMARY_MIN_MESSAGES,
+  CONVERSATION_SUMMARY_MAX_CHARS,
+  CONVERSATION_SUMMARY_TWO_LEVEL_THRESHOLD,
+  CONVERSATION_SUMMARY_STORAGE_VERSION,
+  buildConversationSummaryFingerprint,
+  buildHistoryMessagesWithCachedSummary,
+  getCachedSummaryIfUsable,
+} from '../utils/memory/store.js';
+import { buildPageContextBlock } from '../utils/page-context.js';
+import {
+  appendPromptSection,
+  buildSystemEvidenceContext,
+  buildStructuredUserPrompt,
+} from '../utils/prompt/assembly.js';
+import {
+  buildContextualFollowUpQuery,
+  buildContextualWebSearchQuery,
+} from '../utils/prompt/followup.js';
+import { getStorableDialogueMessages } from '../utils/retrieval/budget.js';
+import { buildSharedEvidenceContext } from '../utils/retrieval/scoring.js';
+import {
+  extractStructuredMemories,
+  buildStructuredMemoryBlock,
+} from '../utils/structured-memory.js';
+import { truncateText, normalizePromptLine } from '../utils/text/normalize.js';
+import { searchWebForPrompt } from '../utils/web/search.js';
+import {
+  runAgentClusterBranch,
+  isAgentClusterMode,
+  useAgentClusterState,
+} from './agent-cluster-helpers.js';
+// plans/025 v2 · Step 5-1：四条前置捷径已抽成 stage（engine/stages/shortcuts.ts）
+import { runShortcutBranches } from '../engine/stages/shortcuts';
+// plans/025 v2 · Step 5-2：6 个意图标志的计算已抽成 stage（engine/stages/intent.ts）
+import { computeIntentFlags } from '../engine/stages/intent';
+// plans/025 v2 · Step 5-2：检索段的两块**纯计算**已抽成 stage（retrieval-targets 现由 retrieval.ts 消费）
+import { buildResponseRuleBlocks } from '../engine/stages/response-rules';
+import { resolveCrossTurnEvidence } from '../engine/stages/evidence-reuse';
+// plans/025 v2 · Step 5-2：Agent 集群分支（自带早退）已抽成 stage
+import { runAgentClusterStage } from '../engine/stages/agent-cluster';
+// plans/025 v2 · Step 5-2：检索主体（站内检索 + 联网搜索并行编排）已抽成 stage
+import { runRetrievalStage } from '../engine/stages/retrieval';
+// plans/025 v2 · Step 5-3：装配段的三块纯计算已抽成 stage
+import { buildSystemPromptSections } from '../engine/stages/system-prompt';
+import { buildGroundingGuards } from '../engine/stages/grounding-guard';
+import { buildRequestBody } from '../engine/stages/request-body';
+// plans/025 v2 · Step 5-3：流式消费已抽成 stage
+import { runStreamStage } from '../engine/stages/stream';
+// plans/025 v2 · Step 5-3：心理守门 + 访谈状态推进已抽成 stage
+import { runPsychGuardStage } from '../engine/stages/psych-guard';
+// plans/025 v2 · Step 5-3：后处理两段（退化流修复 / 回答定稿）已抽成 stage
+import { runDegenerateRepair } from '../engine/stages/degenerate-repair';
+import { finalizeAssistantReply } from '../engine/stages/finalize-reply';
+
+const dispatchGlobalNavStatus = (payload = {}) => {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new CustomEvent('boh_global_nav_status', { detail: payload }));
+};
+
+// ============================================================
+// BOH AI Chat Engine 主 composable
+// ------------------------------------------------------------
+// 单一 useChatEngine 函数体很长（6825 行）。闭包依赖较多，完整
+// 拆分需在外部补全上下文。建议后续按以下分区逐步抽出子 composable：
+//   SECTION A (~L220-)    state / reactive（chatSessions、treehole cache 等）
+//   SECTION B (~L340-)    session 持久化（load/migrate/save）
+//   SECTION C (~L470-)    mode / style / settings 选择
+//   SECTION D (~L560-)    session CRUD（addMessage、editMessage、delete 等）
+//   SECTION E (~L640-)    Quick Note 草稿与保存
+//   SECTION F (~L700-)    路由：发件人查找、用户私域获取
+//   SECTION G (~L840-)    Action 草稿解析（post / mail / page）
+//   SECTION H (~L1050-)   Action 注册与执行
+//   SECTION I (~L1200-)   答案生成主流程（retrieval、grounding、stream）
+//   SECTION J (~L5500-)   工具函数（citation 抽取、降级处理、moderation）
+//   SECTION K (~L6500-)   暴露给模板的接口
+// 计划在下一次重构里把每个 SECTION 抽到独立 composable / 纯函数模块，
+// useChatEngine 仅做编排。本文件先保留分节注释，行为不变。
+// ============================================================
+
+export function useChatEngine() {
+  const authStore = useAuthStore();
+  const { isLoggedIn, userInfo } = storeToRefs(authStore);
+
+  const {
+    state: agentClusterState,
+    reset: resetAgentClusterState,
+    apply: applyAgentClusterEvent,
+  } = useAgentClusterState();
+  const { webSearchActive, webSearchResults, runWebSearch, resetWebSearchLifecycle } =
+    useWebSearchLifecycle({
+      search: searchWebForPrompt,
+    });
+  const communitySearchActive = ref(false);
+  // 活动行（2026-10-19）：社区检索实际进行中 + 点名的帖子标题（「正在读取《标题》」）。
+  // 由 retrieval stage 写、消息流读；与 `communitySearchActive`（开关/意图预览）不同源。
+  const communityActivity = ref({ active: false, postTitle: '' });
+
+  // scrollToBottom getter — 允许 useConversationManager 在 scrollToBottom
+  // 定义完成后按需引用，而不要求 composable 在创建时就拿到函数引用。
+  let _scrollToBottom = null;
+  const _getScrollToBottom = () => _scrollToBottom;
+  const safeScrollToBottom = (force = false) => {
+    if (typeof _scrollToBottom === 'function') {
+      _scrollToBottom(force);
+    }
+  };
+
+  const {
+    // State
+    chatSessions,
+    currentSessionIndex,
+    activeGenerationSessionIndex,
+    treeholeMemoryCache,
+    sharedMemoryCache,
+    sharedMemorySearchCache,
+    actionAuditLog,
+    pendingTreeholeCreation,
+    pendingSharedMemoryCapture,
+    pendingActionDraft,
+    userPrivateContextCache,
+    isCompressingContext,
+    compressingSessionIndex,
+    contextBudgetUsage,
+    memoryCaptureStatusMessage,
+    activeActionDraft,
+    // Functions
+    resetUserPrivateContextCache,
+    resetSharedMemorySearchCache,
+    resetPendingTreeholeCreation,
+    resetPendingSharedMemoryCapture,
+    resetPendingActionDraft,
+    computeContextBudgetUsage,
+    loadSessions,
+    syncSessionsFromStorage,
+    flushSessionsToStorage: _flushSessionsToStorage,
+    reloadSessionsFromStorage: _reloadSessionsFromStorage,
+    scheduleSaveSessions,
+    clearCache,
+    getSessionByIndex,
+    startNewChat: _startNewChat,
+    clearCurrentSession,
+    clearAllSessions,
+    deleteSession,
+    clearQuickAskSessions,
+    switchSession,
+    setMemoryCaptureStatusMessage,
+  } = useConversationManager({
+    scrollToBottom: _getScrollToBottom,
+  });
+
+  const isStreamingGeneration = ref(false);
+
+  /**
+   * KeepAlive 场景下的会话对账（2026-10-11，配 `meta.keepAlive`）：
+   * 页面实例被切到后台后，灵动岛可能用**另一个引擎**往同一个 localStorage 键写过；
+   * 本实例的写入会被守卫挡下（不覆盖对方），代价是内存里是旧快照。
+   * 回到 /ai-chat 时（`onActivated`）调一次，把对方的版本读回来。
+   *
+   * ⚠️ 流式中**绝不**换状态：正在生成的那条消息会被整条冲掉，用户看到的是
+   *    「回答凭空少了一段」。所以这里直接返回 false，等下一轮空闲再说。
+   */
+  const syncSessionsIfStale = () => {
+    if (isStreamingGeneration.value) return false;
+    return syncSessionsFromStorage();
+  };
+
+  /**
+   * 立即落盘（2026-11-22，绕过防抖）：论坛内联卡片点卡片跳全页前调用 ——
+   * 交接按 timestamp 在存储里找这条会话，防抖窗口内裸跳会让全页扑空。
+   */
+  const flushSessionsToStorage = () => {
+    _flushSessionsToStorage();
+  };
+
+  /**
+   * 无条件从存储重载（会话交接消费用）：卡片实例写的存储，本实例不一定
+   * 冲突过，`syncSessionsIfStale` 的条件版会静默跳过。流式中绝不换状态
+   * （同 `syncSessionsIfStale` 的守卫口径）。
+   */
+  const reloadSessionsFromStorage = () => {
+    if (isStreamingGeneration.value) return false;
+    return _reloadSessionsFromStorage();
+  };
+
+  const attachedContext = ref(null);
+  const setAttachedContext = (ctx) => {
+    attachedContext.value = ctx;
+  };
+  const clearAttachedContext = () => {
+    attachedContext.value = null;
+  };
+
+  // chatSessions 为 reactive，直接 watch 会被 Vue 强制 deep 遍历（含每条消息内容），
+  // 流式 token 追加也会触发全量遍历。改用轻量 getter 仅跟踪会话数与各会话消息数，
+  // 内容编辑（如流式 token）不改变 length，不再触发遍历。
+  watch(
+    () => chatSessions.map((s) => s?.messages?.length || 0),
+    () => {
+      if (isStreamingGeneration.value) return;
+      scheduleSaveSessions();
+    },
+  );
+
+  // ⚠️ 这份签名就是「会话级元字段的落盘触发清单」：字段改了但不在这里，改动只活在内存里，
+  //    刷新即回滚（不报错、不打日志）。2026-11-04 复核抓到的正是这一条 ——
+  //    「提升为主会话」只 `delete session.origin`，origin 不在签名里 ⇒ 侧栏当场重组、刷新又回去。
+  //    新增会话级字段时，先问「要不要落盘」，要就补进这里。
+  watch(
+    () =>
+      chatSessions.map(
+        (s) => `${s?.title || ''}:${s?.pinned ? 1 : 0}:${s?.temporary ? 1 : 0}:${s?.origin || ''}`,
+      ),
+    () => {
+      if (isStreamingGeneration.value) return;
+      scheduleSaveSessions();
+    },
+  );
+
+  watch(
+    () => userInfo.value?.id || '',
+    (nextId, prevId) => {
+      if (nextId === prevId) return;
+      treeholeMemoryCache.userId = '';
+      treeholeMemoryCache.fetchedAt = 0;
+      treeholeMemoryCache.items = [];
+      sharedMemoryCache.fetchedAt = 0;
+      sharedMemoryCache.items = [];
+      resetSharedMemorySearchCache();
+      resetUserPrivateContextCache();
+      resetPendingTreeholeCreation();
+      resetPendingSharedMemoryCapture();
+      resetPendingActionDraft();
+    },
+  );
+
+  loadSessions();
+
+  // 局部状态（不属于子 composable 的纯引擎内部状态）
+  const abortController = ref(null);
+  const runtimeAvailableModels = ref([]);
+  const runtimeChatModes = ref([]);
+  const chatModesLoading = ref(true);
+  const runtimeGenerationProfiles = ref({});
+
+  const {
+    thinkingTime,
+    thinkingStatus,
+    thinkingTimer,
+    startThinkingTimer,
+    stopThinkingTimer,
+    setThinkingStatus,
+    clearThinkingStatus,
+  } = useThinkingTimer();
+
+  const getGenerationProfile = (modeId, options = {}) => ({
+    ...getDefaultGenerationProfile(modeId, options),
+    ...(runtimeGenerationProfiles.value?.[modeId] || {}),
+  });
+
+  // --------------------------------------------------------------
+  // useModelConfig — 模式/样式/设置（必须先初始化，因为 currentModeId 被后续模块依赖）
+  // --------------------------------------------------------------
+  const {
+    currentModeId,
+    currentMode,
+    currentModelId,
+    currentModel,
+    isSearching,
+    isMemoryCaptureEnabled,
+    isTreeholeMemoryEnabled,
+    isTreeholeMemoryToggling,
+    isPlanModeEnabled,
+    isKnowledgeBaseEnabled,
+    currentResponseStyleId,
+    currentResponseStyle,
+    responseStyleOptions,
+    currentThinkingSpeedId,
+    currentThinkingSpeed,
+    thinkingSpeedOptions,
+    webSearchDisabledNoticeShownFor,
+    getModelForModeId,
+    togglePlanMode,
+    setResponseStyle,
+    setThinkingSpeed,
+    persistModeSetting,
+    persistMemoryCaptureSetting,
+    persistTreeholeMemorySetting,
+    persistKnowledgeBaseSetting,
+  } = useModelConfig({ availableModels: runtimeAvailableModels, chatModes: runtimeChatModes });
+
+  /* 运行时模式表 = 官方配置（DB）+ 用户自定义模型（BYOK）。
+     官方那份缓存在本地变量里，用户那份是响应式的 —— 设置页刚保存完，watch 立刻重算，
+     不必为了一个新模型重拉整个 DB 配置。用户模型永远排在官方模式**之后**，不抢默认位。 */
+  const officialRuntimeConfig = {
+    availableModels: [],
+    chatModes: [],
+    generationProfiles: {},
+  };
+
+  const mergeRuntimeModelConfig = () => {
+    const mergedModes = [...officialRuntimeConfig.chatModes, ...userAiChatModes.value];
+    if (mergedModes.length > 0) {
+      runtimeChatModes.value.splice(0, runtimeChatModes.value.length, ...mergedModes);
+    }
+    const mergedModels = [...officialRuntimeConfig.availableModels, ...userAiAvailableModels.value];
+    if (mergedModels.length > 0) {
+      runtimeAvailableModels.value.splice(0, runtimeAvailableModels.value.length, ...mergedModels);
+    }
+    runtimeGenerationProfiles.value = {
+      ...officialRuntimeConfig.generationProfiles,
+      ...userAiGenerationProfiles.value,
+    };
+    // 当前模式可能刚被删掉（用户删了那个自定义厂商）⇒ 回落到第一个可用模式。
+    // ⚠️ 只在新表非空时兜底：表为空说明官方配置还没加载完，此时把 currentModeId 打回默认
+    //    会让用户刚选好的模式被重置。
+    if (
+      runtimeChatModes.value.length > 0 &&
+      !runtimeChatModes.value.some((mode) => mode.id === currentModeId.value)
+    ) {
+      currentModeId.value = runtimeChatModes.value[0]?.id || BOH_DEFAULT_MODE_ID;
+    }
+  };
+
+  const applyRuntimeModelConfig = (payload = {}) => {
+    if (Array.isArray(payload.availableModels) && payload.availableModels.length > 0) {
+      officialRuntimeConfig.availableModels = payload.availableModels;
+    }
+    if (Array.isArray(payload.chatModes) && payload.chatModes.length > 0) {
+      officialRuntimeConfig.chatModes = payload.chatModes;
+    }
+    officialRuntimeConfig.generationProfiles = payload.generationProfiles || {};
+    mergeRuntimeModelConfig();
+  };
+
+  // 设置页保存/删除自定义厂商 ⇒ 模式表立即跟着变（不需要刷新页面）
+  watch(userAiChatModes, mergeRuntimeModelConfig);
+
+  // 登录状态变化才去拉自定义模型：未登录时 EF 会回 401，白跑一次请求；
+  // 登出时必须清空，否则同一台机器上的下一个账号会在选择器里看到上一个人的模型。
+  watch(
+    isLoggedIn,
+    (loggedIn) => {
+      if (loggedIn) void loadUserEndpoints();
+      else resetUserEndpoints();
+    },
+    { immediate: true },
+  );
+
+  // --------------------------------------------------------------
+  // AI 生成管线（从 useGenerationPipeline 导入）
+  // --------------------------------------------------------------
+  const {
+    callModelInternal,
+    callModelStream,
+    _getSmartContext,
+    createThinkingState,
+    filterThinkingContent,
+    filterThinkingContentStream,
+    flushThinkingBuffer,
+    getThinkingReasoning,
+    resetThinkingState,
+    createSseLineParser,
+    getFallbackModel,
+    safeChunkToString,
+  } = useGenerationPipeline({
+    availableModels: runtimeAvailableModels.value,
+    abortController,
+    currentModeId,
+  });
+  // --------------------------------------------------------------
+
+  // 计算属性：当前会话的加载状态
+  const isLoading = computed(() => chatSessions[currentSessionIndex.value]?.isLoading || false);
+  const isThinking = computed(() => chatSessions[currentSessionIndex.value]?.isThinking || false);
+
+  const loadRuntimeModelConfig = async () => {
+    try {
+      const result = await listActiveBolekModelConfigs();
+      if (!result.ok || !Array.isArray(result.data) || result.data.length === 0) {
+        if (result.error) {
+          logger.warn('boh-ai', '博莱克模型配置读取失败，使用默认配置', result.error);
+        }
+        return;
+      }
+      applyRuntimeModelConfig(buildBolekRuntimeModels(result.data));
+    } catch (error) {
+      logger.error('boh-ai', '博莱克模型配置加载异常', error);
+    } finally {
+      // 无论成功、失败还是空数据，模式加载流程都已结束
+      chatModesLoading.value = false;
+    }
+  };
+  void loadRuntimeModelConfig();
+  // --------------------------------------------------------------
+
+  // --------------------------------------------------------------
+  // useKnowledgeRetrieval — 知识路由与上下文构建
+  // --------------------------------------------------------------
+  const {
+    buildKnowledgeContextBlock,
+    getVectorKnowledgeChunks,
+    isKnowledgeDebugEnabled,
+    buildVectorKnowledgeContext,
+    getMemoryContext,
+    getSharedMemoriesCached,
+    selectSharedMemoriesByQuery,
+    getSharedMemoriesByQuery,
+    getSharedMemoryContext,
+    getSiteGuideContext,
+    shouldUseTreeholeContext,
+    getTreeholeMemoriesCached,
+    selectTreeholeMemoriesByQuery,
+    getTreeholeContext,
+    rankForumPostsByQuery,
+    getForumTagFilterFromQuery,
+    getForumSortModeFromQuery,
+    isLatestForumSummaryQuery,
+    sortForumPostsByCreatedAtDesc,
+    normalizeForumSummaryText,
+    buildForumPostNaturalSummary,
+    buildExtractiveForumSummaryAnswer,
+    buildForumNarrativeSummaryPrompt,
+    removeForumSummaryLinks,
+    getForumSummarySourceText,
+    detectForumSummaryPolarityConflicts,
+    buildForumSearchQueries,
+    mergeForumPosts,
+    getForumContext,
+    getUserPrivateSnapshotCached,
+    getUserPrivateContext,
+    resolveKnowledgeRoutingPlan,
+    getRetrievalTargetLabels,
+    createReadConnectors,
+    buildAutoKnowledgeContext,
+  } = useKnowledgeRetrieval({
+    isLoggedIn,
+    userInfo,
+    isTreeholeMemoryEnabled,
+    isKnowledgeBaseEnabled,
+    treeholeMemoryCache,
+    sharedMemoryCache,
+    sharedMemorySearchCache,
+    userPrivateContextCache,
+    resetUserPrivateContextCache,
+    getPosts,
+    getUserPosts,
+    getMySubscriptions,
+    getSharedAIMemoriesForAI,
+    searchSharedAIMemoriesForAI,
+    searchBolekKnowledgeForAI,
+    getMyCloudEntriesForAI,
+    supabase,
+  });
+
+  // Agent 集群数据源：RetrieverAgent / MemoryAgent 的检索与记忆能力依赖这里传入的
+  // connector；开关口径与主链路 useKnowledgeRetrieval 保持一致 —— 站内知识总开关
+  // （isKnowledgeBaseEnabled，2026-10-19 起已合并论坛搜索与社区知识）驱动 shared_memory。
+  const clusterSources = useAgentClusterSources({
+    isTreeholeMemoryEnabled,
+    isKnowledgeBaseEnabled,
+    getUserId: () => userInfo.value?.id || '',
+  });
+  // --------------------------------------------------------------
+
+  // --------------------------------------------------------------
+  // useMessageManager — 消息 CRUD / 随手记 / 操作草稿 UI
+  // --------------------------------------------------------------
+  const {
+    inputMessage,
+    textareaRef,
+    appendSessionMessage,
+    mergeAssistantMessageMeta,
+    updateAssistantActionNotes,
+    appendUserMessageWithTitle,
+    resetComposerInput,
+    cancelPendingActionDraftFromUI,
+    confirmPendingActionDraftFromUI,
+    updatePendingPostDraftFromUI,
+  } = useMessageManager({
+    getSessionByIndex,
+    callModelInternal,
+    currentModel,
+    availableModels: runtimeAvailableModels.value,
+    isLoggedIn,
+    userInfo,
+    scrollToBottom: safeScrollToBottom,
+    currentSessionIndex,
+    submitPostDraft: (...args) => submitPostDraft(...args),
+    logger,
+    pendingActionDraft,
+    resetPendingActionDraft,
+    activeActionDraft,
+  });
+  // --------------------------------------------------------------
+  // useActionDraft — Action 草稿解析、注册与执行
+  // --------------------------------------------------------------
+  const actionDraft = useActionDraft({
+    chatSessions,
+    currentSessionIndex,
+    pendingActionDraft,
+    actionAuditLog,
+    sharedMemoryCache,
+    resetSharedMemorySearchCache,
+    appendSessionMessage,
+    appendUserMessageWithTitle,
+    resetComposerInput,
+    resetPendingActionDraft,
+    scrollToBottom: safeScrollToBottom,
+    getSessionByIndex,
+    isLoggedIn,
+    userInfo,
+    abortController,
+    activeGenerationSessionIndex,
+    startThinkingTimer,
+    stopThinkingTimer,
+    setThinkingStatus,
+    clearThinkingStatus,
+    getGenerationProfile,
+    getModelForModeId,
+    currentModel,
+    runtimeAvailableModels,
+    callModelInternal,
+    getSharedMemoriesCached,
+  });
+
+  const {
+    formatPostDraftPreview,
+    formatPageDraftPreview,
+    updatePostDraftByUserInput,
+    getActionAuthContext,
+    runRegisteredAction,
+    submitPostDraft,
+    tryStartActionDraftFromUserInput,
+    tryStartPageCreationFromUserInput,
+  } = actionDraft;
+
+  // → isTreeholeCreateConfirm, isTreeholeCreateReject 已提取到 useIntentDetection.js
+  // → _requestTreeholeCreationConfirmation, handlePendingTreeholeCreationReply 已提取到 useMemoryCapture.js
+
+  // ============================================================
+  // useMemoryCapture — 记忆/Cloud+/随手记逻辑
+  // ============================================================
+  const {
+    toggleMemoryCapture,
+    toggleTreeholeMemory,
+    handlePendingTreeholeCreationReply,
+    requestSharedMemorySaveConfirmation,
+    memoryCaptureTip,
+    _requestTreeholeCreationConfirmation,
+  } = useMemoryCapture({
+    pendingTreeholeCreation,
+    pendingSharedMemoryCapture,
+    isMemoryCaptureEnabled,
+    isTreeholeMemoryEnabled,
+    isTreeholeMemoryToggling,
+    memoryCaptureStatusMessage,
+    isLoggedIn,
+    userInfo,
+    currentSessionIndex,
+    chatSessions,
+    inputMessage,
+    appendSessionMessage,
+    resetComposerInput,
+    resetPendingTreeholeCreation,
+    resetPendingSharedMemoryCapture,
+    persistMemoryCaptureSetting,
+    persistTreeholeMemorySetting,
+    setMemoryCaptureStatusMessage,
+    getSessionByIndex,
+    scrollToBottom: safeScrollToBottom,
+    nextTick,
+    runRegisteredAction,
+    normalizePromptLine,
+  });
+  // --------------------------------------------------------------
+
+  const { isRateLimited, rateLimitMessage, checkRateLimit, recordMessageSent } = useRateLimiter();
+
+  const messages = computed(() => chatSessions[currentSessionIndex.value]?.messages || []);
+
+  // 自动上下文压缩：当本轮上下文进度完整达到 100% 时，
+  // 在 sendMessage 中主动调用 ensureContextCompression 让刷新出的摘要赶上本轮请求，
+  // 这样 BOH AI 真正看到的就是压缩后的窗口。isCompressingContext 暴露给 UI 用于显示"压缩中"状态。
+  // computeContextBudgetUsage / contextBudgetUsage / isCompressingContext / compressingSessionIndex
+  // 已委托给 useConversationManager 管理。
+
+  // refreshConversationSummaryCache 采用 forward-declaration：
+  // 先声明 wrapper，wrapper 在被调用时才读取 refreshConversationSummaryCacheFn 的当前值。
+  // 真正的实现（依赖 callModelInternal）在下方 L893 处赋值给 refreshConversationSummaryCacheFn，
+  // 此时 wrapper 通过闭包自动拿到真正的实现。
+  let refreshConversationSummaryCacheFn = null;
+  const refreshConversationSummaryCache = (...args) => {
+    if (refreshConversationSummaryCacheFn) return refreshConversationSummaryCacheFn(...args);
+  };
+
+  const { ensureContextCompression } = useContextCompression({
+    getSessionByIndex,
+    isCompressingContext,
+    compressingSessionIndex,
+    computeContextBudgetUsage,
+    refreshConversationSummaryCache,
+  });
+
+  // Scroll Helper
+  const scrollToBottomCallback = ref(null);
+  const onScrollToBottom = (callback) => {
+    scrollToBottomCallback.value = callback;
+  };
+  const scrollToBottom = (force = false) => {
+    if (scrollToBottomCallback.value) {
+      scrollToBottomCallback.value(force);
+    }
+  };
+  _scrollToBottom = scrollToBottom;
+
+  // Session Management — 会话 CRUD 已委托给 useConversationManager
+  // origin：会话来源标记（plans/038 §3.4），透传给 startNewChat（'quick-ask' = 岛内快速会话）
+  const startNewChat = (origin = '') => {
+    _startNewChat(origin);
+    isSearching.value = false;
+    // ⚠️ 这里**不要**再重置 isKnowledgeBaseEnabled —— 它是持久化的用户偏好
+    //（localStorage `boh_ai_knowledge_base_enabled_v1`，默认开），不是 per-session 状态。
+    // 2026-10-16 实测：原先这行把它强制置 false ⇒ 每次「新对话」都悄悄关掉官方记忆检索，
+    // 而 localStorage 仍是 1 ⇒ 刷新后打开、新开会话后关闭，用户完全看不出为什么。
+    // 2026-10-19：论坛搜索/社区知识已并入本开关，故也**不再**有 `isForumSearchEnabled.value = false`
+    // 那行（旧的是 per-session 开关，合并后同样属于持久化偏好）。
+  };
+
+  const stopGeneration = () => {
+    const activeIndex = activeGenerationSessionIndex.value;
+
+    if (abortController.value) {
+      abortController.value.abort();
+      abortController.value = null;
+    }
+
+    if (generationTimeoutTimer) {
+      clearTimeout(generationTimeoutTimer);
+      generationTimeoutTimer = null;
+    }
+
+    if (activeIndex !== null) {
+      const activeSession = getSessionByIndex(activeIndex);
+      if (activeSession) {
+        activeSession.isLoading = false;
+        activeSession.isThinking = false;
+      }
+    }
+
+    activeGenerationSessionIndex.value = null;
+    stopThinkingTimer();
+    // B-9 fix: reset thinking state to prevent stale buffer leaking into next generation
+    resetThinkingState();
+    nextTick(() => {
+      if (textareaRef.value) textareaRef.value.focus();
+    });
+  };
+
+  const buildDialogueMessagesForMemoryCapture = (sessionMessages = []) => {
+    return (Array.isArray(sessionMessages) ? sessionMessages : [])
+      .filter((item) => item?.meta?.kind !== 'memory_saved_notice')
+      .filter((item) => item?.role === 'assistant' || item?.role === 'user')
+      .slice(-MEMORY_CAPTURE_CONTEXT_ITEMS)
+      .map((item) => ({
+        role: item?.role === 'assistant' ? 'assistant' : 'user',
+        content: normalizePromptLine(item?.content, 900),
+      }))
+      .filter((item) => item.content);
+  };
+
+  const captureMemoryFromConversation = async ({ sessionIndex, userText, assistantText } = {}) => {
+    const shouldWriteSharedMemory = isMemoryCaptureEnabled.value;
+    const shouldWriteTreeholeMemory = false;
+    if (!shouldWriteSharedMemory && !shouldWriteTreeholeMemory) return;
+    if (!isLoggedIn.value || !userInfo.value?.id) return;
+
+    const safeUserText = String(userText || '').trim();
+    const safeAssistantText = String(assistantText || '').trim();
+    if (!safeUserText || !safeAssistantText) return;
+    if (safeUserText.length < MEMORY_CAPTURE_MIN_USER_CHARS) return;
+
+    const session = getSessionByIndex(sessionIndex);
+    if (!session) return;
+
+    // 封闭域：心理访谈不写任何记忆。否则访谈内容会沉淀进公共记忆库
+    // （boh_ai_shared_memories）并被其他会话检索到 —— 这是访谈最不能破的一条线。
+    if (isPsychInterviewState(session.expertState)) return;
+
+    const dialogueMessages = buildDialogueMessagesForMemoryCapture(session.messages);
+    if (dialogueMessages.length < MEMORY_CAPTURE_MIN_DIALOGUE_ITEMS) return;
+
+    const appendMemorySavedNotice = ({
+      savedContents = [],
+      treeholeSavedCount = 0,
+      pendingCount = 0,
+    } = {}) => {
+      const targetSession = getSessionByIndex(sessionIndex);
+      if (!targetSession) return;
+
+      const items = (Array.isArray(savedContents) ? savedContents : [])
+        .map((item) => normalizePromptLine(item, 120))
+        .filter(Boolean)
+        .slice(0, MEMORY_NOTICE_MAX_ITEMS);
+
+      if (items.length === 0) return;
+
+      const lines = ['已保存的记忆', ...items.map((item) => `- ${item}`)];
+      if (treeholeSavedCount > 0) {
+        lines.push(`已写入树洞：${treeholeSavedCount} 条`);
+      }
+      if (pendingCount > 0) {
+        lines.push(`待确认：${pendingCount} 条`);
+      }
+
+      targetSession.messages.push({
+        role: 'assistant',
+        content: lines.join('\n'),
+        meta: { kind: 'memory_saved_notice' },
+      });
+      nextTick(() => scrollToBottom());
+    };
+
+    const explicitMemoryContent = extractExplicitMemoryContent(safeUserText);
+    if (explicitMemoryContent) {
+      // ⚠️ 判重结果分两类（2026-10-08 修），不能一律跳过：
+      //   `exact`    —— 同一句话说两遍，跳过（这是原本的行为，仍然正确）
+      //   `supersede`—— **同一 slot 的事实变了**（旧「我在上海」→ 新「我现在在北京」）。
+      //                 旧实现把它当重复静默丢弃，于是旧事实永久占位、用户改了也改不掉。
+      //                 正确做法是归档旧记忆再写新的，让新事实生效。
+      // 判重本身见 utils/memory/dedupe.js 的 SUBSET_DUPLICATE_LENGTH_RATIO 说明。
+      let duplicateKind = 'none';
+      let supersededMemoryId = '';
+      if (shouldWriteSharedMemory) {
+        const existingShared = await getSharedMemoriesCached();
+        duplicateKind = classifyMemoryWrite(explicitMemoryContent, existingShared);
+        if (duplicateKind === 'supersede') {
+          const match = findSupersededMemory(explicitMemoryContent, existingShared);
+          supersededMemoryId = String(match?.id || '').trim();
+        }
+      }
+      if (duplicateKind === 'supersede' && !supersededMemoryId) {
+        // 判定为覆盖但没定位到具体行（数据缺 id）：退化成追加，宁可并存也不误删。
+        duplicateKind = 'none';
+      }
+
+      if (duplicateKind === 'exact') {
+        setMemoryCaptureStatusMessage('这条记忆已存在，已自动跳过重复保存。');
+      } else {
+        let sharedSavedCount = 0;
+        let treeholeSavedCount = 0;
+
+        if (duplicateKind === 'supersede' && supersededMemoryId) {
+          // 先归档旧事实。⚠️ 归档失败**不阻断**新记忆写入：新事实是用户当下的表达，
+          // 优先级高于旧记录；两条并存最坏只是检索时可能取到旧的（打分层已有源权重兜底）。
+          const archiveResult = await updateSharedAIMemoryStatus(
+            String(userInfo.value?.id || ''),
+            supersededMemoryId,
+            'archived',
+          );
+          if (!archiveResult.ok) {
+            logger.warn(
+              'boh-ai',
+              '旧记忆归档失败，改为并存写入',
+              archiveResult.error?.message || archiveResult.error,
+            );
+          }
+        }
+
+        if (shouldWriteSharedMemory) {
+          const manualSaveResult = await createSharedAIMemory(String(userInfo.value?.id || ''), {
+            content: explicitMemoryContent,
+            mood: '',
+            tags: ['用户指定', '即时记忆'],
+            confidence: 1,
+            evidence: [{ messageId: 'u_explicit', quote: truncateText(safeUserText, 240) }],
+            source: 'manual',
+            status: 'active',
+          });
+
+          if (manualSaveResult.ok) {
+            sharedSavedCount = 1;
+            sharedMemoryCache.fetchedAt = 0;
+            sharedMemoryCache.items = [];
+            resetSharedMemorySearchCache();
+          } else {
+            logger.warn(
+              'boh-ai',
+              '用户指令公共记忆保存失败',
+              manualSaveResult.error?.message || manualSaveResult.error,
+            );
+          }
+        }
+
+        if (shouldWriteTreeholeMemory) {
+          const treeholeSaveResult = await createTreeholeMemory(String(userInfo.value?.id || ''), {
+            content: explicitMemoryContent,
+            mood: '',
+            tags: shouldWriteSharedMemory ? ['AI提取', '公共记忆同步'] : ['AI提取', '私密树洞'],
+            source: 'ai',
+            isStarred: false,
+          });
+
+          if (treeholeSaveResult.ok) {
+            treeholeSavedCount = 1;
+            treeholeMemoryCache.userId = '';
+            treeholeMemoryCache.fetchedAt = 0;
+            treeholeMemoryCache.items = [];
+          } else if (treeholeSaveResult.error?.code === 'TREEHOLE_SPACE_REQUIRED') {
+            isTreeholeMemoryEnabled.value = false;
+            persistTreeholeMemorySetting();
+            setMemoryCaptureStatusMessage(
+              treeholeSaveResult.error?.message || '树洞未开启，已自动关闭树洞同步。',
+            );
+          } else {
+            logger.warn(
+              'boh-ai',
+              '用户指令树洞记忆保存失败',
+              treeholeSaveResult.error?.message || treeholeSaveResult.error,
+            );
+          }
+        }
+
+        if (sharedSavedCount > 0 || treeholeSavedCount > 0) {
+          appendMemorySavedNotice({
+            savedContents: [explicitMemoryContent],
+            treeholeSavedCount,
+            pendingCount: 0,
+          });
+          if (duplicateKind === 'supersede') {
+            // 覆盖场景要说清「旧的已归档」，否则用户会以为记了两遍。
+            setMemoryCaptureStatusMessage('已更新这条记忆（旧的那条已归档）。');
+          } else if (sharedSavedCount > 0 && treeholeSavedCount > 0) {
+            setMemoryCaptureStatusMessage('已根据你的明确指令保存 1 条公共记忆，并写入树洞。');
+          } else if (sharedSavedCount > 0) {
+            setMemoryCaptureStatusMessage('已根据你的明确指令保存 1 条公共记忆。');
+          } else if (treeholeSavedCount > 0) {
+            setMemoryCaptureStatusMessage('已根据你的明确指令保存 1 条树洞私密记忆。');
+          }
+        }
+      }
+    }
+
+    const result = await captureTreeholeMemoriesFromDialogue({
+      userId: String(userInfo.value?.id || ''),
+      sessionId: `${session.timestamp || Date.now()}-${sessionIndex}`,
+      messages: dialogueMessages,
+      writeToTreehole: shouldWriteTreeholeMemory,
+      writeToShared: shouldWriteSharedMemory,
+    });
+
+    if (!result.ok) {
+      if (result.error?.code === 'TREEHOLE_SPACE_REQUIRED') {
+        isTreeholeMemoryEnabled.value = false;
+        persistTreeholeMemorySetting();
+        setMemoryCaptureStatusMessage(result.error?.message || '树洞未开启，已自动关闭树洞同步。');
+        return;
+      }
+      logger.warn('boh-ai', '自动记忆沉淀失败', result.error?.message || result.error);
+      return;
+    }
+
+    const sharedSavedCount = Number(result.data?.sharedSavedCount || 0);
+    const treeholeSavedCount = Number(result.data?.treeholeSavedCount || 0);
+    const pendingCount = Number(result.data?.pendingCount || 0);
+    const duplicateCount = Number(result.data?.duplicateCount || 0);
+    const displayPendingCount = shouldWriteSharedMemory ? pendingCount : 0;
+    const savedContents = (Array.isArray(result.data?.items) ? result.data.items : [])
+      .filter((item) => item?.status === 'auto_saved' || item?.memoryId || item?.sharedMemoryId)
+      .map((item) => item?.content);
+
+    if (sharedSavedCount > 0 || displayPendingCount > 0 || treeholeSavedCount > 0) {
+      if (sharedSavedCount > 0) {
+        sharedMemoryCache.fetchedAt = 0;
+        sharedMemoryCache.items = [];
+        resetSharedMemorySearchCache();
+      }
+      const pendingPart = displayPendingCount > 0 ? `，${displayPendingCount} 条进入待确认` : '';
+      if (shouldWriteSharedMemory && shouldWriteTreeholeMemory) {
+        setMemoryCaptureStatusMessage(
+          `本轮已写入 AI 公共记忆 ${sharedSavedCount} 条，写入树洞 ${treeholeSavedCount} 条${pendingPart}。`,
+        );
+      } else if (shouldWriteSharedMemory) {
+        setMemoryCaptureStatusMessage(
+          `本轮已写入 AI 公共记忆 ${sharedSavedCount} 条${pendingPart}。`,
+        );
+      } else {
+        setMemoryCaptureStatusMessage(`本轮已写入树洞私密记忆 ${treeholeSavedCount} 条。`);
+      }
+      appendMemorySavedNotice({
+        savedContents,
+        treeholeSavedCount,
+        pendingCount: displayPendingCount,
+      });
+      return;
+    }
+
+    if (duplicateCount > 0) {
+      setMemoryCaptureStatusMessage('本轮识别到重复记忆，已自动跳过。');
+    }
+  };
+
+  refreshConversationSummaryCacheFn = async (
+    sessionIndex,
+    requestSignal = undefined,
+    options = {},
+  ) => {
+    const { force: forceRegenerate = false } = options;
+    const targetSession = getSessionByIndex(sessionIndex);
+    if (!targetSession) return;
+
+    const dialogueMessages = getStorableDialogueMessages(targetSession.messages);
+    if (dialogueMessages.length < CONVERSATION_SUMMARY_MIN_MESSAGES) return;
+
+    const fingerprint = buildConversationSummaryFingerprint(targetSession.messages);
+    if (!fingerprint) return;
+    // 手动触发（force=true）时跳过 fingerprint 命中检查，允许重新生成摘要
+    if (
+      !forceRegenerate &&
+      targetSession.contextSummary?.version === CONVERSATION_SUMMARY_STORAGE_VERSION &&
+      targetSession.contextSummary?.fingerprint === fingerprint &&
+      normalizePromptLine(targetSession.contextSummary?.content, 20)
+    ) {
+      return;
+    }
+
+    const olderMessages = dialogueMessages.slice(0, -CONVERSATION_SUMMARY_RECENT_MESSAGES);
+    if (olderMessages.length < 4) return;
+
+    // 增量合并：一层摘要也继承已有摘要，避免重新生成时丢失关键细节
+    // 之前只有 50+ 条消息的二层摘要才合并，10-50 条区间每次全量重建导致信息丢失
+    const existingSummary = normalizePromptLine(targetSession.contextSummary?.content, 20);
+    const isTwoLevel =
+      existingSummary && dialogueMessages.length > CONVERSATION_SUMMARY_TWO_LEVEL_THRESHOLD;
+    // 二层摘要取后半段中间消息，一层摘要取全部 olderMessages
+    const messagesToSummarize = isTwoLevel
+      ? olderMessages.slice(-Math.floor(olderMessages.length / 2))
+      : olderMessages;
+
+    // 结构化摘要：facts（已确认事实）+ progress（对话进展），信息密度更高
+    const summaryPrompt = [
+      '请把以下 BOH AI 对话历史和已有摘要（若有）合并压缩成结构化上下文摘要。',
+      '输出格式（严格遵守）：',
+      '<facts>',
+      '已确认的用户身份/目标/偏好/关键事实，每条一行，最多 8 条，共不超过 300 字。',
+      '</facts>',
+      '<progress>',
+      '对话进展和当前任务状态，不超过 400 字。保留关键结论和待办，删除寒暄/重复/已解决细节。',
+      '</progress>',
+      '要求：',
+      '- 不要添加原文没有的信息。',
+      '- 不要输出 <facts> 和 <progress> 以外的任何内容。',
+      '',
+      existingSummary ? `【已有摘要】${existingSummary}` : '【无已有摘要】',
+      '',
+      '【待压缩对话】',
+      messagesToSummarize.map((message) => `${message.role}: ${message.content}`).join('\n'),
+    ].join('\n');
+
+    const summaryModel =
+      runtimeAvailableModels.value.find((m) => m.id === 'Qwen/Qwen2.5-7B-Instruct') ||
+      runtimeAvailableModels.value[0];
+    if (!summaryModel?.id) return;
+    const summarySignal =
+      requestSignal ||
+      (typeof AbortController !== 'undefined' ? new AbortController().signal : undefined);
+
+    try {
+      const summary = await callModelInternal(
+        summaryModel.id,
+        summaryPrompt,
+        '<role>你是 BOH AI 的本地对话摘要器。</role>\n<constraints>\n- 只输出 <facts> 和 <progress> 两个 XML 段落\n- 不要添加原文没有的信息\n- 不要输出任何额外说明\n</constraints>',
+        [],
+        summarySignal,
+        0,
+        TASK_GENERATION_PRESETS.structuredProgress,
+      );
+
+      const latestSession = getSessionByIndex(sessionIndex);
+      if (!latestSession) return;
+      latestSession.contextSummary = {
+        version: CONVERSATION_SUMMARY_STORAGE_VERSION,
+        fingerprint,
+        content: normalizePromptLine(
+          filterThinkingContent(summary),
+          CONVERSATION_SUMMARY_MAX_CHARS,
+        ),
+        coveredMessageCount: olderMessages.length,
+        sourceMessageCount: dialogueMessages.length,
+        retainedHistoryChars: dialogueMessages
+          .slice(-CONVERSATION_SUMMARY_RECENT_MESSAGES)
+          .reduce((total, message) => total + String(message?.content || '').length + 20, 0),
+        updatedAt: Date.now(),
+      };
+      scheduleSaveSessions();
+    } catch (error) {
+      if (!isAbortError(error)) {
+        logger.warn('boh-ai', 'Conversation summary refresh failed', error);
+      }
+    }
+  };
+
+  const cleanupGenerationState = (sessionIndex, requestController) => {
+    clearThinkingStatus();
+    const targetSession = getSessionByIndex(sessionIndex);
+    if (targetSession) {
+      targetSession.isLoading = false;
+      targetSession.isThinking = false;
+    }
+    if (abortController.value === requestController) {
+      abortController.value = null;
+    }
+    if (activeGenerationSessionIndex.value === sessionIndex) {
+      activeGenerationSessionIndex.value = null;
+    }
+    stopThinkingTimer();
+  };
+
+  const { handleResourceSearchRequest } = useResourceSearch({
+    getSessionByIndex,
+    scrollToBottom,
+    getModelForModeId,
+    callModelInternal,
+    activeGenerationSessionIndex,
+    startThinkingTimer,
+    stopThinkingTimer,
+    setThinkingStatus,
+    cleanupGenerationState,
+    appendUserMessageWithTitle,
+    resetComposerInput,
+    mergeAssistantMessageMeta,
+    currentSessionIndex,
+    abortController,
+    runtimeAvailableModels,
+  });
+
+  let generationTimeoutTimer = null;
+  // 流式空闲超时计时器：用**引用容器**（stage 就地写、壳在 finally 里清），避免 stage 私有计时器泄漏
+  const streamIdleTimerRef = { current: null };
+
+  const sendMessage = async () => {
+    if (!inputMessage.value.trim() || isLoading.value || abortController.value) return;
+
+    // ── 阶段耗时埋点（plans/024 §4 ①）────────────────────────────────────────
+    // 在此之前，仓库没有任何 AI 耗时数据（`bolek-observability.js` 只记录「读了哪些源」），
+    // 「慢在哪一步」只能靠猜。这里记录 6 个检查点，写进 assistant 消息的 meta.bolekTiming。
+    //
+    // 读法：`JSON.parse(localStorage.getItem('boh_chat_sessions'))` → 找 assistant 消息的
+    // `meta.bolekTiming`。各字段都是从「用户按下发送」起的累计毫秒数：
+    //   configReadyMs   模型配置就绪（冷加载时最长 8s）
+    //   contextReadyMs  历史/追问消解就绪（纯本地，应接近 0）
+    //   retrievalDoneMs 站内检索 + 联网搜索 全部 await 完成
+    //   requestSentMs   主生成请求发出
+    //   firstTokenMs    首个可见 token（这才是用户感知的「响应速度」）
+    //   doneMs          生成结束
+    // 判读：`firstTokenMs - requestSentMs` 大 → 上游/Edge Function 慢；
+    //       `requestSentMs - configReadyMs` 大 → 检索链慢；`firstTokenMs` 与
+    //       `doneMs` 差距大 → 输出太长（max_tokens）。
+    const timingNow = () =>
+      typeof performance !== 'undefined' && typeof performance.now === 'function'
+        ? performance.now()
+        : Date.now();
+    const timingStartAt = timingNow();
+    const timing = {};
+    const markTiming = (key) => {
+      timing[key] = Math.round(timingNow() - timingStartAt);
+    };
+
+    // 模型配置尚未加载完成时先等待（最多 8s），避免 runtimeAvailableModels 为空导致后面取 generationModel.url 抛 TypeError
+    if (runtimeAvailableModels.value.length === 0) {
+      if (chatModesLoading.value) {
+        const configWaitStart = Date.now();
+        while (
+          runtimeAvailableModels.value.length === 0 &&
+          chatModesLoading.value &&
+          Date.now() - configWaitStart < 8000
+        ) {
+          await new Promise((resolve) => setTimeout(resolve, 150));
+        }
+      }
+      if (runtimeAvailableModels.value.length === 0) {
+        // 输入内容保留不清空；与 checkRateLimit 的静默拦截保持一致，仅记录日志
+        logger.warn('boh-ai', 'sendMessage aborted: 博莱克模型配置未加载（公共模式列表为空）');
+        return;
+      }
+    }
+    markTiming('configReadyMs');
+
+    const rateLimitResult = checkRateLimit();
+    if (rateLimitResult.blocked) return;
+    recordMessageSent();
+
+    const sessionIndex = currentSessionIndex.value;
+    const session = getSessionByIndex(sessionIndex);
+    if (!session) return;
+    // 心理访谈 = 封闭域：不读站内数据、不写记忆。判定与状态都在 interview-engine.js。
+    const psychInterviewActive = isPsychInterviewState(session.expertState);
+    const userText = inputMessage.value.trim();
+    // 推进访谈状态（轮次 / 短答连击 / 原话采集）—— 下一轮的状态块就会带上这些
+    if (psychInterviewActive) {
+      session.expertState = recordUserTurn(session.expertState, userText);
+    }
+
+    // ── 阶段 1：前置捷径（顺序敏感，见 engine/stages/shortcuts.ts）──────────
+    const shortcutHandled = await runShortcutBranches(
+      {
+        handlePendingTreeholeCreationReply,
+        tryStartActionDraftFromUserInput,
+        tryStartPageCreationFromUserInput,
+        handleResourceSearchRequest,
+      },
+      { userText, sessionIndex },
+    );
+    if (shortcutHandled) return;
+
+    if (isAgentClusterMode(currentModeId.value)) {
+      // Step 5-2：Agent 集群分支已抽成 engine/stages/agent-cluster.ts（自带早退）
+      await runAgentClusterStage(
+        {
+          isStreamingGeneration,
+          activeGenerationSessionIndex,
+          abortController,
+          currentModeId,
+          runtimeChatModes,
+          runtimeAvailableModels,
+          currentModel,
+          isSearching,
+          userInfo,
+          appendUserMessageWithTitle,
+          resetComposerInput,
+          clearAttachedContext,
+          scrollToBottom,
+          ensureContextCompression,
+          getSessionByIndex,
+          stopThinkingTimer,
+          runAgentClusterBranch,
+          applyAgentClusterEvent,
+          resetAgentClusterState,
+          agentClusterState,
+          clusterSources,
+          getModelForModeId,
+          callModelInternal,
+        },
+        { sessionIndex, userText, session },
+      );
+      return;
+    }
+
+    appendUserMessageWithTitle(sessionIndex, userText);
+    resetComposerInput();
+    clearAttachedContext();
+    scrollToBottom(true);
+
+    session.isLoading = true;
+    session.isThinking = true;
+    // 新一轮开始先清掉上一轮的搜索标题 —— 否则这一轮没开联网时，
+    // 消息流的折叠面板会拿旧一轮的标题轮换（webSearchActive 是本轮的，标题也得是）。
+    webSearchResults.value = [];
+    activeGenerationSessionIndex.value = sessionIndex;
+    // 上下文窗口接近上限时，先把会话历史压成摘要，再让模型拿到真正"压缩后"的上下文。
+    // 摘要生成失败/无更新会快速 no-op 退出，不会阻塞发送。
+    const preflightController = new AbortController();
+    const compressionPromise = ensureContextCompression(sessionIndex, {
+      signal: preflightController.signal,
+    });
+    abortController.value = preflightController;
+    session.messages.push({
+      role: 'assistant',
+      content: '',
+    });
+    const messageIndex = session.messages.length - 1;
+    await nextTick();
+    scrollToBottom();
+
+    // 埋点落盘：meta 由 bolek-chat-session-store 的 `...message` 展开原样保留，
+    // 不需要登记白名单（与 expertState 的显式白名单不同）。
+    const flushTiming = () => {
+      mergeAssistantMessageMeta(sessionIndex, messageIndex, { bolekTiming: { ...timing } });
+    };
+
+    const removePreflightLoader = () => {
+      const targetSession = getSessionByIndex(sessionIndex);
+      const maybeLoader = targetSession?.messages?.[messageIndex];
+      if (maybeLoader?.role === 'assistant' && !String(maybeLoader.content || '').trim()) {
+        targetSession.messages.splice(messageIndex, 1);
+      }
+    };
+
+    const finishPreflightOnly = () => {
+      const targetSession = getSessionByIndex(sessionIndex);
+      if (targetSession) {
+        targetSession.isLoading = false;
+        targetSession.isThinking = false;
+      }
+      if (activeGenerationSessionIndex.value === sessionIndex) {
+        activeGenerationSessionIndex.value = null;
+      }
+      if (abortController.value === preflightController) {
+        abortController.value = null;
+      }
+      stopThinkingTimer();
+    };
+
+    const historyMessagesForCurrentTurn = Array.isArray(session.messages)
+      ? session.messages.slice(0, -2)
+      : [];
+    const localContextualQuery = buildContextualFollowUpQuery(
+      userText,
+      historyMessagesForCurrentTurn,
+      {
+        maxChars: MAX_USER_INPUT_CHARS,
+      },
+    );
+    const enableSearch = isSearching.value;
+
+    // 追问消解（2026-10-02 改：本地优先，不再调模型）
+    // ─────────────────────────────────────────────────────────────
+    // 旧实现：`userText.length <= 160 && 历史 >= 2 条` 时无条件发一次非流式 LLM 调用，
+    // 用当前模式对应的模型（plan 模式 = 推理模型）跑 max_tokens=256。
+    // 它排在知识检索与联网搜索**之前**，且那两个 Promise 是在它 await 之后才构造的，
+    // 所以整条链无法并行 —— 首 token 前要多付一个完整往返。
+    // 更糟的是它常常白跑：推理模型的 thinking 会吃光 256 token，输出被截断后
+    // filterThinkingContent 得到空串，静默回落到本地规则。
+    //
+    // 现在直接走本地 `buildContextualFollowUpQuery`：它的门槛是
+    // `isContextDependentFollowUp`（真的省略了指代才展开），比「≤160 字」更准；
+    // 而且它本来就是旧实现失败时的兜底路径 —— 这里只是把兜底提升为主路径。
+    //
+    // ⚠️ 若日后发现追问理解质量回退，正确的修法是「收窄门槛 + 换最便宜的模型 + 加超时」，
+    // **不要**恢复这个无条件调用。依据见 plans/024 §P0-2。
+    const contextualQuery = localContextualQuery;
+    const shouldUseContextualQuery = contextualQuery && contextualQuery !== userText;
+    const routingQueryText = shouldUseContextualQuery ? contextualQuery : userText;
+    const webSearchQueryText = buildContextualWebSearchQuery(
+      userText,
+      historyMessagesForCurrentTurn,
+      {
+        maxChars: MAX_USER_INPUT_CHARS,
+      },
+    );
+    markTiming('contextReadyMs');
+
+    // 4 模式不再做"自动路由"，但 capability 决策（联网/Cloud+ 引用/保存/指令）仍统一由
+    // resolveAutoModeDecisionLocally 提供，本地纯函数判定，不再调 LLM 二次校验。
+    // 2026-10-04：Cloud+ 参考的同意闸门已移除 —— 是否读 Cloud+ 只由用户的「个人记忆」开关决定。
+    const autoDecision = resolveAutoModeDecisionLocally(routingQueryText, {
+      isAutoMode: currentModeId.value === 'auto',
+      cloudReferenceEnabled: Boolean(isTreeholeMemoryEnabled.value),
+      isLoggedIn: Boolean(isLoggedIn.value && userInfo.value?.id),
+      helpers: { isPostDraftRequest },
+    });
+
+    // 2026-10-04：保存只剩「写入公共记忆库」一条路径（Cloud+ 写入与「两处同存」已下线），
+    // 所以不再判断 shouldSaveCloud / shouldAskMemoryDestination，也不必再传 destination。
+    if (autoDecision?.shouldSaveSharedMemory) {
+      removePreflightLoader();
+      finishPreflightOnly();
+      if (requestSharedMemorySaveConfirmation({ content: userText, sessionIndex })) {
+        return;
+      }
+    }
+
+    if (autoDecision?.shouldReferenceCloud && !isTreeholeMemoryEnabled.value) {
+      if (!isLoggedIn.value || !userInfo.value?.id) {
+        removePreflightLoader();
+        finishPreflightOnly();
+        appendSessionMessage(
+          sessionIndex,
+          'assistant',
+          '总结最近日常需要参考你的 BOH Cloud+，但你还没有登录，所以我先不读取这部分内容。',
+        );
+        return;
+      }
+
+      // 2026-10-04：不再有「首次授权」环节 —— 需要 Cloud+ 时直接开启并继续读取。
+      isTreeholeMemoryEnabled.value = true;
+      persistTreeholeMemorySetting();
+      setMemoryCaptureStatusMessage('Auto 已为你开启 Cloud+ 参考。');
+      dispatchGlobalNavStatus({
+        title: '已开启 Cloud+ 参考',
+        message: 'BOH AI 将结合你的 Cloud+ 内容回答',
+        icon: 'ai',
+        type: 'notification',
+        actionLabel: '知道了',
+        durationMs: 4200,
+      });
+    }
+
+    // 只解构下游真正用到的 4 个（`communityQuestion` / `communityCreativeRequest` 是
+    // 阶段内部用来推导 `communityNeedsEvidence` 的中间量，这里再解构会变成未使用变量）。
+    const {
+      operationQuestion,
+      communityNeedsEvidence,
+      bohInternalFactualQuestion,
+      factualQuestion,
+    } = computeIntentFlags({ routingQueryText, userText });
+    // 联网搜索触发条件：仅当用户手动开启联网搜索开关时才触发。
+    // 之前 autoDecision.shouldSearchWeb 会让 AI 在用户未开启搜索时自动发起联网搜索，
+    // 与用户预期不符，已移除自动触发逻辑。
+    session.isLoading = true;
+    session.isThinking = true;
+    const requestController = new AbortController();
+    abortController.value = requestController;
+    activeGenerationSessionIndex.value = sessionIndex;
+    startThinkingTimer();
+    isStreamingGeneration.value = true;
+    setThinkingStatus(`正在分析问题：${summarizeThinkingSubject(userText)}`);
+    let generationTimedOut = false;
+    let generationTimeoutReason = '生成服务长时间没有返回新内容';
+    generationTimeoutTimer = null;
+
+    const updateContent = (text) => {
+      const targetSession = getSessionByIndex(sessionIndex);
+      if (!targetSession || !targetSession.messages[messageIndex]) return;
+      targetSession.messages[messageIndex].content = text;
+      scrollToBottom();
+    };
+    /* 推理内容落点（2026-10-10「推理过程可展开」）：与 content 并列存在消息上，
+       渲染层把它画成「正在思考 / 思考过程」可展开块。值相同时直接 return ——
+       流式每块都推一次，不设这个闸门会白触发一轮响应式。
+       ⚠️ 会话持久化对消息字段是 `{...message}` 透传（bolek-chat-session-store），
+       所以这里不需要额外登记白名单；长度上限在那里统一截。 */
+    const updateReasoning = (text) => {
+      const targetSession = getSessionByIndex(sessionIndex);
+      const message = targetSession?.messages?.[messageIndex];
+      if (!message) return;
+      const next = String(text || '');
+      if (message.reasoning === next) return;
+      message.reasoning = next;
+    };
+    const resetGenerationStallTimeout = (reason = generationTimeoutReason) => {
+      generationTimeoutReason = reason;
+      clearTimeout(generationTimeoutTimer);
+      generationTimeoutTimer = setTimeout(() => {
+        generationTimedOut = true;
+        if (!requestController.signal.aborted) {
+          requestController.abort();
+        }
+      }, GENERATION_STALL_TIMEOUT_MS);
+    };
+    const markGenerationProgress = (status = '') => {
+      if (status) setThinkingStatus(status);
+      resetGenerationStallTimeout(status || generationTimeoutReason);
+    };
+    resetGenerationStallTimeout('等待生成服务响应');
+
+    try {
+      let finalPrompt = truncateText(userText, MAX_USER_INPUT_CHARS);
+      let currentContent = '';
+      const showProgress = SHOW_INTERNAL_PROGRESS_NOTES;
+
+      const setProgressContent = (nextText) => {
+        if (!showProgress) return;
+        resetGenerationStallTimeout('正在更新检索进度');
+        currentContent = String(nextText || '');
+        updateContent(currentContent);
+      };
+
+      const appendProgressContent = (appendText) => {
+        if (!showProgress) return;
+        resetGenerationStallTimeout('正在更新检索进度');
+        currentContent += String(appendText || '');
+        updateContent(currentContent);
+      };
+
+      // Step 5-2：检索主体（站内检索 + 联网搜索并行编排）已抽成 engine/stages/retrieval.ts。
+      // ⚠️ 进度闭包与 currentContent **刻意留在壳里**（流式阶段还要接着写），stage 只调用它们。
+      const retrieval = await runRetrievalStage(
+        {
+          setProgressContent,
+          appendProgressContent,
+          updateContent,
+          resetGenerationStallTimeout,
+          markGenerationProgress,
+          runWebSearch,
+          resolveKnowledgeRoutingPlan,
+          getRetrievalTargetLabels,
+          buildAutoKnowledgeContext,
+          isLatestForumSummaryQuery,
+          mergeAssistantMessageMeta,
+          updateAssistantActionNotes,
+          webSearchDisabledNoticeShownFor,
+          communitySearchActive,
+          communityActivity,
+          // 论坛连接器读完即点名（活动行「正在读取《标题》」）
+          onCommunityPostResolved: (title) => {
+            communityActivity.value = { ...communityActivity.value, postTitle: title };
+          },
+          isKnowledgeBaseEnabled,
+          isSearching,
+          requestController,
+          communityNeedsEvidence,
+        },
+        {
+          sessionIndex,
+          messageIndex,
+          userText,
+          routingQueryText,
+          enableSearch,
+          webSearchQueryText,
+          psychInterviewActive,
+          autoDecision,
+        },
+      );
+      let internalEvidenceContext = retrieval.internalEvidenceContext;
+      let webEvidenceContext = retrieval.webEvidenceContext;
+      let groundingEvidenceRefs = retrieval.groundingEvidenceRefs;
+      let searchResultCount = retrieval.searchResultCount;
+      let webSearchVerified = retrieval.webSearchVerified;
+      let hasKnowledgeContext = retrieval.hasKnowledgeContext;
+      let latestForumSummaryPosts = retrieval.latestForumSummaryPosts;
+      const webSearchResult = retrieval.webSearchResult;
+
+      const shouldEnforceGrounding =
+        factualQuestion ||
+        operationQuestion ||
+        enableSearch ||
+        communityNeedsEvidence ||
+        bohInternalFactualQuestion;
+
+      const latestForumSummaryMode = isLatestForumSummaryQuery(routingQueryText);
+      const personalSupportMode = isLikelyPersonalSupportRequest(userText);
+
+      // 模式选择（4 模式下不再做自动路由）：
+      // 1) 当前模式 (currentModeId.value) —— 用户手动选什么就走什么，最高优先级
+      // 2) isPlanModeEnabled 开启时强制 plan（不覆盖 agent 自身）
+      // 注意：不再沿用上一轮 routedMode 覆盖用户手动选择 —— 旧逻辑会在追问场景把模式
+      // 悄悄切回上一轮（例如上一轮用过 Code 被拒后，之后所有追问都会继续打 Code 报
+      // "Coding 模式"403），与"用户主动选择什么就走什么"的设计矛盾。
+      let activeModeId = currentModeId.value;
+      if (isPlanModeEnabled.value && activeModeId !== 'agent-cluster') {
+        activeModeId = 'plan';
+      }
+      // 在消息 meta 中记录 routedMode：供后续追问场景做"沿用上一轮模式"判断
+      mergeAssistantMessageMeta(sessionIndex, messageIndex, { routedMode: activeModeId });
+      const isPlanMode = activeModeId === 'plan';
+      if (isPlanModeEnabled.value) {
+        updateAssistantActionNotes(sessionIndex, messageIndex, ['Plan 模式已开启，显示实时进度。']);
+      }
+      const hasForumEvidence =
+        Array.isArray(groundingEvidenceRefs) &&
+        groundingEvidenceRefs.some((ref) => /^F\d+$/i.test(String(ref)));
+
+      const { responseRules, communityRules, evidenceRules, operationRules, actualExtraChars } =
+        buildResponseRuleBlocks({
+          hasForumEvidence,
+          personalSupportMode,
+          isPlanMode,
+          latestForumSummaryMode,
+          bohInternalFactualQuestion,
+          shouldEnforceGrounding,
+          operationQuestion,
+          internalEvidenceChars: internalEvidenceContext.length || 0,
+          webEvidenceChars: webEvidenceContext.length || 0,
+        });
+      updateLastActualExtraChars(actualExtraChars);
+      markTiming('retrievalDoneMs');
+
+      // ── 跨轮证据复用 + 时效护栏（2026-10-02 新增，plans/024 §P1-1）────────────
+      // 复用的动机：追问「[F1] 是谁」时，当前轮检索不到东西，但上一轮的资料就在手边。
+      //
+      // ⚠️ 但原实现是**无条件**复用，且不带任何时间标记 —— 于是「论坛最近有什么新帖」
+      // 这类**明确要最新**的提问，第二轮可能拿到第一轮的旧帖，模型还会言之凿凿地
+      // 当成最新内容回答。这是「AI 胡说」类投诉最主要的来源。
+      //
+      // 护栏分两档：
+      //   1. 本轮提问命中时效词（最新/最近/今天…）→ **禁止复用**，改为注入说明，
+      //      让模型据实告知「本轮没有检索到新资料」，而不是拿旧的冒充新的。
+      //   2. 其余情况允许复用，但在证据块前加一行「来自上一轮」的前缀。
+      const evidenceState = resolveCrossTurnEvidence({
+        internalEvidenceContext,
+        webEvidenceContext,
+        groundingEvidenceRefs,
+        searchResultCount,
+        webSearchVerified,
+        routingQueryText,
+        historyMessagesForCurrentTurn,
+        enableSearch,
+        webSearchResult,
+      });
+      internalEvidenceContext = evidenceState.internalEvidenceContext;
+      webEvidenceContext = evidenceState.webEvidenceContext;
+      groundingEvidenceRefs = evidenceState.groundingEvidenceRefs;
+      searchResultCount = evidenceState.searchResultCount;
+      webSearchVerified = evidenceState.webSearchVerified;
+
+      // C2+C5 fix: 共享 8000 字预算 + URL 去重
+      const evidenceUrls = Array.isArray(groundingEvidenceRefs)
+        ? groundingEvidenceRefs.map((r) => String(r?.url || r?.source || '').trim()).filter(Boolean)
+        : [];
+      const searchUrls = Array.isArray(webSearchResult?.results)
+        ? webSearchResult.results.map((r) => String(r?.url || '').trim()).filter(Boolean)
+        : [];
+      const sharedContext = buildSharedEvidenceContext({
+        evidenceContext: internalEvidenceContext,
+        searchContext: webEvidenceContext,
+        maxChars: MAX_PROMPT_EXTRA_CHARS,
+        evidenceUrls,
+        searchUrls,
+      });
+
+      finalPrompt = buildStructuredUserPrompt({
+        userText: shouldUseContextualQuery
+          ? `${userText}\n\n【上下文理解提示】这是一条追问；请结合最近对话理解，不要把它当成脱离上下文的新问题。\n${contextualQuery}`
+          : userText,
+        responseRules,
+        communityRules,
+        evidenceRules,
+        operationRules,
+      });
+
+      // 心理访谈：末尾锚定。finalPrompt 是 messages 数组里的最后一条，离生成最近、注意力最高，
+      // 把「本轮别跑偏」钉在这里 —— system 里的长规则负责怎么想，这里负责这一轮的行为底线。
+      if (psychInterviewActive) {
+        finalPrompt = `${finalPrompt}\n\n${buildAnchorBlock(session.expertState, findTrack(session.expertState.trackId))}`;
+      }
+
+      const preferAccuracyModel =
+        factualQuestion || operationQuestion || enableSearch || communityNeedsEvidence;
+      const planMode = runtimeChatModes.value.find((m) => m.id === 'plan');
+      const planModel = planMode?.model
+        ? runtimeAvailableModels.value.find((m) => m.id === planMode.model)
+        : null;
+      const routedModeModel = getModelForModeId(activeModeId, { userText });
+      const generationModel =
+        preferAccuracyModel && planModel
+          ? planModel
+          : hasKnowledgeContext && planModel
+            ? planModel
+            : routedModeModel;
+      // 兜底：运行时模型列表为空（list_public_bolek_modes 加载失败/返回空）时
+      // generationModel 会是 undefined，直接取 .url 会抛 "Cannot read properties of undefined (reading 'url')"
+      if (!generationModel) {
+        throw new Error(
+          '博莱克模型配置未加载（公共模式列表为空），请刷新页面重试；若持续出现，请检查后台 bolek 模式配置',
+        );
+      }
+      markGenerationProgress('正在生成回答...');
+
+      let url = generationModel.url;
+      let headers = {
+        'Content-Type': 'application/json',
+      };
+      let requestBody = {};
+      const stylePromptAppendix = String(currentResponseStyle.value?.promptAppendix || '').trim();
+      const evidenceContextBlock = buildSystemEvidenceContext({
+        evidenceContext: sharedContext.evidenceContext,
+        searchContext: sharedContext.searchContext,
+      });
+
+      // 上下文压缩修复：在构建历史消息前 await 摘要，
+      // 确保本轮就能用上新摘要（之前在第 1722 行才 await，首跨阈值轮拿不到新摘要）
+      await compressionPromise;
+
+      // 优化1: Token 预算监控
+      const budgetTracker = createContextBudgetTracker();
+      budgetTracker.addEstimate(CONTEXT_CATEGORIES.SYSTEM_PROMPT, BASE_SYSTEM_PROMPT);
+      budgetTracker.addEstimate(CONTEXT_CATEGORIES.EVIDENCE, evidenceContextBlock);
+      budgetTracker.addEstimate(CONTEXT_CATEGORIES.RULES, finalPrompt);
+
+      // 优化2: 结构化记忆提取
+      const structuredMemories = extractStructuredMemories(historyMessagesForCurrentTurn);
+      const structuredMemoryBlock = buildStructuredMemoryBlock(structuredMemories);
+      budgetTracker.addEstimate(CONTEXT_CATEGORIES.STRUCTURED_MEMORY, structuredMemoryBlock);
+
+      // 摘要并入主 system prompt 的 context 段落（之前作为独立 system 消息，部分模型处理不一致）
+      const cachedSummary = getCachedSummaryIfUsable(session);
+      const pageContextBlock = buildPageContextBlock(attachedContext.value);
+
+      // 心理访谈：每轮重建注入「访谈协议 + 状态块 + 分层规则」。
+      // 模型数不准轮次、长对话里也会忘规则，所以不依赖它记 —— 每轮都重新喂（见方案 §16）。
+      //
+      // 访谈协议是**会话级**的（挂在 expertState 上），不是风格级的：风格是全局设置，
+      // 用户在设置里选了心理风格不代表他每个会话都在做访谈。旧版把协议写在风格附录里，
+      // 于是手动选风格那条路径也会拿到整套协议、模型照着自己切进访谈，却没有状态机与守门。
+      const psychInterviewProtocol = psychInterviewActive ? PSYCH_INTERVIEW_APPENDIX : '';
+      const psychStateBlock = psychInterviewActive
+        ? buildStateBlock(session.expertState, findTrack(session.expertState.trackId))
+        : '';
+      const psychRulesBlock = psychInterviewActive
+        ? [
+            '<psych_interview_rules>',
+            ...PSYCH_L0_RULES.map((rule) => `- ${rule}`),
+            ...PSYCH_L1_RULES.map((rule) => `- ${rule}`),
+            ...pickL2Rules(session.expertState).map((rule) => `- 【本轮必须】${rule}`),
+            '</psych_interview_rules>',
+          ].join('\n')
+        : '';
+
+      const { systemPromptContent } = buildSystemPromptSections({
+        pageContextBlock,
+        evidenceContextBlock,
+        cachedSummary,
+        structuredMemoryBlock,
+        isPlanMode,
+        psychInterviewProtocol,
+        psychStateBlock,
+        psychRulesBlock,
+        stylePromptAppendix,
+        // 变更单协议只在管理员调试态注入（普通用户看到会以为「说一句就能改库」）
+        knowledgePatchAppendix: isKnowledgeDebugEnabled.value
+          ? buildKnowledgePatchPromptAppendix()
+          : '',
+      });
+      // 访谈态单独一份生成参数（提温 + 略提 frequency_penalty），不共用 pro 的冷参数
+      const generationProfile = getGenerationProfile(activeModeId, {
+        factualQuestion: factualQuestion || communityNeedsEvidence,
+        operationQuestion,
+        psychInterview: psychInterviewActive,
+      });
+
+      const recentMessages = buildHistoryMessagesWithCachedSummary(
+        {
+          ...session,
+          messages: historyMessagesForCurrentTurn,
+        },
+        {
+          maxChars: MAX_HISTORY_CONTEXT_CHARS,
+          maxMessages: MAX_CONTEXT_MESSAGES,
+          maxPerMessage: MAX_HISTORY_MESSAGE_CHARS,
+        },
+      );
+
+      if (latestForumSummaryMode && latestForumSummaryPosts.length > 0 && !enableSearch) {
+        markGenerationProgress('正在把社区动态整理成自然叙述...');
+        let narrativeAnswer = '';
+        const forumSummarySourceText = getForumSummarySourceText(latestForumSummaryPosts);
+        const forumNarrativePrompt = buildForumNarrativeSummaryPrompt(latestForumSummaryPosts);
+        try {
+          const rawNarrative = await callModelInternal(
+            generationModel.id,
+            forumNarrativePrompt,
+            `${systemPromptContent}\n<constraints>\n- 绝对不能编造论坛帖子内容\n- 绝对不能输出链接或 URL\n- 绝对不能输出列表格式，必须用自然段落\n- 必须严格基于用户提供的论坛帖子资料\n</constraints>`,
+            [],
+            requestController.signal,
+            0,
+            {
+              ...generationProfile,
+              ...TASK_GENERATION_PRESETS.forumNarrative,
+              max_tokens: Math.min(Number(generationProfile.max_tokens || 1200), 900),
+            },
+          );
+          narrativeAnswer = removeForumSummaryLinks(
+            cleanAssistantVisibleReply(filterThinkingContent(rawNarrative)),
+          );
+
+          const polarityConflicts = detectForumSummaryPolarityConflicts(
+            forumSummarySourceText,
+            narrativeAnswer,
+          );
+          if (polarityConflicts.length > 0) {
+            logger.warn('boh-ai', '论坛总结检测到极性冲突，准备重写', polarityConflicts);
+            markGenerationProgress('正在核对总结准确性...');
+            const repairedNarrative = await callModelInternal(
+              generationModel.id,
+              `${forumNarrativePrompt}\n\n【上次总结存在的准确性问题】\n${polarityConflicts.map((item) => `- ${item}`).join('\n')}\n\n【上次总结】\n${narrativeAnswer}\n\n请重写总结，必须修正上述问题，尤其不能把“大/小、多少、喜欢/不喜欢、要/不要”等语义方向写反。`,
+              `${systemPromptContent}\n<constraints>\n- 你正在修正论坛总结\n${NO_FABRICATION_RULE}\n- 绝对不能输出链接或列表\n- 必须严格基于资料，优先准确，其次自然\n</constraints>`,
+              [],
+              requestController.signal,
+              0,
+              {
+                ...generationProfile,
+                ...TASK_GENERATION_PRESETS.forumRepair,
+                max_tokens: Math.min(Number(generationProfile.max_tokens || 1200), 900),
+              },
+            );
+            const repairedAnswer = removeForumSummaryLinks(
+              cleanAssistantVisibleReply(filterThinkingContent(repairedNarrative)),
+            );
+            narrativeAnswer = repairedAnswer || '';
+          }
+        } catch (summaryError) {
+          if (summaryError?.name === 'AbortError') throw summaryError;
+          logger.warn('boh-ai', 'AI 论坛叙述总结失败，降级为规则总结', summaryError);
+        }
+
+        const finalNarrativeAnswer =
+          narrativeAnswer || buildExtractiveForumSummaryAnswer(latestForumSummaryPosts);
+        markGenerationProgress('正在输出论坛总结...');
+        clearThinkingStatus();
+        const targetSession = getSessionByIndex(sessionIndex);
+        if (targetSession) {
+          targetSession.isThinking = false;
+        }
+        updateContent(finalNarrativeAnswer);
+        nextTick(scrollToBottom);
+
+        void captureMemoryFromConversation({
+          sessionIndex,
+          userText,
+          assistantText: finalNarrativeAnswer,
+        });
+        return;
+      }
+
+      // Step 5-3：依据护栏（洗无证据断言 + 无依据时追加不确定声明）已抽成 engine/stages/grounding-guard.ts
+      const { sanitizeCommunityEvidenceClaims, ensureGroundedReply, shouldRepairUngroundedReply } =
+        buildGroundingGuards({
+          groundingEvidenceRefs,
+          searchResultCount,
+          enableSearch,
+          factualQuestion,
+          webSearchVerified,
+          communityNeedsEvidence,
+          bohInternalFactualQuestion,
+          psychInterviewActive,
+          shouldEnforceGrounding,
+        });
+
+      // Step 5-3：请求体装配（含速度档位偏移 + 分层压缩 + 预算日志）已抽成 engine/stages/request-body.ts
+      const thinkingSpeedDeltas = THINKING_SPEED_DELTAS_BY_ID[currentThinkingSpeedId.value];
+      const { requestBody: assembledRequestBody } = buildRequestBody({
+        generationModel,
+        systemPromptContent,
+        recentMessages,
+        finalPrompt,
+        generationProfile,
+        thinkingSpeedDeltas,
+        budgetTracker,
+      });
+      requestBody = assembledRequestBody;
+
+      const STREAM_FETCH_TIMEOUT_MS = 120_000; // 2 min stream timeout
+      markGenerationProgress('正在请求模型生成回答...');
+      const streamFetchSignal =
+        typeof AbortSignal.any === 'function'
+          ? AbortSignal.any([
+              requestController.signal,
+              AbortSignal.timeout(STREAM_FETCH_TIMEOUT_MS),
+            ])
+          : requestController.signal;
+      markGenerationProgress('正在生成回答...');
+
+      // Step 5-3：流式消费（SSE 解析 + while 循环 + 收尾 flush）已抽成 engine/stages/stream.ts。
+      // ⚠️ 可变状态放进 streamState（stage 就地读写）；stopThinkingWhenAnswerVisible 由壳持有
+      //    （它闭包 markTiming / clearThinkingStatus，且回答定稿阶段还要用）。
+      const streamState = {
+        assistantMessage: getSessionByIndex(sessionIndex)?.messages?.[messageIndex]?.content || '',
+        lastVisibleStreamContent: '',
+        shouldRepairDegenerateStream: false,
+        hasReceivedVisibleAnswer: false,
+      };
+      // 新一轮生成：先清掉上一轮的推理内容（重试 / 重新生成时不能残留旧思考）
+      updateReasoning('');
+      streamState.lastVisibleStreamContent = cleanAssistantVisibleReply(
+        filterThinkingContent(streamState.assistantMessage),
+      );
+      const stopThinkingWhenAnswerVisible = () => {
+        if (streamState.hasReceivedVisibleAnswer) return;
+        streamState.hasReceivedVisibleAnswer = true;
+        // 首个可见 token —— 这才是用户感知的「响应速度」
+        markTiming('firstTokenMs');
+        clearThinkingStatus();
+        const targetSession = getSessionByIndex(sessionIndex);
+        if (targetSession) {
+          targetSession.isThinking = false;
+        }
+      };
+
+      markTiming('requestSentMs');
+      await runStreamStage(
+        {
+          callVaultSiliconChatStream,
+          createThinkingState,
+          createSseLineParser,
+          filterThinkingContentStream,
+          flushThinkingBuffer,
+          getThinkingReasoning,
+          safeChunkToString,
+          isDegenerateStreamOutput,
+          filterThinkingContent,
+          cleanAssistantVisibleReply,
+          resetGenerationStallTimeout,
+          updateContent,
+          updateReasoning,
+          scrollToBottom,
+          markGenerationProgress,
+          appendProgressContent,
+          stopThinkingWhenAnswerVisible,
+        },
+        {
+          provider: generationModel.providerKey || 'siliconflow',
+          purpose: 'chat',
+          mode: activeModeId,
+          apiUrl: url,
+          timeoutMs: STREAM_FETCH_TIMEOUT_MS,
+          signal: streamFetchSignal,
+          payload: requestBody,
+          state: streamState,
+          idleTimerRef: streamIdleTimerRef,
+          // 只用于判断「要不要先按住开头等判定」（GLM-Z1 系的思考只有闭合标签）。
+          // 前端拿不到上游真实模型名（EF 在服务端抽策略候选），故给 displayName + mode_id
+          // 两个提示；宁可多认 —— 误认只多等一次判定，漏认会让思考先闪进正文。
+          modelHint: `${generationModel.name || ''} ${generationModel.id || ''} ${
+            activeModeId || ''
+          }`,
+        },
+      );
+      let assistantMessage = streamState.assistantMessage;
+      let lastVisibleStreamContent = streamState.lastVisibleStreamContent;
+      let shouldRepairDegenerateStream = streamState.shouldRepairDegenerateStream;
+
+      // Step 5-3：心理访谈守门（违规检测→重写一次→留痕）+ 访谈状态推进已抽成 engine/stages/psych-guard.ts
+      await runPsychGuardStage(
+        {
+          cleanAssistantVisibleReply,
+          filterThinkingContent,
+          detectViolations,
+          shouldRewrite,
+          buildRewriteInstruction,
+          appendPromptSection,
+          callModelInternal,
+          shouldAdoptRewrite,
+          updateContent,
+          scrollToBottom,
+          summarizeViolations,
+          bumpGuardStats,
+          getSessionByIndex,
+          recordAssistantTurn,
+        },
+        {
+          psychInterviewActive,
+          shouldRepairDegenerateStream,
+          assistantMessage,
+          session,
+          messageIndex,
+          finalPrompt,
+          maxFinalPromptChars: MAX_FINAL_PROMPT_CHARS,
+          generationModelId: generationModel.id,
+          systemPromptContent,
+          recentMessages,
+          requestController,
+          generationProfile,
+          sessionIndex,
+        },
+      );
+
+      if (shouldRepairDegenerateStream) {
+        // Step 5-3：退化流修复（严格重试一次 + 依据护栏 + 洗断言）已抽成 engine/stages/degenerate-repair.ts
+        await runDegenerateRepair(
+          {
+            appendPromptSection,
+            callModelInternal,
+            filterThinkingContent,
+            cleanAssistantVisibleReply,
+            isDegenerateAssistantReply,
+            ensureGroundedReply,
+            sanitizeCommunityEvidenceClaims,
+            updateContent,
+            scrollToBottom,
+            captureMemoryFromConversation,
+          },
+          {
+            finalPrompt,
+            maxFinalPromptChars: MAX_FINAL_PROMPT_CHARS,
+            generationModelId: generationModel.id,
+            systemPromptContent,
+            recentMessages,
+            requestController,
+            generationProfile,
+            sessionIndex,
+            userText,
+          },
+        );
+        return;
+      }
+
+      // 对完整内容进行二次过滤，确保所有思考内容都被过滤掉
+      // Step 5-3：回答定稿（二次过滤 → 补答 → 退化重试 → 依据护栏 → 洗断言）已抽成 engine/stages/finalize-reply.ts
+      const finalized = await finalizeAssistantReply(
+        {
+          filterThinkingContent,
+          cleanAssistantVisibleReply,
+          isDegenerateAssistantReply,
+          ensureGroundedReply,
+          sanitizeCommunityEvidenceClaims,
+          shouldRepairUngroundedReply,
+          callModelInternal,
+          getFallbackModel,
+          appendPromptSection,
+          markGenerationProgress,
+          appendProgressContent,
+          stopThinkingWhenAnswerVisible,
+        },
+        {
+          assistantMessage,
+          lastVisibleStreamContent,
+          finalPrompt,
+          maxFinalPromptChars: MAX_FINAL_PROMPT_CHARS,
+          generationModelId: generationModel.id,
+          systemPromptContent,
+          recentMessages,
+          requestController,
+          generationProfile,
+          // 2026-10-19：逐句依据校验的输入 —— 内部证据 + 联网证据 + 可引用编号 + 人物别名。
+          evidenceContext: [internalEvidenceContext, webEvidenceContext]
+            .filter(Boolean)
+            .join('\n\n'),
+          availableEvidenceRefs: groundingEvidenceRefs,
+          maxSearchRef: searchResultCount,
+          entityAliases: getAllEntityAliases(),
+          enforceGrounding: shouldEnforceGrounding,
+        },
+      );
+      if (finalized.changed) {
+        assistantMessage = finalized.finalContent;
+        updateContent(finalized.finalContent);
+      }
+      if (finalized.groundingReport) {
+        mergeAssistantMessageMeta(sessionIndex, messageIndex, {
+          groundingReport: finalized.groundingReport,
+        });
+      }
+
+      nextTick(scrollToBottom);
+
+      // 对话结束后异步尝试“选择性记忆沉淀”，不阻塞主回答流程
+      void captureMemoryFromConversation({
+        sessionIndex,
+        userText,
+        assistantText: finalized.finalContent,
+      });
+    } catch (error) {
+      const targetSession = getSessionByIndex(sessionIndex);
+      const currentContent = targetSession?.messages?.[messageIndex]?.content || '';
+
+      if (isAbortError(error)) {
+        logger.debug('boh-ai', 'Generation stopped');
+        const filteredStoppedContent = cleanAssistantVisibleReply(
+          filterThinkingContent(currentContent),
+        );
+        updateContent(
+          getAbortMessage(filteredStoppedContent, {
+            timedOut: generationTimedOut,
+            isDegenerate: isDegenerateAssistantReply(filteredStoppedContent),
+          }),
+        );
+      } else {
+        // 2026-11-12 用户口径：出错要给「能看懂 + 知道不花钱」的话，不要把上游 JSON 甩给用户。
+        // 归类只决定文案 —— 失败请求本来就不会计费（EF 在非 ok 的流上 release 预扣）。
+        const kind = classifyChatError(error);
+        logger.error('boh-ai', 'Generation error', { kind, error });
+        if (kind === CHAT_ERROR_KINDS.RATE_LIMIT) {
+          updateContent(CHAT_ERROR_MESSAGES.rateLimited());
+        } else {
+          updateContent(CHAT_ERROR_MESSAGES.generationFailed(sanitizeErrorDetail(error)));
+        }
+      }
+
+      if (targetSession) {
+        targetSession.isThinking = false;
+      }
+      stopThinkingTimer();
+      nextTick(scrollToBottom);
+    } finally {
+      clearTimeout(generationTimeoutTimer);
+      communitySearchActive.value = false;
+      communityActivity.value = { active: false, postTitle: '' };
+      isStreamingGeneration.value = false;
+      cleanupGenerationState(sessionIndex, requestController);
+      scheduleSaveSessions();
+      // 埋点收尾：无论成功 / 中止 / 报错都落盘，否则失败路径的耗时永远量不到
+      markTiming('doneMs');
+      flushTiming();
+    }
+  };
+
+  onScopeDispose(() => {
+    clearTimeout(generationTimeoutTimer);
+    clearTimeout(streamIdleTimerRef.current);
+    stopThinkingTimer(); // 修复：清理 100ms interval 定时器
+    if (abortController.value) {
+      abortController.value.abort();
+      abortController.value = null;
+    }
+    resetWebSearchLifecycle();
+    communitySearchActive.value = false;
+    communityActivity.value = { active: false, postTitle: '' };
+  });
+
+  return {
+    chatSessions,
+    currentSessionIndex,
+    syncSessionsIfStale,
+    flushSessionsToStorage,
+    reloadSessionsFromStorage,
+    inputMessage,
+    isLoading,
+    isThinking,
+    thinkingTime,
+    thinkingStatus,
+    textareaRef,
+    currentModeId,
+    currentMode,
+    currentModelId,
+    currentModel,
+    isSearching,
+    webSearchActive,
+    webSearchResults,
+    communitySearchActive,
+    communityActivity,
+    isMemoryCaptureEnabled,
+    isTreeholeMemoryEnabled,
+    isTreeholeMemoryToggling,
+    isPlanModeEnabled,
+    isKnowledgeBaseEnabled,
+    agentClusterState,
+    resetAgentClusterState,
+    currentResponseStyleId,
+    currentResponseStyle,
+    responseStyleOptions,
+    currentThinkingSpeedId,
+    currentThinkingSpeed,
+    thinkingSpeedOptions,
+    actionAuditLog,
+    memoryCaptureTip,
+    isRateLimited,
+    rateLimitMessage,
+    chatModes: computed(() => runtimeChatModes.value),
+    chatModesLoading,
+    messages,
+    contextBudgetUsage,
+    isCompressingContext,
+    compressingSessionIndex,
+    // 主动压缩：用户可手动触发上下文压缩，force=true 绕过阈值检查
+    compressContextManually: (sessionIndex) =>
+      ensureContextCompression(sessionIndex ?? currentSessionIndex.value, { force: true }),
+    onScrollToBottom,
+    startNewChat,
+    clearCurrentSession,
+    clearAllSessions,
+    deleteSession,
+    clearQuickAskSessions,
+    switchSession,
+    sendMessage,
+    toggleMemoryCapture,
+    toggleTreeholeMemory,
+    togglePlanMode,
+    setResponseStyle,
+    setThinkingSpeed,
+    persistModeSetting,
+    persistKnowledgeBaseSetting,
+    activeActionDraft,
+    updatePendingPostDraftFromUI,
+    cancelPendingActionDraftFromUI,
+    confirmPendingActionDraftFromUI,
+    stopGeneration,
+    clearCache,
+    attachedContext,
+    setAttachedContext,
+    clearAttachedContext,
+  };
+}

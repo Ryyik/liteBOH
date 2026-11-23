@@ -213,14 +213,14 @@ ONLY=roundtrip node scripts/probes/probe-userspace-pages.mjs 'http://[::1]:4180'
 | `/user-space/shared-memories` | 9.0K | 2.4K | 11.5K |
 | `/user-space/settings/version` | 2.3K | 2.8K | 5.1K |
 | `/user-space/note` | 0.9K | 0.4K | 1.3K |
-| 嵌入重面板：`BOHAIMain` | **129.8K** | 23.0K | 152.8K |
+| 嵌入重面板：`BolekMain` | **129.8K** | 23.0K | 152.8K |
 | 嵌入重面板：`ForumMain` | 38.6K | **42.5K** | 81.1K |
 | 面板：`AssetsHubPanel` | 15.6K | 11.5K | 27.1K |
 | 面板：`ProfileHomePanel` / `CommunityTab` / `ProfileSettingsPanel` | 7.0 / 7.3 / 2.8K | 2.9 / 0.4 / 2.4K | — |
 
 要点：
 - **9 条子路由的增量都很小（1.3–23.1K）**，说明「慢」不来自下载量，而来自 §3.4 的重复取数与重建。
-- **`BOHAIMain` 152.8K 是站内最重的单页资源**，但已有访问闩锁（`bohaiActivatedOnVisit`），不点 BOH AI 分区就不会加载 —— 这块不要再动。
+- **`BolekMain` 152.8K 是站内最重的单页资源**，但已有访问闩锁（`bolekActivatedOnVisit`），不点 BOH AI 分区就不会加载 —— 这块不要再动。
 - `/user-space` 本体的 20.1K CSS 是 `shell-community.css`(2877 行) + `landscape-rail.css` + scoped，**属于路由级 CSS**：按 P0-1（上一轮）已从 SW 预缓存移出、改由运行时 `CacheFirst` 兜底 —— 因此**首次进入该路由一定有一次额外 CSS 往返**（这是那次取舍的代价，不是缺陷）。
 
 ---

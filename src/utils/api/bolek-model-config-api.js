@@ -1,0 +1,173 @@
+import { supabase } from '../supabase-client.js';
+
+const DEFAULT_SILICON_CHAT_URL = 'https://api.siliconflow.cn/v1/chat/completions';
+const DEFAULT_ZHIPU_CHAT_URL = 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
+
+const toText = (value, fallback = '') => String(value || fallback || '').trim();
+const toFiniteNumber = (value, fallback, min, max) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(max, Math.max(min, parsed));
+};
+
+export const getDefaultApiUrlForBolekProvider = (provider = '') => {
+  if (provider === 'zhipu') return DEFAULT_ZHIPU_CHAT_URL;
+  if (provider === 'openrouter') return 'https://openrouter.ai/api/v1/chat/completions';
+  if (provider === 'modelscope') return 'https://api-inference.modelscope.cn/v1/chat/completions';
+  return DEFAULT_SILICON_CHAT_URL;
+};
+
+export const normalizeBolekModelConfigRow = (row = {}) => {
+  const provider = toText(row.provider, 'siliconflow').toLowerCase();
+  const modeId = toText(row.mode_id || row.modeId);
+  const modelId = toText(row.model_id || row.modelId);
+  const displayName = toText(row.display_name || row.displayName || row.name, modeId);
+  const apiUrl =
+    provider === 'boh'
+      ? ''
+      : toText(row.api_url || row.apiUrl, getDefaultApiUrlForBolekProvider(provider));
+
+  if (!modeId || !modelId || !displayName) return null;
+
+  return {
+    id: row.id || modeId,
+    modeId,
+    displayName,
+    tagline: toText(row.tagline),
+    description: toText(row.description),
+    provider,
+    providerLabel: toText(row.provider_label || row.providerLabel, provider),
+    modelId,
+    apiUrl,
+    capability: toText(row.capability, 'chat'),
+    icon: toText(row.icon, 'sparkles'),
+    temperature: toFiniteNumber(row.temperature, 0.2, 0, 1.2),
+    top_p: toFiniteNumber(row.top_p, 0.75, 0.1, 1),
+    frequency_penalty: toFiniteNumber(row.frequency_penalty, 0.06, 0, 2),
+    max_tokens: Math.trunc(toFiniteNumber(row.max_tokens, 1800, 256, 4096)),
+    status: toText(row.status, 'active'),
+    minTier: toText(row.min_tier || row.minTier, 'free').toLowerCase(),
+    sortOrder: Math.trunc(toFiniteNumber(row.sort_order || row.sortOrder, 100, 0, 10000)),
+    // ⚠️ `0` 是**合法值**（免费模型：quota_multiplier = 0 ⇒ 不扣 BOH 额度），
+    // 所以两处都不能踩：
+    //   · 不能用 `||` 兜底 —— `0 || undefined` 是 undefined，直接掉进默认值 1.00，
+    //     于是「Fast」这种免费模型在前端变成 **1x**（用户 2026-10-08 当场问
+    //     「Fast 为啥显示的是 1x 倍率」）；`??` 才只兜 null/undefined。
+    //   · 下界不能夹到 0.1（旧代码正是如此）—— 那会把合法的 0 抬成 0.1，
+    //     而 `isFreeMode()` 判的是 `=== 0`，于是免费模型既不算免费、倍率也不是 1。
+    quotaMultiplier: toFiniteNumber(row.quota_multiplier ?? row.quotaMultiplier, 1.0, 0, 100),
+  };
+};
+
+export const listActiveBolekModelConfigs = async () => {
+  const { data, error } = await supabase.rpc('list_public_bolek_modes');
+
+  if (error) {
+    return {
+      ok: false,
+      data: [],
+      error: {
+        message: error.message || '读取博莱克模型配置失败',
+        code: error.code || 'BOLEK_MODEL_CONFIG_ERROR',
+      },
+    };
+  }
+
+  return {
+    ok: true,
+    data: (Array.isArray(data) ? data : [])
+      .map((row) =>
+        normalizeBolekModelConfigRow({
+          ...row,
+          provider: 'boh',
+          provider_label: 'BOH',
+          model_id: `boh:${row.mode_id}`,
+          api_url: '',
+          status: 'active',
+        }),
+      )
+      .filter(Boolean),
+    error: null,
+  };
+};
+
+export const listActiveBolekPublicModeConfigs = async () => {
+  const { data, error } = await supabase.rpc('list_public_bolek_modes');
+
+  if (error) {
+    return {
+      ok: false,
+      data: [],
+      error: {
+        message: error.message || '读取博莱克公开模式失败',
+        code: error.code || 'BOLEK_PUBLIC_MODE_ERROR',
+      },
+    };
+  }
+
+  return {
+    ok: true,
+    data: (Array.isArray(data) ? data : [])
+      .map((row) => ({
+        id: row.id || row.mode_id,
+        modeId: toText(row.mode_id),
+        displayName: toText(row.display_name, row.mode_id),
+        tagline: toText(row.tagline),
+        capability: toText(row.capability, 'chat'),
+        icon: toText(row.icon, 'sparkles'),
+        minTier: toText(row.min_tier, 'free').toLowerCase(),
+        sortOrder: Math.trunc(toFiniteNumber(row.sort_order, 100, 0, 10000)),
+      }))
+      .filter((item) => item.modeId && item.displayName),
+    error: null,
+  };
+};
+
+export const buildBolekRuntimeModels = (rows = []) => {
+  const configs = (Array.isArray(rows) ? rows : [])
+    .map((row) => normalizeBolekModelConfigRow(row))
+    .filter(Boolean)
+    .sort((a, b) => a.sortOrder - b.sortOrder);
+
+  const chatModes = configs.map((item) => ({
+    id: item.modeId,
+    name: item.displayName,
+    tagline: item.tagline,
+    description: item.description,
+    icon: item.icon,
+    model: item.modelId,
+    capability: item.capability,
+    minTier: item.minTier,
+    quotaMultiplier: item.quotaMultiplier,
+  }));
+
+  const modelMap = new Map();
+  configs.forEach((item) => {
+    if (!modelMap.has(item.modelId)) {
+      modelMap.set(item.modelId, {
+        id: item.modelId,
+        name: item.displayName,
+        provider: item.providerLabel,
+        providerKey: item.provider,
+        url: item.apiUrl,
+        apiKey: '',
+      });
+    }
+  });
+
+  const generationProfiles = configs.reduce((map, item) => {
+    map[item.modeId] = {
+      temperature: item.temperature,
+      top_p: item.top_p,
+      frequency_penalty: item.frequency_penalty,
+      max_tokens: item.max_tokens,
+    };
+    return map;
+  }, {});
+
+  return {
+    chatModes,
+    availableModels: [...modelMap.values()],
+    generationProfiles,
+  };
+};

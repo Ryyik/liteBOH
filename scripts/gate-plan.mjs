@@ -15,7 +15,7 @@
  * 用法：
  *   node scripts/gate-plan.mjs            # 按「工作区相对 HEAD 的变更」出计划
  *   node scripts/gate-plan.mjs --json     # 机读出口（给 AI / 脚本）
- *   node scripts/gate-plan.mjs src/views/BOHAI/foo.vue   # 手动指定文件
+ *   node scripts/gate-plan.mjs src/views/Bolek/foo.vue   # 手动指定文件
  *
  * ⚠️ 它只是**计划**，不执行、不判定、永远 exit 0 —— `npm run verify` 仍是兜底。
  */

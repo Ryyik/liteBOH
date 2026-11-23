@@ -37,7 +37,7 @@
 唯一真源 `src/utils/theme-manager.js`（单例，无 Pinia store、无 composable）：
 
 - `:89-90` 同时写 `documentElement[data-theme]` 与 `html.dark`
-- `:93-117` 再把 `data-theme` 复制粘贴到 **13 个具名容器白名单**（`.forum-page`、`.user-space-page`、`#unified-nav-container`、`.bohai-page` …）
+- `:93-117` 再把 `data-theme` 复制粘贴到 **13 个具名容器白名单**（`.forum-page`、`.user-space-page`、`#unified-nav-container`、`.bolek-page` …）
 - `:10` `VALID_THEMES = ['light','dark','system','home-cat','anniversary-mc']`；`:51-78` 支持跟随系统并挂/摘监听
 - 持久化 `localStorage['boh-theme']`；`:254-264` 联动 `meta[name=theme-color]`
 - FOUC 兜底：`index.html:13-27` 内联脚本（`.workbuddy/memory/2026-09-14.md:283` 记录了它修掉的 41ms 白闪）
@@ -72,15 +72,15 @@
 | D 论坛 | `#0d0d12` 画布 + `#2a2a3a`/`#353545` 控件 | `themes/forum-dark.css:12,203,208` |
 | E 个人空间 | `#0d0d12` + `--surface:#1a1a24`、`--surface-soft:#252532` | `themes/user-space-dark.css:11-13` |
 | F 商店 | `--canvas:#0d0d0f`、`--surface:#1c1c1e` | `views/Shop/style.scoped.css:1325-1326` |
-| G BOHAI 中性灰 | `#212121 #2f2f2f #303030 #3a3a3a #171717` | `themes/bohai-dark.css:7-10,59,267-271` |
-| H BOHAI 蓝调（后补） | `#141a22 #1b2430 #202b38 #29405a` | `themes/bohai-dark.css:705-708` |
+| G 博莱克中性灰 | `#212121 #2f2f2f #303030 #3a3a3a #171717` | `themes/bolek-dark.css:7-10,59,267-271` |
+| H 博莱克蓝调（后补） | `#141a22 #1b2430 #202b38 #29405a` | `themes/bolek-dark.css:705-708` |
 | I Tailwind oklch 纯中性 | `oklch(0.145 0 0)` | `src/style.css:225-253` |
 | J 消息中心 | `#3a3a4a #4a4a5a #303044` | `themes/messages-dark.css:157,162,416` |
 | K Newsroom | `#0c0c0e`、`#1c2430→#232c3a→#2a3444` | `views/Newsroom/style.scoped.css:634,677` |
 
 **三个色相族在互相打架**：紫调（H≈240）、蓝调（H≈212-225）、纯中性（H=0）。切换页面时底色色温漂移，这就是"暗色看着脏"的物理原因。
 
-`themes/bohai-dark.css:701-702` 的注释写着 *"without introducing a second palette"*，而 `:705-709` 恰好在**同名 token 上覆盖了第二套色值**（`--bohai-panel` 在同一个文件里被定义 3 次：`#2f2f2f` → `#171717` → `#1b2430`）。注释与事实相反，是最典型的腐化信号。
+`themes/bolek-dark.css:701-702` 的注释写着 *"without introducing a second palette"*，而 `:705-709` 恰好在**同名 token 上覆盖了第二套色值**（`--bolek-panel` 在同一个文件里被定义 3 次：`#2f2f2f` → `#171717` → `#1b2430`）。注释与事实相反，是最典型的腐化信号。
 
 ### 2.2 token 语义被反向污染
 
@@ -88,7 +88,7 @@
 - `common/tokens.css:91` 亮色 `--liquid-text-tertiary: #8b9098` vs `:113` 暗色 `#8a919c` —— **暗色覆写在亮度上几乎无效**（差 0.5 个 L 单位），是假覆写
 - `themes/dark-mode.css:239` `.nav-label #7a7a8a` —— `2026-09-14.md:204` 记录它是"刻意保持零变化迁移"的值，但它实测 3.72–4.68:1，**是全站底栏在暗色下的长期低对比来源**
 - `style-remnant-audit.json → tokenStats`：`--boh-*` 有 **9 个定义了但从未使用**（含 `--boh-brand-blue`、`--boh-text-tertiary`、`--boh-divider`、`--boh-shadow-sm/md`），另有 **4 个只被消费、从未定义**（`--boh-drawer-muted/-surface-hover/-text`、`--boh-visual-height`）→ 静默解析为空
-- 命名空间至少 7 套并行：`--boh-*`、shadcn 裸名、`--liquid-*`、`--apple-*`、`--bohai-*`、页面私有 `--surface/--ink/--canvas/--line/--text-*`、`--hero-*`
+- 命名空间至少 7 套并行：`--boh-*`、shadcn 裸名、`--liquid-*`、`--apple-*`、`--bolek-*`、页面私有 `--surface/--ink/--canvas/--line/--text-*`、`--hero-*`
 
 ### 2.3 alpha 梯度手写化
 
@@ -141,7 +141,7 @@ html[data-theme="dark"] .shop-page {
 | `/lotteries` | `.pi-label` | `#1d1d1f` on `#131923` | **1.05** | 保底 |
 | `/forum`、`/user-space*` | span | `#1d1d1f` on `#21222c` | **1.06** | 日常 |
 | `/us-ai` | span | `#111111` on `#1a1a24` | **1.09** | BOH |
-| `/forum`、`/user-space*` | `.ai-label` | `#b8c2cf` on `#cecfd0` | **1.15** | BOHAI |
+| `/forum`、`/user-space*` | `.ai-label` | `#b8c2cf` on `#cecfd0` | **1.15** | Bolek |
 | `/shop` | h2 | `#f5f5f7` on `#dddddd` | **1.25** | 把方块之家的温度，带回家。 |
 | `/__dev/motion` | strong | `#1d2938` on `#131923` | **1.20** | 已完成 |
 | `/about` | span | `#d7d7dc` on `#ffffff` | **1.43** | 块 |
@@ -300,7 +300,7 @@ html[data-theme="dark"] .shop-page {
 | **P0 立即止血** | M1 `color-scheme` + M2 `accent-color` + M3 DataManagement 旁路收编 + 修 `base.css:164` | ~0.5 天 | 极低，纯增量 |
 | **P1 冻结腐化** | M6 门禁上线，基线锁定扫描值；同时把 M3 的 8 个 `@media (prefers-color-scheme: dark)` 全部改为 `data-theme` 驱动 | ~1 天 | 低 |
 | **P2 落地 token** | 新增 `src/styles/themes/dark-2-tokens.css`；把 11 个族的锚点值**别名**到新 ramp（`--boh-bg-primary: var(--d2-canvas)` 等），旧字面量继续工作 | ~1 天 | 中（需逐屏比对） |
-| **P3 高杠杆清扫** | 按实测 severe 数排序逐页把裸色换成同文件已有的 `var()`：**Shop(7) → Home 画布 → ai-chat/BOHAI 黑压黑 → login 白压白 → forum → user-space** | 每页 0.5–1 天 | 中 |
+| **P3 高杠杆清扫** | 按实测 severe 数排序逐页把裸色换成同文件已有的 `var()`：**Shop(7) → Home 画布 → ai-chat/博莱克黑压黑 → login 白压白 → forum → user-space** | 每页 0.5–1 天 | 中 |
 | **P4 消除 !important** | 每完成一页，删掉该页主题文件里因优先级追赶而写的 `!important`；`check-important-budget.mjs` 基线 360 同步下压 | 持续 | 中 |
 | **P5 补齐 18 个页面** | 因 M3 让 `data-theme` 只在 `html` 上生效，多数页面在 P2 之后即"自动可用"，只需补局部 tint/图片 scrim | ~3 天 | 低 |
 | **P6 验证闭环** | M8 进 CI + 每页暗色截图基线（复用 `debug-screenshots/` 既有流程） | ~1 天 | 低 |
@@ -318,7 +318,7 @@ html[data-theme="dark"] .shop-page {
 
 1. **同一份标记、两套 token**：组件 HTML 只写一次并注入左右两个 pane，两个 pane 的差异**仅是顶部 token 块**。因此 demo 本身就在证明本报告的核心论点 —— token 化之后，换配色只需要改一处。
 2. **实时 WCAG 计算**：角标数值由浏览器 `getComputedStyle` 取实际绘制色、沿祖先链做 alpha 合成后算出，不是写死的常量。左栏因此会如实报出 `1.00:1`、`2.49:1` 这类失败值。
-3. **五个区块**：组件实景（导航/论坛流/商品卡/个人空间/BOHAI/玻璃模态/表单态/热力图/骨架）→ 层级与色板 → 品牌蓝横评 → 迁移映射 → 八条设计原则。
+3. **五个区块**：组件实景（导航/论坛流/商品卡/个人空间/Bolek/玻璃模态/表单态/热力图/骨架）→ 层级与色板 → 品牌蓝横评 → 迁移映射 → 八条设计原则。
 4. **反例开关**：勾选"只换 token、组件仍写死白卡"，可见 P3 未做时白块依旧存在 —— 说明换 token 不等于修完。
 
 ### 7.2 实测结果（2026-09-18，probe 输出）
@@ -343,7 +343,7 @@ html[data-theme="dark"] .shop-page {
 | Home 底 `#f5f5f7` 上 `#f5f5f7` 文字 | 1.00 | `/login` `#ffffff` on `#ffffff` = **1.00** | 0 |
 | 论坛 muted `#71717a` on `#21222c` | 3.27 | 静态测算区间 **3.13–4.09** | 落在区间内 |
 
-各卡片底色按页面真实取值分别挂载（Home `#f5f5f7`、Forum `#21222c`、Shop `rgba(255,255,255,.6)`、UserSpace `#1a1a24`、BOHAI `#2f2f2f`），
+各卡片底色按页面真实取值分别挂载（Home `#f5f5f7`、Forum `#21222c`、Shop `rgba(255,255,255,.6)`、UserSpace `#1a1a24`、博莱克 `#2f2f2f`），
 所以左栏一屏之内就能看到"同一个卡片角色有 5 种底色"的碎片化本身，而不是把现状画得比实际更糟。
 
 ---

@@ -94,7 +94,7 @@ const BOH_AI_RETRIEVAL_SYNC_SECRET = String(
 /* 知识源全集（2026-10-17 扩充：+site_news / site_activity —— 官方新闻与活动自动扩充知识库）。
    ⚠️ 三处一致性（任一漏加 = 检索静默少一类结果）：
    本集合 ↔ DB CHECK（migrations 2026101701）↔ 前端 ALLOWED_KNOWLEDGE_SOURCE_TYPES
-   （守卫：tests/unit/bohai-knowledge-source-types-consistency.test.js） */
+   （守卫：tests/unit/bolek-knowledge-source-types-consistency.test.js） */
 const SOURCE_TYPES = new Set<SourceType>([
   'core_memory',
   'shared_memory',
@@ -1000,7 +1000,7 @@ const upsertKnowledgeChunk = async (
         : null,
       after: { title, content: toText(content, 600) },
     },
-    meta: { via: 'bohai-knowledge-debug', sourceType, sourceId },
+    meta: { via: 'bolek-knowledge-debug', sourceType, sourceId },
   });
 
   return { ok: true, data: { id: writtenId, mode: chunkId ? 'update' : 'insert', audit: auditOk } };
@@ -1048,7 +1048,7 @@ const archiveKnowledgeChunk = async (
       after: null,
     },
     meta: {
-      via: 'bohai-knowledge-debug',
+      via: 'bolek-knowledge-debug',
       mode: 'archive',
       previousStatus: toText(data.status, 20) || 'active',
     },
@@ -1198,7 +1198,7 @@ const editKnowledgeChunk = async (
       after: { title, content: toText(content, 600) },
     },
     meta: {
-      via: 'bohai-knowledge-debug',
+      via: 'bolek-knowledge-debug',
       mode: 'find_replace',
       find: toText(find, 200),
       replace: toText(replace, 200),

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createMessageBus } from '../../src/views/BOHAI/agents/core/MessageBus.js';
+import { createMessageBus } from '../../src/views/Bolek/agents/core/MessageBus.js';
 
 describe('MessageBus: createMessageBus', () => {
   it('creates bus with default values', () => {
@@ -39,7 +39,10 @@ describe('MessageBus: setQuery / getQuery / getNormalizedQuery', () => {
 describe('MessageBus: setPlan / getPlan', () => {
   it('sets and gets plan', () => {
     const bus = createMessageBus();
-    const plan = [{ id: 't1', agent: 'retriever' }, { id: 't2', agent: 'memory' }];
+    const plan = [
+      { id: 't1', agent: 'retriever' },
+      { id: 't2', agent: 'memory' },
+    ];
     bus.setPlan(plan);
     expect(bus.getPlan()).toEqual(plan);
   });
@@ -71,7 +74,11 @@ describe('MessageBus: addEvidence / getEvidence', () => {
   it('trims evidence exceeding maxEvidenceItems', () => {
     const bus = createMessageBus({ limits: { maxEvidenceItems: 3 } });
     bus.addEvidence([
-      { text: 'e1' }, { text: 'e2' }, { text: 'e3' }, { text: 'e4' }, { text: 'e5' },
+      { text: 'e1' },
+      { text: 'e2' },
+      { text: 'e3' },
+      { text: 'e4' },
+      { text: 'e5' },
     ]);
     const evidence = bus.getEvidence();
     expect(evidence).toHaveLength(3);

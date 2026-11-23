@@ -34,7 +34,7 @@ SCREENSHOT_DIR = TEST_RESULTS_DIR / "screenshots"
 # 测试页面配置
 TEST_PAGES = {
     "首页": "/",
-    "BOHAI (AI聊天)": "/#/ai-chat",
+    "博莱克 (AI聊天)": "/#/ai-chat",
     "用户中心": "/#/user-space",
     "商店": "/#/shop",
     "关于我们": "/#/about",
@@ -542,7 +542,7 @@ async def run_performance_tests():
                 all_metrics.add_page_metrics(page_name, {"network": network_metrics})
 
                 # 4. 内存使用测试（仅对部分关键页面）
-                if page_name in ["首页", "BOHAI (AI聊天)", "用户中心"]:
+                if page_name in ["首页", "博莱克 (AI聊天)", "用户中心"]:
                     memory_metrics = await measure_memory_usage(page, url, page_name, duration=15)
                     all_metrics.add_page_metrics(page_name, {"memory": memory_metrics})
 
@@ -718,8 +718,8 @@ async def generate_summary_report(results: Dict[str, Any]):
         if total_size_mb > 3:
             suggestions.append(f"💡 {page_name}: 减少资源体积 - 考虑代码分割、图片压缩、使用 CDN")
 
-        # 检查是否是 BOHAI 页面
-        if "BOHAI" in page_name:
+        # 检查是否是博莱克页面
+        if "Bolek" in page_name:
             suggestions.append(f"💡 {page_name}: AI 聊天页面 - 考虑懒加载 AI 组件、优化消息列表渲染")
 
         # 检查是否是用户中心

@@ -71,7 +71,7 @@ export const TAB_ALIASES = {
   lotteryNotificationJobs: ['中奖通知', '通知队列', '发送失败'],
   'pity-grant': ['保底', '井', '抽卡保底'],
   'keys-models': ['api key', 'apikey', 'key', '密钥', '免费模型', '模型库'],
-  bohaiModels: ['bohai', '对话模型'],
+  bolekModels: ['bolek', '博莱克', 'block', '对话模型'],
   'ai-quota': ['额度', 'token', '配额'],
   'moderation-model': ['内容审核模型', '机审'],
   'lab-ai-model': ['实验室', '实验模型'],

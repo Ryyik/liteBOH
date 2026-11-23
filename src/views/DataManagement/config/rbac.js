@@ -33,6 +33,8 @@ export const MODULE_ALLOWED_ROLES = {
   'hero-console': ['admin'],
   // 开屏直接决定全站首屏（含活动 CTA），写错等于把广告位弄丢，只给 admin
   'gate-console': ['admin'],
+  // 圣诞活动的配置会直接改揭晓时间与配对，写错等于活动失效，只给 admin
+  'xmas-console': ['admin'],
   moderation: ['admin', 'moderator'],
   lottery: ['admin'],
   'ai-config': ['admin'],

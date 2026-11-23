@@ -9,8 +9,8 @@
       :class="{ open: isOpen, docked, closing }"
     >
       <!-- 展开卡：2026-11-04 终版只有对话面 —— 搜索列表面板整体退场，
-           一切结果都以 BOHAI 消息 UI 呈现；关岛即卸载（不留后台生成） -->
-      <div v-if="rendered" class="boh-card" :style="islandPos" role="dialog" aria-label="问 BOHAI">
+           一切结果都以博莱克消息 UI 呈现；关岛即卸载（不留后台生成） -->
+      <div v-if="rendered" class="boh-card" :style="islandPos" role="dialog" aria-label="问博莱克">
         <BohIslandAnswer v-if="rendered" :on-close="close" />
       </div>
     </div>
@@ -278,7 +278,7 @@ const scheduleMeasure = () => {
 /**
  * 盯住导航容器的尺寸：任务卡 / 通知卡 / 自定义岛会把 surface 撑高，
  * 而岛挂在「容器底边 + 12」—— 不重测就会被撑出来的卡片压住。
- * P3 之前这条由 surface 仲裁（`has-bohai-island` 时任务卡隐藏）兜着，仲裁退场后必须自己跟。
+ * P3 之前这条由 surface 仲裁（`has-bolek-island` 时任务卡隐藏）兜着，仲裁退场后必须自己跟。
  * 2026-11-04 实测：岛 top=90、任务卡把 surface 撑到 138（卡底 142）⇒ 重叠 52px。
  *
  * 常驻挂着（不再随展开态装卸）：导航被任务卡/通知卡撑高时，岛要跟着下移。
@@ -482,7 +482,7 @@ onBeforeUnmount(() => {
   font-family: inherit;
 
   /* 岛内墨色 / 叠色：**恒为深色岛上的纸白**，不再按 data-theme 分叉。
-     站点切浅色时岛也是黑的（2026-11-05 用户口径：唤起 BOHAI 整块岛自动变深色）。 */
+     站点切浅色时岛也是黑的（2026-11-05 用户口径：唤起博莱克整块岛自动变深色）。 */
   --boh-ink: #ffffff;
   --boh-ink-soft: rgba(255, 255, 255, 0.76);
   --boh-ink-dim: rgba(255, 255, 255, 0.46);
@@ -493,7 +493,7 @@ onBeforeUnmount(() => {
   --boh-line-strong: rgba(255, 255, 255, 0.24);
   --boh-accent: #d7c9ff;
 
-  /* 岛形态（2026-11-05 第五次口径）：**唤起 BOHAI 时整块岛自动变深色**。
+  /* 岛形态（2026-11-05 第五次口径）：**唤起博莱克时整块岛自动变深色**。
      所以岛内的墨色恒为「纸白系」，不再随站点主题翻转 —— 岛是深色的，
      系统浅色下也不跟。落点：UnifiedNavbar 在 has-boh-island 时把容器
      data-theme 切成 dark（导航行文字随之变白），surface 背景换成深色玻璃。 */

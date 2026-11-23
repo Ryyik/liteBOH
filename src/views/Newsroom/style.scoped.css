@@ -4,7 +4,7 @@
  * ============================================================ */
 .newsroom-page {
   --spring: cubic-bezier(0.32, 0.72, 0, 1);
-  --nav-h: var(--bohai-standalone-nav-height, 64px);
+  --nav-h: var(--bolek-standalone-nav-height, 64px);
   /* 页面级变量接站点 token（plans/043 阶段 5 覆盖盘点）：
      亮色走 fallback（与旧值一致），自定义主题跟随 --boh-*。 */
   --text-1: var(--boh-text-primary, #1d1d1f);

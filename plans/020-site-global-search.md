@@ -76,9 +76,9 @@
 
 | 内容 | 实现 | 触发条件 |
 |---|---|---|
-| Modrinth 资源（mod / 整合包 / 材质包 / 光影） | `utils/api/resource-search-api.js`：`detectBohAIResourceSearchIntent()` 判意图 → `buildResourceSearchQuery()` 剥停用词/别名表 → `searchMinecraftResourcesForBohAI()` | ① 意图识别命中资源词，或 ② 用户点「去 Modrinth 搜 XXX」 |
+| Modrinth 资源（mod / 整合包 / 材质包 / 光影） | `utils/api/resource-search-api.js`：`detectBolekResourceSearchIntent()` 判意图 → `buildResourceSearchQuery()` 剥停用词/别名表 → `searchMinecraftResourcesForBolek()` | ① 意图识别命中资源词，或 ② 用户点「去 Modrinth 搜 XXX」 |
 
-> ⚠️ 现成调用链在 `views/BOHAI/composables/useResourceSearch.js`（入口 `/ai-chat`），
+> ⚠️ 现成调用链在 `views/Bolek/composables/useResourceSearch.js`（入口 `/ai-chat`），
 > 不在 Lab 页面。结果**不落库**，所以 DB 侧搜索永远覆盖不到它。
 > 不可随输入触发：第三方 API 有 CORS 与速率限制，逐字触发会打爆上游且拖慢面板。
 
@@ -252,10 +252,10 @@ config/site-search-sources.js    ← 每类内容声明一个 adapter
 1. **快捷键不能用 ⌘K** —— 它已被 BOH AI 岛占用：`useGlobalAiPreferences` 默认 `shortcut='mod+k'`
    （用户可改 mod+space / mod+j），`App.vue` 的 `handleGlobalAiKeydown` 全局监听且**不判 shiftKey**。
    两边都注册在 window 上，`preventDefault` 挡不住对方，实测后果是「搜索面板刚打开就被 AI 岛以
-   `has-bohai-island` 盖住」。→ 搜索改用 `/`（非输入态），并用探针守住「⌘K 不打开搜索面板」。
+   `has-bolek-island` 盖住」。→ 搜索改用 `/`（非输入态），并用探针守住「⌘K 不打开搜索面板」。
    ⚠️ 若产品后续决定让搜索接管 ⌘K，必须同时改 AI 侧的偏好默认值，不能只加 stopImmediatePropagation。
 2. **`preempt()` 与「收掉 AI 岛」是两件事** —— `custom` 槽位的 v-show 条件是
-   `!isTaskCardShown && !isBohaiIslandOpen`，**通知岛不在其中**（它只让 surface 更高）。所以
+   `!isTaskCardShown && !isBolekIslandOpen`，**通知岛不在其中**（它只让 surface 更高）。所以
    「通知岛在场时面板仍可见」**不能**作为 preempt 的守卫（第一次反证时它假绿）。现在拆成两条独立断言：
    ⑱b（preempt 清通知卡）与 ⑱d（AI 岛让位）。
 3. **scoped 样式里 `:global(#id[attr]) .cls` 不产出规则** —— CSSOM 实测 `rules=[]`，暗色恒失效且
@@ -267,7 +267,7 @@ config/site-search-sources.js    ← 每类内容声明一个 adapter
 ### 未完成（按优先级）
 
 - **组 D Modrinth**：仍按方案只在「意图命中资源词」或用户点「去 Modrinth 搜」时触发；复用
-  `utils/api/resource-search-api.js`，注意真实调用链在 `views/BOHAI/composables/useResourceSearch.js`。
+  `utils/api/resource-search-api.js`，注意真实调用链在 `views/Bolek/composables/useResourceSearch.js`。
 - 结果关键词高亮（当前 `posts` 的 `[[ ]]` 标记是**剥掉**显示的，避免 v-html 消毒负担）。
 - 搜索历史 / 热门词 / 空态引导。
 - 意图识别（档位 2：自然语言 → 结构化条件），可照 `resource-search-api.js` 的停用词/别名表范式。
@@ -401,7 +401,7 @@ check:views、check:important-budget（1319/1319）全过。
 - **我的笔记源**（`boh_cloud_entries`，instant）：`searchMyCloudEntries` —— title/content_text
   双字段 ILIKE，路由 `/user-space/note`。RLS 四条策略均 `auth.uid()=user_id`：登录只搜自己的、
   anon 恒空（site-search-api.ts 头注释的「私有数据不纳入」口径随之更新）。
-- **Modrinth 源**（`Mod 资源`，**deferred 显式触发**）：复用 `searchMinecraftResourcesForBohAI`
+- **Modrinth 源**（`Mod 资源`，**deferred 显式触发**）：复用 `searchMinecraftResourcesForBolek`
   归一化链路（单源，`.js` 默认参推断坑 → 调用处显式收窄类型）。结果为 modrinth.com **外链**：
   `Hit.route` 允许 http(s)，面板 `openHit` 对外链 `window.open(_blank, noopener)`；
   无 route（计算器即答）→ 面板保持原状。

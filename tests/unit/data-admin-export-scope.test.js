@@ -54,12 +54,12 @@ describe('export menu wiring', () => {
   it('全量导出复刻列表的 tab 级基础过滤（plans/027 S2 验收：条数=页脚）', () => {
     const view = read('src/views/DataManagement/DataAdmin.vue');
     // decorateQuery 必须带上 fetchTabData 同款的特殊基础过滤，
-    // 否则 reportedPosts / reviewPosts / reviewComments / bohaiModels 四个 tab
+    // 否则 reportedPosts / reviewPosts / reviewComments / bolekModels 四个 tab
     // 的「全部筛选结果」条数与页脚「共 N 条」对不上。
     expect(view).toContain('fetchAllFilteredRows');
     expect(view).toContain("decorated = decorated.eq('status', 'limited')");
     expect(view).toContain("decorated = decorated.ilike('status', 'rejected')");
-    expect(view).toContain('excludeInternalBohaiModes(decorated)');
+    expect(view).toContain('excludeInternalBolekModes(decorated)');
     expect(view).toContain('decorateQuery');
   });
 

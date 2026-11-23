@@ -10,7 +10,7 @@
  * 环境变量：BASE_URL（默认 http://localhost:5173）、PROBE_OUT（默认 output/login-island-width）
  *
  * 背景（2026-10-19 用户报障「登录窗颜色不对 + 错位」）：
- *   首页/UserSpace/BOHAI 横屏有左栏，导航被 `body.page-* .unified-nav-surface
+ *   首页/UserSpace/博莱克横屏有左栏，导航被 `body.page-* .unified-nav-surface
  *   { left: rail/2 }` 推到内容区中心，而登录卡片仍由 overlay 的 flex 在整页居中
  *   ⇒ 1440 宽栏相差 120px、1024 窄栏相差 44px，岛形断裂。修法见 landscape-rail.css。
  *   ⚠️ 本探针此前只打印 ❌ 不退出非 0（无牙）⇒ 已改为 PASS/FAIL 计数 + exitCode。

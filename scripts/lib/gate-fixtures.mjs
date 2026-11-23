@@ -265,11 +265,11 @@ export const FIXTURES = [
       ),
   },
   {
-    gate: 'check:bohai-params',
+    gate: 'check:bolek-params',
     why: 'BOH AI 生成参数只许在真源表里出现（generation-params.js / chat-engine-config.js），内联字面量会让调参改一处漏一处',
     prepare: () =>
       appendTo(
-        'src/views/BOHAI/composables/useMessageManager.js',
+        'src/views/Bolek/composables/useMessageManager.js',
         'export const __gatesProbeParams = { temperature: 0.9, max_tokens: 99 };',
         '内联生成参数字面量 temperature: 0.9 / max_tokens: 99',
       ),

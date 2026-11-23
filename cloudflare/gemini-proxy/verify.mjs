@@ -20,13 +20,18 @@ const record = (name, ok, detail) => results.push({ name, ok, detail });
 
 const authHeaders = () => ({
   'Content-Type': 'application/json',
-  ...(PROXY_TOKEN ? { Authorization: `Bearer ${PROXY_TOKEN}` } : {})
+  ...(PROXY_TOKEN ? { Authorization: `Bearer ${PROXY_TOKEN}` } : {}),
 });
 
 const explainStatus = (status, bodyText) => {
-  if (status === 404) return '路径没重写。Google 没有 /v1/chat/completions，Worker 必须映射到 /v1beta/openai/chat/completions。';
-  if (status === 401) return '鉴权失败。PROXY_TOKEN 与 Worker 里设的不一致，或 Worker 未注入 GEMINI_API_KEY。';
-  if (status === 400 && /frequency_penalty|presence_penalty|stream_options|unknown|Unsupported/i.test(bodyText)) {
+  if (status === 404)
+    return '路径没重写。Google 没有 /v1/chat/completions，Worker 必须映射到 /v1beta/openai/chat/completions。';
+  if (status === 401)
+    return '鉴权失败。PROXY_TOKEN 与 Worker 里设的不一致，或 Worker 未注入 GEMINI_API_KEY。';
+  if (
+    status === 400 &&
+    /frequency_penalty|presence_penalty|stream_options|unknown|Unsupported/i.test(bodyText)
+  ) {
     return '上游拒收 OpenAI 专有字段 —— body 清洗没生效，说明跑的还是旧版裸转代码。';
   }
   if (status === 400) return '上游 400。看下面回显的原始报文，常见原因是 model id 写错或参数越界。';
@@ -44,12 +49,21 @@ async function checkHealth() {
       return false;
     }
     const problems = [];
-    if (!data.keyConfigured) problems.push('GEMINI_API_KEY 没读到 → 跑 npx wrangler secret put GEMINI_API_KEY');
+    if (!data.keyConfigured)
+      problems.push('GEMINI_API_KEY 没读到 → 跑 npx wrangler secret put GEMINI_API_KEY');
     if (!data.tokenRequired) problems.push('PROXY_TOKEN 没设 → 当前是公开代理，任何人都能用');
-    record('1. /health 可达', problems.length === 0, problems.length ? problems.join('；') : `reasoning_effort=${data.reasoningEffort}`);
+    record(
+      '1. /health 可达',
+      problems.length === 0,
+      problems.length ? problems.join('；') : `reasoning_effort=${data.reasoningEffort}`,
+    );
     return true;
   } catch (err) {
-    record('1. /health 可达', false, `连不上：${err.message}。域名写错了？还是代理环境的锅？试试 NO_PROXY=${new URL(WORKER_URL).host} node ...`);
+    record(
+      '1. /health 可达',
+      false,
+      `连不上：${err.message}。域名写错了？还是代理环境的锅？试试 NO_PROXY=${new URL(WORKER_URL).host} node ...`,
+    );
     return false;
   }
 }
@@ -63,8 +77,8 @@ async function checkNonStream() {
       body: JSON.stringify({
         model: MODEL,
         messages: [{ role: 'user', content: '只回复两个字：收到' }],
-        max_tokens: 64
-      })
+        max_tokens: 64,
+      }),
     });
   } catch (err) {
     record('2. 非流式对话', false, `请求失败：${err.message}`);
@@ -73,7 +87,11 @@ async function checkNonStream() {
 
   const raw = await res.text();
   if (!res.ok) {
-    record('2. 非流式对话', false, `HTTP ${res.status} — ${explainStatus(res.status, raw)}\n      原始报文：${raw.slice(0, 300)}`);
+    record(
+      '2. 非流式对话',
+      false,
+      `HTTP ${res.status} — ${explainStatus(res.status, raw)}\n      原始报文：${raw.slice(0, 300)}`,
+    );
     return;
   }
 
@@ -92,7 +110,7 @@ async function checkNonStream() {
       false,
       'HTTP 200 但没有 choices[0].message.content —— 典型的「假绿」。' +
         '要么上游仍是原生协议（应见 candidates[].content.parts[]），要么 thinking token 把 max_tokens 吃光了。' +
-        `\n      实际报文：${raw.slice(0, 300)}`
+        `\n      实际报文：${raw.slice(0, 300)}`,
     );
     return;
   }
@@ -110,8 +128,8 @@ async function checkStream() {
         model: MODEL,
         messages: [{ role: 'user', content: '从 1 数到 10，用空格分隔' }],
         max_tokens: 128,
-        stream: true
-      })
+        stream: true,
+      }),
     });
   } catch (err) {
     record('3. 流式逐字返回', false, `请求失败：${err.message}`);
@@ -162,19 +180,27 @@ async function checkStream() {
   }
 
   if (chunkCount === 0) {
-    record('3. 流式逐字返回', false, 'SSE 连上了但一个 delta.content 都没解析出来 —— 格式不是 OpenAI SSE。');
+    record(
+      '3. 流式逐字返回',
+      false,
+      'SSE 连上了但一个 delta.content 都没解析出来 —— 格式不是 OpenAI SSE。',
+    );
     return;
   }
   if (chunkCount === 1) {
     record(
       '3. 流式逐字返回',
       false,
-      `只收到 1 个 chunk（首块就等 ${spreadMs}ms）—— 流被缓冲了，前端会「等半天然后瞬间全出」。检查 Worker 是否 return 了 response.body 而不是 await response.text()。`
+      `只收到 1 个 chunk（首块就等 ${spreadMs}ms）—— 流被缓冲了，前端会「等半天然后瞬间全出」。检查 Worker 是否 return 了 response.body 而不是 await response.text()。`,
     );
     return;
   }
 
-  record('3. 流式逐字返回', true, `${chunkCount} 个 chunk，首块 ${spreadMs}ms，内容「${text.trim().slice(0, 40)}」`);
+  record(
+    '3. 流式逐字返回',
+    true,
+    `${chunkCount} 个 chunk，首块 ${spreadMs}ms，内容「${text.trim().slice(0, 40)}」`,
+  );
 }
 
 async function main() {
@@ -187,7 +213,9 @@ async function main() {
     process.exit(2);
   }
   if (!PROXY_TOKEN) {
-    console.warn('提醒：没传 PROXY_TOKEN，将不带 Authorization 请求（仅当 Worker 未设 PROXY_TOKEN 时能通）。\n');
+    console.warn(
+      '提醒：没传 PROXY_TOKEN，将不带 Authorization 请求（仅当 Worker 未设 PROXY_TOKEN 时能通）。\n',
+    );
   }
 
   console.log(`目标：${WORKER_URL}\n模型：${MODEL}\n`);
@@ -211,7 +239,9 @@ async function main() {
     process.exit(1);
   }
 
-  console.log('\n三项全过 → 可以接着做后台配置：`bohai_model_configs.api_url` 指向本 Worker 的 /v1/chat/completions。');
+  console.log(
+    '\n三项全过 → 可以接着做后台配置：`bolek_model_configs.api_url` 指向本 Worker 的 /v1/chat/completions。',
+  );
 }
 
 main();

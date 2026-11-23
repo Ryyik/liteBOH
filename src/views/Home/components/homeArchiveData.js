@@ -58,6 +58,13 @@ export const homeArchiveMeta = {
     description: '八周年纪念海报、订阅礼与 Ryyik 的信。',
     image: anniversaryImg,
   },
+  'christmas-xmas': {
+    title: '把头像挂上树',
+    eyebrow: '圣诞 · 交换礼物',
+    date: '2026 · 12/20',
+    description: '挂上头像，12 月 20 日 20:00 随机配对，交换一份圣诞礼物。',
+    to: '/xmas',
+  },
   'cloud-cafe': {
     title: '云上咖啡店',
     eyebrow: '八周年 · 网页游戏',
@@ -106,6 +113,7 @@ export const builtinHeroLayout = {
   'agent-preview': 'full',
   birthday: 'full',
   'mascot-evolution': 'full',
+  'christmas-xmas': 'full',
   'anniversary-8': 'full',
   'cloud-cafe': 'full',
   fuzhou: 'full',

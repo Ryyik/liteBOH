@@ -878,7 +878,7 @@ body {
 
   var PURPOSES = { chat: "对话", embedding: "向量", moderation: "审核", image: "图像" };
 
-  /* 能力：真实枚举来自 config/fields.js 的 BOHAI_MODEL_CAPABILITY_OPTIONS。
+  /* 能力：真实枚举来自 config/fields.js 的 BOLEK_MODEL_CAPABILITY_OPTIONS。
      标签改成「能干什么」，而不是内部分类名。 */
   var CAPABILITIES = {
     chat: { label: "文字对话", hint: "只能处理文字" },
@@ -887,7 +887,7 @@ body {
     agent: { label: "自动执行", hint: "可调用工具自主执行" }
   };
 
-  /* 档位：真实枚举来自 BOHAI_MODEL_MIN_TIER_OPTIONS（10 个扁平值）。
+  /* 档位：真实枚举来自 BOLEK_MODEL_MIN_TIER_OPTIONS（10 个扁平值）。
      界面收成 4 档阶梯 + 附加包，让「谁能用」一眼可读。 */
   var TIERS = [
     { value: "guest", label: "所有人", hint: "含未登录访客" },
@@ -980,7 +980,7 @@ body {
         ],
         models: [
           mkModel({ id: "m1", name: "Qwen3-8B", modelId: "Qwen/Qwen3-8B", capability: "chat", minTier: "guest", free: true,
-            scenes: ["BOHAI 对话", "实验室 · 文档排版", "实验室 · PPT", "实验室 · Word"], temperature: 0.7, maxTokens: 2048, sortOrder: 10 }),
+            scenes: ["博莱克对话", "实验室 · 文档排版", "实验室 · PPT", "实验室 · Word"], temperature: 0.7, maxTokens: 2048, sortOrder: 10 }),
           mkModel({ id: "m2", name: "GLM-4-Flash", modelId: "glm-4-flash", capability: "chat", minTier: "guest", free: true,
             scenes: [], temperature: 0.6, maxTokens: 2048, sortOrder: 20 }),
           mkModel({ id: "m3", name: "Qwen2.5-VL-7B", modelId: "Qwen/Qwen2.5-VL-7B-Instruct", capability: "multimodal", minTier: "plus", free: false,
@@ -1015,8 +1015,8 @@ body {
     ],
     scenes: [
       {
-        id: "chat", name: "BOHAI 对话",
-        affects: "用户在 BOHAI 里新建对话时默认选中的模型。改这里等于换掉全站默认模型。",
+        id: "chat", name: "博莱克对话",
+        affects: "用户在博莱克里新建对话时默认选中的模型。改这里等于换掉全站默认模型。",
         model: "Qwen/Qwen3-8B", temperature: 0.7, maxTokens: 2048,
         active: true, keyPurpose: "", open: false, subs: null
       },
@@ -1104,7 +1104,7 @@ body {
       now: "改用 #5a6577（5.41:1），暗色 #a8b0bd（7.49:1）。" },
     { id: "scene-affects", n: 9, tab: "scenes", title: "写清「改了会影响谁」",
       was: "每个场景只有名字 + 一句泛泛的描述（如「用户侧对话模型的默认选择」），不知道改它具体动到哪里的用户。",
-      now: "写明影响的具体功能与用户路径，例如「用户在 BOHAI 里新建对话时默认选中的模型」。",
+      now: "写明影响的具体功能与用户路径，例如「用户在博莱克里新建对话时默认选中的模型」。",
       },
     { id: "scene-params", n: 10, tab: "scenes", title: "参数跟着场景走",
       was: "温度、最大输出只能去模型的编辑弹窗里改 —— 一改就是全站生效，没法针对单个场景微调（审核要 0.1，写代码要更大输出）。",
@@ -1733,7 +1733,7 @@ body {
     $("#meBody").innerHTML =
       meSection("用户会看到什么", [
         meField("显示名称", '<input class="wiz-input" data-me="name" type="text" value="' + esc(d.name) + '">',
-          "用户在 BOHAI 的模式列表里看到的名字。"),
+          "用户在博莱克的模式列表里看到的名字。"),
         meField("内部标识", '<input class="wiz-input" data-me="modelId" type="text" value="' + esc(d.modelId) + '">',
           "只给系统用（上游真实的模型 ID）。已经被某个场景引用后尽量不要改，改了要重新绑定。")
       ]) +

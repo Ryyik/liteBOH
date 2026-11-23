@@ -7,7 +7,7 @@ import { resolve } from 'node:path';
 // 覆盖：M5 分页竞态、L11 stopGeneration 清理、
 //       L12 watch条件创建、L13 force绕过、L15 补偿删除
 // （M6+L14 的 useCodeGenerator SSE 错误处理守卫已随 2026-10-19
-//   实验室 /lab 退场删除；BOHAI Work 接管文档生成时需重新立守卫）
+//   实验室 /lab 退场删除；博莱克 Work 接管文档生成时需重新立守卫）
 // ============================================================
 
 const readFile = (relPath) =>
@@ -43,7 +43,7 @@ describe('M5: PointsGrantConsole 分页竞态守卫', () => {
 // （/lab）退场删除 —— src/views/Lab/ 已不在仓库，SSE 错误处理代码无消费对象。
 
 describe('L11: useChatEngine stopGeneration 清理 generationTimeoutTimer', () => {
-  const source = readFile('src/views/BOHAI/composables/useChatEngine.js');
+  const source = readFile('src/views/Bolek/composables/useChatEngine.js');
   // stopGeneration 为箭头函数，函数体以 2 空格缩进的 `};` 结束。
   // 使用 \n  \}; 作为边界可跨过内部嵌套的 4 空格 `}`，匹配到完整函数体。
   const stopGenBody =
@@ -70,7 +70,7 @@ describe('L11: useChatEngine stopGeneration 清理 generationTimeoutTimer', () =
 // 2026-10-04：那个「登录态就绪后刷新 Cloud+ 同意状态」的 watcher 已随授权闸门一起删除，
 // 原先的 L12 修复不再需要守卫。断言反转为「不许回来」—— 它回来即意味着授权链路被重新引入。
 describe('L12: useMemoryCapture 不再需要登录态授权 watcher', () => {
-  const source = readFile('src/views/BOHAI/composables/useMemoryCapture.js');
+  const source = readFile('src/views/Bolek/composables/useMemoryCapture.js');
 
   it('不再创建刷新授权状态的 watch', () => {
     expect(source).not.toMatch(/typeof\s+isLoggedIn\.value\s*!==\s*['"]undefined['"]/);

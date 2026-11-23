@@ -113,7 +113,7 @@
   - 检查带 `?query=xxx` 的路由是否触发过渡（`:key="$route.path"` 不会因为 query 变化触发，这是预期行为）。
   - 检查登录后跳转、登出跳转等程序化导航是否触发过渡。
   - 检查 [PostDetail](file:///Users/ryyik/Documents/BOHLITEForMacLatest/BOHLITEBeta2.5/src/views/PostDetail) 这类带 `<Suspense>` 内嵌的页面是否仍正常加载。
-  - 检查 BOHAI 工作区切换会话时是否仍流畅（BOHAI 内部会话切换已有自己的过渡）。
+  - 检查博莱克工作区切换会话时是否仍流畅（博莱克内部会话切换已有自己的过渡）。
 
 - **Done when**：
   - App.vue 中 `<RouterView>` 用 `<Transition mode="out-in">` 包裹

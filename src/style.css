@@ -356,15 +356,15 @@ body {
 /* The fixed global nav is outside document flow. Keep the standalone AI
    workspace below it so newly focused messages cannot scroll under the nav. */
 body.page-aichat {
-  --bohai-standalone-nav-height: 72px;
+  --bolek-standalone-nav-height: 72px;
 }
 
-/* 沉浸导航（2026-10-08 用户口径）：打开 BOHAI 时顶部导航**收成一颗球**、落在横向左栏的
+/* 沉浸导航（2026-10-08 用户口径）：打开博莱克时顶部导航**收成一颗球**、落在横向左栏的
    品牌 logo 位上，页面因此**不再避让导航高度**、整页顶到满屏。两个 class 都由 UnifiedNavbar
    写入：`nav-orb-mode` 与球的显隐同一处判定；`nav-orb-transitioning` 只在切换窗口内存在，
    免得常驻 transition 把软键盘的 `--kb-inset` 适配也拖慢 460ms。 */
 body.page-aichat.nav-orb-mode {
-  --bohai-standalone-nav-height: 0px;
+  --bolek-standalone-nav-height: 0px;
 }
 
 /* AI 页的球位 = **左栏品牌 logo 位**（用户口径「在侧边导航栏 logo 的位置」）。
@@ -391,7 +391,7 @@ body.page-aichat.nav-orb-mode {
 
 body.page-aichat #app {
   /* --kb-inset：键盘遮挡高度（useKeyboardInset.js 写入 documentElement，阈值 120px）。
-     iOS 的 100dvh 不随软键盘收缩，不扣它则键盘盖住 BOHAI 输入区（2026-09-24 修复）。 */
+     iOS 的 100dvh 不随软键盘收缩，不扣它则键盘盖住博莱克输入区（2026-09-24 修复）。 */
   height: calc(100dvh - var(--kb-inset, 0px));
   min-height: 0;
   overflow: hidden;
@@ -401,9 +401,9 @@ body.page-aichat #app {
    沉浸球模式下页面顶到满屏，而竖屏抽屉是从 y=0 起的 —— 实测抽屉头部 0..65 与球
    14..66 重叠，球压在「Chat」标题与收起键上。抽屉打开时让球退场：
    它是「去导航」的入口，抽屉开着的时候导航本就不该被抢。
-   ⚠️ 规则只能写在这份**全局**表里：球在导航组件内部，拿不到 BOHAI 的状态；
+   ⚠️ 规则只能写在这份**全局**表里：球在导航组件内部，拿不到博莱克的状态；
    从 body 上用 :has() 反向看「有没有抽屉开着」是唯一单向可靠的口子。
-   （写进 BOHAI 的 scoped CSS 会被追加 [data-v-x] 到最后一个选择器上 ⇒ 永不匹配。）
+   （写进博莱克的 scoped CSS 会被追加 [data-v-x] 到最后一个选择器上 ⇒ 永不匹配。）
    ⚠️ 不写 transition：球的形变有它自己的一套时长与曲线，这里再叠一条只会打架。 */
 body.page-aichat.nav-orb-mode:has(.boh-sidebar.is-open) .unified-nav-surface.nav-immersive {
   opacity: 0;
@@ -415,16 +415,16 @@ body.page-aichat.nav-orb-mode:has(.boh-sidebar.is-open) .unified-nav-surface.nav
   visibility: hidden;
 }
 
-body.page-aichat .bohai-page:not(.embedded-mode):not(.overlay-mode) {
-  /* 这条特异性高于 BOHAI styles 里 .bohai-page 的基础高度，是独立模式的真源；
+body.page-aichat .bolek-page:not(.embedded-mode):not(.overlay-mode) {
+  /* 这条特异性高于博莱克 styles 里 .bolek-page 的基础高度，是独立模式的真源；
      扣 --kb-inset 与 #app 保持一致，margin-top 保留（顶部 fixed 导航不随键盘动）。 */
-  height: calc(100dvh - var(--bohai-standalone-nav-height) - var(--kb-inset, 0px));
-  margin-top: var(--bohai-standalone-nav-height);
+  height: calc(100dvh - var(--bolek-standalone-nav-height) - var(--kb-inset, 0px));
+  margin-top: var(--bolek-standalone-nav-height);
 }
 
 /* 「页面高度顶上去」的过渡：与球的 FLIP 同长（460ms）同曲线，两者一起动才像一次形变。
    只在切换窗口内生效（见上面的 nav-orb-transitioning）。 */
-body.page-aichat.nav-orb-transitioning .bohai-page:not(.embedded-mode):not(.overlay-mode) {
+body.page-aichat.nav-orb-transitioning .bolek-page:not(.embedded-mode):not(.overlay-mode) {
   transition:
     height 460ms cubic-bezier(0.16, 1, 0.3, 1),
     margin-top 460ms cubic-bezier(0.16, 1, 0.3, 1);
@@ -432,7 +432,7 @@ body.page-aichat.nav-orb-transitioning .bohai-page:not(.embedded-mode):not(.over
 
 @media (orientation: landscape) and (max-width: 1024px) {
   body.page-aichat {
-    --bohai-standalone-nav-height: 64px;
+    --bolek-standalone-nav-height: 64px;
   }
 }
 
@@ -440,13 +440,13 @@ body.page-aichat.nav-orb-transitioning .bohai-page:not(.embedded-mode):not(.over
    这个变量镜像导航高度，必须同源，否则 AI 页会在 700–768 出现高度对不上。 */
 @media (orientation: portrait) and (max-width: 699px) {
   body.page-aichat {
-    --bohai-standalone-nav-height: 60px;
+    --bolek-standalone-nav-height: 60px;
   }
 }
 
 @media (orientation: portrait) and (max-width: 480px) {
   body.page-aichat {
-    --bohai-standalone-nav-height: 54px;
+    --bolek-standalone-nav-height: 54px;
   }
 }
 

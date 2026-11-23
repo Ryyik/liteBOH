@@ -140,7 +140,7 @@ export const TAB_WRITABLE_FIELDS = {
   aiMemories: ['status'],
   // 论坛事实卡：同口径；updated_by 随归档/恢复动作留痕（列允许 NULL）
   forumMemories: ['status', 'updated_by'],
-  bohaiModels: [
+  bolekModels: [
     'mode_id',
     'display_name',
     'tagline',
@@ -324,7 +324,7 @@ export const CORE_MEMORY_STATUS_OPTIONS = [
   { value: 'archived', label: '已归档（archived）' },
 ];
 
-export const BOHAI_MODEL_PROVIDER_OPTIONS = [
+export const BOLEK_MODEL_PROVIDER_OPTIONS = [
   { value: 'siliconflow', label: 'SiliconFlow' },
   { value: 'zhipu', label: '智谱 AI' },
   { value: 'openrouter', label: 'OpenRouter' },
@@ -340,14 +340,14 @@ export const FREEMODEL_PROVIDER_OPTIONS = [
   { value: 'custom', label: '自定义' },
 ];
 
-export const BOHAI_MODEL_CAPABILITY_OPTIONS = [
+export const BOLEK_MODEL_CAPABILITY_OPTIONS = [
   { value: 'chat', label: '聊天（chat）' },
   { value: 'multimodal', label: '多模态（multimodal）' },
   { value: 'plan', label: '规划（plan）' },
   { value: 'agent', label: 'Agent（agent）' },
 ];
 
-export const BOHAI_MODEL_STATUS_OPTIONS = [
+export const BOLEK_MODEL_STATUS_OPTIONS = [
   { value: 'active', label: '启用（active）' },
   { value: 'disabled', label: '停用（disabled）' },
 ];
@@ -357,7 +357,7 @@ export const BOHAI_MODEL_STATUS_OPTIONS = [
    plus/pro/max/ultra 仍保留在合法值域里（DB 约束同款），但当前**没有任何行在用**：
    若把某行设成它们，游客与免费用户都会被 EF 拦掉，等于把该模型变成付费专属。
    ⚠️ 改这里的词表要同步迁移 2026102003 的 check 约束，否则后台能选到 DB 会拒绝的值。 */
-export const BOHAI_MODEL_MIN_TIER_OPTIONS = [
+export const BOLEK_MODEL_MIN_TIER_OPTIONS = [
   { value: 'guest', label: '游客可用（guest）' },
   { value: 'free', label: '登录可用（free）' },
   { value: 'plus', label: 'Plus 专属' },
@@ -368,7 +368,7 @@ export const BOHAI_MODEL_MIN_TIER_OPTIONS = [
 
 /* 图标只影响列表里的 LeadingIcon，与模式语义无关 —— 括号里原本写的是
    已退场的模式名（Fast/Pro/多模态/Plan/Agent），容易被读成"这个图标配那个模式"。 */
-export const BOHAI_MODEL_ICON_OPTIONS = [
+export const BOLEK_MODEL_ICON_OPTIONS = [
   { value: 'zap', label: '闪电' },
   { value: 'sparkles', label: '星光' },
   { value: 'image', label: '图像' },

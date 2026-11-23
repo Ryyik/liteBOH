@@ -80,7 +80,7 @@ tags: feature, frontend, interaction, forum, UX
 | TASK-017 | GlobalAiGlassOverlay.vue第225行添加基础安全边距：`padding-bottom: max(8px, env(safe-area-inset-bottom, 0px))` | | |
 | TASK-018 | GlobalAiGlassOverlay.vue添加移动端竖屏增强样式：`@media (max-width: 1023px) and (orientation: portrait)` | | |
 | TASK-019 | 移动端竖屏增强样式设置：`padding-bottom: calc(var(--global-ai-bottom-nav-clearance) + max(12px, env(safe-area-inset-bottom, 0px)))` | | |
-| TASK-020 | BohaiSidebar.vue第322-341行验证安全边距逻辑，确保与GlobalAiGlassOverlay一致 | | |
+| TASK-020 | BolekSidebar.vue第322-341行验证安全边距逻辑，确保与GlobalAiGlassOverlay一致 | | |
 | TASK-021 | 测试：iOS Safari移动端竖屏，滚动浏览器地址栏，验证AI抽屉底部不被遮挡 | | |
 
 ### Phase 4: 分享链接灵动岛提示（P2）
@@ -147,7 +147,7 @@ tags: feature, frontend, interaction, forum, UX
 - **FILE-002**: `src/views/Forum/ForumMain.vue` - 草稿存储逻辑、beforeunload事件、分享灵动岛触发
 - **FILE-003**: `src/views/PostDetail/PostDetailMain.vue` - 编辑模式图片操作、分享灵动岛触发
 - **FILE-004**: `src/components/GlobalAiGlassOverlay.vue` - AI抽屉动态安全边距CSS
-- **FILE-005**: `src/views/BOHAI/BOHAI/components/BohaiSidebar.vue` - AI侧边栏安全边距验证
+- **FILE-005**: `src/views/Bolek/Bolek/components/BolekSidebar.vue` - AI侧边栏安全边距验证
 - **FILE-006**: `src/App.vue` 或 `src/views/user-center/UserSpace/UserSpaceMain.vue` - 灵动岛监听逻辑
 
 **设计文档**：

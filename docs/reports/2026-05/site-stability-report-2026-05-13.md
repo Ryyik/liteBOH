@@ -155,7 +155,7 @@ scripts/loadtest/k6-message-center.js
    当前不影响构建，但会降低维护效率。结构检查提示的文件包括：
 
    - `src/styles/vendor/bootstrap.css`
-   - `src/views/BOHAI/composables/useChatEngine.js`
+   - `src/views/Bolek/composables/useChatEngine.js`
    - `src/views/Home/style.scoped.1.css`
    - `src/views/DataManagement/index.vue`
    - `src/views/Forum/style.scoped.css`

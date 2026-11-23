@@ -871,7 +871,7 @@ html[data-theme='dark'] .gs-inline-back {
   background: var(--liquid-bg-nested);
 }
 
-/* 双写伪类保证键盘焦点环盖过全局 .bohai-page :focus-visible（特异性打平会静默失效） */
+/* 双写伪类保证键盘焦点环盖过全局 .bolek-page :focus-visible（特异性打平会静默失效） */
 .gs-inline-back:focus-visible:focus-visible {
   outline: 2px solid currentColor;
   outline-offset: 2px;

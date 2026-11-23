@@ -18,7 +18,7 @@ import { MODEL_PLATFORM_IDS, providerLabel } from './useKeyVault.js';
  * 直连 `supabase.from(...)`（表结构改名要只改一处）。
  *
  * 「免费模型库」这个旧名字有歧义：这里的模型**不一定免费**，
- * 是否免费取决于 `bohai_model_configs.quota_multiplier` 是否为 0。
+ * 是否免费取决于 `bolek_model_configs.quota_multiplier` 是否为 0。
  * 本文件统一叫「可用模型清单」。
  */
 

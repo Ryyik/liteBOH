@@ -4,7 +4,7 @@
     <p class="hint">三组唯一差别 = 宿主是不是**堆叠上下文**。判据看探针输出：能糊 ⇒ on ≪ off。</p>
 
     <section class="case">
-      <h2>H1 · 宿主 <code>position: relative</code>（非堆叠上下文）—— BOHAI 同款</h2>
+      <h2>H1 · 宿主 <code>position: relative</code>（非堆叠上下文）—— 博莱克同款</h2>
       <div class="host host-h1">
         <BohGlassRefract :radius="12" />
       </div>
@@ -35,7 +35,7 @@
  * 能量判据不敏感，**A 组原状也读成 on==off**）。⇒ 需要一个**层级完全自控**的实验场。
  *
  * 本页：整页确定性条纹背板 + 三组宿主，**唯一差别是宿主是不是堆叠上下文**：
- *   H1 `relative`（无 z-index，非堆叠上下文）—— BOHAI 同款
+ *   H1 `relative`（无 z-index，非堆叠上下文）—— 博莱克同款
  *   H2 `relative; z-index: 1`（堆叠上下文）
  *   H3 `fixed`（堆叠上下文）—— 顶栏尝试 2 同款
  * 判据由 `scripts/probes/probe-glass-repro-page.mjs` 量：玻璃开着 / 关掉的梯度能量。

@@ -492,7 +492,7 @@
 </template>
 
 <script setup>
-/* 横屏左栏的页面级规则（body.page-userspace 段）。与 Home / BOHAI / Cloud+ / Shop /
+/* 横屏左栏的页面级规则（body.page-userspace 段）。与 Home / 博莱克 / Cloud+ / Shop /
    Profile 共用同一份真源，断点与栏宽档位只在那里改。
    ⚠️ 必须用 JS import，不能写 `<style src>`：同一份 CSS 只要同时存在「JS import」
    与「<style src>」两种引入形态，CSS 去重后 vite-plugin-pwa 的 buildEnd 会拿到

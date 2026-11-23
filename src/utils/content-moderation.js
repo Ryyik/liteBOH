@@ -1,4 +1,4 @@
-import { SILICON_CLOUD_CHAT_URL } from './bohai-constants.js';
+import { SILICON_CLOUD_CHAT_URL } from './bolek-constants.js';
 import { callVaultSiliconChat } from './api/api-key-runtime-api.js';
 /* 2026-11-14：改 import 轻量状态模块（原来 import image-moderation-pipeline）。
    文本审核与图片审核共享同一个云端出口，所以共享这份冷却状态 —— 但**只需要状态**，
@@ -12,7 +12,7 @@ import {
 } from './moderation-cloud-state.js';
 
 const DEFAULT_SCENE = 'default';
-// 文字审核专用模式：vault 端按 bohai_model_configs 的 moderation-text 行裁决模型/上游。
+// 文字审核专用模式：vault 端按 bolek_model_configs 的 moderation-text 行裁决模型/上游。
 // 此前不传 mode 会落到 fast 行（payload.model 被覆盖、apiUrl 被忽略），后台配置从未生效。
 const MODERATION_TEXT_MODE = 'moderation-text';
 const QUICK_TIMEOUT_MS = 4000;

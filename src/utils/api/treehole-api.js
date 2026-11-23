@@ -33,4 +33,4 @@ export {
 } from './treehole/treehole-space-api.js';
 
 // 知识库/向量检索
-export { searchBohAIKnowledgeForAI } from './treehole/knowledge-search-api.js';
+export { searchBolekKnowledgeForAI } from './treehole/knowledge-search-api.js';

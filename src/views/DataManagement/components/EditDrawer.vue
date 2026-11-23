@@ -179,27 +179,27 @@
               </div>
             </div>
 
-            <!-- BOHAI 模型配置：从 API Key 预填助手 -->
-            <div v-if="currentTab === 'bohaiModels'" class="bohai-key-assist-panel">
+            <!-- 博莱克模型配置：从 API Key 预填助手 -->
+            <div v-if="currentTab === 'bolekModels'" class="bolek-key-assist-panel">
               <div class="assist-title">从 API Key 预填（可选）</div>
-              <div class="bohai-key-assist-body">
+              <div class="bolek-key-assist-body">
                 <select
-                  v-model="bohaiSelectedKeyId"
-                  class="form-select bohai-key-select"
-                  @change="onBohaiKeySelectChange"
-                  :disabled="bohaiKeysLoading"
+                  v-model="bolekSelectedKeyId"
+                  class="form-select bolek-key-select"
+                  @change="onBolekKeySelectChange"
+                  :disabled="bolekKeysLoading"
                 >
                   <option value="">
-                    {{ bohaiKeysLoading ? '加载 API Key 列表中...' : '不使用 API Key，手动填' }}
+                    {{ bolekKeysLoading ? '加载 API Key 列表中...' : '不使用 API Key，手动填' }}
                   </option>
-                  <option v-for="k in bohaiAvailableKeys" :key="k.id" :value="k.id">
+                  <option v-for="k in bolekAvailableKeys" :key="k.id" :value="k.id">
                     {{ k.label || `${k.provider} ${k.purpose}` }} · {{ k.provider }}
                   </option>
                 </select>
-                <p v-if="bohaiSelectedKeyMeta" class="bohai-key-hint">
-                  已选「{{ bohaiSelectedKeyMeta.label }}」｜API URL：
-                  <code class="code-font">{{ bohaiSelectedKeyMeta.apiUrl || '未配置' }}</code>
-                  <template v-if="!bohaiSelectedKeyMeta.apiUrl">
+                <p v-if="bolekSelectedKeyMeta" class="bolek-key-hint">
+                  已选「{{ bolekSelectedKeyMeta.label }}」｜API URL：
+                  <code class="code-font">{{ bolekSelectedKeyMeta.apiUrl || '未配置' }}</code>
+                  <template v-if="!bolekSelectedKeyMeta.apiUrl">
                     <br />
                     <strong class="is-warn">该 Key 未配置 API URL，接口地址需手动填写。</strong>
                     可前往「API Key 管理」编辑该 Key 并补填 API URL（中转站的 chat completions
@@ -207,7 +207,7 @@
                   </template>
                   <template v-else> <br />下方 provider / API URL 已自动填充。 </template>
                 </p>
-                <p v-else class="bohai-key-hint is-muted">
+                <p v-else class="bolek-key-hint is-muted">
                   选中后会自动填充下方「供应商标识」与「接口地址」，并联动 provider_label。
                 </p>
               </div>
@@ -944,23 +944,23 @@ const isFieldOptionsLoading = (field) => {
   return !!(field.optionsSource && asyncOptionsLoading.value[field.optionsSource]);
 };
 
-// ===== BOHAI 模型配置：API Key 预填助手 =====
-const bohaiApiKeys = ref([]);
-const bohaiSelectedKeyId = ref('');
-const bohaiKeysLoading = ref(false);
+// ===== 博莱克模型配置：API Key 预填助手 =====
+const bolekApiKeys = ref([]);
+const bolekSelectedKeyId = ref('');
+const bolekKeysLoading = ref(false);
 
 // 仅展示可用作模型来源的 Key（chat 类 + custom/openrouter/modelscope/siliconflow/zhipu）
-const bohaiAvailableKeys = computed(() => {
-  return bohaiApiKeys.value.filter((k) => {
+const bolekAvailableKeys = computed(() => {
+  return bolekApiKeys.value.filter((k) => {
     if (k.status !== 'active') return false;
     return ['siliconflow', 'openrouter', 'modelscope', 'zhipu', 'custom'].includes(k.provider);
   });
 });
 
 // 当前选中的 Key 元数据
-const bohaiSelectedKeyMeta = computed(() => {
-  if (!bohaiSelectedKeyId.value) return null;
-  const k = bohaiApiKeys.value.find((x) => x.id === bohaiSelectedKeyId.value);
+const bolekSelectedKeyMeta = computed(() => {
+  if (!bolekSelectedKeyId.value) return null;
+  const k = bolekApiKeys.value.find((x) => x.id === bolekSelectedKeyId.value);
   if (!k) return null;
   return {
     id: k.id,
@@ -971,30 +971,30 @@ const bohaiSelectedKeyMeta = computed(() => {
   };
 });
 
-const loadBohaiApiKeys = async (force = false) => {
-  if (!force && bohaiApiKeys.value.length > 0) return;
-  bohaiKeysLoading.value = true;
+const loadBolekApiKeys = async (force = false) => {
+  if (!force && bolekApiKeys.value.length > 0) return;
+  bolekKeysLoading.value = true;
   try {
     const result = await listApiKeys();
     if (result.ok) {
-      bohaiApiKeys.value = Array.isArray(result.data) ? result.data : [];
+      bolekApiKeys.value = Array.isArray(result.data) ? result.data : [];
     }
   } catch (e) {
     console.warn('[EditDrawer] 加载 API Key 列表失败:', e?.message || e);
   } finally {
-    bohaiKeysLoading.value = false;
+    bolekKeysLoading.value = false;
   }
 };
 
-const onBohaiKeySelectChange = () => {
-  const meta = bohaiSelectedKeyMeta.value;
+const onBolekKeySelectChange = () => {
+  const meta = bolekSelectedKeyMeta.value;
   if (meta) {
-    emit('bohaiKeySelect', meta);
+    emit('bolekKeySelect', meta);
   }
 };
 
-const clearBohaiKeySelect = () => {
-  bohaiSelectedKeyId.value = '';
+const clearBolekKeySelect = () => {
+  bolekSelectedKeyId.value = '';
 };
 
 const titleId = 'edit-drawer-title';
@@ -1051,7 +1051,7 @@ const GROUP_RULES = {
     { key: 'source', label: '来源与分类' },
     { key: 'content', label: '事实内容' },
   ],
-  bohaiModels: [
+  bolekModels: [
     { key: 'basic', label: '基础信息' },
     { key: 'provider', label: '模型供应' },
     { key: 'params', label: '模型参数' },
@@ -1281,7 +1281,7 @@ const emit = defineEmits([
   'selectProduct',
   'prev-record',
   'next-record',
-  'bohaiKeySelect',
+  'bolekKeySelect',
 ]);
 
 // Reassign fieldGroups and related computeds/watches after defineProps
@@ -1413,9 +1413,9 @@ watch(
       });
       sources.forEach((source) => loadAsyncOptions(source, true));
 
-      // BOHAI 模型配置：抽屉打开时加载 API Key 列表
-      if (props.currentTab === 'bohaiModels') {
-        loadBohaiApiKeys(true);
+      // 博莱克模型配置：抽屉打开时加载 API Key 列表
+      if (props.currentTab === 'bolekModels') {
+        loadBolekApiKeys(true);
       }
 
       // D2：嵌入详情页形态没有分组折叠记忆的交互语境（脚底「全部展开」已隐藏），
@@ -1436,8 +1436,8 @@ watch(
         lastFocusedElement.focus();
       }
       lastFocusedElement = null;
-      // 关闭抽屉时清空 BOHAI Key 选择，避免下次打开残留
-      clearBohaiKeySelect();
+      // 关闭抽屉时清空博莱克 Key 选择，避免下次打开残留
+      clearBolekKeySelect();
     }
   },
 );

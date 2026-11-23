@@ -6,10 +6,10 @@ import { reportEvent } from '@/utils/monitoring.js';
 
 const forumComponentLoader = () => import('@/views/Forum/ForumMain.vue');
 const messagesComponentLoader = () => import('@/views/user-center/Messages/index.vue');
-const bohaiComponentLoader = () => import('@/views/BOHAI/BOHAI/BOHAIMain.vue');
+const bolekComponentLoader = () => import('@/views/Bolek/Bolek/BolekMain.vue');
 let forumPreloadPromise = null;
 let messagesPreloadPromise = null;
-let bohaiPreloadPromise = null;
+let bolekPreloadPromise = null;
 let forumPreloadIdleId = null;
 let forumPreloadTimeoutId = null;
 let isUserSpaceMounted = false;
@@ -42,14 +42,14 @@ export const preloadMessagesComponent = () => {
   }
   return messagesPreloadPromise;
 };
-export const preloadBOHAIComponent = () => {
-  if (!bohaiPreloadPromise) {
-    bohaiPreloadPromise = bohaiComponentLoader().catch(() => {
-      bohaiPreloadPromise = null;
+export const preloadBolekComponent = () => {
+  if (!bolekPreloadPromise) {
+    bolekPreloadPromise = bolekComponentLoader().catch(() => {
+      bolekPreloadPromise = null;
       return null;
     });
   }
-  return bohaiPreloadPromise;
+  return bolekPreloadPromise;
 };
 
 /* 设置内部档位的面板 chunk（编辑资料 / 数据导出 / 数据与隐私）。
@@ -283,8 +283,8 @@ export const AsyncForum = defineAsyncComponent({
    （失败退避重试 + 上报 + 错误卡），统一走 createPanelAsync 工厂，不再裸简写。 */
 export const AsyncMessages = createPanelAsync(messagesComponentLoader, { label: 'AsyncMessages' });
 
-const AsyncBOHAIError = {
-  name: 'AsyncBOHAIError',
+const AsyncBolekError = {
+  name: 'AsyncBolekError',
   setup() {
     return () =>
       h('div', { class: 'ai-load-fallback' }, [
@@ -294,10 +294,10 @@ const AsyncBOHAIError = {
   },
 };
 
-export const AsyncBOHAI = defineAsyncComponent({
-  loader: bohaiComponentLoader,
+export const AsyncBolek = defineAsyncComponent({
+  loader: bolekComponentLoader,
   loadingComponent: AiChatSkeleton,
-  errorComponent: AsyncBOHAIError,
+  errorComponent: AsyncBolekError,
   delay: 120,
   timeout: 15000,
 });

@@ -58,9 +58,9 @@
 
 **全产物**：JS **4296 KiB gzip / 207 个文件**（raw 9.0 MB）；CSS **531 KiB gzip / 124 个文件**（raw 2.8 MB）。
 最大单块：`nsfw-weights` 2477 KiB（隔离正确）、`tfjs-vendor` 261.5、`DataAdmin` 134.7、
-`useChatEngine` 115.5、`index-DkVAVPgv`（BOHAI 页）77.4。
+`useChatEngine` 115.5、`index-DkVAVPgv`（博莱克页）77.4。
 
-> ⚠️ 依赖表看不见**二级动态 import**：BOHAI 页 77.4 + 引擎 115.5 + markdown 29.7 是被
+> ⚠️ 依赖表看不见**二级动态 import**：博莱克页 77.4 + 引擎 115.5 + markdown 29.7 是被
 > `index-DkVAVPgv` 二次拉起的 —— 它本来根本不该出现在首屏（见 §3）。
 
 ---
@@ -124,7 +124,7 @@ LCP 候选序列：`骨架 1184 → 内容块 4804 → 图片 7580`。注意 4.8
 ## 3. 空闲预取 A/B（P0 主因）
 
 `src/composables/useRoutePrefetch.js:52` 空闲时预取 `['/user-space', '/ai-chat']`。
-`/ai-chat` = BOHAI 页（77.4）+ `useChatEngine`（115.5）+ `markdown-vendor`（29.7）+ markdown CSS ≈ **225.8 KiB**，
+`/ai-chat` = 博莱克页（77.4）+ `useChatEngine`（115.5）+ `markdown-vendor`（29.7）+ markdown CSS ≈ **225.8 KiB**，
 **每个首次访客都会下，包括从不打开 AI 的人**。
 
 两次独立 A/B（每次 3 轮，冷启动，SW blocked）：

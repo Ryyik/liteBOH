@@ -18,11 +18,11 @@ const entries = [
     async: false,
   },
   {
-    name: 'BOHAI',
-    path: 'src/views/BOHAI/BOHAI/index.vue',
-    mainFile: 'BOHAIMain.vue',
-    mainVar: 'BOHAIMain',
-    // BOHAI uses direct import instead of defineAsyncComponent + Suspense
+    name: 'Bolek',
+    path: 'src/views/Bolek/Bolek/index.vue',
+    mainFile: 'BolekMain.vue',
+    mainVar: 'BolekMain',
+    // Bolek uses direct import instead of defineAsyncComponent + Suspense
     async: false,
   },
   {
@@ -148,10 +148,10 @@ describe('async wrapper attrs pass-through', () => {
       expect(asyncLoaders).not.toMatch(/import\(['"]@\/views\/Forum\/index\.vue['"]\)/);
     });
 
-    it('async-loaders.js loads BOHAIMain.vue directly (no double-wrap)', () => {
+    it('async-loaders.js loads BolekMain.vue directly (no double-wrap)', () => {
       const asyncLoaders = readEntryFile('src/views/user-center/UserSpace/async-loaders.js');
-      expect(asyncLoaders).toMatch(/import\(['"]@\/views\/BOHAI\/BOHAI\/BOHAIMain\.vue['"]\)/);
-      expect(asyncLoaders).not.toMatch(/import\(['"]@\/views\/BOHAI\/BOHAI\/index\.vue['"]\)/);
+      expect(asyncLoaders).toMatch(/import\(['"]@\/views\/Bolek\/Bolek\/BolekMain\.vue['"]\)/);
+      expect(asyncLoaders).not.toMatch(/import\(['"]@\/views\/Bolek\/Bolek\/index\.vue['"]\)/);
     });
 
     it('Cloud+ 只经路由进入，UserSpace 侧不再有第二份异步包装', () => {

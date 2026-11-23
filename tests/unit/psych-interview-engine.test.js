@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { createBohAIChatSessionSanitizer } from '../../src/utils/bohai-chat-session-store.js';
-import { PSYCH_TRACKS, PSYCH_L2_RULES } from '../../src/views/BOHAI/expert-roles/psychologist.js';
+import { createBolekChatSessionSanitizer } from '../../src/utils/bolek-chat-session-store.js';
+import { PSYCH_TRACKS, PSYCH_L2_RULES } from '../../src/views/Bolek/expert-roles/psychologist.js';
 import {
   INTERVIEW_LIMITS,
   extractSignals,
@@ -12,8 +12,8 @@ import {
   buildStateBlock,
   buildAnchorBlock,
   shouldWrapUp,
-  findTrack
-} from '../../src/views/BOHAI/expert-roles/interview-engine.js';
+  findTrack,
+} from '../../src/views/Bolek/expert-roles/interview-engine.js';
 
 describe('心理访谈引擎 · 计数层', () => {
   it('信号抽取：绝对化 / 应该 / 身体 / 回避 / 时间 / 他人 / 例外', () => {
@@ -109,7 +109,13 @@ describe('心理访谈引擎 · L2 情景规则选取', () => {
   });
 
   it('最多注入 2 条，且按优先级截断（深度 > 小结 > 换小 > 收尾）', () => {
-    const s = { ...base(), askedCount: 16, lastSummaryAt: 10, ladderingDepth: 2, shortReplyStreak: 3 };
+    const s = {
+      ...base(),
+      askedCount: 16,
+      lastSummaryAt: 10,
+      ladderingDepth: 2,
+      shortReplyStreak: 3,
+    };
     const rules = pickL2Rules(s);
     expect(rules.length).toBe(2);
     expect(rules[0]).toBe(PSYCH_L2_RULES.laddering);
@@ -173,13 +179,18 @@ describe('心理访谈引擎 · 注入文本', () => {
 });
 
 describe('会话白名单 · expertState 必须能活下来', () => {
-  const sanitize = createBohAIChatSessionSanitizer();
+  const sanitize = createBolekChatSessionSanitizer();
 
   it('expertState 经过 sanitizer 后保留', () => {
     const out = sanitize({
       title: '访谈',
       messages: [],
-      expertState: { roleId: 'psychologist', trackId: 'blindspot', askedCount: '7', evidence: ['a', 'b'] }
+      expertState: {
+        roleId: 'psychologist',
+        trackId: 'blindspot',
+        askedCount: '7',
+        evidence: ['a', 'b'],
+      },
     });
     expect(out.expertState).toBeTruthy();
     expect(out.expertState.askedCount).toBe(7);
@@ -190,7 +201,12 @@ describe('会话白名单 · expertState 必须能活下来', () => {
   it('未列入白名单的键被丢掉，非法值被净化', () => {
     const out = sanitize({
       messages: [],
-      expertState: { askedCount: -5, ladderingDepth: 'x', evidence: ['a', '', null], junk: 'should-drop' }
+      expertState: {
+        askedCount: -5,
+        ladderingDepth: 'x',
+        evidence: ['a', '', null],
+        junk: 'should-drop',
+      },
     });
     expect(out.expertState.askedCount).toBe(0);
     expect(out.expertState.ladderingDepth).toBe(0);
@@ -205,7 +221,12 @@ describe('会话白名单 · expertState 必须能活下来', () => {
   it('幂等：重复 sanitize 结果稳定（刷新不重置进度）', () => {
     const once = sanitize({
       messages: [],
-      expertState: { trackId: 'trigger', askedCount: 9, ladderingDepth: 1, evidence: ['上周三我列了计划，周四全废'] }
+      expertState: {
+        trackId: 'trigger',
+        askedCount: 9,
+        ladderingDepth: 1,
+        evidence: ['上周三我列了计划，周四全废'],
+      },
     });
     const twice = sanitize(once);
     expect(twice.expertState).toEqual(once.expertState);

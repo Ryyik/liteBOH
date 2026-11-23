@@ -155,7 +155,7 @@ describe('compat route registry（兼容层唯一登记处）', () => {
     });
   });
 
-  it('实验室退场：/lab 重定向到 BOHAI Work（2026-10-19）', () => {
+  it('实验室退场：/lab 重定向到博莱克 Work（2026-10-19）', () => {
     expect(findCompat('/lab').name).toBe('Lab');
     // 字符串形式 redirect：route 记录上是属性不是函数
     expect(findCompat('/lab').redirect).toBe('/ai-chat?surface=work');

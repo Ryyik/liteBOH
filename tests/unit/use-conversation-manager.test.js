@@ -21,24 +21,24 @@ const {
   };
 });
 
-vi.mock('@/utils/bohai-chat-session-store.js', () => ({
-  loadBohAIChatSessionsFromStorage: vi.fn(() => []),
-  saveBohAIChatSessionsToStorage: vi.fn(),
-  clearBohAIChatSessionsStorage: vi.fn(),
-  createBohAIChatSessionSanitizer: vi.fn(() => mockSanitizeChatSessionForStorage),
+vi.mock('@/utils/bolek-chat-session-store.js', () => ({
+  loadBolekChatSessionsFromStorage: vi.fn(() => []),
+  saveBolekChatSessionsToStorage: vi.fn(),
+  clearBolekChatSessionsStorage: vi.fn(),
+  createBolekChatSessionSanitizer: vi.fn(() => mockSanitizeChatSessionForStorage),
   // 2026-10-11 写入所有权守卫（KeepAlive + 灵动岛双实例）。
   // 这里给一份「永远没人改过存储」的桩：单实例下 canWrite 恒 true，
-  // 冲突分支由 `bohai-chat-session-store.test.js` 的守卫单测负责。
-  createBohAISessionWriteGuard: vi.fn(() => ({
+  // 冲突分支由 `bolek-chat-session-store.test.js` 的守卫单测负责。
+  createBolekSessionWriteGuard: vi.fn(() => ({
     adopt: vi.fn(() => null),
     canWrite: vi.fn(() => true),
     commit: vi.fn(() => null),
   })),
 }));
 
-vi.mock('@/utils/bohai-action-audit.js', () => ({
-  loadBohAIActionAuditsFromStorage: vi.fn(() => []),
-  clearBohAIActionAuditsStorage: vi.fn(),
+vi.mock('@/utils/bolek-action-audit.js', () => ({
+  loadBolekActionAuditsFromStorage: vi.fn(() => []),
+  clearBolekActionAuditsStorage: vi.fn(),
 }));
 
 vi.mock('@/utils/logger.js', () => ({
@@ -49,24 +49,24 @@ vi.mock('@/utils/logger.js', () => ({
   },
 }));
 
-// plans/025 v2 · Step 3 ⑧：原 barrel `bohai-engine-helpers.js` 已删，按新模块拆分 mock。
+// plans/025 v2 · Step 3 ⑧：原 barrel `bolek-engine-helpers.js` 已删，按新模块拆分 mock。
 // 一律 `importOriginal` 展开真实导出再覆盖，避免误伤同一模块的其他消费者。
-vi.mock('../../src/views/BOHAI/utils/memory/store.js', async (importOriginal) => ({
+vi.mock('../../src/views/Bolek/utils/memory/store.js', async (importOriginal) => ({
   ...(await importOriginal()),
   buildHistoryMessagesWithCachedSummary: mockBuildHistoryMessagesWithCachedSummary,
   getCachedSummaryIfUsable: mockGetCachedSummaryIfUsable,
   CONVERSATION_SUMMARY_MAX_CHARS: 2000,
 }));
-vi.mock('../../src/views/BOHAI/utils/text/normalize.js', async (importOriginal) => ({
+vi.mock('../../src/views/Bolek/utils/text/normalize.js', async (importOriginal) => ({
   ...(await importOriginal()),
   normalizePromptLine: mockNormalizePromptLine,
 }));
-vi.mock('../../src/views/BOHAI/utils/retrieval/budget.js', async (importOriginal) => ({
+vi.mock('../../src/views/Bolek/utils/retrieval/budget.js', async (importOriginal) => ({
   ...(await importOriginal()),
   getStorableDialogueMessages: vi.fn((messages) => (Array.isArray(messages) ? messages : [])),
   ESTIMATED_SYSTEM_PROMPT_CHARS: 600,
 }));
-vi.mock('../../src/views/BOHAI/utils/prompt/assembly.js', async (importOriginal) => ({
+vi.mock('../../src/views/Bolek/utils/prompt/assembly.js', async (importOriginal) => ({
   ...(await importOriginal()),
   isEmptyAssistantPlaceholder: vi.fn((message) => {
     if (!message || message.role !== 'assistant') return false;
@@ -82,18 +82,18 @@ vi.mock('../../src/views/BOHAI/utils/prompt/assembly.js', async (importOriginal)
 import {
   useConversationManager,
   updateLastActualExtraChars,
-} from '../../src/views/BOHAI/composables/useConversationManager.js';
+} from '../../src/views/Bolek/composables/useConversationManager.js';
 import {
-  loadBohAIChatSessionsFromStorage,
-  saveBohAIChatSessionsToStorage,
-  clearBohAIChatSessionsStorage,
-  createBohAIChatSessionSanitizer,
-  createBohAISessionWriteGuard,
-} from '@/utils/bohai-chat-session-store.js';
+  loadBolekChatSessionsFromStorage,
+  saveBolekChatSessionsToStorage,
+  clearBolekChatSessionsStorage,
+  createBolekChatSessionSanitizer,
+  createBolekSessionWriteGuard,
+} from '@/utils/bolek-chat-session-store.js';
 import {
-  loadBohAIActionAuditsFromStorage,
-  clearBohAIActionAuditsStorage,
-} from '@/utils/bohai-action-audit.js';
+  loadBolekActionAuditsFromStorage,
+  clearBolekActionAuditsStorage,
+} from '@/utils/bolek-action-audit.js';
 import { logger } from '@/utils/logger.js';
 
 // ============================================================
@@ -260,12 +260,12 @@ describe('useConversationManager', () => {
     });
 
     it('loads actionAuditLog from storage on creation', () => {
-      expect(loadBohAIActionAuditsFromStorage).toHaveBeenCalled();
+      expect(loadBolekActionAuditsFromStorage).toHaveBeenCalled();
       expect(manager.actionAuditLog.value).toEqual([]);
     });
 
-    it('creates sanitizer from createBohAIChatSessionSanitizer', () => {
-      expect(createBohAIChatSessionSanitizer).toHaveBeenCalled();
+    it('creates sanitizer from createBolekChatSessionSanitizer', () => {
+      expect(createBolekChatSessionSanitizer).toHaveBeenCalled();
     });
   });
 
@@ -793,14 +793,14 @@ describe('useConversationManager', () => {
   // clearCache
   // ==========================================================
   describe('clearCache', () => {
-    it('calls clearBohAIChatSessionsStorage', () => {
+    it('calls clearBolekChatSessionsStorage', () => {
       manager.clearCache();
-      expect(clearBohAIChatSessionsStorage).toHaveBeenCalled();
+      expect(clearBolekChatSessionsStorage).toHaveBeenCalled();
     });
 
-    it('calls clearBohAIActionAuditsStorage', () => {
+    it('calls clearBolekActionAuditsStorage', () => {
       manager.clearCache();
-      expect(clearBohAIActionAuditsStorage).toHaveBeenCalled();
+      expect(clearBolekActionAuditsStorage).toHaveBeenCalled();
     });
 
     it('resets actionAuditLog to empty array', () => {
@@ -1078,12 +1078,12 @@ describe('useConversationManager', () => {
   // sanitizeChatSessionForStorage
   // ==========================================================
   describe('sanitizeChatSessionForStorage', () => {
-    it('is a function returned by createBohAIChatSessionSanitizer', () => {
+    it('is a function returned by createBolekChatSessionSanitizer', () => {
       expect(typeof manager.sanitizeChatSessionForStorage).toBe('function');
-      expect(createBohAIChatSessionSanitizer).toHaveBeenCalled();
+      expect(createBolekChatSessionSanitizer).toHaveBeenCalled();
 
       // Verify the call arguments include isEmptyAssistantPlaceholder
-      const callArgs = createBohAIChatSessionSanitizer.mock.calls[0][0];
+      const callArgs = createBolekChatSessionSanitizer.mock.calls[0][0];
       expect(callArgs).toHaveProperty('normalizeText');
       expect(callArgs).toHaveProperty('maxSummaryChars');
       expect(callArgs).toHaveProperty('isEmptyAssistantPlaceholder');
@@ -1102,7 +1102,7 @@ describe('useConversationManager', () => {
   // ==========================================================
   describe('loadSessions', () => {
     it('replaces chatSessions when loaded sessions exist', () => {
-      loadBohAIChatSessionsFromStorage.mockReturnValue([
+      loadBolekChatSessionsFromStorage.mockReturnValue([
         { title: 'Loaded 1', messages: [], timestamp: 1000 },
         { title: 'Loaded 2', messages: [], timestamp: 2000 },
       ]);
@@ -1116,7 +1116,7 @@ describe('useConversationManager', () => {
 
     it('does nothing when loaded sessions are empty', () => {
       const originalLength = manager.chatSessions.length;
-      loadBohAIChatSessionsFromStorage.mockReturnValue([]);
+      loadBolekChatSessionsFromStorage.mockReturnValue([]);
 
       manager.loadSessions();
 
@@ -1126,7 +1126,7 @@ describe('useConversationManager', () => {
     it('passes sanitizeSession and onError to loader', () => {
       manager.loadSessions();
 
-      expect(loadBohAIChatSessionsFromStorage).toHaveBeenCalledWith(
+      expect(loadBolekChatSessionsFromStorage).toHaveBeenCalledWith(
         expect.objectContaining({
           sanitizeSession: expect.any(Function),
           onError: expect.any(Function),
@@ -1136,7 +1136,7 @@ describe('useConversationManager', () => {
 
     it('logs error through onError callback', () => {
       const error = new Error('test error');
-      loadBohAIChatSessionsFromStorage.mockImplementation(({ onError }) => {
+      loadBolekChatSessionsFromStorage.mockImplementation(({ onError }) => {
         onError(error);
         return [];
       });
@@ -1157,7 +1157,7 @@ describe('useConversationManager', () => {
 
       manager.saveSessions();
 
-      expect(saveBohAIChatSessionsToStorage).toHaveBeenCalledWith(
+      expect(saveBolekChatSessionsToStorage).toHaveBeenCalledWith(
         expect.objectContaining({
           sessions: manager.chatSessions,
           sanitizeSession: expect.any(Function),
@@ -1174,17 +1174,17 @@ describe('useConversationManager', () => {
         canWrite: vi.fn(() => false),
         commit: vi.fn(() => null),
       };
-      createBohAISessionWriteGuard.mockReturnValueOnce(guard);
+      createBolekSessionWriteGuard.mockReturnValueOnce(guard);
       const conflicted = createManager(vi.fn());
-      saveBohAIChatSessionsToStorage.mockClear();
+      saveBolekChatSessionsToStorage.mockClear();
 
       conflicted.saveSessions();
 
-      expect(saveBohAIChatSessionsToStorage).not.toHaveBeenCalled();
+      expect(saveBolekChatSessionsToStorage).not.toHaveBeenCalled();
       expect(logger.warn).toHaveBeenCalledWith('boh-ai', expect.stringContaining('另一实例'));
       // 放弃写入后必须能择机重载，把对方的版本读回来
       expect(conflicted.syncSessionsFromStorage()).toBe(true);
-      expect(loadBohAIChatSessionsFromStorage).toHaveBeenCalled();
+      expect(loadBolekChatSessionsFromStorage).toHaveBeenCalled();
     });
 
     // ==========================================================
@@ -1205,22 +1205,22 @@ describe('useConversationManager', () => {
 
       it('立即写入，不等防抖窗口', () => {
         manager.chatSessions[0] = createSession({ title: 'Flush me' });
-        saveBohAIChatSessionsToStorage.mockClear();
+        saveBolekChatSessionsToStorage.mockClear();
 
         manager.flushSessionsToStorage();
 
-        expect(saveBohAIChatSessionsToStorage).toHaveBeenCalledTimes(1);
+        expect(saveBolekChatSessionsToStorage).toHaveBeenCalledTimes(1);
       });
 
       it('冲掉已排队的防抖保存（不再二次写）', () => {
-        saveBohAIChatSessionsToStorage.mockClear();
+        saveBolekChatSessionsToStorage.mockClear();
         manager.scheduleSaveSessions();
         manager.flushSessionsToStorage();
-        const callsAfterFlush = saveBohAIChatSessionsToStorage.mock.calls.length;
+        const callsAfterFlush = saveBolekChatSessionsToStorage.mock.calls.length;
 
         vi.advanceTimersByTime(2000);
 
-        expect(saveBohAIChatSessionsToStorage.mock.calls.length).toBe(callsAfterFlush);
+        expect(saveBolekChatSessionsToStorage.mock.calls.length).toBe(callsAfterFlush);
       });
 
       it('写入冲突语义与 saveSessions 一致：守卫拒绝时放弃写入', () => {
@@ -1229,20 +1229,20 @@ describe('useConversationManager', () => {
           canWrite: vi.fn(() => false),
           commit: vi.fn(() => null),
         };
-        createBohAISessionWriteGuard.mockReturnValueOnce(guard);
+        createBolekSessionWriteGuard.mockReturnValueOnce(guard);
         const conflicted = createManager(vi.fn());
-        saveBohAIChatSessionsToStorage.mockClear();
+        saveBolekChatSessionsToStorage.mockClear();
 
         conflicted.flushSessionsToStorage();
 
-        expect(saveBohAIChatSessionsToStorage).not.toHaveBeenCalled();
+        expect(saveBolekChatSessionsToStorage).not.toHaveBeenCalled();
         expect(conflicted.syncSessionsFromStorage()).toBe(true);
       });
     });
 
     describe('reloadSessionsFromStorage', () => {
       it('没有冲突过也无条件重载（区别于 syncSessionsFromStorage）', () => {
-        loadBohAIChatSessionsFromStorage.mockReturnValue([
+        loadBolekChatSessionsFromStorage.mockReturnValue([
           { title: 'Handoff Session', messages: [], timestamp: 9999 },
         ]);
 
@@ -1255,7 +1255,7 @@ describe('useConversationManager', () => {
       });
 
       it('存储为空时保留现有会话（loadSessions 既有语义）', () => {
-        loadBohAIChatSessionsFromStorage.mockReturnValue([]);
+        loadBolekChatSessionsFromStorage.mockReturnValue([]);
         const before = manager.chatSessions.length;
 
         manager.reloadSessionsFromStorage();
@@ -1279,7 +1279,7 @@ describe('useConversationManager', () => {
 
     it('schedules save after debounce timeout', () => {
       manager.scheduleSaveSessions();
-      expect(saveBohAIChatSessionsToStorage).not.toHaveBeenCalled();
+      expect(saveBolekChatSessionsToStorage).not.toHaveBeenCalled();
 
       vi.advanceTimersByTime(500); // SESSION_SAVE_DEBOUNCE_MS
       // Still needs idle callback or setTimeout(0)
@@ -1316,7 +1316,7 @@ describe('useConversationManager', () => {
       manager.scheduleSaveSessions();
       manager.clearSaveTimers();
       vi.advanceTimersByTime(2000);
-      expect(saveBohAIChatSessionsToStorage).not.toHaveBeenCalled();
+      expect(saveBolekChatSessionsToStorage).not.toHaveBeenCalled();
       vi.useRealTimers();
     });
   });

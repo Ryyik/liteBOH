@@ -7,7 +7,7 @@ export const getAiQuotaAdminConfig = async () => {
       .select('tier, daily_token_limit, web_search_daily_limit, points_multiplier, updated_at')
       .order('daily_token_limit', { ascending: true }),
     supabase
-      .from('bohai_model_configs')
+      .from('bolek_model_configs')
       .select('id, mode_id, display_name, provider, model_id, quota_multiplier, status, sort_order')
       .order('sort_order', { ascending: true }),
     supabase
@@ -36,7 +36,7 @@ export const saveAiQuotaAdminConfig = async ({ tiers = [], modes = [], pricing =
   }));
   const modeUpdates = modes.map((row) =>
     supabase
-      .from('bohai_model_configs')
+      .from('bolek_model_configs')
       .update({
         quota_multiplier: Number(row.quota_multiplier),
         updated_at: new Date().toISOString(),

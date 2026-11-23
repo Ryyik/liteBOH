@@ -3,6 +3,9 @@
   <!-- Beta6 焕新主视觉：序列首位（sort_order 5），单区块液态玻璃 -->
   <Beta6RenewalHero v-if="builtinKey === 'beta6-renewal'" :priority="priority" />
 
+  <!-- 圣诞交换礼物：节日主视觉，树是预渲染的像素画（见 ChristmasHero.vue） -->
+  <ChristmasHero v-else-if="builtinKey === 'christmas-xmas'" :priority="priority" />
+
   <MascotNewHero v-else-if="builtinKey === 'mascot-new'" :priority="priority" />
 
   <AgentPreviewHero v-else-if="builtinKey === 'agent-preview'" />
@@ -116,6 +119,7 @@ import AppleHeroBanner from '@/components/AppleHeroBanner.vue';
 import AppleGridCard from '@/components/AppleGridCard.vue';
 import HomeOverlayHero from './HomeOverlayHero.vue';
 import Beta6RenewalHero from './Beta6RenewalHero.vue';
+import ChristmasHero from './ChristmasHero.vue';
 import AnniversaryHero from './AnniversaryHero.vue';
 import MascotEvolutionHero from './MascotEvolutionHero.vue';
 import MascotNewHero from './MascotNewHero.vue';

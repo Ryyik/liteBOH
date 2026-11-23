@@ -153,7 +153,7 @@ import {
   buildForumFeedParams,
 } from './forum-config.js';
 import { applyPoints, readPoints } from './forum-points.js';
-import { getBohAIModelStatus } from '@/utils/bohai-model-client.js';
+import { getBolekModelStatus } from '@/utils/bolek-model-client.js';
 
 import { useForumImageModerationPreload } from './composables/useForumImageModerationPreload.js';
 
@@ -186,11 +186,11 @@ const PostComposer = createPanelAsync(() => import('./components/PostComposer.vu
   silent: true,
 });
 
-/* 论坛「问 BOHAI」内联回答卡片（2026-11-22）：必须懒加载 ——
+/* 论坛「问博莱克」内联回答卡片（2026-11-22）：必须懒加载 ——
    它 import 了 boh-markdown（markdown-vendor + ui-sanitize），静态引入会把这两个
-   chunk 拽进 ForumMain 图（BohIsland.vue 头注释的前车之鉴）；首次「问 BOHAI」才下载。 */
+   chunk 拽进 ForumMain 图（BohIsland.vue 头注释的前车之鉴）；首次「问博莱克」才下载。 */
 const BohForumAnswerCard = createPanelAsync(() => import('./components/BohForumAnswerCard.vue'), {
-  label: 'forum-bohai-answer-card',
+  label: 'forum-bolek-answer-card',
 });
 
 /* ── 底栏切回「内容」：整页重挂不重播入场（2026-10-31）────────────────
@@ -696,7 +696,7 @@ const forumMentionUsers = computed(() => {
   return users;
 });
 
-// 本周签到 / 问BOHAI 状态
+// 本周签到 / 问博莱克状态
 const isWeeklyCheckinLoading = ref(false);
 const isWeeklyCheckinSubmitting = ref(false);
 /* 签到成功舞台（卡面 3D）。open 为 true 时组件才挂载 —— 挂载即起播，
@@ -712,7 +712,7 @@ const checkinReward = ref({
 const isAiSearchLoading = ref(false);
 const aiSearchHint = ref('');
 
-/* 「问 BOHAI」内联回答卡片（2026-11-22）：检索完成后把「原句 + 相关帖」交给
+/* 「问博莱克」内联回答卡片（2026-11-22）：检索完成后把「原句 + 相关帖」交给
    BohForumAnswerCard（懒加载）就地流式作答；不再弹悬浮岛。
    nonce 参与卡片 :key —— 再次提问 = 新卡片实例 = 新快速会话，旧卡片随 key 变化卸载
    （其引擎经 onScopeDispose 自行中止流）。 */
@@ -3383,7 +3383,7 @@ const handleToggleLike = async (post) => {
 
 // ===== 查询条件层（外搬，见 composables/useForumFeedQuery.js）=====
 // 就地挂载而不是挪到 setup 尾部：注入项（fetchForumData / focusForumSearch / isLoggedIn /
-// 标签归一）都在本行之上声明完毕；挪到尾部会让下方 askBohai 里的 stripTagTokens 变成
+// 标签归一）都在本行之上声明完毕；挪到尾部会让下方 askBolek 里的 stripTagTokens 变成
 // 「先用后声明」。状态 ref 仍归宿主（虚拟列表接线要先用到它们），这里只拿引用。
 const {
   setSortMode,
@@ -3512,27 +3512,27 @@ const submitQuoteRepost = async () => {
   await fetchForumData(false, { background: true });
 };
 
-// 问 BOHAI（2026-11-22 内联卡片版）：先在论坛库中检索相关内容，然后把「原句 + 相关帖」
+// 问博莱克（2026-11-22 内联卡片版）：先在论坛库中检索相关内容，然后把「原句 + 相关帖」
 // 交给结果区里的 BohForumAnswerCard 就地流式作答 —— 不再弹悬浮岛（旧 showIsland.ai
 // 链路整体退场；悬浮岛仍是下拉 / ⌘K 的对话入口，与本流程无关）。
 // 职责分界：本函数只负责「检索」（不消耗额度）+ 交付；发问 / 流式 / 交接全在卡片内
 // （BohForumAnswerCard：原句进引擎，检索证据走 attachedContext 的 evidenceBlock 进
 // system prompt，回答走用户 AI 额度、恒 balance 档 —— 档位契约在卡片 onMounted）。
-const askBohai = async () => {
+const askBolek = async () => {
   if (isAiSearchLoading.value) return;
   const question = stripTagTokens(searchQuery.value);
   if (!question) {
-    aiSearchHint.value = '先在搜索框输入你的问题，再问 BOHAI。';
+    aiSearchHint.value = '先在搜索框输入你的问题，再问博莱克。';
     return;
   }
-  if (!getBohAIModelStatus().hasConfig) {
-    aiSearchHint.value = 'BOHAI 模型暂未配置，暂时无法回答。';
+  if (!getBolekModelStatus().hasConfig) {
+    aiSearchHint.value = '博莱克模型暂未配置，暂时无法回答。';
     return;
   }
   cancelPendingSearch();
 
   isAiSearchLoading.value = true;
-  aiSearchHint.value = 'BOHAI 正在检索论坛相关内容...';
+  aiSearchHint.value = '博莱克正在检索论坛相关内容...';
 
   try {
     const tagFromInput = deriveTagFilterFromInput(searchQuery.value);
@@ -3552,8 +3552,8 @@ const askBohai = async () => {
       posts,
     };
   } catch (error) {
-    logger.warn('forum', '问 BOHAI 失败:', error);
-    aiSearchHint.value = 'BOHAI 检索论坛内容失败，请稍后再试。';
+    logger.warn('forum', '问博莱克失败:', error);
+    aiSearchHint.value = '博莱克检索论坛内容失败，请稍后再试。';
   } finally {
     isAiSearchLoading.value = false;
   }
@@ -3717,7 +3717,7 @@ const {
           :search-history="searchHistory"
           :show-search-history="showSearchHistory"
           @search-submit="handleSearch"
-          @ask-bohai="askBohai"
+          @ask-bolek="askBolek"
           @clear-tag-filter="clearTagFilter"
           @clear-search="clearSearchInput"
           @search-focus="onSearchFocus"
@@ -3858,20 +3858,20 @@ const {
                   </button>
                 </template>
 
-                <!-- 有关键词却没结果：给两条出路（问 BOHAI / 退回全部），
+                <!-- 有关键词却没结果：给两条出路（问博莱克 / 退回全部），
                      而不是只丢一句「换个条件试试」让用户自己想办法 -->
                 <template v-else-if="searchKeyword.trim()">
                   <p class="forum-empty-title">没有找到「{{ searchKeyword }}」相关内容</p>
-                  <p class="forum-empty-desc">试试更短的关键词，或让 BOHAI 在论坛里找一遍</p>
+                  <p class="forum-empty-desc">试试更短的关键词，或让博莱克在论坛里找一遍</p>
                   <div class="empty-state-actions">
                     <button
                       type="button"
                       class="empty-action-btn is-primary"
                       :disabled="isAiSearchLoading"
-                      @click="askBohai"
+                      @click="askBolek"
                     >
                       <Sparkles :size="14" :stroke-width="2" aria-hidden="true" />
-                      <span>问 BOHAI</span>
+                      <span>问博莱克</span>
                     </button>
                     <button type="button" class="empty-action-btn" @click="clearSearchInput">
                       清除搜索
@@ -3906,13 +3906,13 @@ const {
                 </template>
               </div>
 
-              <!-- 论坛「问 BOHAI」内联回答卡片（2026-11-22）：位置在空态之后、帖子之前 ——
+              <!-- 论坛「问博莱克」内联回答卡片（2026-11-22）：位置在空态之后、帖子之前 ——
                    有结果 = 帖子列表最前面一张卡；无结果 = 「没有找到」空态的下方。
                    nonce 进 :key：再次提问 = 新实例 = 新快速会话；换关键词由 watch 收卡。 -->
               <BohForumAnswerCard
                 v-if="inlineAsk"
                 :key="inlineAsk.nonce"
-                class="posts-list-bohai-answer"
+                class="posts-list-bolek-answer"
                 :question="inlineAsk.question"
                 :posts="inlineAsk.posts"
               />

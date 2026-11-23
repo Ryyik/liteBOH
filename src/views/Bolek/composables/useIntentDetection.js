@@ -1,0 +1,315 @@
+/**
+ * useIntentDetection — 意图检测纯函数
+ *
+ * 从 useChatEngine 中提取的所有意图判定逻辑，无副作用、无响应式依赖
+ * （shouldUseTreeholeContext 除外，需外部传入响应式状态）。
+ */
+
+import { isOperationQuestion } from '../utils/intent/rules.js';
+import { normalizeText, containsAnyKeyword, normalizePromptLine } from '../utils/text/normalize.js';
+import { hasEntityAlias } from '@/utils/boh-entity-resolver.js';
+import { normalizeActionDecisionText } from '@/utils/bolek-action-draft-intent.js';
+// normalizeActionDecisionText 仍被 isTreeholeCreateConfirm / isSharedMemorySaveConfirm 使用
+import {
+  MEMBER_STATS_TRIGGER_KEYWORDS,
+  SHARED_MEMORY_TRIGGER_KEYWORDS,
+  SHOP_PRODUCT_TRIGGER_KEYWORDS,
+  SITE_ACTIVITY_TRIGGER_KEYWORDS,
+  SITE_NEWS_TRIGGER_KEYWORDS,
+} from './chat-engine-config.js';
+
+// ─── 社群意图 ────────────────────────────────────────────────────────────────
+
+export const isCommunityQuestion = (text) => {
+  // 参数验证：确保text是有效的字符串
+  if (!text || typeof text !== 'string') {
+    return false;
+  }
+
+  // 2026-10-19：人物别名不再走硬编码名单 —— `hasEntityAlias` 覆盖「翼儿/胡俊杰/刘镇福」
+  // 这些知识库里真实存在、但旧 BOH_MEMBER_NAMES 漏掉的人，同时挡住「一二线城市」这类歧义。
+  if (hasEntityAlias(text)) return true;
+
+  // 高频通用词（boh/mc/lol/服务器/联机/活动/成员）已移除，避免普通问题被误判为社区问题
+  const communityKeywords = [
+    '方块之家',
+    '社区',
+    '论坛',
+    '帖子',
+    '公告',
+    '周年庆',
+    '内战',
+    'hypixel',
+    '我的世界',
+    'minecraft',
+    '英雄联盟',
+    '王者荣耀',
+  ];
+  const normalized = normalizeText(text);
+  return communityKeywords.some((keyword) => normalized.includes(keyword));
+};
+
+export const isCommunityCreativeRequest = (text) => {
+  // 参数验证：确保text是有效的字符串
+  if (!text || typeof text !== 'string') {
+    return false;
+  }
+
+  const normalized = normalizeText(text);
+  if (!normalized) return false;
+  return /(写|生成|创作|改写|润色|设计|起草|文案|口号|标题|祝福|海报|宣传语|故事|诗|歌词|设定|梗图)/.test(
+    normalized,
+  );
+};
+
+// ─── 记忆上下文路由 ──────────────────────────────────────────────────────────
+
+export const shouldUseMemoryContext = (text) => {
+  // 参数验证：确保text是有效的字符串
+  if (!text || typeof text !== 'string') {
+    return false;
+  }
+
+  // 人物实体优先于「操作题」判定：
+  // 「查看翼儿的资料」既是操作口吻、又明确问某个人，人物库必须读；站点手册可以同时读。
+  // 这条是 2026-10-19 修「问人物被路由成操作题后 memory=false」的核心。
+  if (hasEntityAlias(text)) return true;
+
+  if (isOperationQuestion(text)) return false;
+  return isCommunityQuestion(text);
+};
+
+export const shouldUseSharedMemoryContext = (text) => {
+  // 参数验证：确保text是有效的字符串
+  if (!text || typeof text !== 'string') {
+    return false;
+  }
+
+  const normalized = normalizeText(text);
+  if (!normalized) return false;
+  if (isOperationQuestion(normalized)) return false;
+
+  // 先做关键词判断：只有"可能涉及公共记忆事实"的问题才触发共享记忆检索。
+  if (containsAnyKeyword(normalized, SHARED_MEMORY_TRIGGER_KEYWORDS)) {
+    return true;
+  }
+
+  if (!isCommunityQuestion(normalized)) {
+    return false;
+  }
+
+  const memoryJudgementPattern = /(谁|什么|发生|提到|记得|之前|曾经|最近|历史|往事|来源|细节|介绍)/;
+  return memoryJudgementPattern.test(normalized);
+};
+
+// ─── 站内活动 / 抽奖 / 演出意图（2026-10-04）─────────────────────────────────
+
+/**
+ * shouldUseSiteActivities — 命中活动类关键词即读取站内活动 / 抽奖 / 演出。
+ * 数据是公开的（不要求登录）；站点操作类问题（「活动页面在哪里」）走 siteGuide，
+ * 不读活动数据 —— 与 resolveKnowledgeRoutingPlanCore 的 operation 分支口径一致。
+ * @param {string} text
+ */
+export const shouldUseSiteActivities = (text) => {
+  if (!text || typeof text !== 'string') return false;
+  const normalized = normalizeText(text);
+  if (!normalized) return false;
+  if (isOperationQuestion(normalized)) return false;
+  return containsAnyKeyword(normalized, SITE_ACTIVITY_TRIGGER_KEYWORDS);
+};
+
+// ─── 站内新闻 / 商城意图（2026-11-12）───────────────────────────────────────
+
+/**
+ * shouldUseSiteNews — 命中新闻类关键词即读取站内新闻 / 公告。
+ * 与活动同口径：公开数据（不要求登录），站点操作类问题（「新闻页在哪里」）走 siteGuide。
+ * @param {string} text
+ */
+export const shouldUseSiteNews = (text) => {
+  if (!text || typeof text !== 'string') return false;
+  const normalized = normalizeText(text);
+  if (!normalized) return false;
+  if (isOperationQuestion(normalized)) return false;
+  return containsAnyKeyword(normalized, SITE_NEWS_TRIGGER_KEYWORDS);
+};
+
+/**
+ * shouldUseShopProducts — 命中商品类关键词即读取商城在售目录。
+ *
+ * ⚠️ 只返回**上架**商品（`is_active = true`），且只给公开字段。线上 `products` 表有
+ * 一条 `products_select_all`（using true）的宽松策略 ⇒ 未上架商品对所有人可读，
+ * 所以「过滤」必须由本连接器自己保证，不能指望 RLS。
+ * @param {string} text
+ */
+export const shouldUseShopProducts = (text) => {
+  if (!text || typeof text !== 'string') return false;
+  const normalized = normalizeText(text);
+  if (!normalized) return false;
+  if (isOperationQuestion(normalized)) return false;
+  return containsAnyKeyword(normalized, SHOP_PRODUCT_TRIGGER_KEYWORDS);
+};
+
+/**
+ * shouldUseMembersStats — 命中「成员规模」类问法时读取聚合数字（只 count，不给明细）。
+ *
+ * ⚠️ 触发词刻意不含「多少人」这种泛词：「这个帖子里有多少人回复」该走论坛连接器，
+ * 被这里抢走会答成「全站 33 位成员」，是很明显的答非所问。
+ * @param {string} text
+ */
+export const shouldUseMembersStats = (text) => {
+  if (!text || typeof text !== 'string') return false;
+  const normalized = normalizeText(text);
+  if (!normalized) return false;
+  if (isOperationQuestion(normalized)) return false;
+  return containsAnyKeyword(normalized, MEMBER_STATS_TRIGGER_KEYWORDS);
+};
+
+// ─── 树洞意图 ────────────────────────────────────────────────────────────────
+export const isTreeholeReflectionQuestion = (text) => {
+  // 参数验证：确保text是有效的字符串
+  if (!text || typeof text !== 'string') {
+    return false;
+  }
+
+  const normalized = normalizeText(text);
+  if (!normalized) return false;
+  if (isOperationQuestion(normalized)) return false;
+
+  const explicitKeywords = [
+    'note',
+    '日记',
+    '笔记',
+    '记录',
+    '记忆',
+    '复盘',
+    '回顾',
+    '总结我',
+    '我的情况',
+    '我的状态',
+    '我的情绪',
+    '我的习惯',
+    '我最近',
+    '我一直',
+    '我总是',
+    '给我建议',
+    '我的计划',
+  ];
+  if (explicitKeywords.some((keyword) => normalized.includes(keyword))) {
+    return true;
+  }
+
+  const reflectivePattern =
+    /(我|我的|自己).*(最近|一直|总是|复盘|回顾|习惯|情绪|状态|变化|记录|记忆|总结|日记|笔记)/;
+  return reflectivePattern.test(normalized);
+};
+
+/**
+ * shouldUseTreeholeContext — 需要外部传入响应式状态
+ * @param {string} text
+ * @param {{ isTreeholeMemoryEnabled: boolean, isLoggedIn: boolean, userInfo: { id: string }|null }} state
+ */
+export const shouldUseTreeholeContext = (text, state) => {
+  // 参数验证：确保text和state是有效的
+  if (!text || typeof text !== 'string') {
+    return false;
+  }
+  if (!state || typeof state !== 'object') {
+    return false;
+  }
+
+  if (!state.isTreeholeMemoryEnabled) return false;
+  if (!state.isLoggedIn || !state.userInfo?.id) return false;
+  return isTreeholeReflectionQuestion(text);
+};
+
+// ─── 树洞创建确认/拒绝 ──────────────────────────────────────────────────────
+
+export const isTreeholeCreateConfirm = (text) => {
+  const normalized = normalizeActionDecisionText(text);
+  if (!normalized) return false;
+  const allowList = new Set([
+    '是',
+    '是的',
+    '好',
+    '好的',
+    '可以',
+    '行',
+    '确认',
+    '同意',
+    '需要',
+    '创建',
+    '创建树洞',
+    '帮我创建',
+    '帮我创建树洞',
+    'ok',
+    'yes',
+    'y',
+  ]);
+  return allowList.has(normalized);
+};
+
+export const isTreeholeCreateReject = (text) => {
+  const normalized = normalizeActionDecisionText(text);
+  if (!normalized) return false;
+  const denyList = new Set(['否', '不用', '不需要', '取消', '算了', '暂不', '不要', 'no', 'n']);
+  return denyList.has(normalized);
+};
+
+// ─── 共享记忆保存确认/拒绝 ──────────────────────────────────────────────────
+
+export const isSharedMemorySaveConfirm = (text) => {
+  const normalized = normalizeActionDecisionText(text);
+  if (!normalized) return false;
+  return new Set([
+    '是',
+    '是的',
+    '好',
+    '好的',
+    '可以',
+    '行',
+    '确认',
+    '确定',
+    '同意',
+    '写入',
+    '保存',
+    '记录',
+    '加入记忆库',
+    'ok',
+    'yes',
+    'y',
+  ]).has(normalized);
+};
+
+export const isSharedMemorySaveReject = (text) => {
+  const normalized = normalizeActionDecisionText(text);
+  if (!normalized) return false;
+  return new Set([
+    '否',
+    '不用',
+    '不需要',
+    '取消',
+    '算了',
+    '暂不',
+    '不要',
+    '不写入',
+    '不保存',
+    '不记录',
+    'no',
+    'n',
+  ]).has(normalized);
+};
+
+// 2026-10-04：保存目的地不再需要用户选择 —— Cloud+ 写入与「两处同存」已下线，
+// 只剩「写入 BOH AI 公共记忆库」一条路径，所以提示语与解析函数都收窄成单一形态。
+export const formatMemorySavePrompt = (content) => {
+  const safeContent = normalizePromptLine(content, 320);
+  return `要把这条内容写入 BOH AI 公共记忆库吗？\n\n${safeContent}\n\n回复"确认"写入，回复"取消"跳过。`;
+};
+
+// ─── 思考主题摘要 ────────────────────────────────────────────────────────────
+
+export const summarizeThinkingSubject = (text) => {
+  const normalized = normalizePromptLine(text, 28);
+  if (!normalized) return '这个问题';
+  return normalized.length >= 28 ? `${normalized.slice(0, 25)}...` : normalized;
+};

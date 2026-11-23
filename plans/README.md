@@ -80,7 +80,7 @@
 ## 关键约束（来自 project_memory）
 
 执行 plan 时必须遵守以下项目约束：
-- **不破坏 BOHAI 工作区**：`motion-system.css`（2026-10-08 已随 BOHAI 旧 styles 5 件退役）曾是项目最佳实践样板，plan 001 不应修改它，只让全局 animations.css 对齐。
+- **不破坏博莱克工作区**：`motion-system.css`（2026-10-08 已随博莱克旧 styles 5 件退役）曾是项目最佳实践样板，plan 001 不应修改它，只让全局 animations.css 对齐。
 - **不破坏 RLS 与 API Key 配置**：本批 plan 全部为 CSS 修改，不涉及数据库或 API，无影响。
 - **保留 useConfirmDialog 的统一 modal API**：[CommonAlertModal](../src/components/CommonAlertModal.vue) 已使用合理的 `cubic-bezier(0.16, 1, 0.3, 1)`，不在本批 plan 范围。
 - **Vue error handling 保留**：不动 [App.vue](../src/App.vue) 的 `app.config.errorHandler`，Plan 005 只在 template 中包裹 `<Transition>`。
@@ -97,7 +97,7 @@
 
 以下发现未在本批生成 plan，可在第一批执行完毕后评估是否补充：
 - **Finding 7** — 给主交互组件（Login/Forum/PostDetail/Profile/Home）补 `:active scale(0.97)` press feedback。影响多页面，建议分阶段。
-- **Finding 9** — 给主要列表（Forum posts/Shows grid/Shop grid/Profile）加 30-80ms stagger 入场。锦上添花，BOHAI 已示范 `--bohai-item-order` CSS 变量模式。
+- **Finding 9** — 给主要列表（Forum posts/Shows grid/Shop grid/Profile）加 30-80ms stagger 入场。锦上添花，博莱克已示范 `--bolek-item-order` CSS 变量模式。
 - **Missed 2** — 成功时刻加 delight（已有 `canvas-confetti` 依赖但使用率低）。
 
 ## Reconcile（重新校准）

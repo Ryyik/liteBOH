@@ -121,7 +121,7 @@ const sanitizedAgreementContent = computed(() => DOMPurify.sanitize(agreementMod
 | 商城 | `/shop` | ✅ | 0 | 13个商品卡片正常显示 |
 | 关于 | `/about` | ✅ | 0 | 正常 |
 | 登录 | `/login` | ✅ | 0 | 登录弹窗正常 |
-| BOHAI | `/ai-chat` | ✅ | 0 | AI聊天界面正常渲染 |
+| 博莱克 | `/ai-chat` | ✅ | 0 | AI聊天界面正常渲染 |
 | 社区 | `/user-space` | ✅ | 0 | 帖子列表+热门标签正常 |
 | 活动 | `/activities` | ✅ | 0 | 正常 |
 | 新闻 | `/newsroom` | ✅ | 0 | 正常 |
@@ -141,7 +141,7 @@ const sanitizedAgreementContent = computed(() => DOMPurify.sanitize(agreementMod
 | 1 | 注册/登录/登出状态持久化 | ✅ | auth store + Pinia persist + Supabase session管理完整 |
 | 2 | 论坛发帖/评论/点赞 | ✅ | API层有参数校验和权限检查 |
 | 3 | 论坛删除权限控制 | ⚠️ | 客户端有owner/admin检查，但RLS层缺少admin策略(见S-1) |
-| 4 | BOHAI AI对话历史保存 | ✅ | useConversationManager + localStorage持久化 |
+| 4 | 博莱克 AI对话历史保存 | ✅ | useConversationManager + localStorage持久化 |
 | 5 | 私信发送/接收 | ✅ | Realtime订阅+messages表RLS |
 | 6 | 实时通知触发 | ✅ | 数据库触发器(create_comment_notification/create_like_notification) |
 | 7 | 用户资料编辑同步 | ✅ | updateUserProfile后applyProfileToUserInfo即时更新 |
@@ -162,14 +162,14 @@ const sanitizedAgreementContent = computed(() => DOMPurify.sanitize(agreementMod
 
 | # | 检查项 | 状态 | 说明 |
 |---|--------|------|------|
-| 1 | Bundle分割 | ⚠️ | manualChunks配置完善，但view-bohai(421KB)和view-forum CSS(270KB)偏大 |
+| 1 | Bundle分割 | ⚠️ | manualChunks配置完善，但view-bolek(421KB)和view-forum CSS(270KB)偏大 |
 | 2 | 组件过度重渲染 | ❌ | chatSessions deep watch在流式输出期间高频触发 |
 | 3 | 定时器/监听器清理 | ❌ | useChatEngine中thinkingTimer(100ms interval)在onScopeDispose未清理 |
 | 4 | computed中Math.random() | ⚠️ | WordCloud.vue在computed中使用Math.random() |
 | 5 | N+1查询 | ⚠️ | 帖子列表查询已优化(批量RPC+join)，但PostDetail评论预览存在20+并发请求 |
 | 6 | 图片优化 | ✅ | 全量WebP + loading="lazy" + decoding="async" |
 | 7 | v-for key问题 | ⚠️ | DocChat消息列表等动态列表使用index作为key |
-| 8 | 虚拟滚动 | ❌ | BOHAI消息列表/论坛帖子列表未实现虚拟滚动 |
+| 8 | 虚拟滚动 | ❌ | 博莱克消息列表/论坛帖子列表未实现虚拟滚动 |
 | 9 | 构建产物 | ✅ | 构建成功14.46s，首屏关键JS ~gzip 180KB |
 | 10 | 请求并发控制 | ✅ | request-core有in-flight去重+LRU缓存(200条) |
 
@@ -187,7 +187,7 @@ CSS总量:       1.4 MB (gzip ~250KB)
 | Chunk | 原始 | Gzip | 说明 |
 |-------|------|------|------|
 | doc-processing-vendor | 756 KB | 201 KB | docx+mammoth，仅Lab使用 |
-| view-bohai | 421 KB | 140 KB | AI聊天主视图 |
+| view-bolek | 421 KB | 140 KB | AI聊天主视图 |
 | image-processing-vendor | 198 KB | 46 KB | html2canvas |
 | vue-vendor | 189 KB | 60 KB | Vue+VueRouter |
 | supabase-vendor | 172 KB | 43 KB | Supabase SDK |
@@ -196,8 +196,8 @@ CSS总量:       1.4 MB (gzip ~250KB)
 
 #### P-1: thinkingTimer 内存泄漏
 
-**文件**: `src/views/BOHAI/composables/useChatEngine.js` — `onScopeDispose`回调中缺少`stopThinkingTimer()`
-**影响**: 100ms的setInterval在用户离开BOHAI页面后持续运行，CPU持续占用
+**文件**: `src/views/Bolek/composables/useChatEngine.js` — `onScopeDispose`回调中缺少`stopThinkingTimer()`
+**影响**: 100ms的setInterval在用户离开博莱克页面后持续运行，CPU持续占用
 **修复**: 在onScopeDispose中添加`stopThinkingTimer()`
 
 ```javascript
@@ -214,7 +214,7 @@ onScopeDispose(() => {
 
 #### P-2: chatSessions deep watch 流式输出高频触发
 
-**文件**: `src/views/BOHAI/composables/useChatEngine.js:249-252`
+**文件**: `src/views/Bolek/composables/useChatEngine.js:249-252`
 
 ```javascript
 watch(chatSessions, () => {
@@ -277,7 +277,7 @@ watch(chatSessions, () => {
 
 #### C-4: useChatEngine.js 中约15个未使用函数
 
-**文件**: `src/views/BOHAI/composables/useChatEngine.js`
+**文件**: `src/views/Bolek/composables/useChatEngine.js`
 **问题**: `createActionRegistry`, `handlePendingActionDraftReply`, `generatePageHtmlFromUserIdea`, `extractHtmlBlock`, `callAIToGenerate`, `applyCloudReferenceConsent`, `handlePendingTreeholeCreationReply`, `handlePendingCloudReferenceConsentReply`, `handlePendingSharedMemoryCaptureReply`, `saveConfirmedAutoMemory`, `persistCloudReferenceConsent`, `shouldSuppressMemoryStatusEcho`, `sleep`, `runSimpleChatTurn`, `headers`等约15个函数声明但从未使用(死代码)
 **建议**: 优先删除未使用函数(减少~200行)，然后按文件内SECTION A-K注释逐步拆分为子composable
 
@@ -307,15 +307,15 @@ console.log('💡 [边缘呼吸灯] edgeIndicatorVisible:', edgeIndicatorVisible
 
 **修复**: 删除或替换为`logger.debug()`
 
-#### C-7: BOHAIMain.vue .catch(console.error)反模式
+#### C-7: BolekMain.vue .catch(console.error)反模式
 
-**文件**: `src/views/BOHAI/BOHAI/BOHAIMain.vue:958`
+**文件**: `src/views/Bolek/Bolek/BolekMain.vue:958`
 
 ```javascript
 nextTick(() => { sendMessage().catch(console.error); });
 ```
 
-**修复**: `.catch(err => logger.error('bohai', 'sendMessage failed', err))`
+**修复**: `.catch(err => logger.error('bolek', 'sendMessage failed', err))`
 
 #### C-8: useActivities.js / useNews.js 顶层ref单例 + console.error
 
@@ -333,7 +333,7 @@ nextTick(() => { sendMessage().catch(console.error); });
 |---|--------|------|------|
 | 1 | 首页视觉设计 | ✅ | 粉色渐变小猫主题风格统一、可爱、品牌感强 |
 | 2 | 响应式布局 | ⚠️ | 整体适配良好，但部分长表格(DataAdmin)移动端需优化 |
-| 3 | 深色模式 | ✅ | bohai-dark/forum-dark/user-center-dark等主题CSS文件齐全(共9个) |
+| 3 | 深色模式 | ✅ | bolek-dark/forum-dark/user-center-dark等主题CSS文件齐全(共9个) |
 | 4 | 按钮/卡片/弹窗一致性 | ✅ | 使用统一设计语言(圆角、毛玻璃效果、粉色主色调) |
 | 5 | 键盘导航/焦点样式 | ⚠️ | 缺少明显的focus-visible样式 |
 | 6 | ARIA标签/可访问性 | ⚠️ | 部分交互元素缺少aria-label |
@@ -345,7 +345,7 @@ nextTick(() => { sendMessage().catch(console.error); });
 ### 设计亮点
 
 - 🎨 **品牌辨识度强**: 粉色系+小猫Mascot的校园社区风格非常统一，首页Hero区小猫动画可爱
-- 🌙 **深色模式完善**: 9个主题CSS文件(bohai-dark/forum-dark/user-center-dark/messages-dark/navbar-dark/post-detail-dark/user-space-dark/boh-note-dark/dark-mode)覆盖主要页面
+- 🌙 **深色模式完善**: 9个主题CSS文件(bolek-dark/forum-dark/user-center-dark/messages-dark/navbar-dark/post-detail-dark/user-space-dark/boh-note-dark/dark-mode)覆盖主要页面
 - ✨ **动效细腻**: AOS动画+VueUse Motion+毛玻璃效果(glass-ui.css)+canvas-confetti庆祝效果
 - 🦴 **骨架屏覆盖**: UserSpace、AiChat等有专门的Skeleton组件，UserSpaceSkeleton/AiChatSkeleton
 - 🐱 **主题猫装饰**: theme-cats目录下10只主题猫插画增强品牌感
@@ -504,7 +504,7 @@ app.config.errorHandler = (err, instance, info) => {
 |---|------|------|----------|----------|------|
 | 8 | products store resetState遗漏 | 代码 | stores/products.ts:137 | 添加localStorage.removeItem(CACHE_KEY) | ✅ 已修复 |
 | 9 | App.vue调试console.log | 代码 | App.vue:145-146 | 删除或改为logger.debug() | ✅ 已修复 |
-| 10 | BOHAIMain .catch(console.error) | 代码 | BOHAIMain.vue:958 | 改为logger.error | ⏳ 待修复 |
+| 10 | BolekMain .catch(console.error) | 代码 | BolekMain.vue:958 | 改为logger.error | ⏳ 待修复 |
 | 11 | NotificationDrawer v-model不标准 | 前端 | NotificationDrawer.vue:30,204,213 | handleClose中emit('update:open', false) | ✅ 已修复 |
 | 12 | 全局errorHandler缺失 | 前端 | main.js:152 | 添加app.config.errorHandler | ✅ 已修复 |
 | 13 | PostDetail评论预览N+1 | 性能 | PostDetailMain.vue | 改为批量RPC或懒加载 | ⏳ 待修复 |
@@ -520,15 +520,15 @@ app.config.errorHandler = (err, instance, info) => {
 | 18 | DataAdmin(4908行)拆分 | 代码 | DataManagement/ | 抽离useDataTable+useModeration composables |
 | 19 | ForumMain(3330行)拆分 | 代码 | Forum/ | 抽离帖子流加载+AI搜索composables |
 | 20 | UserSpaceMain(2717行)拆分 | 代码 | user-center/UserSpace/ | 按Tab拆分为lazy-loaded组件 |
-| 21 | useChatEngine SECTION A-K拆分 | 代码 | BOHAI/composables/ | 逐步拆分为子composable |
-| 22 | 虚拟滚动 | 性能 | BOHAIMain.vue, ForumMain.vue | 为消息/帖子列表引入虚拟滚动 |
-| 23 | highlight.js按需导入 | 性能 | BOHAIMain.vue, AIPlaza/ | 只导入常用语言包，减小markdown-vendor 30-50% |
+| 21 | useChatEngine SECTION A-K拆分 | 代码 | Bolek/composables/ | 逐步拆分为子composable |
+| 22 | 虚拟滚动 | 性能 | BolekMain.vue, ForumMain.vue | 为消息/帖子列表引入虚拟滚动 |
+| 23 | highlight.js按需导入 | 性能 | BolekMain.vue, AIPlaza/ | 只导入常用语言包，减小markdown-vendor 30-50% |
 | 24 | WordCloud seeded random | 性能 | WordCloud.vue | 使用mulberry32替代Math.random() |
 | 25 | Footer空壳补充 | 设计 | Footer.vue | 添加实际页脚内容 |
 | 26 | 焦点样式和ARIA标签 | 设计/无障碍 | 全局 | 添加focus-visible样式和aria-label |
 | 27 | 评论索引优化 | 数据库 | comments表 | 添加idx_comments_post_id_created_at |
 | 28 | JS/TS渐进迁移 | 代码 | src/utils/api/ | 先迁移API层到TS |
-| 29 | BOHAIMain visibility轮询优化 | 性能 | BOHAIMain.vue | 300ms改为1000ms |
+| 29 | BolekMain visibility轮询优化 | 性能 | BolekMain.vue | 300ms改为1000ms |
 | 30 | PostDetail cooldownTimer优化 | 性能 | PostDetailMain.vue | 250ms改为1000ms |
 
 ### 🔵 P3 — 长期规划（持续优化）
@@ -565,7 +565,7 @@ app.config.errorHandler = (err, instance, info) => {
 7. **PWA配置合理**: Service Worker分层缓存策略——Supabase API(NetworkFirst)、Cloudinary图片(StaleWhileRevalidate)、Google Fonts(CacheFirst)
 8. **Realtime清理完善**: Messages/index.vue在onUnmounted正确调用`supabase.removeChannel()`，UnifiedNavbar 60秒轮询作为兜底
 9. **TypeScript核心层严格**: stores/auth.ts、router等TS代码在strict模式下零错误；auth store有完整的输入验证和normalize
-10. **深色模式主题齐全**: 9个主题CSS文件覆盖BOHAI/论坛/用户空间/消息/导航/帖子详情/笔记/全局暗色
+10. **深色模式主题齐全**: 9个主题CSS文件覆盖Bolek/论坛/用户空间/消息/导航/帖子详情/笔记/全局暗色
 11. **Vite预加载错误恢复**: 生产环境配置了`vite:preloadError`监听，chunk加载失败时自动reload(30秒冷却防止循环刷新)
 12. **游标分页**: post-api.js实现keyset cursor分页，比offset分页性能更好
 13. **防抖/限流**: useRateLimiter(60秒10条)、session保存防抖(500ms)、搜索防抖、图片上传守护
@@ -581,7 +581,7 @@ app.config.errorHandler = (err, instance, info) => {
 - **安全评分**: 72→**85** (补全RLS后核心安全漏洞消除，DOMPurify覆盖率提升至100%)
 - **性能评分**: 75→**80** (修复内存泄漏后流畅度提升)
 - **综合评分**: 78→**82+** ⬆️
-- **内存**: ✅ 离开BOHAI页面后CPU使用率立即下降(停止100ms interval)
+- **内存**: ✅ 离开博莱克页面后CPU使用率立即下降(停止100ms interval)
 - **安全合规**: ✅ addresses/moderation_logs/likes/user_impressions数据不再裸露
 - **XSS防护**: ✅ Login/Join协议弹窗DOMPurify覆盖率达到100% (12/12处)
 
@@ -602,6 +602,6 @@ supabase db push
 ### 待修复的P1/P2项
 
 - [ ] P1-6: deep watch流式输出高频触发
-- [ ] P1-10: BOHAIMain .catch(console.error)反模式
+- [ ] P1-10: BolekMain .catch(console.error)反模式
 - [ ] P1-13: PostDetail评论预览N+1请求
 - [ ] P2: 巨型文件拆分（DataAdmin/ForumMain/UserSpaceMain）

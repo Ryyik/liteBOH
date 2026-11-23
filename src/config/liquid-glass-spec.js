@@ -8,7 +8,7 @@
  *     ⇒ 白底上玻璃 = 白上白，用户截图菜单完全隐形；
  *   · 事故 2（§21.8）：另一个会话给用量浮层上玻璃时**照抄了撤投影的写法**。
  * 规矩：**所有观感参数只允许从本文件引用**；要调样貌 = 改这里 + 跑
- *   `tests/unit/bohai-glass-look-spec.test.js`（锁官方样貌三要素 + 两个事故反证）。
+ *   `tests/unit/bolek-glass-look-spec.test.js`（锁官方样貌三要素 + 两个事故反证）。
  *
  * ── 官方样貌三要素（对齐 @wxperia/liquid-glass-vue 官方 demo / rdev/liquid-glass-react）──
  *   A. **轻膜**：白膜只承担「彩色/照片内容上的文字可读性兜底」（≤0.45），
@@ -19,7 +19,7 @@
  *   C. **位移常开**：displacementScale 是折射的本体，模糊只是配角。
  *
  * ⚠️ 硬约束提醒（详见 docs/未完成任务清单.md §21.7）：玻璃祖先链上不得有堆叠上下文；
- *    elasticity 在 BOHAI 恒 0（跟随鼠标漂移会让输入框/浮层误点）。
+ *    elasticity 在博莱克恒 0（跟随鼠标漂移会让输入框/浮层误点）。
  */
 
 export const LIQUID_GLASS_SPEC = Object.freeze({
@@ -30,7 +30,7 @@ export const LIQUID_GLASS_SPEC = Object.freeze({
   saturation: 140,
   aberrationIntensity: 2,
   /**
-   * BOHAI 纪律：弹性恒 0。⚠️ 与官方 demo（0.15）**刻意不同**——demo 是展示件，
+   * 博莱克纪律：弹性恒 0。⚠️ 与官方 demo（0.15）**刻意不同**——demo 是展示件，
    * 跟随鼠标漂移在产品里会让输入框/浮层误点。这是唯一一处与官方 demo 的有意分歧。
    */
   elasticity: 0,

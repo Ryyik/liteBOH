@@ -25,7 +25,7 @@ import { FORUM_POST_TITLE_MAX_LENGTH } from '../forum-config.js';
  * 送去整理的正文上限（字符）。
  *
  * ⚠️ 这个数字被**服务端的输出上限**反推出来，不是拍脑袋：
- *   调用链是 `callBohAIModel` → EF `runtime-chat`，而 EF 的
+ *   调用链是 `callBolekModel` → EF `runtime-chat`，而 EF 的
  *   `buildRuntimePayload()`（`supabase/functions/api-key-vault/index.ts:2129`）
  *   会用**服务端 policy** 覆盖客户端传的 `max_tokens / temperature / top_p`
  *   ⇒ 客户端写的采样参数**一律不生效**，能产出多少 token 完全由 `mode` 那一行
@@ -120,7 +120,7 @@ export const buildPolishMessages = ({ title = '', content = '' } = {}) => {
  * 把模型回复解析成 `{ title, content }`。
  *
  * 三级兜底（顺序即可靠性）：
- *   1. `extractBohAIJsonObject` —— 复用 BOHAI 那份真源，它已经处理了
+ *   1. `extractBolekJsonObject` —— 复用博莱克那份真源，它已经处理了
  *      「推理标签包裹」「```json 围栏」「前后有解释文字」三种常见污染；
  *   2. 裸文本 + 分栏标签（模型没听话、返回了「标题：…\n正文：…」）；
  *   3. 整段当正文、标题留空（至少不丢内容）。

@@ -14,6 +14,7 @@ import {
   Palette,
   DoorOpen,
   Pencil,
+  TreePine,
 } from 'lucide-vue-next';
 
 export const tabs = [
@@ -42,7 +43,7 @@ export const tabs = [
   { id: 'activities', label: '活动管理', icon: '🎉', module: 'operations' },
   { id: 'postReward', label: '发帖有奖', icon: '🎁', module: 'operations' },
   { id: 'coreMemories', label: '官方事实', icon: '📚', module: 'operations' },
-  // BOHAI 对话「自动记忆沉淀」的表（boh_ai_shared_memories，用户维度）此前只有
+  // 博莱克对话「自动记忆沉淀」的表（boh_ai_shared_memories，用户维度）此前只有
   // 用户空间 /user-space/shared-memories 能看自己的，管理员在面板里完全不可见（2026-10-18）。
   { id: 'aiMemories', label: 'AI 沉淀记忆', icon: '🧠', module: 'ai-config' },
   // 凌晨 pg_cron 从公开帖抽的事实卡（boh_ai_forum_memories，boh-ai-forum-memory 产出）
@@ -90,7 +91,7 @@ export const tabs = [
     module: 'ai-config',
     type: 'page',
   },
-  { id: 'bohaiModels', label: 'BOHAI 模型', icon: '🤖', module: 'ai-config', type: 'table' },
+  { id: 'bolekModels', label: '博莱克模型', icon: '🤖', module: 'ai-config', type: 'table' },
   { id: 'ai-quota', label: 'AI 额度', icon: '📊', module: 'ai-config', type: 'page' },
   { id: 'moderation-model', label: '审核模型', icon: '🛡️', module: 'ai-config', type: 'page' },
   { id: 'lab-ai-model', label: '实验室模型', icon: '🧪', module: 'ai-config', type: 'page' },
@@ -240,6 +241,16 @@ export const tabModules = [
     description: '活动期开屏的文案、按钮落点与生效时间，保存即生效，不用发版',
   },
   {
+    // 圣诞交换礼物（2026-11-23）：活动参数、名单与配对都在这里，不碰代码。
+    // 与「开屏管理」相邻的理由：两者都是「限时活动、过期归档」的运营位。
+    id: 'xmas-console',
+    label: '圣诞活动',
+    icon: TreePine,
+    section: 'data',
+    type: 'page',
+    description: '报名时间、容量、首页曝光与配对结果，保存即生效',
+  },
+  {
     id: 'avatar-console',
     label: '头像框',
     icon: Palette,
@@ -286,7 +297,7 @@ export const tabModules = [
     // forumMemories：凌晨 pg_cron 产出的论坛事实卡，同为 AI 数据面
     tabIds: [
       'keys-models',
-      'bohaiModels',
+      'bolekModels',
       'aiMemories',
       'forumMemories',
       'ai-quota',
@@ -380,7 +391,7 @@ export const TABS_ACTIONS = {
   'keys-models': ['view', 'create', 'edit', 'delete'],
   'api-keys': ['view', 'create', 'edit', 'delete'],
   freemodels: ['view', 'create', 'edit', 'delete'],
-  bohaiModels: ['view', 'create', 'edit', 'delete'],
+  bolekModels: ['view', 'create', 'edit', 'delete'],
   // AI 沉淀记忆：管理员只能查看与归档/恢复（status），不能替用户改内容、不开放删除
   aiMemories: ['view', 'edit'],
   // 论坛事实卡：同口径 —— 查看与归档/恢复；补扫按钮由 canEdit 控制
@@ -465,6 +476,12 @@ export const ADMIN_PAGE_META = {
     description: '配置活动期开屏的文案、按钮落点与生效时间窗，保存即生效，不用发版。',
     icon: DoorOpen,
   },
+  'xmas-console': {
+    eyebrow: 'Xmas Exchange',
+    title: '圣诞活动',
+    description: '配置报名与揭晓时间、人数上限、首页曝光，并查看名单与配对结果。',
+    icon: TreePine,
+  },
   'avatar-console': {
     eyebrow: 'Avatar Console',
     title: '头像框',
@@ -486,7 +503,7 @@ export const ADMIN_PAGE_META = {
   'ai-config': {
     eyebrow: 'AI Config',
     title: 'AI 配置',
-    description: '以免费模型库为基础，统一管理 API Key、BOHAI 模型、审核模型与实验室模型。',
+    description: '以免费模型库为基础，统一管理 API Key、博莱克模型、审核模型与实验室模型。',
     icon: Sparkles,
   },
   system: {

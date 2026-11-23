@@ -6,7 +6,7 @@ import { squeezeSource } from '../helpers/source.js';
 // ─────────────────────────────────────────────────────────────────────────────
 // 岛的「Siri 式」形态（2026-11-05 第五次用户口径）源码守卫
 //
-// 口径原话：「仍然需要岛的形态，只不过唤起 BOHAI 整个岛自动变成深色」，
+// 口径原话：「仍然需要岛的形态，只不过唤起博莱克整个岛自动变成深色」，
 // 参考图是 iOS 的两张：①加载态 =「Searching events 2/5」深黑胶囊 + 白色点环；
 // ②回复态 = 灵动岛胶囊（内容 + 结果胶囊）。**明确不再做彩虹流光。**
 //
@@ -69,7 +69,7 @@ describe('岛恒为深色：纸白墨色 + 彩虹那一套彻底退场', () => {
   });
 });
 
-describe('唤起 BOHAI：整块 surface 切深色', () => {
+describe('唤起博莱克：整块 surface 切深色', () => {
   const nav = read(NAV_VUE);
   const css = read(NAV_CSS);
 
@@ -164,7 +164,7 @@ describe('加载态：8 点环 + 状态 + 步骤（参考图 1）', () => {
     // 字面量搬去了 BOH_ACTIVITY_LOAD_TITLES（论坛内联卡片共用一份），岛里 import 进来；
     // 这里锁两头：岛在消费，真源在 boh-activity.js 且字面量没被改。
     expect(answer).toContain('BOH_ACTIVITY_LOAD_TITLES[activityStage.value]');
-    const activity = read('src/views/BOHAI/BOHAI/components/boh-activity.js');
+    const activity = read('src/views/Bolek/Bolek/components/boh-activity.js');
     expect(activity).toContain("'web-searching': '正在搜索网页…'");
     expect(activity).toContain("thinking: '正在思考…'");
   });
@@ -305,11 +305,11 @@ describe('回答面：全文直出 + 封顶 + 内滚（不给滚动条）', () =
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('侧栏「在搜索里问过」：折叠 + 一键清理', () => {
-  const sidebar = read('src/views/BOHAI/BOHAI/components/BohSidebar.vue');
-  const sidebarCss = read('src/views/BOHAI/BOHAI/components/styles/boh-sidebar.css');
-  const shell = read('src/views/BOHAI/composables/useBohShell.js');
-  const manager = read('src/views/BOHAI/composables/useConversationManager.js');
-  const main = read('src/views/BOHAI/BOHAI/BOHAIMain.vue');
+  const sidebar = read('src/views/Bolek/Bolek/components/BohSidebar.vue');
+  const sidebarCss = read('src/views/Bolek/Bolek/components/styles/boh-sidebar.css');
+  const shell = read('src/views/Bolek/composables/useBohShell.js');
+  const manager = read('src/views/Bolek/composables/useConversationManager.js');
+  const main = read('src/views/Bolek/Bolek/BolekMain.vue');
 
   it('分组头是按钮，带 aria-expanded', () => {
     expect(sidebar).toMatch(

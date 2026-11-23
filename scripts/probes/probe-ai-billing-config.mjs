@@ -4,7 +4,7 @@
  *
  * 职责：一次拉全「AI 消耗积分」改造相关的线上真值，供调参前决策与上线后对账：
  *   1. 配置真值 —— ai_quota_config（含 points_multiplier）、ai_pricing_config、
- *      bohai_model_configs（倍率/门槛/输出上限）、subscription_plan_prices
+ *      bolek_model_configs（倍率/门槛/输出上限）、subscription_plan_prices
  *   2. 部署版 vault 是否带积分路径 —— 函数体 grep 关键 RPC 名
  *   3. 用量与对账 —— 近 14 日按 tier 的人均 billed_tokens 分布；
  *      points_transactions(reason='ai_usage') 与 ai_quota_log 的当日对账
@@ -110,16 +110,16 @@ checks.push({
   detail: { free: freeRow || null, pricingEnabled: pricing?.enabled ?? null },
 });
 
-// ---------- 3) bohai_model_configs ----------
-const modelCols = await tableColumns('bohai_model_configs');
+// ---------- 3) bolek_model_configs ----------
+const modelCols = await tableColumns('bolek_model_configs');
 const modelSelect = ['mode_id', 'display_name', 'model_id', 'status'];
 if (hasCols(modelCols, 'quota_multiplier')) modelSelect.push('quota_multiplier');
 if (hasCols(modelCols, 'min_tier')) modelSelect.push('min_tier');
 if (hasCols(modelCols, 'max_tokens')) modelSelect.push('max_tokens');
-report.bohaiModelConfigs = await sql(
-  `select ${modelSelect.join(', ')} from public.bohai_model_configs order by sort_order nulls last, mode_id`,
+report.bolekModelConfigs = await sql(
+  `select ${modelSelect.join(', ')} from public.bolek_model_configs order by sort_order nulls last, mode_id`,
 );
-const freeModes = report.bohaiModelConfigs.filter((r) => Number(r.quota_multiplier) === 0);
+const freeModes = report.bolekModelConfigs.filter((r) => Number(r.quota_multiplier) === 0);
 if (freeModes.length > 0) {
   checks.push({
     name: `免费模型（quota_multiplier=0）共 ${freeModes.length} 个`,

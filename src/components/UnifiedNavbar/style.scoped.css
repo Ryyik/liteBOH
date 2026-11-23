@@ -22,7 +22,7 @@
   right: 0 !important;
   width: 100% !important;
   max-width: none !important;
-  /* BOHAI 灵动岛需要 surface 向下延伸（~520px 高度），外层高度必须让位。
+  /* 博莱克灵动岛需要 surface 向下延伸（~520px 高度），外层高度必须让位。
      原来锁死 78px 会把岛裁掉。这里改为 min-height 兜底 + 不锁定上限。 */
   height: auto !important;
   min-height: 78px;
@@ -219,7 +219,7 @@
   --nav-open-height: calc(var(--global-nav-rest-height) + var(--nav-mobile-h, 0px));
 }
 
-/* BOHAI 岛（BohIsland）：与任务岛/通知岛/自定义岛同一套写法 ——
+/* 博莱克岛（BohIsland）：与任务岛/通知岛/自定义岛同一套写法 ——
    **surface 自己向下长高**，岛的内容坐在长出来的这块玻璃里（不是导航下方再浮一张卡）。
    高度由 BohIsland 用 ResizeObserver 实测卡片高度后写入 --global-nav-island-height。
    ⚠️ max-width 必须 !important：竖屏 mini 规则 `#unified-nav-container .unified-nav-surface
@@ -247,9 +247,9 @@
   -webkit-backdrop-filter: var(--liquid-filter-scrim);
 }
 
-/* ── 唤起 BOHAI：整块 surface 变深色胶囊（2026-11-05 用户口径） ─────────────────
+/* ── 唤起博莱克：整块 surface 变深色胶囊（2026-11-05 用户口径） ─────────────────
    岛仍是从导航长出来的**同一块**（docked 架构没变），只是这块玻璃由白转黑：
-   上灰 → 中黑 → 纯黑的三段渐变 + 1px 亮边 + 顶部内高光，与 BOHAI 全页的黑胶囊同观感。
+   上灰 → 中黑 → 纯黑的三段渐变 + 1px 亮边 + 顶部内高光，与博莱克全页的黑胶囊同观感。
    导航行的文字/图标会跟着白 —— 那是 UnifiedNavbar 把容器 `data-theme` 切成 dark 的结果
    （复用 `src/styles/themes/navbar-dark.css` 那一整套现成规则，这里不重复写颜色）。
 
@@ -632,7 +632,7 @@
    暗色下岛**真正的**底色/描边来自 `src/styles/themes/navbar-dark.css` 的
    `…unified-nav-surface:not(.has-login-card) { background: rgba(20,27,37,.9) !important;
    border-color: rgba(220,235,255,.16) !important }` —— `!important` 压过本文件一切非 important 声明。
-   那是一条**藏青 palette**（与 BOHAI 暗色同族），与 `--liquid-*` 的中性暗色不是一套，
+   那是一条**藏青 palette**（与博莱克暗色同族），与 `--liquid-*` 的中性暗色不是一套，
    所以这里**没有**也不该硬换成令牌：换了就是全站暗色观感决策，不是收敛。
    ⇒ 本块的角色只剩**兜底**：暗色 CSS 懒加载失败 / 被测试手动塞 data-theme 时，
       让岛不至于变成透明（那就又是一次「白底上玻璃隐形」）。 */
@@ -1581,7 +1581,7 @@
   transform: scale(0.95);
 }
 
-/* BOHAI 灵动岛（BohAIIsland 宿主形态）已随 plans/038 P3 入口收敛退场：
+/* 博莱克灵动岛（BolekIsland 宿主形态）已随 plans/038 P3 入口收敛退场：
    AI 岛迁移为 App 级 BohIsland（Teleport 到 body），不再撑高 surface —— 相关补丁一并删除。 */
 
 /* ============================================

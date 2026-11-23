@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import {
-  consumePendingBohAISessionOpen,
-  requestBohAISessionOpen,
+  consumePendingBolekSessionOpen,
+  requestBolekSessionOpen,
 } from '../../src/utils/boh-ai-session-handoff.js';
 import { squeezeSource } from '../helpers/source.js';
 
@@ -13,29 +13,29 @@ import { squeezeSource } from '../helpers/source.js';
 
 describe('boh-ai-session-handoff：交接通道', () => {
   it('request → consume 原样取回 timestamp（读后即清）', () => {
-    expect(requestBohAISessionOpen(1730000000000)).toBe(true);
-    expect(consumePendingBohAISessionOpen()).toBe(1730000000000);
+    expect(requestBolekSessionOpen(1730000000000)).toBe(true);
+    expect(consumePendingBolekSessionOpen()).toBe(1730000000000);
     // 再 consume 一次必须是 0 —— 不清掉会让下一次进全页误开旧会话
-    expect(consumePendingBohAISessionOpen()).toBe(0);
+    expect(consumePendingBolekSessionOpen()).toBe(0);
   });
 
   it('没有待交接时 consume 恒为 0', () => {
-    expect(consumePendingBohAISessionOpen()).toBe(0);
+    expect(consumePendingBolekSessionOpen()).toBe(0);
   });
 
   it('非法 timestamp（0 / 负数 / 非数值）拒绝受理', () => {
-    expect(requestBohAISessionOpen(0)).toBe(false);
-    expect(requestBohAISessionOpen(-1)).toBe(false);
-    expect(requestBohAISessionOpen('abc')).toBe(false);
-    expect(requestBohAISessionOpen(null)).toBe(false);
-    expect(consumePendingBohAISessionOpen()).toBe(0);
+    expect(requestBolekSessionOpen(0)).toBe(false);
+    expect(requestBolekSessionOpen(-1)).toBe(false);
+    expect(requestBolekSessionOpen('abc')).toBe(false);
+    expect(requestBolekSessionOpen(null)).toBe(false);
+    expect(consumePendingBolekSessionOpen()).toBe(0);
   });
 
   it('后一次 request 覆盖前一次（只保留最新意图）', () => {
-    expect(requestBohAISessionOpen(111)).toBe(true);
-    expect(requestBohAISessionOpen(222)).toBe(true);
-    expect(consumePendingBohAISessionOpen()).toBe(222);
-    expect(consumePendingBohAISessionOpen()).toBe(0);
+    expect(requestBolekSessionOpen(111)).toBe(true);
+    expect(requestBolekSessionOpen(222)).toBe(true);
+    expect(consumePendingBolekSessionOpen()).toBe(222);
+    expect(consumePendingBolekSessionOpen()).toBe(0);
   });
 });
 
@@ -45,7 +45,7 @@ describe('消费侧纪律（useBohShell.consumeSessionHandoff）', () => {
   const shellSrc = () =>
     squeezeSource(
       readFileSync(
-        resolve(import.meta.dirname, '../../src/views/BOHAI/composables/useBohShell.js'),
+        resolve(import.meta.dirname, '../../src/views/Bolek/composables/useBohShell.js'),
         'utf8',
       ),
     );

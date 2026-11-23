@@ -40,7 +40,7 @@
  *    单测不该为了验证时序真等 600ms，那会让整条链慢到没人愿意跑。
  *
  * ── 调用协议（这里有一条容易踩的暗坑）──────────────────────────────
- * `callBohAIModel` 最终打到 EF `runtime-chat`，而 EF 的
+ * `callBolekModel` 最终打到 EF `runtime-chat`，而 EF 的
  * `buildRuntimePayload()`（`api-key-vault/index.ts:2129-2143`）会用**服务端
  * policy 覆盖** `model / max_tokens / temperature / top_p`。
  * ⇒ 客户端传的采样参数**全部无效**，实际产出上限只由 `mode` 选中的那行配置决定。
@@ -49,20 +49,20 @@
  * 选 `fast` 不选 `pro` 的理由：
  *   ① 整理是高频小任务（用户可能改两笔就再点一次），`fast` 倍率 0 不扣额度；
  *   ② 输出长度与输入基本等长，`fast` 的 1200 token 上限对 ≤900 字的正文够用；
- *   ③ `callBohAIModel` 本身不接受 mode 参数 —— 想换档必须绕到 `callVaultSiliconChat`
+ *   ③ `callBolekModel` 本身不接受 mode 参数 —— 想换档必须绕到 `callVaultSiliconChat`
  *      直连。不值得为这个任务多写一条调用链。
  *
- * ── 为什么不用 BOHAI 的壳（useBohShell）────────────────────────────
+ * ── 为什么不用博莱克的壳（useBohShell）────────────────────────────
  * 壳是为「整页对话」设计的：它带会话、消息流、检索连接器、额度环、斜杠命令。
  * 发帖整理只要一次无状态调用。拉整个壳进来会让编辑器拖上一个
- * BOHAIModel 级别的依赖，而发帖是首屏就会用到的路径。所以这里直接调模型客户端。
+ * BolekModel 级别的依赖，而发帖是首屏就会用到的路径。所以这里直接调模型客户端。
  */
 import { computed, onScopeDispose, ref, shallowRef } from 'vue';
 import {
-  callBohAIModel,
-  extractBohAIJsonObject,
-  getBohAIModelStatus,
-} from '@/utils/bohai-model-client.js';
+  callBolekModel,
+  extractBolekJsonObject,
+  getBolekModelStatus,
+} from '@/utils/bolek-model-client.js';
 import {
   buildPolishMessages,
   hasPolishableText,
@@ -165,7 +165,7 @@ export function useForumPostPolish({
     });
   };
 
-  const hasConfig = computed(() => Boolean(getBohAIModelStatus().hasConfig));
+  const hasConfig = computed(() => Boolean(getBolekModelStatus().hasConfig));
   const isRunning = computed(() => status.value === POLISH_STATUS.running);
   /** 正在落点前的等待段（文字仍是原文、textarea 仍只读）—— 与 `isRunning` 分开。 */
   const isSettling = computed(() => status.value === POLISH_STATUS.settling);
@@ -238,12 +238,12 @@ export function useForumPostPolish({
     settled.value = false;
 
     try {
-      const { content: raw } = await callBohAIModel({
+      const { content: raw } = await callBolekModel({
         messages: buildPolishMessages(draft),
         signal: controller?.signal,
       });
 
-      const parsed = parsePolishResult(raw, { extractJson: extractBohAIJsonObject });
+      const parsed = parsePolishResult(raw, { extractJson: extractBolekJsonObject });
       if (!parsed.content) {
         status.value = POLISH_STATUS.error;
         errorMessage.value = '没能整理出内容，换个写法再试一次。';

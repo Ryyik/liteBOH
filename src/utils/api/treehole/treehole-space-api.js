@@ -32,7 +32,7 @@ import {
   TREEHOLE_SPACE_COLUMNS,
   TREEHOLE_CANDIDATE_COLUMNS,
 } from '../treehole-helpers.js';
-import { BOH_MEMORY_MODE_ID, SILICON_CLOUD_CHAT_URL } from '../../bohai-constants.js';
+import { BOH_MEMORY_MODE_ID, SILICON_CLOUD_CHAT_URL } from '../../bolek-constants.js';
 import {
   invalidateTreeholeCache,
   getMyTreeholeMemoriesForAI,
@@ -45,7 +45,7 @@ import {
   updateSharedAIMemoryStatus,
 } from './memory-api.js';
 /* 同主题改口判定（plans/044 阶段 0 B）：真源在 utils 层，utils/api 不再反向 import
-   views/BOHAI（那会是下层引上层的架构债）。 */
+   views/Bolek（那会是下层引上层的架构债）。 */
 import { resolveSharedCandidateWrite } from '../../memory/memory-supersede.js';
 
 const invalidateTreeholeCandidateCache = (userId) => {
@@ -61,7 +61,7 @@ const requestTreeholeCompletion = async ({
   messages = [],
   model = '',
   // ⚠️ 必须显式带 mode：不带时 EF 会兜底到 `fast`（游客默认模式 / 周报等后台任务共用那一行），
-  //    换模型会连带影响它们。记忆抽取专用行见 bohai-constants 的 BOH_MEMORY_MODE_ID。
+  //    换模型会连带影响它们。记忆抽取专用行见 bolek-constants 的 BOH_MEMORY_MODE_ID。
   mode = BOH_MEMORY_MODE_ID,
   temperature = 0.4,
   maxTokens = 900,

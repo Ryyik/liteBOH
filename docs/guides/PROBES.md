@@ -28,8 +28,8 @@
 | **Cloud+ 动效**（格子放大/缩小、详情从点中的格子放大展开并缩回、三档切换过渡、切列落定回弹） | `probe-cloud-motion.mjs` | 16 |
 | **Cloud+ 发布面板**（常驻按钮 ≤4、发布按钮恒在视口内、遮罩半透明、玻璃材质、情绪抽屉、多字扩展、草稿保护、Esc、暗色、上传链路对齐全站、失败原因上屏、开合过渡动画） | `probe-cloud-composer.mjs` | 65 |
 | **BOH AI 整页横屏左栏**（`/ai-chat` 切过去后左栏导航不能消失） | `probe-aichat-landscape-rail.mjs` | 14 |
-| **BOH AI 输入区 + 设置面板**（底行两胶囊（模型 / 工具）/ 模型与工具浮层 / 用量圆钮单环+hover 浮层 / 设置面板 4 卡+折叠高级+用量卡 / 退役额度侧板不存在 / **思考强度控件已整体下线**）—— 独立页 + AI 岛两形态 | `probe-bohai-composer.mjs` | 32 |
-| **BOH AI 斜杠命令执行语义**（点发送键必须执行命令、而不是把 `/web` 当文本发给模型 / 带参数剥掉命令字 / 未知命令不静默放行 / 普通输入不被误伤 / 触屏两条 / 空态建议卡一条）。⚠️ **当前预期红 6/7**，判据见 `docs/reports/2026-10/2026-10-08-BOHAI对齐Codex优化方案与斜杠命令修复.md` | `probe-bohai-slash-commands.mjs` | 7 |
+| **BOH AI 输入区 + 设置面板**（底行两胶囊（模型 / 工具）/ 模型与工具浮层 / 用量圆钮单环+hover 浮层 / 设置面板 4 卡+折叠高级+用量卡 / 退役额度侧板不存在 / **思考强度控件已整体下线**）—— 独立页 + AI 岛两形态 | `probe-bolek-composer.mjs` | 32 |
+| **BOH AI 斜杠命令执行语义**（点发送键必须执行命令、而不是把 `/web` 当文本发给模型 / 带参数剥掉命令字 / 未知命令不静默放行 / 普通输入不被误伤 / 触屏两条 / 空态建议卡一条）。⚠️ **当前预期红 6/7**，判据见 `docs/reports/2026-10/2026-10-08-博莱克对齐Codex优化方案与斜杠命令修复.md` | `probe-bolek-slash-commands.mjs` | 7 |
 | 活动页封面图 / 活动页报名区与月份轨道 | `probe-activities-images.mjs` / `probe-campaign-ui.mjs` | 7 / 35 |
 | 方块积分卡自定义卡面裂图 | `probe-points-card-image.mjs` | 7 |
 | 订阅权益 / 配额 | `probe-subscription-benefits.mjs` | 49 |
@@ -53,14 +53,14 @@
 | 文件 | npm script | 说明 |
 | --- | --- | --- |
 | `probe-ai-panels.mjs` | `npm run probe:ai-panels` | probe-ai-panels.mjs — AI 页（/ai-chat）面板可用性探针 |
-| `probe-bohai-composer.mjs` | — | 探针：BOH AI 输入区（composer）新面板 —— 胶囊 / 三行面板 / 左右二级菜单 / 高级工具组；独立页 + AI 岛两形态。⚠️ 含反证说明：撤 `selectThinkingSpeed` 的 `closeComposerPanel` → A5 红；撤 `currentThinkingSpeed` 解构 → A5/A9/B5 红；把内环 `<circle class="orb-quota">` 加回 SVG → A10 红（2026-10-02 实测）。A10-A13 锁用量圆钮单环 + hover 浮层（需先发一条消息，模型与 quota-status 被 mock，额度 88% 故意踩 warn 档） |
+| `probe-bolek-composer.mjs` | — | 探针：BOH AI 输入区（composer）新面板 —— 胶囊 / 三行面板 / 左右二级菜单 / 高级工具组；独立页 + AI 岛两形态。⚠️ 含反证说明：撤 `selectThinkingSpeed` 的 `closeComposerPanel` → A5 红；撤 `currentThinkingSpeed` 解构 → A5/A9/B5 红；把内环 `<circle class="orb-quota">` 加回 SVG → A10 红（2026-10-02 实测）。A10-A13 锁用量圆钮单环 + hover 浮层（需先发一条消息，模型与 quota-status 被 mock，额度 88% 故意踩 warn 档） |
 | `probe-avatar-frame-console-demo.mjs` | — | 探针：头像框控制台方案 demo（avatar-frame-console-demo.html） |
 | `probe-avatar-frame-console.mjs` | — | 探针：头像框控制台（管理端）/admin/avatar-console + 用户侧积分解锁 |
 | `probe-avatar-frame-grant.mjs` | — | 探针：头像框「按人发放」 |
 | `probe-datamanagement-errors.mjs` | `npm run probe:dm-errors` | 数据管理面板「一键查错」运行时探针 做法：伪造 admin 登录 → 遍历侧栏每个模块 + 每个页签 → 采集 |
 | `probe-datamanagement-smoke.mjs` | — | 直接请求数据管理页模块，让 vite 现场编译，验证修复后的文件无编译错误 |
 | `probe-datamanagement-validator.mjs` | — | 数据管理面板校验器回归测试：复现"新闻模板保存报 Cannot read properties of undefined (reading 'includes')" |
-| `probe-forum-search.mjs` | — | 探针：论坛搜索体验增强（清除按钮 / ⌘K 聚焦 / 最近搜索 / 结果计数 / 无结果引导 / 2026-11-22 问 BOHAI 内联回答卡片——不弹岛、卡片位置、原句回显、SSE 流式、换词收卡、点卡片跳 /ai-chat 交接），网络全程 mock（AI 链路 = SSE fetch 包装逐块重放，抄 probe-bohai-keepalive-stream） |
+| `probe-forum-search.mjs` | — | 探针：论坛搜索体验增强（清除按钮 / ⌘K 聚焦 / 最近搜索 / 结果计数 / 无结果引导 / 2026-11-22 问博莱克内联回答卡片——不弹岛、卡片位置、原句回显、SSE 流式、换词收卡、点卡片跳 /ai-chat 交接），网络全程 mock（AI 链路 = SSE fetch 包装逐块重放，抄 probe-bolek-keepalive-stream） |
 | `probe-forum-motion.mjs` | — | 探针：空间连续性（plans/035）—— 来源 rect 对齐 / 落点回归 / 落定 transform 归零 / 克隆层无残留 / reduce 降级 |
 | `probe-home-forum-rail.mjs` | — | 探针：首页（论坛层）横屏左栏 —— 修复「换个入口进论坛，左右栏结构就没了」 |
 | `probe-home-gate-pull.mjs` | — | 探针：首页开场画「跟手拖拽」入场（2026-09-27 由阈值触发改为 progress 派生） |
@@ -193,12 +193,12 @@ F5 后不得掉回整页详情：A 横屏刷新仍是弹窗 / B 仍是同一帖 
 | `probe-campaign-ui.mjs` | — | 活动页探针 v3（35 断言，mock + 真库双路）：报名卡/阶段徽章/报名反馈、月份轨道分组与精度角标、窄屏横滑、管理员投稿双路径（报名活动 vs 往期活动的字段差异与 payload 形状）。⚠️ 场景 B 原断言「真库 campaigns 恒为 0 行 → 空态必然命中」已于 2026-09-29 作废（真库有进行中活动），改为「主卡或空态恰好命中一种」 |
 | `probe-campaign-draft-rls.py` | — | 只读校验 `activity_campaigns` 的 draft 行是否对 anon 可读（plans/008 §2.3 记的安全缺口） |
 
-### AI / BOHAI / 心理访谈（4）
+### AI / 博莱克 / 心理访谈（4）
 
 | 文件 | npm script | 说明 |
 | --- | --- | --- |
-| `probe-bohai-mode-loading.mjs` | — | QA probe: BOHAI 模式选择器 Loading 动画验证 |
-| `probe-lab-bohai-mode-chat.mjs` | — | 实测：Lab 选 BOHAI 模型（Air）后发普通聊天 → 抓 vault runtime 请求验证 provider/mode/model 分流 |
+| `probe-bolek-mode-loading.mjs` | — | QA probe: 博莱克模式选择器 Loading 动画验证 |
+| `probe-lab-bolek-mode-chat.mjs` | — | 实测：Lab 选博莱克模型（Air）后发普通聊天 → 抓 vault runtime 请求验证 provider/mode/model 分流 |
 | `probe-psych-dialog-quality.mjs` | — | 心理访谈 · 对话质量评估探针 做法：探针扮演一个来访者，按「剧本」逐轮回答，每轮抓下 AI 的提问并自动判分。 |
 | `probe-psych-interview-wiring.mjs` | — | 心理访谈接线验证探针 验证「点加号 → 心理分析」之后，真正发给模型的 payload 是否符合设计： |
 
@@ -212,7 +212,7 @@ F5 后不得掉回整页详情：A 横屏刷新仍是弹窗 / B 仍是同一帖 
 | `probe-album-note.mjs` | — | **影集「图文笔记」阅读页（32 断言，2026-11-14 新增）**：直接打开示例影集 `/#/albums/demo`（纯前端静态数据，不查库、不需要登录），两档视口 1440×900 / 390×844。断言七组：① 旧双页书结构（`.ar-spread` / `.ar-spine` / `.ar-book`）全部退场，且纸面 `scrollHeight == clientHeight`（`height:100%` + padding 必须走 border-box，否则右侧永远挂一条空滚动条）；② 横图笔记——图在文字上方、标题列右缘 ≤ 正文列左缘（读 rect，不靠 class）；③ 竖图笔记——**宽容器左图右文**（标题在图片列右侧）、**窄容器图仍置顶**，且两档都保持原比例（高 > 宽）与 `object-fit: contain`；④ 标题/正文 computed `font-family` 落在宋体栈；⑤ 标题 ≥28px（宽）/ ≥20px（窄）、正文 ≥14px；⑥ 纸面 `#fff`、进度条不再是品牌蓝、元信息为「2026.10.01 雾岭」；⑦ 两图页——两张上下堆叠、等宽同左，且仍用笔记文字区（无 `.sheet-grid`、图在标题上方）。⚠️ 三条实测坑：① **翻页过渡 260ms**，`waitForSelector` 一满足就量/截图会拿到 opacity 0 的进场帧（截图整页空白、但几何断言仍假绿）—— 必须等 400ms；② 竖图必须显式 `aspect-ratio: auto` 复位横图的 4:3，否则 `width:auto` 仍被定比例压成矮框（实测横竖两页 photo 高都 265px，靠「高 > 宽」这条才抓得到）；③ 宽容器下 44% 是**含内衬后的百分比**（760−44×2 的 44% ≈ 296px），别按 760×0.44 量。**反证已做**：删 `@container (min-width:720px)` 块 → 宽容器「左图右文」红；去掉标题 `font-family` → 宋体断言红 |
 | `probe-cloud-motion.mjs` | — | **Cloud+ 动效：放大 / 缩小 / 切换（16 断言，2026-10-03 新增）**：竖屏 420×900，`page.route` 拦 `boh_cloud_entries` 回 8 条单图条目（图片用 `data:image/svg+xml`）。断言：格子有 transform 过渡 / hover 放大（`scale>1.01` + 上浮投影）/ 按压缩小（`scale<1`）/ 详情展开原点 == 点中格子中心（读 `--detail-origin-x/y` 与 `transform-origin`）/ 进场动画 `cloudDetailZoomIn` / 退场 `cloudDetailZoomOut` 且退场后节点移除 / 三档切换触发 `is-view-entering` 且动画名 `cloudViewEnter` / 捏合切列触发 `is-settling` 且动画名 `cloudAlbumSettle`。⚠️ 三条实测坑：① **瞬时类必须在动画窗口内读**（统一 120ms）——进场类由 Vue 在 `animationend` 后摘掉，600ms 才读会拿到 `animation: none` 与默认 `transform-origin`；② 按压测试的 `mouse.up` 落在格子上 = 一次真实点击 → 详情会打开，必须先关掉，否则后续点击被遮罩拦截而超时；③ 观察 `is-settling` 的 MutationObserver 必须在**切回内容档之后**重装（切 tab 会让内容档整体 `v-else` 重建，盯旧节点永远等不到）。**反证已做**：`openEntry` 读 rect 的分支改成恒 false → 两条 origin 断言当场 FAIL |
 | `probe-cloud-composer.mjs` | — | **Cloud+ 发布面板（65 断言，2026-10-18 新增，同日第二轮扩到 65）**：五档视口（390×844 / 844×390 / 740×320 / 1024×768 / 1440×900）各跑 11 条 —— A 常驻按钮 ≤4（关闭/图片/心情/发布，改造前 12）；B「发布」在视口内；C 遮罩层自身不滚动（滚动只发生在 `.composer-body`）；D 面板不超出视口；E 遮罩半透明（alpha∈(0,1)，旧版是不透明白底全屏）；F 面板材质为液态玻璃（blur + 半透明底）；G 心情抽屉默认收起；H 正文多字扩展生效（或已被 CSS 上限封顶）；I 正文高度不超 CSS 上限；J 展开 9 个情绪胶囊后「发布」仍在视口内；K 零页面错误。竖屏另跑 L–P：L 有草稿点「×」先弹「放弃这次编辑？」、M 选「继续编辑」后面板与正文都在、N Esc 走同一条确认路径、O 选「放弃」面板关闭、P 暗色下面板变深且标题变浅（材质走 `--liquid-*`）。第二轮（用户报障「为啥还有图片上传失败 / 不显示原因 / 有过渡动画吗」）追加 Q–U 五条：Q 上传失败时面板渲染**文件名 + 真实原因**（`role="alert"`，把 Cloudinary 端点整个打桩回 400 带可识别文案，不依赖外网与真实配额）；R 上传走 Cloud+ 专属标记（签名网关 body 含 `"source":"cloud_plus"` + `"folder":"boh-cloud-plus"`，改造前落到 `generic` 桶、与装修台共用限流计数）；S 心情抽屉开合带过渡（读瞬时类，animationName 含 `cpTrayHeight`、duration>0.1s）；T 重试成功后缩略图出现且失败清单消失；U 整条链路无页面报错。⚠️ 四条实测坑：① 长正文用 `type` 而不是 `fill`（auto-grow 监听 input，逐字输入才覆盖组字分支）；② 判「发布按钮在视口内」必须读 `rect.bottom <= innerHeight`，`offsetTop` 是相对滚动容器的；③ 宽屏 672px 下 150 字只占 3~4 行、不到 `rows=5` 的初始高度 —— 用 ×3 会让 H 在 1024/1440 假红，必须 ×6；④ 读「失败清单消失」必须等节点真摘掉（`waitForFunction`）—— 它走 cp-status 退场动画，`waitForSelector('.upload-card')` 一满足就去读会读到 leaving 节点（本地实测踩到）。**反证已做（五条）**：A 把 `{{ failed.error }}` 改空串 → Q 当场红；B 删上传调用的 `pendingSource` → R 当场红（body 变 `"source":"generic"`）；C 把 `.cp-tray-enter-active` 的 animation 改 none → S 当场红；D 短路 `closeComposer` 的 `hasComposerDraft` → L/M/N 红；E 遮罩改 `transparent` → E 断言五档全红。**两条没做成的，如实记录**：① 只删 `folder:` 参数时 R 仍绿 —— cloudinary-client 的 `DEFAULT_FOLDER` 也是同一个目录，请求体看不出区别（能区分的是 source，所以原先那条「folder 出现即算对齐」的断言已删，别再加回来）；② 只删 `.composer-panel` 的 `max-height` 时 B/C/D/J 仍绿 —— 新布局足够紧凑，收敛实际由 `.composer-body{overflow-y:auto}` + 面板 `overflow:hidden` 承担；那四条锁的是**报障现象**（旧版 844×390 下发布按钮 y=818、overlay 可滚），不是某一条 CSS |
-| `probe-aichat-landscape-rail.mjs` | — | **BOH AI 整页横屏左栏（14 断言，2026-10-03 新增）**：两档视口 1440×900 / 390×844。横屏断言：`body.page-aichat` 类名 / 左栏渲染且 `display:flex` / `position: fixed` 且 `left: 0` / 宽 88px（**不随 ≥1280 升 240px**）/ 高亮项 `data-tab="ai"` / 整页 `padding-left: 88px` / 聊天区起点 ≥ 左栏右缘 / AI 自带会话侧栏 `left: 88px`（接在左栏右侧、两块面板不叠）/ 顶部导航岛心 == 内容区中心 / 点左栏「内容」能跳走 / 零 pageerror；竖屏断言左栏 `display:none` 且整页不右移。⚠️ 两条实测坑：① 页面级规则在 `UserSpace/styles/landscape-rail.css`，该文件**按页引入** —— `BOHAIMain` 不写 `<style src=...>` 时左栏照样渲染，但 position / 让位 / 会话侧栏左移全不生效（实测 `absolute` + `padding-left:0` + `left:0`）；② 导航岛是「`margin: 0 auto` 居中 + `left` 相对偏移」，判据必须写成「岛心 == 内容区中心」 |
+| `probe-aichat-landscape-rail.mjs` | — | **BOH AI 整页横屏左栏（14 断言，2026-10-03 新增）**：两档视口 1440×900 / 390×844。横屏断言：`body.page-aichat` 类名 / 左栏渲染且 `display:flex` / `position: fixed` 且 `left: 0` / 宽 88px（**不随 ≥1280 升 240px**）/ 高亮项 `data-tab="ai"` / 整页 `padding-left: 88px` / 聊天区起点 ≥ 左栏右缘 / AI 自带会话侧栏 `left: 88px`（接在左栏右侧、两块面板不叠）/ 顶部导航岛心 == 内容区中心 / 点左栏「内容」能跳走 / 零 pageerror；竖屏断言左栏 `display:none` 且整页不右移。⚠️ 两条实测坑：① 页面级规则在 `UserSpace/styles/landscape-rail.css`，该文件**按页引入** —— `BolekMain` 不写 `<style src=...>` 时左栏照样渲染，但 position / 让位 / 会话侧栏左移全不生效（实测 `absolute` + `padding-left:0` + `left:0`）；② 导航岛是「`margin: 0 auto` 居中 + `left` 相对偏移」，判据必须写成「岛心 == 内容区中心」 |
 | `probe-impressions-ui.mjs` | — | 探针：我的印象面板液态玻璃重设计 |
 | `probe-join-audit.mjs` | — | 探针：注册页（/#/join）现状取证 —— 截图 + 关键计算样式实测 |
 | `probe-join-mobile-metrics.mjs` | — | 探针：注册页移动端横向溢出 / 触控目标 / 对比度实测（为改版方案提供数据依据） |
@@ -320,7 +320,7 @@ F5 后不得掉回整页详情：A 横屏刷新仍是弹窗 / B 仍是同一帖 
 | `probe-keyboard-inset.mjs` | — | 键盘 inset 全链路探针（2026-09-24） 验证目标（桌面 Chrome 无法真弹键盘，用 mock visualViewport 模拟「键盘占 300px」）： |
 | `probe-landscape-rail-demo.mjs` | — | 探针：横屏左栏改造 demo（landscape-rail-demo.html） |
 | `probe-messages-metrics.mjs` | — | 量测：消息页顶部每一层的实际占位（竖屏 + 横屏） |
-| `probe-bohai-portrait.mjs` | 5 | BOHAI 竖屏 390×844 适配回归（2026-10-15）：无横向滚动 / 模式与工具菜单全宽 action-sheet 不越视口 / 零 pageerror，附四张截图。⚠️ 登出态跑（模式清单确定性单行，多行满高场景由工具菜单承担）；模式清单 RPC 走真实网络，mock 形状保真度差会退化成单行干扰判断 |
+| `probe-bolek-portrait.mjs` | 5 | 博莱克竖屏 390×844 适配回归（2026-10-15）：无横向滚动 / 模式与工具菜单全宽 action-sheet 不越视口 / 零 pageerror，附四张截图。⚠️ 登出态跑（模式清单确定性单行，多行满高场景由工具菜单承担）；模式清单 RPC 走真实网络，mock 形状保真度差会退化成单行干扰判断 |
 | `probe-messages-ui.mjs` | — | 探针：消息中心 UI 现状截图（注入 mock 通知数据） |
 | `probe-messages-select.mjs` | 102 | **消息中心「选择模式」横竖屏**（2026-10-18，plans/028；2026-11-21 扩 K/L/M/N 组）：5 档视口（390×844 / 844×390 / 740×360 / 1024×600 / 1280×800）× 进入选择→勾选 1→Esc，另加长按 / 桌面右键 / 已归档分区 / 手机横屏详情（K）/ 页头一键已读（L）/ 动作后保持模式（M）/ shift-click 范围多选（N）。断言：取消按钮存在+可见+`elementFromPoint` 命中；动作条在视口内且不压底栏；≥1024 选择模式下详情收起、Esc 后恢复；Esc 后选中归零 + `body.boh-messages-selecting` 摘除；0 选中时「已读」禁用（防误触「全部已读」）；手机横屏完全可见行 ≥3；横屏底栏让位；长按 450ms / 右键进模式并勾中该条；已归档分区入口为「取消归档」；横屏详情返回钮可见可点（点它真能关详情）+ 动作条 static 不压正文；「全部已读」**常驻可见、0 未读置灰禁用**（启用判定走 serverUnreadCount 服务端真源）、点击后未读清零、筛选下拉不含该项；批量归档后选择模式保持（选择清零、动作条仍在）；shift-click 1→3 共 3 条入选。⚠️ 五坑：① ≥1024 挂载即自动选中首条 ⇒ `detail-open` 常真，旧实现把动作面按成 0（模式与详情必须互斥）；② 竖屏底距 88px 会压底栏 7px，用 `--messages-sab-offset` 分档；③ 横屏动作条贴底与底栏相交（nav z-index 更高）⇒ 靠 body 标记让底栏让位，KeepAlive 下必须 `onActivated`/`onDeactivated` 同步；④ L 组的列表 mock 必须随 `mark_all_as_read` RPC **有状态翻转**（生产语义 = RPC 落库后重拉返回已读；mock 恒返 unread 行会把本地翻转盖回去，实测踩过），未读 RPC 也要按翻转返回真计数——「全部已读」启用判定吃它；⑤ 页头「全部已读」「选择」两颗钮都挂 `.x-mark-all-btn-minimal`，探针定位必须按文本锁「选择」，`.first()` 会点错（实测连环假红）。2026-11-21（晚）批量减按钮：「全部\|未读」分段删除（未读筛选唯一真源 = 外置未读 chip）、计数并入全选 chip（徽标 `· N`，0 选中不渲染——旧 `已选 N 条` 文案断言已同步改） |
 | `probe-messages-glass.mjs` | 21 | 消息中心液态玻璃验收（2026-10-15）：挂载/材质 token 口径/**像素级模糊开-关**（确定性条纹背板 + about:blank 整页重建）/采样根链（.tab-page 架构白名单）× 浅暗双主题 + 旧路由重定向。⚠️ 三坑：fixed 岛状态卡会探进页头 clip 污染能量读数（测前滚 300px + 藏岛）；暗色容器 `background !important`（0,2,0）会压平 0,1,0 背板条纹（同特异度 + 后注入才赢）；登录必须种**会话形状**（pinia 注入触发不了 supabase.getUser 的取数链 —— 无会话时它零网络静默返 null，实测踩过） |

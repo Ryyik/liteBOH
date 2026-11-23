@@ -33,7 +33,7 @@ describe('frontend performance guardrails', () => {
   });
 
   // 2026-10-19：原「keeps document and PPT engines behind user actions」随实验室
-  // （/lab）退场删除 —— Lab 引擎（docx/ppt renderer）已不在仓库。若 BOHAI Work
+  // （/lab）退场删除 —— Lab 引擎（docx/ppt renderer）已不在仓库。若博莱克 Work
   // 将来接管文档生成能力，需为它重新立一条等价的「引擎按需加载」守卫。
 
   it('pre-caches app shell plus first-screen dependency chunks', () => {

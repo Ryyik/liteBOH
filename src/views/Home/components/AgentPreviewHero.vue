@@ -29,7 +29,7 @@
 </template>
 
 <script setup>
-// BOHAgent（Hiagent 外接）已于 2026-10-19 退场删除；「体验 Agent」改指 BOHAI Work
+// BOHAgent（Hiagent 外接）已于 2026-10-19 退场删除；「体验 Agent」改指博莱克 Work
 // （/ai-chat 的 work 大模式，深链口径与导航入口一致，见 useBohShell 的 surface 解析）。
 import { useRouter } from 'vue-router';
 

@@ -197,7 +197,7 @@ check(
   }),
 );
 check(
-  'A3 工具栏内 BOHAI 按钮文字可读',
+  'A3 工具栏内博莱克按钮文字可读',
   a['.toolbar-ai-btn']?.contrast >= 3,
   JSON.stringify(a['.toolbar-ai-btn']),
 );

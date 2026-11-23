@@ -36,12 +36,12 @@
 
 | 文件 | 原因 |
 |------|------|
-| `src/utils/bohai-perf-benchmark.js` | BOHAI 早期实验性性能基准测试工具，全项目无任何 import |
-| `src/utils/bohai-debug-detector.js` | BOH AI 调试模式检测器，全项目无任何 import |
-| `src/utils/bohai-task-flow.js` | BOH AI 结构化任务流定义，全项目无任何 import |
-| `src/utils/bohai-message-exporter.js` | 消息导出工具，全项目无任何 import |
-| `src/utils/bohai-code-diff.js` | 代码差异对比工具，全项目无任何 import |
-| `src/utils/bohai-file-context.js` | 文件上下文分析工具，全项目无任何 import |
+| `src/utils/bolek-perf-benchmark.js` | 博莱克早期实验性性能基准测试工具，全项目无任何 import |
+| `src/utils/bolek-debug-detector.js` | BOH AI 调试模式检测器，全项目无任何 import |
+| `src/utils/bolek-task-flow.js` | BOH AI 结构化任务流定义，全项目无任何 import |
+| `src/utils/bolek-message-exporter.js` | 消息导出工具，全项目无任何 import |
+| `src/utils/bolek-code-diff.js` | 代码差异对比工具，全项目无任何 import |
+| `src/utils/bolek-file-context.js` | 文件上下文分析工具，全项目无任何 import |
 | `src/utils/minecraft-command-helper.js` | Minecraft 命令助手，全项目无任何 import |
 | `src/utils/turnstile.js` | Cloudflare Turnstile 验证工具，项目已改用 Altcha |
 | `src/utils/db-error.js` | 数据库错误检测辅助函数，全项目无任何 import |
@@ -57,7 +57,7 @@
 | `src/data/news.js` | 静态新闻数据，已被 `composables/useNews.js` 中的 Supabase 查询替代 |
 | `src/data/mcti-data.js` | MCTI 测试题数据，整个功能未上线，无对应视图或路由 |
 | `src/components/BirthdayHeroBanner.vue` | 生日横幅组件，全项目零引用，Birthday 页面未使用 |
-| `src/views/user-center/UserSpace/components/BohAiGlassOverlay.vue` | BOH AI 玻璃覆盖层组件，已被顶层 `GlobalAiGlassOverlay.vue` 替代 |
+| `src/views/user-center/UserSpace/components/BolekGlassOverlay.vue` | BOH AI 玻璃覆盖层组件，已被顶层 `GlobalAiGlassOverlay.vue` 替代 |
 | `src/styles/vendor/animate.min.css` | 第三方动画库样式，无 import 引用 |
 | `src/styles/vendor/aos.css` | AOS 滚动动画库样式，项目未使用 AOS 库 |
 | `src/styles/vendor/swiper.min.css` | Swiper 轮播库样式，项目未使用 Swiper 库 |
@@ -67,7 +67,7 @@
 | 文件 | 原因 |
 |------|------|
 | `src/types/api.ts` | BOH API 层共享类型定义（ApiResult、ApiError 等），全项目无任何 import |
-| `src/views/BOHAI/agents/prompts/worker-prompts.js` | Agent worker prompts 模块，各 worker 自定义 prompt，未使用此文件 |
+| `src/views/Bolek/agents/prompts/worker-prompts.js` | Agent worker prompts 模块，各 worker 自定义 prompt，未使用此文件 |
 
 ---
 
@@ -119,7 +119,7 @@
 
 | 文件 | 行号 | 修改内容 |
 |------|------|---------|
-| `src/views/BOHAI/BOHAI/components/BohaiSidebar.vue` | L70 | 移除内联 `console.log('[BohaiSidebar] 设置按钮被点击...')` |
+| `src/views/Bolek/Bolek/components/BolekSidebar.vue` | L70 | 移除内联 `console.log('[BolekSidebar] 设置按钮被点击...')` |
 
 **原因**：模板内联 console.log 每次点击都输出，影响生产环境
 
@@ -213,7 +213,7 @@ catch {
 1. **v-html 安全**：所有 13 处 v-html 使用均经过 DOMPurify 处理 ✓
 2. **硬编码密钥**：未发现，Supabase 配置全部从环境变量读取 ✓
 3. **认证逻辑**（`stores/auth.ts`）：会话心跳、刷新阈值、封禁检查完善 ✓
-4. **BOHAI 核心**：有 AbortSignal 取消、超时降级、finally 清理 ✓
+4. **博莱克核心**：有 AbortSignal 取消、超时降级、finally 清理 ✓
 5. **路由守卫**：requiresLogin/requiresAdmin 检查完善 ✓
 6. **JSON.parse**：所有调用都有 try/catch ✓
 7. **事件监听器清理**：所有 addEventListener 都有对应 removeEventListener ✓
@@ -225,7 +225,7 @@ catch {
 
 | 问题 | 文件 | 说明 |
 |------|------|------|
-| watch deep 优化 | `BOHAIMain.vue`, `useChatEngine.js`, `AIPlaza/index.vue` | 已有 RAF 节流优化，长会话场景可考虑监听 messages.length（可选） |
+| watch deep 优化 | `BolekMain.vue`, `useChatEngine.js`, `AIPlaza/index.vue` | 已有 RAF 节流优化，长会话场景可考虑监听 messages.length（可选） |
 | 未使用常量 | `request-core.js` L62, L127, L201 | `okResult`, `clearRequestCache`, `__cacheDebug`（严重程度低） |
 | boh-knowledge-base.jsonl | `src/data/` | 代码中无引用，但可能是 Supabase 向量库种子数据，需人工确认 |
 

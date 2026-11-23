@@ -82,7 +82,7 @@ onBeforeUnmount(() => {
 <style src="./store-tokens.css"></style>
 <style scoped>
 .bag-page {
-  --nav-h: var(--bohai-standalone-nav-height, 64px);
+  --nav-h: var(--bolek-standalone-nav-height, 64px);
   box-sizing: border-box;
   min-height: 100vh;
   padding: calc(var(--nav-h, 64px) + 8px) 0 48px;

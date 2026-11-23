@@ -3,15 +3,15 @@ import {
   RESPONSE_STYLE_OPTIONS,
   PSYCH_INTERVIEW_GENERATION_PROFILE,
   GENERATION_PROFILE_BY_MODE,
-} from '../../src/views/BOHAI/composables/chat-engine-config.js';
+} from '../../src/views/Bolek/composables/chat-engine-config.js';
 import {
   PSYCH_INTERVIEW_APPENDIX,
   PSYCHOLOGIST_PROMPT_APPENDIX,
   PSYCH_CRISIS_RESOURCES,
   PSYCH_L0_RULES,
   PSYCH_L1_RULES,
-} from '../../src/views/BOHAI/expert-roles/psychologist.js';
-import { getGenerationProfile } from '../../src/views/BOHAI/utils/generation-profile.js';
+} from '../../src/views/Bolek/expert-roles/psychologist.js';
+import { getGenerationProfile } from '../../src/views/Bolek/utils/generation-profile.js';
 
 const byId = (id) => RESPONSE_STYLE_OPTIONS.find((s) => s.id === id);
 const psych = byId('psychologist');

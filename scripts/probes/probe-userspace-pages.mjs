@@ -64,7 +64,7 @@ const SEGMENT_PAGES = [
   { tab: 'posts', seg: '空间', pred: '.content-home-host .profile-home-shell' },
   { tab: 'posts', seg: 'Cloud+', pred: '.content-cloud-host .cloud-page' },
   { tab: 'messages', seg: '消息', pred: '.messages-host .x-notifications-container' },
-  { tab: 'messages', seg: 'BOH AI', pred: '.ai-host .bohai-page' },
+  { tab: 'messages', seg: 'BOH AI', pred: '.ai-host .bolek-page' },
 ];
 
 /** C. 独立子路由 + 设置内部档位

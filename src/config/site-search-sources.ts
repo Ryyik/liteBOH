@@ -30,7 +30,7 @@ import {
   searchComments,
   searchMyCloudEntries,
 } from '@/utils/api/site-search-api';
-import { searchMinecraftResourcesForBohAI } from '@/utils/api/resource-search-api.js';
+import { searchMinecraftResourcesForBolek } from '@/utils/api/resource-search-api.js';
 import { SITE_NAV_ITEMS, flattenSiteNavPages } from '@/config/site-nav';
 import { TUTORIAL_SECTIONS, tutorialSectionLabel } from '@/data/tutorials';
 import { downloadsData } from '@/data/downloads.js';
@@ -605,7 +605,7 @@ export const SITE_SEARCH_SOURCES: SiteSearchSource[] = [
       // 绝不进 instant 组随输入打。复用 BOH AI 资源搜索的既有归一化链路（单源）。
       // options 显式收窄：该 .js 模块的 `signal = undefined` 默认值会把参数推断成 undefined 类型
       const result = await (
-        searchMinecraftResourcesForBohAI as (opts: {
+        searchMinecraftResourcesForBolek as (opts: {
           query: string;
           type: string;
           sort: string;

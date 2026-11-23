@@ -24,7 +24,7 @@
 - 要跑浏览器探针：读 [`guides/PROBES.md`](guides/PROBES.md)。
 - 要写报告 / 方案：先读 [`guides/报告模板.md`](guides/报告模板.md)。
 - 拆组件、搬代码、外置 CSS：读 [`guides/重构验证协议.md`](guides/重构验证协议.md)。
-- BOH AI 的视觉 / 交互规格：读 [`guides/DESIGN-BOHAI.md`](guides/DESIGN-BOHAI.md)。
+- BOH AI 的视觉 / 交互规格：读 [`guides/DESIGN-Bolek.md`](guides/DESIGN-Bolek.md)。
 
 ## 维护规则
 

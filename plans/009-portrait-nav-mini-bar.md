@@ -9,7 +9,7 @@
 
 已拍板：
 1. **点汉堡 = 一步到位**：mini 态点汉堡直接展开长条 **并弹出菜单**，不做"先展开再点一次"的两段式。
-2. **岛连体**：任意岛型（通知卡 / 任务卡 / BOHAI AI 岛 / 自定义岛）唤起时强制展开为长条，岛卡与长条是**同一个 surface** 向下生长，视觉连体（现状岛卡本来就挂在 surface 内部，只是宽度必须先到位）。
+2. **岛连体**：任意岛型（通知卡 / 任务卡 / 博莱克 AI 岛 / 自定义岛）唤起时强制展开为长条，岛卡与长条是**同一个 surface** 向下生长，视觉连体（现状岛卡本来就挂在 surface 内部，只是宽度必须先到位）。
 3. **岛关闭一起回缩**：岛关闭后 height 回落与 width 收缩**同一段动画**直接变回 mini 长度，不经过"先回长条"的中间停留。
 4. logo / 头像在 mini 态保留**直达**（首页 / 我的方块），不触发展开。
 5. 交互再钻研（见 §3/§4），不再出 demo，直接按本文档实施。
@@ -23,14 +23,14 @@ isExpandedLooking = !navMini                    // 非竖屏（横屏/拉宽）�
                  || isMobileMenuOpen           // 菜单开 → 长条
                  || statusCardItem.visible     // 通知卡在 → 长条
                  || isTaskCardShown            // 任务卡在 → 长条
-                 || isBohaiIslandOpen          // AI 岛在 → 长条
+                 || isBolekIslandOpen          // AI 岛在 → 长条
                  || !!islandCustomSlot.component  // 自定义岛在 → 长条
 
 navMini = 竖屏 matchMedia('(orientation: portrait) and (max-width: 768px)').matches
 ```
 
 - `navMini` 是唯一新增的 ref，由 matchMedia 监听驱动（进竖屏=true，退出=false）。
-- 岛的四个判据全是现成 computed（`statusCardItem` / `isTaskCardShown` / `isBohaiIslandOpen` / `islandCustomSlot`），**岛组件零改动**。
+- 岛的四个判据全是现成 computed（`statusCardItem` / `isTaskCardShown` / `isBolekIslandOpen` / `islandCustomSlot`），**岛组件零改动**。
 - surface 模板绑定两个新类：`nav-mini-caps`（navMini）与 `nav-expanded`（isExpandedLooking），形态样式全部由这两个类 + 现有 `has-*` 类组合驱动。
 
 行为表：

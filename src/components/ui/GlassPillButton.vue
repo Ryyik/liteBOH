@@ -2,19 +2,19 @@
 /**
  * GlassPillButton —— 白底玻璃胶囊按钮（通用基件）
  *
- * 样式源起：论坛横屏工具栏的「问BOHAI」胶囊（2026-09-15 封装）。
+ * 样式源起：论坛横屏工具栏的「问博莱克」胶囊（2026-09-15 封装）。
  * 形态 = 半透明白底 + 白描边 + 内高光 + 小档液态玻璃滤镜，hover 上浮变白。
  * 材质变量来自全局 tokens（--liquid-filter-sm）与论坛体系（--liquid-inner-highlight，
  * 缺省时用内置 fallback，非论坛页面也能正常渲染）。
  *
  * 用法：
  *   <GlassPillButton @click="...">
- *     <Sparkles :size="16" /><span>问 BOHAI</span>
+ *     <Sparkles :size="16" /><span>问博莱克</span>
  *   </GlassPillButton>
  *
  * tone:
  *   - 'light'（默认）白玻璃底，适合容器上的主操作
- *   - 'soft'  淡灰底，同排按钮里做视觉主次时用（原「问BOHAI」款）
+ *   - 'soft'  淡灰底，同排按钮里做视觉主次时用（原「问博莱克」款）
  *
  * 附加 class 会透传到根按钮（如 'is-done' 之类的业务态，由使用方自己的 scoped 定色）。
  */
@@ -22,11 +22,11 @@ defineProps({
   tone: {
     type: String,
     default: 'light',
-    validator: (v) => ['light', 'soft'].includes(v)
+    validator: (v) => ['light', 'soft'].includes(v),
   },
   disabled: { type: Boolean, default: false },
   /** 原生 title 提示 */
-  title: { type: String, default: '' }
+  title: { type: String, default: '' },
 });
 
 defineEmits(['click']);
@@ -62,10 +62,15 @@ defineEmits(['click']);
   font-weight: 850;
   font-family: inherit;
   cursor: pointer;
-  box-shadow: 0 4px 12px rgba(31, 41, 55, 0.06), var(--liquid-inner-highlight, inset 0 1px 0 rgba(255, 255, 255, 0.78));
+  box-shadow:
+    0 4px 12px rgba(31, 41, 55, 0.06),
+    var(--liquid-inner-highlight, inset 0 1px 0 rgba(255, 255, 255, 0.78));
   backdrop-filter: var(--liquid-filter-sm);
   -webkit-backdrop-filter: var(--liquid-filter-sm);
-  transition: transform 0.2s, background-color 0.2s, box-shadow 0.2s;
+  transition:
+    transform 0.2s,
+    background-color 0.2s,
+    box-shadow 0.2s;
   white-space: nowrap;
 }
 
@@ -85,10 +90,13 @@ defineEmits(['click']);
 
 .glass-pill-btn:focus-visible {
   outline: none;
-  box-shadow: 0 4px 12px rgba(31, 41, 55, 0.06), 0 0 0 2.5px rgba(0, 113, 227, 0.28), var(--liquid-inner-highlight, inset 0 1px 0 rgba(255, 255, 255, 0.78));
+  box-shadow:
+    0 4px 12px rgba(31, 41, 55, 0.06),
+    0 0 0 2.5px rgba(0, 113, 227, 0.28),
+    var(--liquid-inner-highlight, inset 0 1px 0 rgba(255, 255, 255, 0.78));
 }
 
-/* soft：淡灰底（原「问BOHAI」款），hover 仍走基础规则的变白反馈 */
+/* soft：淡灰底（原「问博莱克」款），hover 仍走基础规则的变白反馈 */
 .glass-pill-btn.tone-soft {
   background: var(--glass-pill-soft-bg, rgba(17, 24, 39, 0.045));
   border-color: var(--glass-pill-soft-border, rgba(17, 24, 39, 0.05));

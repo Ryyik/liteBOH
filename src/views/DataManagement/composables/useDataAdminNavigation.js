@@ -54,6 +54,7 @@ export const ROUTE_MAP = {
   'news-editor': '/admin/news-editor',
   'hero-console': '/admin/hero-console',
   'gate-console': '/admin/gate-console',
+  'xmas-console': '/admin/xmas-console',
   'avatar-console': '/admin/avatar-console',
   data: '/admin/data-management',
   media: '/admin/data-management',

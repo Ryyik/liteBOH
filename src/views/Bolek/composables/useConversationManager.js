@@ -1,0 +1,691 @@
+import { ref, reactive, computed, nextTick, onUnmounted } from 'vue';
+import {
+  SESSION_SAVE_DEBOUNCE_MS,
+  SESSION_SAVE_IDLE_TIMEOUT_MS,
+  MEMORY_CAPTURE_STATUS_TIMEOUT_MS,
+  MAX_CONTEXT_MESSAGES,
+  MAX_HISTORY_CONTEXT_CHARS,
+  MAX_HISTORY_MESSAGE_CHARS,
+  MAX_FINAL_PROMPT_CHARS,
+  MAX_PROMPT_EXTRA_CHARS,
+} from './chat-engine-config.js';
+import {
+  loadBolekChatSessionsFromStorage,
+  saveBolekChatSessionsToStorage,
+  clearBolekChatSessionsStorage,
+  createBolekChatSessionSanitizer,
+  createBolekSessionWriteGuard,
+} from '@/utils/bolek-chat-session-store.js';
+import {
+  loadBolekActionAuditsFromStorage,
+  clearBolekActionAuditsStorage,
+} from '@/utils/bolek-action-audit.js';
+import {
+  buildHistoryMessagesWithCachedSummary,
+  getCachedSummaryIfUsable,
+  CONVERSATION_SUMMARY_MAX_CHARS,
+} from '../utils/memory/store.js';
+import { isEmptyAssistantPlaceholder } from '../utils/prompt/assembly.js';
+import {
+  getStorableDialogueMessages,
+  ESTIMATED_SYSTEM_PROMPT_CHARS,
+} from '../utils/retrieval/budget.js';
+import { normalizePromptLine } from '../utils/text/normalize.js';
+import { logger } from '@/utils/logger.js';
+
+// 使用 ref 让 _lastActualExtraChars 成为响应式，确保 computeContextBudgetUsage 能追踪其变化
+const _lastActualExtraChars = ref(2000);
+// EMA 平滑系数：新值占 40%，旧值占 60%，防止检索证据有无导致百分比剧烈波动
+const _extraCharsEmaAlpha = 0.4;
+
+export const updateLastActualExtraChars = (chars) => {
+  if (typeof chars === 'number' && chars > 0) {
+    _lastActualExtraChars.value = Math.round(
+      _lastActualExtraChars.value * (1 - _extraCharsEmaAlpha) + chars * _extraCharsEmaAlpha,
+    );
+  }
+};
+
+// ============================================================
+// useConversationManager — 会话/对话管理子 composable
+// ------------------------------------------------------------
+// 从 useChatEngine 中提取出纯会话管理相关的状态与操作，
+// 包括会话 CRUD、本地持久化、上下文压缩状态、各种 pending
+// 状态（树洞/记忆/云引用/快速笔记/操作草稿）等。
+//
+// 依赖注入：
+//   scrollToBottom  — 用于切换会话后滚动到底部
+// ============================================================
+
+export function useConversationManager({ scrollToBottom: scrollToBottomOption } = {}) {
+  // scrollToBottom 可能是一个函数或 getter（当 composable 创建时 scrollToBottom 尚未定义时使用）
+  const resolveScrollToBottom = () => {
+    if (typeof scrollToBottomOption === 'function') return scrollToBottomOption();
+    return scrollToBottomOption;
+  };
+  // ============================================================
+  // State
+  // ============================================================
+  const chatSessions = reactive([
+    { title: '新对话', messages: [], timestamp: Date.now(), isLoading: false, isThinking: false },
+  ]);
+  const currentSessionIndex = ref(0);
+  const activeGenerationSessionIndex = ref(null);
+
+  const treeholeMemoryCache = reactive({
+    userId: '',
+    fetchedAt: 0,
+    items: [],
+  });
+  const sharedMemoryCache = reactive({
+    fetchedAt: 0,
+    items: [],
+  });
+  const sharedMemorySearchCache = new Map();
+
+  const actionAuditLog = ref(loadBolekActionAuditsFromStorage());
+
+  const pendingTreeholeCreation = reactive({
+    awaitingConfirmation: false,
+    userId: '',
+    sessionIndex: -1,
+  });
+  const pendingSharedMemoryCapture = reactive({
+    awaitingConfirmation: false,
+    userId: '',
+    sessionIndex: -1,
+    content: '',
+  });
+  const pendingActionDraft = reactive({
+    active: false,
+    type: '',
+    userId: '',
+    sessionIndex: -1,
+    awaitingIdea: false,
+    postTitle: '',
+    postContent: '',
+    pageType: '',
+    pageDescription: '',
+    pageHtml: '',
+    mailReceiverId: '',
+    mailReceiverName: '',
+    mailSubject: '',
+    mailContent: '',
+  });
+  const userPrivateContextCache = reactive({
+    userId: '',
+    fetchedAt: 0,
+    snapshot: null,
+  });
+
+  const isCompressingContext = ref(false);
+  const compressingSessionIndex = ref(-1);
+
+  const memoryCaptureStatusMessage = ref('');
+  let memoryCaptureStatusTimer = null;
+
+  let saveDebounceTimer = null;
+  let saveIdleTimer = null;
+  let saveIdleCallbackId = null;
+  let saveCallCounter = 0;
+
+  // ============================================================
+  // Reset functions
+  // ============================================================
+  const resetUserPrivateContextCache = () => {
+    userPrivateContextCache.userId = '';
+    userPrivateContextCache.fetchedAt = 0;
+    userPrivateContextCache.snapshot = null;
+  };
+
+  const resetSharedMemorySearchCache = () => {
+    sharedMemorySearchCache.clear();
+  };
+
+  const resetPendingTreeholeCreation = () => {
+    pendingTreeholeCreation.awaitingConfirmation = false;
+    pendingTreeholeCreation.userId = '';
+    pendingTreeholeCreation.sessionIndex = -1;
+  };
+
+  const resetPendingSharedMemoryCapture = () => {
+    pendingSharedMemoryCapture.awaitingConfirmation = false;
+    pendingSharedMemoryCapture.userId = '';
+    pendingSharedMemoryCapture.sessionIndex = -1;
+    pendingSharedMemoryCapture.content = '';
+  };
+
+  const resetPendingActionDraft = () => {
+    pendingActionDraft.active = false;
+    pendingActionDraft.type = '';
+    pendingActionDraft.userId = '';
+    pendingActionDraft.sessionIndex = -1;
+    pendingActionDraft.awaitingIdea = false;
+    pendingActionDraft.postTitle = '';
+    pendingActionDraft.postContent = '';
+    pendingActionDraft.mailReceiverId = '';
+    pendingActionDraft.mailReceiverName = '';
+    pendingActionDraft.mailSubject = '';
+    pendingActionDraft.mailContent = '';
+    pendingActionDraft.pageType = '';
+    pendingActionDraft.pageDescription = '';
+    pendingActionDraft.pageHtml = '';
+  };
+
+  // ============================================================
+  // Session sanitizer (for storage)
+  // ============================================================
+  const sanitizeChatSessionForStorage = createBolekChatSessionSanitizer({
+    normalizeText: (value) => normalizePromptLine(value, CONVERSATION_SUMMARY_MAX_CHARS),
+    maxSummaryChars: CONVERSATION_SUMMARY_MAX_CHARS,
+    isEmptyAssistantPlaceholder,
+  });
+
+  // ============================================================
+  // Context budget calculation
+  // ============================================================
+  const computeContextBudgetUsage = (session, { pendingCount = 2 } = {}) => {
+    const source = Array.isArray(session?.messages) ? session.messages : [];
+    // 根据 pendingCount 排除正在输入/生成的占位消息
+    // pendingCount=0 时不能 slice(0, -0)，JS 会把 -0 转成 0 导致 slice(0,0) 永远返回空数组
+    const historySource =
+      source.length > pendingCount
+        ? pendingCount > 0
+          ? source.slice(0, -pendingCount)
+          : source.slice()
+        : [];
+    const recentBuilt = buildHistoryMessagesWithCachedSummary(
+      {
+        ...(session || {}),
+        messages: historySource,
+      },
+      {
+        maxChars: MAX_HISTORY_CONTEXT_CHARS,
+        maxMessages: MAX_CONTEXT_MESSAGES,
+        maxPerMessage: MAX_HISTORY_MESSAGE_CHARS,
+      },
+    );
+
+    let historyChars = 0;
+    recentBuilt.forEach((item) => {
+      historyChars += String(item?.content || '').length + 20;
+    });
+
+    const summaryText = getCachedSummaryIfUsable({
+      ...(session || {}),
+      messages: historySource,
+    });
+    const summaryChars = String(summaryText || '').length;
+    const dialogueHistory = getStorableDialogueMessages(historySource);
+    const sourceMessageCount = summaryText
+      ? Math.max(0, Math.trunc(Number(session?.contextSummary?.sourceMessageCount) || 0))
+      : 0;
+    const cycleMessages =
+      sourceMessageCount > 0 && sourceMessageCount <= dialogueHistory.length
+        ? dialogueHistory.slice(sourceMessageCount)
+        : dialogueHistory;
+    const cycleUsedChars = cycleMessages.reduce(
+      (total, item) => total + String(item?.content || '').length + 20,
+      0,
+    );
+    const retainedHistoryChars = summaryText
+      ? Math.max(
+          0,
+          Math.min(
+            MAX_HISTORY_CONTEXT_CHARS - 2000,
+            Math.trunc(Number(session?.contextSummary?.retainedHistoryChars) || 0),
+          ),
+        )
+      : 0;
+    const cycleMaxChars = Math.max(2000, MAX_HISTORY_CONTEXT_CHARS - retainedHistoryChars);
+    const compressionPercent = Math.max(0, Math.min(100, (cycleUsedChars / cycleMaxChars) * 100));
+
+    // 实际模型上下文 = 系统提示词(~600) + 历史消息 + 结构化用户提示词(含检索证据/规则, 最多 MAX_FINAL_PROMPT_CHARS)
+    // 用总预算来反映真实占用，而不是只看历史消息占比
+    const estimatedExtraChars = Math.min(
+      MAX_PROMPT_EXTRA_CHARS,
+      Math.max(_lastActualExtraChars.value, 2000),
+    );
+    const totalUsedChars =
+      ESTIMATED_SYSTEM_PROMPT_CHARS + summaryChars + historyChars + estimatedExtraChars;
+    const totalBudget =
+      ESTIMATED_SYSTEM_PROMPT_CHARS +
+      CONVERSATION_SUMMARY_MAX_CHARS +
+      MAX_HISTORY_CONTEXT_CHARS +
+      MAX_FINAL_PROMPT_CHARS;
+
+    const rawPercent = totalBudget > 0 ? (totalUsedChars / totalBudget) * 100 : 0;
+    const percent = Math.max(0, Math.min(100, rawPercent));
+    const includedMessageCount = recentBuilt.length;
+    const totalMessageCount = getStorableDialogueMessages(source).length;
+    const hasSummary = Boolean(summaryText);
+
+    return {
+      used: totalUsedChars,
+      max: totalBudget,
+      percent,
+      windowUsed: cycleUsedChars,
+      windowMax: cycleMaxChars,
+      cycleUsedChars,
+      cycleMaxChars,
+      historyPercent: compressionPercent,
+      includedMessageCount,
+      totalMessageCount,
+      hasSummary,
+      summaryChars,
+      level:
+        compressionPercent >= 100
+          ? 'full'
+          : compressionPercent >= 80
+            ? 'high'
+            : compressionPercent >= 55
+              ? 'mid'
+              : 'low',
+    };
+  };
+
+  const contextBudgetUsage = computed(() =>
+    computeContextBudgetUsage(chatSessions[currentSessionIndex.value], { pendingCount: 0 }),
+  );
+
+  // ============================================================
+  // Save / Load sessions from local storage
+  // ------------------------------------------------------------
+  // ⚠️ 写入所有权（2026-10-11）：`/ai-chat` 进 KeepAlive 之后，页面实例与灵动岛
+  //    的 BolekMain 可能**同时活着**，两边共用 `boh_chat_sessions` 一个键。
+  //    没有守卫时「谁后写谁覆盖」，且不报错 —— 症状是换页回来少一条消息。
+  //    细则与判据见 `bolek-chat-session-store.js` 的 createBolekSessionWriteGuard。
+  // ============================================================
+  const sessionWriteGuard = createBolekSessionWriteGuard();
+  /** 本实例是否因为「存储被别人改过」而放弃过一次写入（= 该重新载入了） */
+  const hasSkippedConflictingWrite = ref(false);
+
+  const loadSessions = () => {
+    const migratedSessions = loadBolekChatSessionsFromStorage({
+      sanitizeSession: sanitizeChatSessionForStorage,
+      onError: (error) => logger.error('boh-ai', 'Failed to load chat sessions', error),
+    });
+    if (migratedSessions.length > 0) {
+      chatSessions.splice(0, chatSessions.length, ...migratedSessions);
+    }
+    sessionWriteGuard.adopt();
+  };
+
+  const saveSessions = () => {
+    if (!sessionWriteGuard.canWrite()) {
+      // 另一个引擎（灵动岛）在这期间写过 —— 放弃本次覆盖，交给 syncSessionsFromStorage 择机重载
+      hasSkippedConflictingWrite.value = true;
+      logger.warn('boh-ai', '会话存储已被另一实例改写，放弃本次写入');
+      return;
+    }
+    saveBolekChatSessionsToStorage({
+      sessions: chatSessions,
+      sanitizeSession: sanitizeChatSessionForStorage,
+    });
+    sessionWriteGuard.commit();
+  };
+
+  /**
+   * 存储被别的实例改写后，把它的版本读回来。
+   * ⚠️ 调用方**必须**先确认不在流式中（见 `useChatEngine.syncSessionsIfStale`）：
+   *    换状态会把正在生成的那条消息冲掉，用户看到的是「回答凭空少了一段」。
+   *
+   * @returns {boolean} 是否真的重载了
+   */
+  const syncSessionsFromStorage = () => {
+    if (!hasSkippedConflictingWrite.value) return false;
+    hasSkippedConflictingWrite.value = false;
+    if (sessionWriteGuard.canWrite()) return false;
+    logger.info('boh-ai', '会话存储被另一实例改写，重新载入');
+    loadSessions();
+    return true;
+  };
+
+  /**
+   * 立即落盘（2026-11-22，论坛内联卡片交接用）：跳过 `scheduleSaveSessions` 的
+   * 500ms 防抖 + idle 排队，把当前会话**现在**写进存储。
+   * 消费方：BohForumAnswerCard 点卡片跳全页前 —— 交接靠 timestamp 在存储里找到这条
+   * 会话，防抖窗口内裸跳会让全页找不到（见 boh-ai-session-handoff.js）。
+   * 写入冲突语义与 saveSessions 一致：被别的实例改写过就放弃并标记待重载。
+   */
+  const flushSessionsToStorage = () => {
+    clearSaveTimers();
+    saveSessions();
+  };
+
+  /**
+   * 无条件从存储重载（区别于 syncSessionsFromStorage 的「只在冲突过才读」）。
+   * 消费方：useBohShell 消费会话交接 —— 卡片实例写的存储，全页实例不一定
+   * 放弃过写入，条件版会静默跳过，交接就找不到那条会话。
+   * ⚠️ 调用方必须先确认不在流式中（同 syncSessionsFromStorage 的守卫口径）。
+   */
+  const reloadSessionsFromStorage = () => {
+    loadSessions();
+    return true;
+  };
+
+  const clearSaveTimers = () => {
+    if (saveDebounceTimer) {
+      clearTimeout(saveDebounceTimer);
+      saveDebounceTimer = null;
+    }
+    if (saveIdleTimer) {
+      clearTimeout(saveIdleTimer);
+      saveIdleTimer = null;
+    }
+    if (
+      typeof window !== 'undefined' &&
+      saveIdleCallbackId !== null &&
+      'cancelIdleCallback' in window
+    ) {
+      window.cancelIdleCallback(saveIdleCallbackId);
+      saveIdleCallbackId = null;
+    }
+  };
+
+  const scheduleSaveSessions = () => {
+    clearSaveTimers();
+    const thisCallId = ++saveCallCounter;
+    saveDebounceTimer = setTimeout(() => {
+      saveDebounceTimer = null;
+      if (thisCallId !== saveCallCounter) return; // Superseded by newer call
+
+      if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+        saveIdleCallbackId = window.requestIdleCallback(
+          () => {
+            if (thisCallId !== saveCallCounter) return;
+            saveIdleCallbackId = null;
+            saveSessions();
+          },
+          { timeout: SESSION_SAVE_IDLE_TIMEOUT_MS },
+        );
+        return;
+      }
+
+      saveIdleTimer = setTimeout(() => {
+        if (thisCallId !== saveCallCounter) return;
+        saveIdleTimer = null;
+        saveSessions();
+      }, 0);
+    }, SESSION_SAVE_DEBOUNCE_MS);
+  };
+
+  // ============================================================
+  // Clear cache (nuclear reset)
+  // ============================================================
+  const clearCache = () => {
+    clearSaveTimers();
+    if (memoryCaptureStatusTimer) {
+      clearTimeout(memoryCaptureStatusTimer);
+      memoryCaptureStatusTimer = null;
+    }
+    memoryCaptureStatusMessage.value = '';
+    clearBolekChatSessionsStorage();
+    clearBolekActionAuditsStorage();
+    actionAuditLog.value = [];
+    chatSessions.splice(0, chatSessions.length, {
+      title: '新对话',
+      messages: [],
+      timestamp: Date.now(),
+      isLoading: false,
+      isThinking: false,
+    });
+    currentSessionIndex.value = 0;
+    activeGenerationSessionIndex.value = null;
+    isCompressingContext.value = false;
+    compressingSessionIndex.value = -1;
+    localStorage.removeItem('hasSeenAiWelcome_2025_02');
+    treeholeMemoryCache.userId = '';
+    treeholeMemoryCache.fetchedAt = 0;
+    treeholeMemoryCache.items = [];
+    sharedMemoryCache.fetchedAt = 0;
+    sharedMemoryCache.items = [];
+    resetSharedMemorySearchCache();
+    resetUserPrivateContextCache();
+    resetPendingTreeholeCreation();
+    resetPendingSharedMemoryCapture();
+    resetPendingActionDraft();
+  };
+
+  // ============================================================
+  // Session CRUD
+  // ============================================================
+  const getSessionByIndex = (index) => {
+    if (!Number.isInteger(index)) return null;
+    if (index < 0 || index >= chatSessions.length) return null;
+    return chatSessions[index];
+  };
+
+  /**
+   * 新建会话。origin = 来源标记（plans/038 §3.4 快速会话）：
+   * 'quick-ask' = 岛内问答创建，侧栏「在搜索里问过」分组按此归档；空串 = 普通会话。
+   * 持久化白名单见 bolek-chat-session-store.js（origin 已登记）。
+   */
+  const startNewChat = (origin = '') => {
+    chatSessions.unshift({
+      title: '新对话',
+      messages: [],
+      timestamp: Date.now(),
+      isLoading: false,
+      isThinking: false,
+      ...(origin ? { origin: String(origin).slice(0, 24) } : {}),
+    });
+    currentSessionIndex.value = 0;
+  };
+
+  const clearCurrentSession = () => {
+    const index = currentSessionIndex.value;
+    if (!Number.isInteger(index) || index < 0 || index >= chatSessions.length) return false;
+    if (activeGenerationSessionIndex.value === index) return false;
+
+    chatSessions[index] = {
+      title: '新对话',
+      messages: [],
+      timestamp: Date.now(),
+      isLoading: false,
+      isThinking: false,
+    };
+    scheduleSaveSessions();
+    return true;
+  };
+
+  const clearAllSessions = () => {
+    clearSaveTimers();
+    clearBolekChatSessionsStorage();
+    chatSessions.splice(0, chatSessions.length, {
+      title: '新对话',
+      messages: [],
+      timestamp: Date.now(),
+      isLoading: false,
+      isThinking: false,
+    });
+    currentSessionIndex.value = 0;
+    activeGenerationSessionIndex.value = null;
+    isCompressingContext.value = false;
+    compressingSessionIndex.value = -1;
+    saveSessions();
+  };
+
+  const deleteSession = (index) => {
+    if (activeGenerationSessionIndex.value === index) {
+      return;
+    }
+
+    if (chatSessions.length === 1) {
+      chatSessions[0] = {
+        title: '新对话',
+        messages: [],
+        timestamp: Date.now(),
+        isLoading: false,
+        isThinking: false,
+      };
+      return;
+    }
+    chatSessions.splice(index, 1);
+
+    if (activeGenerationSessionIndex.value !== null && activeGenerationSessionIndex.value > index) {
+      activeGenerationSessionIndex.value -= 1;
+    }
+
+    if (currentSessionIndex.value >= chatSessions.length) {
+      currentSessionIndex.value = chatSessions.length - 1;
+    }
+  };
+
+  /**
+   * 一键清理「在搜索里问过」（plans/038 §3.4 快速会话，2026-11-05 用户口径）。
+   *
+   * 只删 `origin === 'quick-ask'` 的会话；**正在生成的那条跳过**（删了会让流式写回
+   * 一个已经不存在的下标，引擎里的 generationSessionIndex 当场错位）。
+   *
+   * ⚠️ 不能用「倒序 deleteSession」实现：deleteSession 在只剩一条时是「重置成新对话」
+   *    而不是删 —— 倒序走到最后会凭空留下一条空会话，且它的 origin 已被重置掉。
+   *    这里直接重建数组，索引一次性重映射。
+   *
+   * @returns {number} 实际删除的会话数（0 = 本来就没有）
+   */
+  const clearQuickAskSessions = () => {
+    const kept = [];
+    const indexMap = new Map();
+    chatSessions.forEach((session, index) => {
+      const generating = activeGenerationSessionIndex.value === index;
+      if (!generating && session?.origin === 'quick-ask') return;
+      indexMap.set(index, kept.length);
+      kept.push(session);
+    });
+    const removedCount = chatSessions.length - kept.length;
+    if (!removedCount) return 0;
+
+    if (!kept.length) {
+      kept.push({
+        title: '新对话',
+        messages: [],
+        timestamp: Date.now(),
+        isLoading: false,
+        isThinking: false,
+      });
+    }
+
+    const prevCurrent = currentSessionIndex.value;
+    const prevGenerating = activeGenerationSessionIndex.value;
+    const prevCompressing = compressingSessionIndex.value;
+
+    chatSessions.splice(0, chatSessions.length, ...kept);
+
+    currentSessionIndex.value = indexMap.get(prevCurrent) ?? 0;
+    activeGenerationSessionIndex.value =
+      prevGenerating === null ? null : (indexMap.get(prevGenerating) ?? 0);
+    compressingSessionIndex.value =
+      prevCompressing < 0 ? -1 : (indexMap.get(prevCompressing) ?? -1);
+
+    // 立即落盘：清理是「一次性把几十条冲掉」，不能留给防抖窗口
+    saveSessions();
+    return removedCount;
+  };
+
+  const switchSession = (index) => {
+    currentSessionIndex.value = index;
+    nextTick(() => {
+      const fn = resolveScrollToBottom();
+      if (typeof fn === 'function') fn(true);
+    });
+  };
+
+  // ============================================================
+  // Memory capture status message
+  // ============================================================
+  const setMemoryCaptureStatusMessage = (text) => {
+    memoryCaptureStatusMessage.value = String(text || '').trim();
+    if (memoryCaptureStatusTimer) {
+      clearTimeout(memoryCaptureStatusTimer);
+      memoryCaptureStatusTimer = null;
+    }
+    if (memoryCaptureStatusMessage.value) {
+      memoryCaptureStatusTimer = setTimeout(() => {
+        memoryCaptureStatusMessage.value = '';
+        memoryCaptureStatusTimer = null;
+      }, MEMORY_CAPTURE_STATUS_TIMEOUT_MS);
+    }
+  };
+
+  // ============================================================
+  // Active action draft computed
+  // ============================================================
+  const activeActionDraft = computed(() => {
+    if (!pendingActionDraft.active) return null;
+    if (pendingActionDraft.sessionIndex !== currentSessionIndex.value) return null;
+    return {
+      active: true,
+      type: pendingActionDraft.type,
+      sessionIndex: pendingActionDraft.sessionIndex,
+      postTitle: pendingActionDraft.postTitle,
+      postContent: pendingActionDraft.postContent,
+      mailReceiverId: pendingActionDraft.mailReceiverId,
+      mailReceiverName: pendingActionDraft.mailReceiverName,
+      mailSubject: pendingActionDraft.mailSubject,
+      mailContent: pendingActionDraft.mailContent,
+      pageType: pendingActionDraft.pageType,
+      pageDescription: pendingActionDraft.pageDescription,
+      pageHtml: pendingActionDraft.pageHtml,
+    };
+  });
+
+  // ============================================================
+  // Cleanup on unmount (防止内存泄漏)
+  // ============================================================
+  onUnmounted(() => {
+    clearSaveTimers();
+    if (memoryCaptureStatusTimer) {
+      clearTimeout(memoryCaptureStatusTimer);
+      memoryCaptureStatusTimer = null;
+    }
+  });
+
+  // ============================================================
+  // Return
+  // ============================================================
+  return {
+    // State
+    chatSessions,
+    currentSessionIndex,
+    activeGenerationSessionIndex,
+    treeholeMemoryCache,
+    sharedMemoryCache,
+    sharedMemorySearchCache,
+    actionAuditLog,
+    pendingTreeholeCreation,
+    pendingSharedMemoryCapture,
+    pendingActionDraft,
+    userPrivateContextCache,
+    isCompressingContext,
+    compressingSessionIndex,
+    contextBudgetUsage,
+    memoryCaptureStatusMessage,
+    activeActionDraft,
+    // Functions
+    isEmptyAssistantPlaceholder,
+    resetUserPrivateContextCache,
+    resetSharedMemorySearchCache,
+    resetPendingTreeholeCreation,
+    resetPendingSharedMemoryCapture,
+    resetPendingActionDraft,
+    sanitizeChatSessionForStorage,
+    computeContextBudgetUsage,
+    loadSessions,
+    saveSessions,
+    syncSessionsFromStorage,
+    flushSessionsToStorage,
+    reloadSessionsFromStorage,
+    scheduleSaveSessions,
+    clearSaveTimers,
+    clearCache,
+    getSessionByIndex,
+    startNewChat,
+    clearCurrentSession,
+    clearAllSessions,
+    deleteSession,
+    clearQuickAskSessions,
+    switchSession,
+    setMemoryCaptureStatusMessage,
+  };
+}

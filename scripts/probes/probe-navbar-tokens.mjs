@@ -12,7 +12,7 @@
  *    令牌在这里真实生效（底色 0.72 / 描边 0.65 / 投影 shadow-sm）。
  * ② **暗色**：底色与描边的真源是 `src/styles/themes/navbar-dark.css` 的
  *    `…:not(.has-login-card){ background: rgba(20,27,37,.9)!important; … }`。
- *    那是**藏青 palette**（与 BOHAI 暗色同族），与 `--liquid-*` 的中性暗色不是一套 ⇒
+ *    那是**藏青 palette**（与博莱克暗色同族），与 `--liquid-*` 的中性暗色不是一套 ⇒
  *    暗色底色/描边**不纳入令牌断言**（换了就是全站暗色观感决策）。本文件里那条暗色规则
  *    只是兜底（暗色 CSS 懒加载失败时防止岛变透明）。
  *    暗色仍然生效的是**投影**（navbar-dark.css 没声明 box-shadow）⇒ 照常断言。

@@ -6,19 +6,19 @@ import { scriptSection } from '../helpers/source.js';
 const root = resolve(import.meta.dirname, '../..');
 const read = (rel) => readFileSync(resolve(root, rel), 'utf8');
 
-const BOHAI_MAIN = 'src/views/BOHAI/BOHAI/BOHAIMain.vue';
-// 2026-11-12：页面级样式（landscape-rail.css / debug-rainbow.css）的引入点从 BOHAIMain
+const BOLEK_MAIN = 'src/views/Bolek/Bolek/BolekMain.vue';
+// 2026-11-12：页面级样式（landscape-rail.css / debug-rainbow.css）的引入点从 BolekMain
 // 下移到页面入口 index.vue —— 壳有 400 行薄壳阈值，而这两份都是 body 前缀 / 全屏 fixed 的
 // 页面级规则，放入口语义更准。守卫随之下移，断言的仍是「按页引入、不是全局样式」。
-const BOHAI_INDEX = 'src/views/BOHAI/BOHAI/index.vue';
+const BOLEK_INDEX = 'src/views/Bolek/Bolek/index.vue';
 // plans/025 v2 · Step 7：左栏 handler 与 navItems 导入搬进
 // `composables/useBohShell.js` ⇒ 代码侧断言改指新文件；组件挂载条件与
-// landscape-rail.css 引入（模板/style 区）仍读 BOHAIMain。
-const SHELL = 'src/views/BOHAI/composables/useBohShell.js';
-// plans/025 v2 · Step 6-2：侧栏已重绘为 `BohSidebar.vue`（旧 `BohaiSidebar.vue` 随旧 DOM 删除），
+// landscape-rail.css 引入（模板/style 区）仍读 BolekMain。
+const SHELL = 'src/views/Bolek/composables/useBohShell.js';
+// plans/025 v2 · Step 6-2：侧栏已重绘为 `BohSidebar.vue`（旧 `BolekSidebar.vue` 随旧 DOM 删除），
 // 样式搬进同组件的 scoped CSS 文件 ⇒ 两处都要读。
-const BOHAI_SIDEBAR = 'src/views/BOHAI/BOHAI/components/BohSidebar.vue';
-const BOHAI_SIDEBAR_CSS = 'src/views/BOHAI/BOHAI/components/styles/boh-sidebar.css';
+const BOLEK_SIDEBAR = 'src/views/Bolek/Bolek/components/BohSidebar.vue';
+const BOLEK_SIDEBAR_CSS = 'src/views/Bolek/Bolek/components/styles/boh-sidebar.css';
 const RAIL_CSS = 'src/views/user-center/UserSpace/styles/landscape-rail.css';
 
 /**
@@ -34,7 +34,7 @@ const RAIL_CSS = 'src/views/user-center/UserSpace/styles/landscape-rail.css';
  */
 describe('BOH AI 整页横屏左栏（2026-10-03，防「切到 AI 左栏就没了」', () => {
   it('复用 UserSpace 的同一份左栏组件与 navItems 单源', () => {
-    const src = read(BOHAI_MAIN);
+    const src = read(BOLEK_MAIN);
     expect(src).toContain(
       "import UserSpaceSideRail from '@/views/user-center/UserSpace/components/UserSpaceSideRail.vue'",
     );
@@ -47,7 +47,7 @@ describe('BOH AI 整页横屏左栏（2026-10-03，防「切到 AI 左栏就没�
   });
 
   it('只在 standalone（/ai-chat 整页）挂载，且高亮 AI 席', () => {
-    const src = read(BOHAI_MAIN);
+    const src = read(BOLEK_MAIN);
     // embedded / overlayMode 下宿主自己已有左栏，再挂一份就是两条左栏
     // 2026-10-08：横屏左栏也要在**设置打开时**让位 —— 设置已重写为「全屏设置页」，
     // 打开时壳会把会话侧栏与这条左栏一起撤掉（否则两条导航都浮在设置页上）。
@@ -59,7 +59,7 @@ describe('BOH AI 整页横屏左栏（2026-10-03，防「切到 AI 左栏就没�
   });
 
   it('引入页面级 landscape-rail.css（按页引入，不是全局样式）', () => {
-    // 引入点在页面入口 index.vue（2026-11-12 从 BOHAIMain 下移，见文件头常量注释）；
+    // 引入点在页面入口 index.vue（2026-11-12 从 BolekMain 下移，见文件头常量注释）；
     // 「按页引入、不进 main.js」这条口径不变。
     //
     // ⚠️ 2026-11-14：形式从 `<style src>` 改成 `import '....css'`。
@@ -67,7 +67,7 @@ describe('BOH AI 整页横屏左栏（2026-10-03，防「切到 AI 左栏就没�
     //    vite-plugin-pwa 在 build 阶段拿到 undefined descriptor 直接崩：
     //    `Cannot read properties of undefined (reading 'scoped')`（vite build exit 1）。
     //    实测：改回 `<style src>` 立刻复现。所以这条**反向断言**必须留着。
-    const index = read(BOHAI_INDEX);
+    const index = read(BOLEK_INDEX);
     expect(index).toMatch(/import\s+['"][^'"]*landscape-rail\.css['"]/);
     expect(index).not.toContain(
       '<style src="@/views/user-center/UserSpace/styles/landscape-rail.css">',
@@ -89,13 +89,13 @@ describe('BOH AI 整页横屏左栏（2026-10-03，防「切到 AI 左栏就没�
     expect(block, '未找到 body.page-aichat 段').not.toBe('');
     // 栏宽固定 88px，不随 ≥1280 升到 240px（AI 页另有一条 ~280px 会话侧栏）
     expect(block).toMatch(/body\.page-aichat\s*\{[\s\S]{0,200}--userspace-rail-w: 88px/);
-    expect(block).toContain('--bohai-sidebar-left: var(--userspace-rail-w)');
+    expect(block).toContain('--bolek-sidebar-left: var(--userspace-rail-w)');
     // 满屏长页里的 rail 必须 fixed（absolute 会跟着文档/包含块跑）
     expect(block).toMatch(
       /body\.page-aichat \.userspace-rail\.liquid-glass\s*\{[\s\S]{0,80}position: fixed/,
     );
     // 内容让位：整页一起右移（会话侧栏是 Teleport 到 body 的，由变量单独推）
-    expect(block).toMatch(/body\.page-aichat \.bohai-page\s*\{[\s\S]{0,80}padding-left/);
+    expect(block).toMatch(/body\.page-aichat \.bolek-page\s*\{[\s\S]{0,80}padding-left/);
     expect(block).toMatch(/body\.page-aichat \.unified-nav-surface/);
     // 不许给 page-aichat 单独升 240px 档（AI 页本身已有一条 ~280px 会话侧栏）
     expect(sheet).not.toMatch(/page-aichat[\s\S]{0,240}--userspace-rail-w: 240px/);
@@ -114,12 +114,12 @@ describe('BOH AI 整页横屏左栏（2026-10-03，防「切到 AI 左栏就没�
   });
 
   it('会话侧栏的 left 由变量驱动（默认 0，只有 AI 整页置位）', () => {
-    const css = read(BOHAI_SIDEBAR_CSS);
-    expect(css).toContain('left: var(--bohai-sidebar-left, 0px)');
+    const css = read(BOLEK_SIDEBAR_CSS);
+    expect(css).toContain('left: var(--bolek-sidebar-left, 0px)');
     // 写死 0 会让会话侧栏压在左栏下面（两块面板重叠）
     expect(css).not.toMatch(/\.boh-sidebar\s*\{[\s\S]{0,160}left: 0 !important/);
     // 侧栏必须仍 Teleport 到 body —— 否则 left 由变量驱动这件事失去意义（父容器 padding 管不到它）
-    expect(read(BOHAI_SIDEBAR)).toContain('<Teleport to="body">');
+    expect(read(BOLEK_SIDEBAR)).toContain('<Teleport to="body">');
   });
 
   it('左栏动作分发到已有 handler（发布 / 资产 / 主题 / 首页 / 退出）', () => {

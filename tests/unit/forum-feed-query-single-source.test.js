@@ -31,7 +31,13 @@ describe('查询条件层：落位', () => {
     const host = hostCode();
     expect(host).toContain('useForumFeedQuery({');
     // 注入的 ref 少一个，对应开关就会写到一个孤儿对象上（点了没反应，也不报错）
-    for (const dep of ['searchQuery', 'sortMode', 'feedMode', 'selectedTagFilter', 'fetchForumData']) {
+    for (const dep of [
+      'searchQuery',
+      'sortMode',
+      'feedMode',
+      'selectedTagFilter',
+      'fetchForumData',
+    ]) {
       expect(host).toContain(dep);
     }
     // 动作要真的接出来：模板绑定的是宿主的局部名
@@ -47,7 +53,7 @@ describe('查询条件层：落位', () => {
     expect(host).not.toContain('const applyHistoryKeyword');
   });
 
-  it('宿主两处「先掐待发检索」必须走同一出口（askBohai / 卸载清理）', () => {
+  it('宿主两处「先掐待发检索」必须走同一出口（askBolek / 卸载清理）', () => {
     const host = hostCode();
     // 直接 clearTimeout 别人的 let 已经不可能（见上一条），但显式钉住调用点数：
     // 少一处 ⇒ 卸载后定时器还会打一次全表查询；多一处 ⇒ 说明又有人绕过出口。

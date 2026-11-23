@@ -38,10 +38,10 @@ animation-duration: 0.01ms !important;
 /* src/styles/themes/dark-mode.css:218 — 同上 */
 animation-duration: 0.01ms !important;
 
-/* src/views/BOHAI/BOHAI/styles/motion-system.css:241-258 — reduce-motion 用 1ms 而非 0.01ms，但同样砍 opacity */
-.bohai-page.reduce-motion *,
-.bohai-page.reduce-motion *::before,
-.bohai-page.reduce-motion *::after {
+/* src/views/Bolek/Bolek/styles/motion-system.css:241-258 — reduce-motion 用 1ms 而非 0.01ms，但同样砍 opacity */
+.bolek-page.reduce-motion *,
+.bolek-page.reduce-motion *::before,
+.bolek-page.reduce-motion *::after {
   scroll-behavior: auto !important;
   animation-duration: 1ms !important;
   animation-delay: 0ms !important;
@@ -49,9 +49,9 @@ animation-duration: 0.01ms !important;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .bohai-page *,
-  .bohai-page *::before,
-  .bohai-page *::after { ... 同上 ... }
+  .bolek-page *,
+  .bolek-page *::before,
+  .bolek-page *::after { ... 同上 ... }
 }
 ```
 
@@ -118,10 +118,10 @@ animation-duration: 0.01ms !important;
   /* dark-mode 主题不应有不同 reduce-motion 处理；删除该块 */
 }
 
-/* 目标：BOHAI motion-system.css:241-258 */
-.bohai-page.reduce-motion *,
-.bohai-page.reduce-motion *::before,
-.bohai-page.reduce-motion *::after {
+/* 目标：博莱克 motion-system.css:241-258 */
+.bolek-page.reduce-motion *,
+.bolek-page.reduce-motion *::before,
+.bolek-page.reduce-motion *::after {
   scroll-behavior: auto !important;
   animation-duration: 0.001ms !important;
   animation-delay: 0ms !important;
@@ -131,9 +131,9 @@ animation-duration: 0.01ms !important;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .bohai-page *,
-  .bohai-page *::before,
-  .bohai-page *::after {
+  .bolek-page *,
+  .bolek-page *::before,
+  .bolek-page *::after {
     scroll-behavior: auto !important;
     animation-duration: 0.001ms !important;
     animation-delay: 0ms !important;
@@ -156,7 +156,7 @@ animation-duration: 0.01ms !important;
 3. 编辑 [Cloud+/style.scoped.css:1786-1792](file:///Users/ryyik/Documents/BOHLITEForMacLatest/BOHLITEBeta2.5/src/views/user-center/Cloud+/style.scoped.css#L1786)：把 `animation-duration: 0.01ms !important;` 改为 `animation-duration: 0.001ms !important;` 并新增 `transition-duration: 100ms !important;`。
 4. 编辑 [Subscription/style.scoped.css:1034](file:///Users/ryyik/Documents/BOHLITEForMacLatest/BOHLITEBeta2.5/src/views/user-center/Subscription/style.scoped.css#L1034)：同上。
 5. 编辑 [dark-mode.css:214-220](file:///Users/ryyik/Documents/BOHLITEForMacLatest/BOHLITEBeta2.5/src/styles/themes/dark-mode.css#L214)：删除整个 `@media (prefers-reduced-motion: reduce)` 块（让全局 animations.css 接管）。
-6. 编辑 [motion-system.css:241-258](file:///Users/ryyik/Documents/BOHLITEForMacLatest/BOHLITEBeta2.5/src/views/BOHAI/BOHAI/styles/motion-system.css#L241)：把 `1ms` 改为 `0.001ms`（animation）和 `100ms`（transition），新增 `scroll-behavior: auto`。
+6. 编辑 [motion-system.css:241-258](file:///Users/ryyik/Documents/BOHLITEForMacLatest/BOHLITEBeta2.5/src/views/Bolek/Bolek/styles/motion-system.css#L241)：把 `1ms` 改为 `0.001ms`（animation）和 `100ms`（transition），新增 `scroll-behavior: auto`。
 
 ## Boundaries
 
@@ -170,7 +170,7 @@ animation-duration: 0.01ms !important;
 - **机械验证**：
   - `grep -rn "transition-duration: 0.01ms" src/` 返回 0
   - `grep -rn "animation-duration: 0.01ms" src/` 返回 0
-  - `grep -rn "transition-duration: 100ms" src/styles/common/animations.css src/views/BOHAI/BOHAI/styles/motion-system.css` 至少 2 处
+  - `grep -rn "transition-duration: 100ms" src/styles/common/animations.css src/views/Bolek/Bolek/styles/motion-system.css` 至少 2 处
   - `npm run build` 通过
 
 - **Feel check**：
@@ -178,7 +178,7 @@ animation-duration: 0.01ms !important;
   - 重新加载网站，触发以下交互并确认：
     - 任一 `.btn` 按钮 hover：背景色仍有渐变（约 100ms），不是瞬间跳变。
     - CommonAlertModal 弹出：背景遮罩仍有 opacity 淡入。
-    - BOHAI 工作区发送消息：消息气泡仍有 opacity 淡入，但不再有 translateY 入场位移。
+    - 博莱克工作区发送消息：消息气泡仍有 opacity 淡入，但不再有 translateY 入场位移。
     - BlockWall 页面：花瓣飘落动画停止，但卡片点击的 hover 颜色反馈仍可见。
   - DevTools Rendering 面板 → 勾选 `Emulate CSS prefers-reduced-motion: reduce`，重复上述验证。
   - DevTools Performance 录制：reduce-motion 下点击按钮应无 transform 动画帧。

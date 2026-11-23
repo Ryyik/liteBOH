@@ -20,7 +20,7 @@
  *   CSS」的初衷；圆点再用 `currentColor` 兜一层内联色，深浅主题自动跟随。
  *
  * 存量已有等价实现的旧写法（async-loaders.js 的 AsyncCommunity / AsyncForum /
- * AsyncBOHAI）保留各自业务差异（loadingComponent / timeout），新增一律走本工厂。
+ * AsyncBolek）保留各自业务差异（loadingComponent / timeout），新增一律走本工厂。
  * 浮层 / 触发器型面板（弹窗、边缘触发区等「隐形直到被调用」的组件）必须传
  * `silent: true` —— 它们失败后不该在文档流里留加载占位，见 AsyncPanelSilent。
  * 门禁 `check:async-component-fallback` 会拦住新增的裸写法。

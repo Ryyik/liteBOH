@@ -11,7 +11,7 @@ const PAGES = [
   { path: '/#/user-space', name: 'user-space', bodyClass: '' },
 ];
 const EXPECT = 'rgb(245, 245, 247)';
-// 历史污染色：BOHAI 岛绿色（已修）+ BirthdayHero 粉色（已修），容器不得再被塞色
+// 历史污染色：博莱克岛绿色（已修）+ BirthdayHero 粉色（已修），容器不得再被塞色
 const BANNED = ['rgb(110, 231, 183)', 'rgb(255, 155, 179)'];
 
 const browser = await chromium.launch({ channel: 'chrome' });

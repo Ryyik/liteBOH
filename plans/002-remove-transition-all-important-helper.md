@@ -123,7 +123,7 @@
 
 - **Token 来源**：Plan 001 新建的 `src/styles/common/tokens.css` 定义了 `--ease-out` 等 token。
 - **import 顺序**：tokens.css 在 main.js 中先于其他组件 css 导入（Plan 001 已处理）。
-- **现有样例**：[BOHAI motion-system.css:74-81](file:///Users/ryyik/Documents/BOHLITEForMacLatest/BOHLITEBeta2.5/src/views/BOHAI/BOHAI/styles/motion-system.css#L74) 已示范了"具体属性 + var(--ease-*)" 的写法。
+- **现有样例**：[博莱克 motion-system.css:74-81](file:///Users/ryyik/Documents/BOHLITEForMacLatest/BOHLITEBeta2.5/src/views/Bolek/Bolek/styles/motion-system.css#L74) 已示范了"具体属性 + var(--ease-*)" 的写法。
 - **`.transition` class 本身不再需要** — 现代代码应直接在元素上写 `transition:` 属性，避免 helper class 滥用。
 
 ## Steps

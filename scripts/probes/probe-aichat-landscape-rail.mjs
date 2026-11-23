@@ -5,7 +5,7 @@ import { chromium } from 'playwright';
 //
 //   背景（用户口径）：AI 是底栏「AI」席的全屏落点，原先一切过去左栏整条消失 ——
 //   横屏电脑上从「我」页点 AI，导航没了、只剩一个返回键。现在复用同一份
-//   UserSpaceSideRail（BOHAIMain 里 v-if="isStandalone"）。
+//   UserSpaceSideRail（BolekMain 里 v-if="isStandalone"）。
 //
 //   两档视口：
 //     · 1440×900（横屏 ≥1024×600）：左栏可见/fixed/88px、高亮 AI 席、
@@ -16,7 +16,7 @@ import { chromium } from 'playwright';
 //
 //   ⚠️ 两条实测坑：
 //     ① 页面级规则在 landscape-rail.css 里，而那个文件是**按页引入**的 ——
-//        BOHAIMain 不写 `<style src=...>` 时，左栏照样渲染但 position/让位全不生效
+//        BolekMain 不写 `<style src=...>` 时，左栏照样渲染但 position/让位全不生效
 //        （实测 absolute + padding-left:0 + 会话侧栏 left:0）。本探针第一条断言就是
 //        「左栏 fixed 且贴左」，专门咬这一处。
 //     ② 顶部导航岛是「满宽容器里 margin:0 auto 居中 + left 相对偏移」，
@@ -56,7 +56,7 @@ const probeLandscape = async () => {
 
   const m = await page.evaluate(() => {
     const rail = document.querySelector('.userspace-rail');
-    const pageEl = document.querySelector('.bohai-page');
+    const pageEl = document.querySelector('.bolek-page');
     // plans/025 v2 · Step 6：会话侧栏重绘为 `.boh-sidebar`（旧 `.sidebar` 随旧 DOM 删除），
     // 主列由 `.main-content` 改为 `.boh-main`。
     const sidebar = document.querySelector('.boh-sidebar');
@@ -142,7 +142,7 @@ const probePortrait = async () => {
   await page.waitForTimeout(3500);
   const m = await page.evaluate(() => {
     const rail = document.querySelector('.userspace-rail');
-    const pageEl = document.querySelector('.bohai-page');
+    const pageEl = document.querySelector('.bolek-page');
     return {
       display: rail ? getComputedStyle(rail).display : '(none)',
       paddingLeft: pageEl ? getComputedStyle(pageEl).paddingLeft : '',

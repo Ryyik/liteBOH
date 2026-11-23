@@ -44,7 +44,7 @@ describe('squeezeSource：空白压单空格 + 去尾逗号 + 去闭括号前空
 describe('squeezeSource 能抹平的真实断行（每例都来自一次实际假红）', () => {
   const cases = [
     {
-      name: 'import 被展开成多行（2026-09-28 bohai-settings-panel 假红）',
+      name: 'import 被展开成多行（2026-09-28 bolek-settings-panel 假红）',
       source: `import {
   isAbortError,
   CHAT_ERROR_MESSAGES,
@@ -81,7 +81,7 @@ describe('squeezeSource 能抹平的真实断行（每例都来自一次实际�
 });
 
 describe('flattenSource：在 squeezeSource 基础上移除全部空白', () => {
-  it('能跨过开括号后的断行（2026-09-28 bohai-quick-sidebar 假红）', () => {
+  it('能跨过开括号后的断行（2026-09-28 bolek-quick-sidebar 假红）', () => {
     const source = `communitySearchActive.value = Boolean(
       communityNeedsEvidence || isForumSearchEnabled.value,
     );`;

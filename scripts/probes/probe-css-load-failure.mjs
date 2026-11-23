@@ -136,7 +136,7 @@ const DARK_THEME_KEYS = [
   'post-detail-dark',
   'user-space-dark',
   'user-center-dark',
-  'bohai-dark',
+  'bolek-dark',
   'messages-dark',
 ];
 // ⚠️ 必须把 keys 作为**参数**传进来：page.evaluate 只序列化函数体，
@@ -214,7 +214,7 @@ async function newPage() {
   const consoleErrors = [];
   const events = [];
   const WATCH =
-    /static\/css\/(profile-|responsive-integrations-|index-|dark-|navbar-dark|forum-dark|post-detail-dark|user-space-dark|user-center-dark|bohai-dark|messages-dark)[^/]*\.css/;
+    /static\/css\/(profile-|responsive-integrations-|index-|dark-|navbar-dark|forum-dark|post-detail-dark|user-space-dark|user-center-dark|bolek-dark|messages-dark)[^/]*\.css/;
   page.on('load', () => fullLoads.push(page.url()));
   page.on('pageerror', (err) => consoleErrors.push(String(err?.message || err)));
   page.on('response', (res) => {

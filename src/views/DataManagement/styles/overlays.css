@@ -349,7 +349,7 @@
 .field-group-body .form-group.field-user-picker,
 .field-group-body .news-assist-panel,
 .field-group-body .gift-address-copy-box,
-.field-group-body .bohai-key-assist-panel {
+.field-group-body .bolek-key-assist-panel {
   grid-column: 1 / -1;
 }
 
@@ -429,8 +429,8 @@
   color: var(--dm-text-subtle);
 }
 
-/* BOHAI 模型配置：API Key 预填助手面板 */
-.bohai-key-assist-panel {
+/* 博莱克模型配置：API Key 预填助手面板 */
+.bolek-key-assist-panel {
   border: 1px solid var(--dm-border, #ebebeb);
   border-radius: 8px;
   background: var(--dm-soft, #eff1f4);
@@ -438,31 +438,31 @@
   margin-bottom: 20px;
 }
 
-.bohai-key-assist-panel .assist-title {
+.bolek-key-assist-panel .assist-title {
   font-size: 14px;
   font-weight: 600;
   color: var(--foreground);
   margin-bottom: 10px;
 }
 
-.bohai-key-assist-panel .bohai-key-assist-body {
+.bolek-key-assist-panel .bolek-key-assist-body {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
 
-.bohai-key-assist-panel .bohai-key-select {
+.bolek-key-assist-panel .bolek-key-select {
   width: 100%;
 }
 
-.bohai-key-assist-panel .bohai-key-hint {
+.bolek-key-assist-panel .bolek-key-hint {
   margin: 0;
   font-size: 12px;
   color: var(--dm-text-subtle);
   line-height: 1.6;
 }
 
-.bohai-key-assist-panel .bohai-key-hint code {
+.bolek-key-assist-panel .bolek-key-hint code {
   background: rgba(0, 0, 0, 0.04);
   padding: 1px 6px;
   border-radius: 4px;
@@ -470,11 +470,11 @@
   color: var(--foreground);
 }
 
-.bohai-key-assist-panel .bohai-key-hint.is-muted {
+.bolek-key-assist-panel .bolek-key-hint.is-muted {
   opacity: 0.8;
 }
 
-.bohai-key-assist-panel .bohai-key-hint .is-warn {
+.bolek-key-assist-panel .bolek-key-hint .is-warn {
   color: var(--destructive, #dc2626);
   font-weight: 600;
 }

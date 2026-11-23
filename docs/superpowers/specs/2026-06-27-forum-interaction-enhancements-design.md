@@ -83,7 +83,7 @@ existingImages: { type: Array, default: () => [] }
 
 **文件**:
 - `src/components/GlobalAiGlassOverlay.vue`
-- `src/views/BOHAI/BOHAI/components/BohaiSidebar.vue`
+- `src/views/Bolek/Bolek/components/BolekSidebar.vue`
 
 **CSS修改**:
 ```css

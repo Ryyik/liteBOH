@@ -6,7 +6,7 @@
  *   与整页路由共享同一 chunk，首次打开弹窗时才加载。
  * - 开关状态与历史栈同步在 usePostDetailModal（单源），本组件只负责壳与视觉。
  * - 层级：overlay z-index 2147482400 —— 盖过 UserSpace bottom-nav(2147482200)/
- *   BohaiSidebar 底层(2147482100/2200)，让位图片查看器(2147483000)与全局弹窗(2147483647)。
+ *   BolekSidebar 底层(2147482100/2200)，让位图片查看器(2147483000)与全局弹窗(2147483647)。
  *   编辑器等 fixed 子层在 panel 的 stacking context 内自然置顶，无需改其 z-index。
  */
 import { computed, defineAsyncComponent, h, ref, watch, nextTick } from 'vue';

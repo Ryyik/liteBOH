@@ -24,7 +24,7 @@ const props = defineProps({
 const emit = defineEmits([
   'update:searchQuery',
   'searchSubmit',
-  'askBohai',
+  'askBolek',
   'clearTagFilter',
   // 清除搜索词（输入框右侧 × / 无结果引导）。与「清除标签筛选」分开：
   // 用户清关键词时不该顺手把 #标签 筛选也丢掉，反之亦然。
@@ -53,9 +53,9 @@ const onSearchSubmit = () => {
   emit('searchSubmit');
 };
 
-const onAskBohai = () => {
+const onAskBolek = () => {
   if (props.isAiSearchLoading) return;
-  emit('askBohai');
+  emit('askBolek');
 };
 
 const onClearTagFilter = () => {
@@ -150,7 +150,7 @@ const onOpenWeeklyCheckin = () => {
         </button>
       </Transition>
 
-      <!-- 移动端 / 平板：输入框内右侧只留「清除 + 问BOHAI」。
+      <!-- 移动端 / 平板：输入框内右侧只留「清除 + 问博莱克」。
            搜索不再单独放放大镜钮 —— 回车即搜索（enterkeyhint=search）。 -->
       <div class="toolbar-search-actions">
         <!-- 清除按钮：只在有内容时出现（空着的时候多一个 × 只是噪音） -->
@@ -170,10 +170,10 @@ const onOpenWeeklyCheckin = () => {
           type="button"
           class="toolbar-ai-btn"
           :disabled="isAiSearchLoading"
-          title="BOHAI 检索论坛内容，在搜索结果下方回答（消耗 AI 额度，点卡片进完整对话）"
-          @click="onAskBohai"
+          title="博莱克检索论坛内容，在搜索结果下方回答（消耗 AI 额度，点卡片进完整对话）"
+          @click="onAskBolek"
         >
-          <span class="ai-label">问 BOHAI</span>
+          <span class="ai-label">问博莱克</span>
         </button>
       </div>
     </div>
@@ -182,7 +182,7 @@ const onOpenWeeklyCheckin = () => {
     <Transition name="toolbar-ai-status">
       <div v-if="isAiSearchLoading" class="toolbar-ai-status" aria-live="polite">
         <span class="toolbar-ai-spinner" aria-hidden="true"></span>
-        <span class="toolbar-ai-loading-text">BOHAI 检索中</span>
+        <span class="toolbar-ai-loading-text">博莱克检索中</span>
       </div>
     </Transition>
     <Transition name="toolbar-ai-hint">
@@ -191,7 +191,7 @@ const onOpenWeeklyCheckin = () => {
       </div>
     </Transition>
 
-    <!-- 横屏 hero 底栏：签到 + 问BOHAI 在左，圆形搜索在右（移动端隐藏） -->
+    <!-- 横屏 hero 底栏：签到 + 问博莱克在左，圆形搜索在右（移动端隐藏） -->
     <div class="toolbar-hero-bar">
       <div class="toolbar-hero-left">
         <GlassPillButton
@@ -207,11 +207,11 @@ const onOpenWeeklyCheckin = () => {
           class="toolbar-hero-pill"
           tone="soft"
           :disabled="isAiSearchLoading"
-          title="BOHAI 检索论坛内容，在搜索结果下方回答（消耗 AI 额度，点卡片进完整对话）"
-          @click="onAskBohai"
+          title="博莱克检索论坛内容，在搜索结果下方回答（消耗 AI 额度，点卡片进完整对话）"
+          @click="onAskBolek"
         >
           <Sparkles :size="16" :stroke-width="2" aria-hidden="true" />
-          <span>问 BOHAI</span>
+          <span>问博莱克</span>
         </GlassPillButton>
       </div>
       <button
@@ -292,7 +292,7 @@ const onOpenWeeklyCheckin = () => {
 }
 
 /* 签到：搜索框最左侧的纯文字入口（原「+」位）。刻意不做成胶囊按钮 ——
-   它是前缀动作，不该和右侧「问 BOHAI」抢视觉权重。 */
+   它是前缀动作，不该和右侧「问博莱克」抢视觉权重。 */
 .toolbar-checkin-inline {
   flex-shrink: 0;
   height: 34px;
@@ -589,7 +589,7 @@ const onOpenWeeklyCheckin = () => {
   color: #d8d8de;
 }
 
-/* 「问 BOHAI」：整条框里唯一的按钮（参考稿右端的胶囊）。浅灰底 + 全圆角，
+/* 「问博莱克」：整条框里唯一的按钮（参考稿右端的胶囊）。浅灰底 + 全圆角，
    比原来 10px 圆角的方标签更轻，也不再和输入区抢边界。 */
 .toolbar-ai-btn {
   display: inline-flex;
@@ -715,7 +715,7 @@ const onOpenWeeklyCheckin = () => {
 }
 
 /* 桌面两栏档（≥1024，与 base.css 两栏档同阈值；工具栏由 grid-areas 跨栏独占一行）：
-   按草图重排为「大号液态玻璃搜索容器」——输入区在上，底部一行 [签到][问BOHAI] 左 + 圆形搜索钮右。
+   按草图重排为「大号液态玻璃搜索容器」——输入区在上，底部一行 [签到][问博莱克] 左 + 圆形搜索钮右。
    筛选下拉在横屏移除，标签筛选改由输入框内 #标签名 语法承担（chip 显示当前筛选）。
    样式必须写在本组件 scoped —— base.css 是以 scoped 方式引入的，跨组件选择器匹配不到本组件内部 */
 @media (min-width: 1024px) {

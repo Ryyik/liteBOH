@@ -19,7 +19,7 @@ import {
 } from '../../src/views/Forum/composables/post-polish.js';
 import { FORUM_POST_TITLE_MAX_LENGTH } from '../../src/views/Forum/forum-config.js';
 
-/** 模拟 BOHAI 的 extractBohAIJsonObject（只做本测试需要的三种形态） */
+/** 模拟博莱克的 extractBolekJsonObject（只做本测试需要的三种形态） */
 const extractJson = (text) => {
   const withoutFence = String(text).replace(/```(?:json)?\s*([\s\S]*?)```/i, '$1');
   const start = withoutFence.indexOf('{');
@@ -194,10 +194,10 @@ describe('useForumPostPolish —— 直接替换 + 撤销', () => {
   // 真实值由「落点时序」那一组单独验。
   const setup = async (responseText, { reject = null, settleMs = 0, exitMs = 0 } = {}) => {
     vi.resetModules();
-    vi.doMock('@/utils/bohai-model-client.js', () => ({
-      getBohAIModelStatus: () => ({ hasConfig: true }),
-      extractBohAIJsonObject: extractJson,
-      callBohAIModel: reject
+    vi.doMock('@/utils/bolek-model-client.js', () => ({
+      getBolekModelStatus: () => ({ hasConfig: true }),
+      extractBolekJsonObject: extractJson,
+      callBolekModel: reject
         ? vi.fn().mockRejectedValue(reject)
         : vi.fn().mockResolvedValue({ content: responseText }),
     }));
@@ -310,10 +310,10 @@ describe('useForumPostPolish —— 落点与文字替换同步', () => {
 
   const setup = async ({ settleMs, exitMs }) => {
     vi.resetModules();
-    vi.doMock('@/utils/bohai-model-client.js', () => ({
-      getBohAIModelStatus: () => ({ hasConfig: true }),
-      extractBohAIJsonObject: extractJson,
-      callBohAIModel: vi.fn().mockResolvedValue({ content: AI }),
+    vi.doMock('@/utils/bolek-model-client.js', () => ({
+      getBolekModelStatus: () => ({ hasConfig: true }),
+      extractBolekJsonObject: extractJson,
+      callBolekModel: vi.fn().mockResolvedValue({ content: AI }),
     }));
     const mod = await import('../../src/views/Forum/composables/useForumPostPolish.js');
     const applied = [];
@@ -511,15 +511,16 @@ describe('post-polish-sweep.css —— 文字流光的接线', () => {
   });
 
   it('★ 流光挂到两个真实 textarea 上（不是外层容器）', () => {
-    expect((composerVue.match(/:class="\{ 'is-polishing': isBusyPolishing \}"/g) || []).length).toBe(2);
+    expect(
+      (composerVue.match(/:class="\{ 'is-polishing': isBusyPolishing \}"/g) || []).length,
+    ).toBe(2);
     expect(composerVue).toContain('class="post-title-input"');
     expect(composerVue).toContain('class="post-content-input"');
   });
 
   it('★ 暗色通用 textarea 规则不得清掉流光的 background-image', () => {
-    const genericRules = forumDarkCss.match(
-      /\[data-theme=['"]dark['"]\] \.forum-page textarea[^\{]*\{[^}]*\}/g,
-    ) || [];
+    const genericRules =
+      forumDarkCss.match(/\[data-theme=['"]dark['"]\] \.forum-page textarea[^\{]*\{[^}]*\}/g) || [];
     expect(genericRules.length).toBeGreaterThan(0);
     for (const rule of genericRules) {
       // 通用暗色规则若用 background 简写且不带排除口，会把 is-polishing 的
@@ -550,12 +551,14 @@ describe('post-polish-sweep.css —— 文字流光的接线', () => {
   it('★ 落点后流光立刻摘掉（完成后文字必须恢复可读的原色）', () => {
     // is-polishing 由 isBusyPolishing 控制；settled 之后 status 仍是 settling，
     // 但关键是不能让 is-polishing 在新文字上继续为真
-    expect(composerVue).toContain(":class=\"{ 'is-polishing': isBusyPolishing }\"");
+    expect(composerVue).toContain(':class="{ \'is-polishing\': isBusyPolishing }"');
     const mod = readFileSync(
       resolve(import.meta.dirname, '../../src/views/Forum/composables/useForumPostPolish.js'),
       'utf8',
     );
     // settled 之后 status 才会变 applied，isBusy 随即为 false
-    expect(mod).toMatch(/settled\.value = true;[\s\S]{0,400}status\.value = POLISH_STATUS\.applied/);
+    expect(mod).toMatch(
+      /settled\.value = true;[\s\S]{0,400}status\.value = POLISH_STATUS\.applied/,
+    );
   });
 });

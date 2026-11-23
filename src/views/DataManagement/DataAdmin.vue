@@ -1974,7 +1974,7 @@
         @update-field="handleUpdateField"
         @update-json-buffer="handleUpdateJsonBuffer"
         @update-spec-field="handleUpdateSpecField"
-        @bohai-key-select="handleBohaiKeySelect"
+        @bolek-key-select="handleBolekKeySelect"
       />
     </Teleport>
 
@@ -2048,7 +2048,7 @@
       @update-field="handleUpdateField"
       @update-json-buffer="handleUpdateJsonBuffer"
       @update-spec-field="handleUpdateSpecField"
-      @bohai-key-select="handleBohaiKeySelect"
+      @bolek-key-select="handleBolekKeySelect"
     />
 
     <!-- 全局提示 -->
@@ -2226,10 +2226,10 @@ import {
 } from '@/utils/cloudinary-client.js';
 import { getExpiredActiveGiftIds, markGiftsAsHistory } from '@/utils/gift-archive.js';
 import {
-  getDefaultApiUrlForBohaiProvider,
-  listActiveBohaiModelConfigs,
-  buildBohaiRuntimeModels,
-} from '@/utils/api/bohai-model-config-api.js';
+  getDefaultApiUrlForBolekProvider,
+  listActiveBolekModelConfigs,
+  buildBolekRuntimeModels,
+} from '@/utils/api/bolek-model-config-api.js';
 import {
   clearVaultModelCache,
   clearUserTierCache,
@@ -2255,10 +2255,10 @@ import {
   getRoleLabel,
   getUserRole,
 } from './config/rbac.js';
-import { BOHAI_MODEL_PROVIDER_OPTIONS, PROFILE_SAVE_SELECT_COLUMNS } from './config/fields.js';
+import { BOLEK_MODEL_PROVIDER_OPTIONS, PROFILE_SAVE_SELECT_COLUMNS } from './config/fields.js';
 import { buildAdminFunctionIndex, searchAdminFunctions } from './config/function-index.js';
 import { splitProfileWritePayload } from './composables/data-admin-profile-write.js';
-import { excludeInternalBohaiModes } from './config/bohai-internal-modes.js';
+import { excludeInternalBolekModes } from './config/bolek-internal-modes.js';
 import {
   DATA_CONSOLE_SECTIONS,
   DATE_FILTER_FIELDS,
@@ -2936,13 +2936,13 @@ const handleUpdateField = (fieldKey, value) => {
   }
 };
 
-// BOHAI 模型配置：从 API Key 预填 provider / provider_label / api_url
-const handleBohaiKeySelect = (keyMeta) => {
+// 博莱克模型配置：从 API Key 预填 provider / provider_label / api_url
+const handleBolekKeySelect = (keyMeta) => {
   if (!editingItem.value || !keyMeta) return;
   // 同步 provider
   editingItem.value.provider = keyMeta.provider;
   // 同步 provider_label（优先用 Key 自带 label，否则按 provider 取默认显示名）
-  const providerOpt = BOHAI_MODEL_PROVIDER_OPTIONS.find((o) => o.value === keyMeta.provider);
+  const providerOpt = BOLEK_MODEL_PROVIDER_OPTIONS.find((o) => o.value === keyMeta.provider);
   editingItem.value.provider_label = keyMeta.label || providerOpt?.label || keyMeta.provider;
   // 同步 api_url：仅当 Key 自身配置了 apiUrl 时才覆盖；
   // 否则保留当前 editingItem 的 api_url（避免给 custom 错填 siliconflow 默认值）
@@ -2953,7 +2953,7 @@ const handleBohaiKeySelect = (keyMeta) => {
     editingItem.value.api_url = '';
   } else {
     // 其他 provider 走默认值兜底
-    editingItem.value.api_url = getDefaultApiUrlForBohaiProvider(keyMeta.provider);
+    editingItem.value.api_url = getDefaultApiUrlForBolekProvider(keyMeta.provider);
   }
   // model_id 清空，让用户从 freemodels 下拉里重新选（不同 provider 对应不同模型）
   editingItem.value.model_id = '';
@@ -3030,7 +3030,7 @@ const dataStore = shallowReactive({
   coreMemories: [],
   aiMemories: [],
   forumMemories: [],
-  bohaiModels: [],
+  bolekModels: [],
   lotteries: [],
   lotteryEntries: [],
   lotteryDrawLogs: [],
@@ -3054,7 +3054,7 @@ const stats = reactive({
   totalSubscriptions: 0,
   totalPosts: 0,
   totalCoreMemories: 0,
-  totalBohaiModels: 0,
+  totalBolekModels: 0,
   totalLotteries: 0,
   totalLotteryEntries: 0,
   totalLotteryDrawLogs: 0,
@@ -4199,8 +4199,8 @@ const getTabCount = (tabId) => {
       return tabTotals.aiMemories;
     case 'forumMemories':
       return tabTotals.forumMemories;
-    case 'bohaiModels':
-      return stats.totalBohaiModels;
+    case 'bolekModels':
+      return stats.totalBolekModels;
     case 'lotteries':
       return stats.totalLotteries;
     case 'lotteryEntries':
@@ -4808,7 +4808,7 @@ const fetchStats = async () => {
     stats.totalUsers = totalOf('users');
     stats.totalPosts = totalOf('forum');
     stats.totalCoreMemories = totalOf('coreMemories');
-    stats.totalBohaiModels = totalOf('bohaiModels');
+    stats.totalBolekModels = totalOf('bolekModels');
     stats.totalLotteries = totalOf('lotteries');
     stats.totalLotteryEntries = totalOf('lotteryEntries');
     stats.totalLotteryDrawLogs = totalOf('lotteryDrawLogs');
@@ -4872,7 +4872,7 @@ const fetchStats = async () => {
     aiMemories: fetchCount('boh_ai_shared_memories'),
     forumMemories: fetchCount('boh_ai_forum_memories'),
     // 与列表查询共用同一个排除口径，否则会出现「列表 8 行、计数 10 条」
-    bohaiModels: fetchCount('bohai_model_configs', excludeInternalBohaiModes),
+    bolekModels: fetchCount('bolek_model_configs', excludeInternalBolekModes),
     lotteries: fetchCount('lotteries'),
     lotteryEntries: fetchCount('lottery_entries'),
     lotteryDrawLogs: fetchCount('lottery_draw_logs'),
@@ -4976,7 +4976,7 @@ const applyTabBaseFilters = (query, tabId) => {
   if (tabId === 'reportedPosts') return query.eq('status', 'limited');
   if (tabId === 'reviewPosts') return query.ilike('status', 'rejected');
   if (tabId === 'reviewComments') return query.ilike('status', 'rejected');
-  if (tabId === 'bohaiModels') return excludeInternalBohaiModes(query);
+  if (tabId === 'bolekModels') return excludeInternalBolekModes(query);
   return query;
 };
 
@@ -5559,7 +5559,7 @@ const fetchAllFilteredRows = async (tabId = currentTab.value) => {
   const selectColumns = TAB_SELECT_COLUMNS[tabId];
   if (!dataConfig[tabId]?.table || !selectColumns) return [];
 
-  // 与 fetchTabData 同款装配：tab 级基础过滤（reportedPosts / review* / bohaiModels）
+  // 与 fetchTabData 同款装配：tab 级基础过滤（reportedPosts / review* / bolekModels）
   // + applySearchAndSort。漏掉基础过滤的话，这四个 tab 的「全部筛选结果」条数
   // 会比页脚「共 N 条」多（把被过滤掉的行也导出去了）。
   // supabase.from 收口在 utils/api/data-admin-table-api.js（layering：UI 层不新增直连出口）。
@@ -5571,9 +5571,9 @@ const fetchAllFilteredRows = async (tabId = currentTab.value) => {
       decorated = decorated.ilike('status', 'rejected');
     } else if (tabId === 'reviewComments') {
       decorated = decorated.ilike('status', 'rejected');
-    } else if (tabId === 'bohaiModels') {
+    } else if (tabId === 'bolekModels') {
       // 审核专用的两行归「审核模型」页维护，口径与 fetchTabData 同源。
-      decorated = excludeInternalBohaiModes(decorated);
+      decorated = excludeInternalBolekModes(decorated);
     }
     return applySearchAndSortUtil({
       query: decorated,
@@ -7092,7 +7092,7 @@ const openEditModal = async (item = null, opts = {}) => {
         editingItem.value.content = '';
       }
 
-      if (currentTab.value === 'bohaiModels') {
+      if (currentTab.value === 'bolekModels') {
         editingItem.value.mode_id = 'fast';
         editingItem.value.display_name = 'Fast';
         editingItem.value.tagline = '快速响应';
@@ -7100,7 +7100,7 @@ const openEditModal = async (item = null, opts = {}) => {
         editingItem.value.provider = 'siliconflow';
         editingItem.value.provider_label = 'SiliconFlow';
         editingItem.value.model_id = 'Qwen/Qwen3-8B';
-        editingItem.value.api_url = getDefaultApiUrlForBohaiProvider('siliconflow');
+        editingItem.value.api_url = getDefaultApiUrlForBolekProvider('siliconflow');
         editingItem.value.capability = 'chat';
         editingItem.value.icon = 'zap';
         editingItem.value.temperature = 0.18;
@@ -7417,9 +7417,9 @@ const normalizePhone = (value = '') => {
 const loadAddressAiModel = async () => {
   if (addressAiModelRef.value) return addressAiModelRef.value;
   try {
-    const result = await listActiveBohaiModelConfigs();
+    const result = await listActiveBolekModelConfigs();
     if (!result.ok || !Array.isArray(result.data) || result.data.length === 0) return null;
-    const { chatModes, availableModels } = buildBohaiRuntimeModels(result.data);
+    const { chatModes, availableModels } = buildBolekRuntimeModels(result.data);
     const mode = chatModes.find((m) => m.id === 'fast') || chatModes[0];
     const resolved = availableModels.find((m) => m.id === mode?.model) || availableModels[0];
     addressAiModelRef.value = {
@@ -7659,7 +7659,7 @@ const saveData = async ({ keepOpen = false } = {}) => {
         await syncSiteContentIndex();
       if (currentTab.value === 'forumMemories' && dataToSave.status === 'active')
         await syncForumMemoryIndex();
-      if (currentTab.value === 'bohaiModels') {
+      if (currentTab.value === 'bolekModels') {
         clearVaultModelCache().catch((e) => logger.warn('清除模型缓存失败:', e));
       }
       addChangeLogEntry('update', editingItem.value, {
@@ -7694,7 +7694,7 @@ const saveData = async ({ keepOpen = false } = {}) => {
         await syncSiteContentIndex();
       if (currentTab.value === 'forumMemories' && dataToSave.status === 'active')
         await syncForumMemoryIndex();
-      if (currentTab.value === 'bohaiModels') {
+      if (currentTab.value === 'bolekModels') {
         clearVaultModelCache().catch((e) => logger.warn('清除模型缓存失败:', e));
       }
       searchQuery.value = '';
@@ -8099,7 +8099,7 @@ const handleKbImport = async () => {
     const upsertedCount = Number(result?.upsertedCount || 0);
     kbImportHint.value = `导入成功：${chunkCount} 个切片，本次更新 ${upsertedCount} 个，向量化模型 ${result?.embeddingModel || '-'}`;
     showToast(
-      `知识库已导入（${chunkCount} 个切片，更新 ${upsertedCount} 个），BOHAI 检索即时生效`,
+      `知识库已导入（${chunkCount} 个切片，更新 ${upsertedCount} 个），博莱克检索即时生效`,
       'success',
     );
   } catch (error) {
@@ -8271,7 +8271,7 @@ const saveInlineEdit = async (item, col) => {
     });
     if (currentTab.value === 'products') invalidateProductsCache();
     if (currentTab.value === 'subscriptions') invalidateSubscriptionCache(item?.user_id);
-    if (currentTab.value === 'bohaiModels') {
+    if (currentTab.value === 'bolekModels') {
       clearVaultModelCache().catch((e) => logger.warn('清除模型缓存失败:', e));
     }
     showToast('行内编辑已保存', 'success');
@@ -8368,7 +8368,7 @@ const applyBatchEdit = async () => {
     if (currentTab.value === 'products') invalidateProductsCache();
     if (currentTab.value === 'subscriptions')
       selectedItems.value.forEach((item) => invalidateSubscriptionCache(item?.user_id));
-    if (currentTab.value === 'bohaiModels') {
+    if (currentTab.value === 'bolekModels') {
       clearVaultModelCache().catch((e) => logger.warn('清除模型缓存失败:', e));
     }
     showToast('批量编辑成功', 'success');

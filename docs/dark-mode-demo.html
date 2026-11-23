@@ -156,7 +156,7 @@ body[data-view=d2] .pane[data-p=cur]{display:none}
 .pane[data-p=cur] [data-role=forum]    { --surface:#21222c;      /* dark-audit-results.json 实测命中值 */ }
 .pane[data-p=cur] [data-role=shop]     { --surface:rgba(255,255,255,.6); } /* Shop/style.scoped.css:320 → 合成 #9d9d9f ≈ 实测 #9e9e9f */
 .pane[data-p=cur] [data-role=userspace]{ --surface:#1a1a24;      /* user-space-dark.css:12 */ }
-.pane[data-p=cur] [data-role=bohai]    { --surface:#2f2f2f;      /* bohai-dark.css:8 */ }
+.pane[data-p=cur] [data-role=bolek]    { --surface:#2f2f2f;      /* bolek-dark.css:8 */ }
 .pane[data-p=cur] [data-role=form]     { --surface:#1a1a25;      /* dark-mode.css:43 */ }
 .pane[data-p=cur] [data-role=nav]      { --glass:rgba(10,10,15,.85); }     /* dark-mode.css:146 */
 /* 文字色刻意「不跟随」表面 —— 这正是现状的真实形态：暗色文字层固定为
@@ -313,7 +313,7 @@ footer{margin-top:44px;font-size:12px;color:#7a828f;line-height:1.7;
 
   <section>
     <h2 class="sec"><span class="idx">01</span>组件实景 —— 同一份 UI，两套 token</h2>
-    <p class="secdesc">覆盖导航栏、论坛信息流、商品卡、个人空间、BOHAI 对话、玻璃模态、按钮/输入态、语义徽章、热力图与骨架屏。
+    <p class="secdesc">覆盖导航栏、论坛信息流、商品卡、个人空间、博莱克对话、玻璃模态、按钮/输入态、语义徽章、热力图与骨架屏。
       现状栏复刻了 5 个已知缺陷：Shop 卡片绕过本页已有的 <code>--surface</code> 而写死白色（<code>style.scoped.css:320</code>）、
       文字色 <code>#71717a</code>（<code>forum-dark.css:213</code>）、强调色填充上的白字、三个并行品牌蓝、以及
       阴影在暗底上不可见导致的层级塌陷。</p>
@@ -361,7 +361,7 @@ footer{margin-top:44px;font-size:12px;color:#7a828f;line-height:1.7;
 const UI = `
 <div class="nav" data-role="nav">
   <span class="logo" data-cr>方块之家</span>
-  <a class="on" data-cr>论坛</a><a data-cr>商店</a><a data-cr>BOHAI</a><a data-cr>我的</a>
+  <a class="on" data-cr>论坛</a><a data-cr>商店</a><a data-cr>博莱克</a><a data-cr>我的</a>
   <span class="me" data-cr>Ryyik</span>
 </div>
 
@@ -373,7 +373,7 @@ const UI = `
   <div class="col">
     <div class="t1 t-title" data-cr>把方块之家的温度，带回家。</div>
     <div class="t2" data-cr>软乎乎的全新吉祥物玩偶，陪你度过每一个开发深夜。</div>
-    <div class="t3" data-cr>2026-09-18 · 阅读 1.2k · <span class="brand-txt" data-cr>BOHAI 已总结</span></div>
+    <div class="t3" data-cr>2026-09-18 · 阅读 1.2k · <span class="brand-txt" data-cr>博莱克已总结</span></div>
   </div>
   <div class="row" style="margin-top:11px;gap:8px">
     <button class="btn primary" data-cr>立即兑换</button>
@@ -440,12 +440,12 @@ const UI = `
   </div>
 </div>
 
-<div class="card flat" data-role="bohai">
-  <span class="sec-h" data-cr style="display:block;margin-bottom:9px">BOHAI 对话</span>
+<div class="card flat" data-role="bolek">
+  <span class="sec-h" data-cr style="display:block;margin-bottom:9px">博莱克对话</span>
   <div class="col" style="gap:9px">
     <div class="bub you" data-cr>帮我看看这个配色问题</div>
     <div class="bub ai"><span data-cr>暗色层里有 <b>52 个不同的表面色</b>、<b>23 个 muted 灰</b>。建议收敛到单一色相的 5 级明度台阶。</span>
-      <div class="t4" style="margin-top:5px" data-cr>BOHAI · 3 个来源</div></div>
+      <div class="t4" style="margin-top:5px" data-cr>博莱克 · 3 个来源</div></div>
   </div>
 </div>
 
@@ -708,11 +708,11 @@ const MIG = [
   ['#0d0d12','--canvas','forum-dark.css:12 / user-space-dark.css:11'],
   ['#2a2a3a / #353545','--raised + --state-hover','forum-dark.css:203,208'],
   ['#1c1c1e / #0d0d0f','--surface / --canvas','Shop/style.scoped.css:1325-1326'],
-  ['#212121 #2f2f2f #303030 #3a3a3a #171717','--canvas→--surface-3（G 族整体并入）','bohai-dark.css:7-10'],
-  ['#141a22 #1b2430 #202b38 #29405a','同上（H 族是 G 族的第二次覆写，二者合一）','bohai-dark.css:705-708'],
+  ['#212121 #2f2f2f #303030 #3a3a3a #171717','--canvas→--surface-3（G 族整体并入）','bolek-dark.css:7-10'],
+  ['#141a22 #1b2430 #202b38 #29405a','同上（H 族是 G 族的第二次覆写，二者合一）','bolek-dark.css:705-708'],
   ['#f5f5f7 / #ffffff（作文字）','--text-1 = #eef0f4','131× / 96×'],
   ['#a1a1aa #a1a1a6 #b8c2cf #c4c4cc','--text-2 = #c0c5ce','共 160×'],
-  ['#71717a #6e6e73 #737373 #777','--text-3 = #9aa0ad（原值全部 fail AA）','forum/overview/bohai'],
+  ['#71717a #6e6e73 #737373 #777','--text-3 = #9aa0ad（原值全部 fail AA）','forum/overview/bolek'],
   ['#6f7b8b #7a7a8a #86868b','--text-3 / --text-4（按用途二选一）','dark-mode.css:49,239'],
   ['#0071e3 #007aff #60a5fa #2997ff #3b82f6','--brand = #4fadf3（8 蓝归一）','见 §03'],
   ['#ff5252 作文字','--bad-text = #f79f9f；#f84f57 仅用于填充','forum-dark.css 等'],

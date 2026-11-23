@@ -101,16 +101,16 @@
       "why": "自动增高唯一真源（勿加第 5 份）"
     },
     {
-      "glob": "src/views/BOHAI/**",
+      "glob": "src/views/Bolek/**",
       "run": [
         "npm run probe:ai-panels",
-        "node scripts/probes/probe-bohai-composer.mjs",
-        "node scripts/probes/probe-bohai-shell.mjs",
-        "node scripts/probes/probe-bohai-slash-commands.mjs",
-        "node scripts/probes/probe-bohai-search-status.mjs",
-        "node scripts/probes/probe-bohai-keepalive-stream.mjs",
+        "node scripts/probes/probe-bolek-composer.mjs",
+        "node scripts/probes/probe-bolek-shell.mjs",
+        "node scripts/probes/probe-bolek-slash-commands.mjs",
+        "node scripts/probes/probe-bolek-search-status.mjs",
+        "node scripts/probes/probe-bolek-keepalive-stream.mjs",
         "node scripts/probes/probe-aichat-landscape-rail.mjs",
-        "node scripts/probes/probe-bohai-portrait.mjs"
+        "node scripts/probes/probe-bolek-portrait.mjs"
       ],
       "why": "AI 面板 + composer/壳/斜杠命令/推理块/切页不掐流/横屏左栏；事故记录见 docs/guides/gate-matrix.md §C"
     },

@@ -4,13 +4,13 @@ import router from '@/router';
 /**
  * BohIsland —— plans/038 的独立悬浮岛（搜索 + 问一句）。
  *
- * P3 入口收敛后全站唯一的 AI 岛（旧 useGlobalAiOverlay/BOHAIIsland 已退场）：
+ * P3 入口收敛后全站唯一的 AI 岛（旧 useGlobalAiOverlay/BolekIsland 已退场）：
  *   · 岛体 Teleport 到 body、App 级挂载 —— 不依赖导航栏存在，hideNavbar 路由照样可用
  *     （这是 Teleport 的存在理由，probe-nav-ask 有专门断言）；
  *   · 不占 showIsland 的 custom 槽位 —— 与任务岛/通知岛/订阅岛零仲裁；
  *   · showIsland.ai() 经 useIsland.ai() 直达本岛的 askDirect（原 opener 注册机制随旧岛删除）。
  *
- * 2026-11-04 用户口径（终版）：岛 = 和 BOHAI 聊天的入口，只有对话面。
+ * 2026-11-04 用户口径（终版）：岛 = 和博莱克聊天的入口，只有对话面。
  * 搜索列表面板（GlobalSearchIsland）整体退场；站内导航不走列表，由对话回复给出。
  */
 
@@ -77,7 +77,7 @@ export function useBohIsland() {
   }
 
   /**
-   * 竖屏下拉唤起（2026-11-04 用户口径）：直接进**回答面**，也就是「和 BOHAI 聊天」的入口。
+   * 竖屏下拉唤起（2026-11-04 用户口径）：直接进**回答面**，也就是「和博莱克聊天」的入口。
    * 不再先落搜索列表 —— 下拉这个动作的语义是「我想问点什么」，不是「我想翻站内」。
    * 站内导航不走列表：输入后由 BohIslandAnswer 判命中，用一句
    * 「为你找到以下页面：…」的对话回复给出，UI 与 AI 回答同一条通道。

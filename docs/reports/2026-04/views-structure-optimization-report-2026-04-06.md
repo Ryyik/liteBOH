@@ -15,7 +15,7 @@
   - `Forum`
   - `Messages`
   - `Shows`
-  - `BOHAI`
+  - `Bolek`
 
 ### 2.3 CreateStudio 入口联动修正
 - 已将 `src/views/user-center/CreateStudio/index.vue` 中 `StudioHub` 的导入改为 `./StudioHub/index.vue`，避免对已删除壳文件的引用。
@@ -28,7 +28,7 @@
 - `src/views/AboutUs.vue`
 - `src/views/AlertStyleEditor.vue`
 - `src/views/BOH8YearsEvent.vue`
-- `src/views/BOHAI/BOHAI.vue`
+- `src/views/Bolek/Bolek.vue`
 - `src/views/Birthday.vue`
 - `src/views/DataManagement.vue`
 - `src/views/Forum.vue`

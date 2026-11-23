@@ -440,7 +440,7 @@
 </template>
 
 <script setup>
-/* 横屏左栏的定位 / 内容让位 / 条目状态色（body.page-shop 段）。与 Home / BOHAI /
+/* 横屏左栏的定位 / 内容让位 / 条目状态色（body.page-shop 段）。与 Home / 博莱克 /
    Cloud+ / UserSpace 共用同一份真源，断点与栏宽档位只在那里改。
    ⚠️ 必须用 JS import，不能写 `<style src>`：同一份 CSS 只要同时存在「JS import」
    与「<style src>」两种引入形态，CSS 去重后 vite-plugin-pwa 的 buildEnd 会拿到

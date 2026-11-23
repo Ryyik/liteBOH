@@ -290,7 +290,7 @@ import {
   Zap,
 } from 'lucide-vue-next';
 import bohCloudVisual from '@/assets/home-hero/BOHcloud.webp';
-import { listActiveBohaiPublicModeConfigs } from '@/utils/api/bohai-model-config-api.js';
+import { listActiveBolekPublicModeConfigs } from '@/utils/api/bolek-model-config-api.js';
 import { useScrollStage } from '@/composables/useScrollStage.js';
 
 const router = useRouter();
@@ -574,7 +574,7 @@ onMounted(async () => {
   setupReveal();
   measureFit();
   try {
-    const result = await listActiveBohaiPublicModeConfigs();
+    const result = await listActiveBolekPublicModeConfigs();
     if (result.ok && result.data.length) {
       modes.value = result.data;
       return;

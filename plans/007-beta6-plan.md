@@ -176,7 +176,7 @@ BETA 5 已经把"跑得稳"这件事做到了——`fx` 该修的都修了，路
 | 优先级 | 环节 | 问题 | 做法 |
 |---|---|---|---|
 | **V1** | **英雄区设计语言** | 11 个 builtin hero 各自写死字号/间距/CTA，一眼看出是 11 个人写的 | 定一套 Hero 规范（eyebrow / headline 三级字号 / 正文 / 主从双 CTA / 安全边距），出统一 `hero-surface` 基类让 builtin 继承；顺带处置 `HeroSection.vue`——废弃则删，是唯一通用实现则改造成基类，**不要留孤儿** |
-| **V2** | **暗色模式补齐** | 仅 dark-mode / navbar / forum / post-detail / user-space / user-center / bohai / messages / boh-note 9 个专属文件；Home / Shop / Lab / Newsroom / Download / 活动 / 八周年全裸奔 | 先做通用语义层（`--surface-* / --text-* / --border-*`），页面专属文件降级为只写差异；加 CI 校验"每个路由都有暗色覆盖" |
+| **V2** | **暗色模式补齐** | 仅 dark-mode / navbar / forum / post-detail / user-space / user-center / bolek / messages / boh-note 9 个专属文件；Home / Shop / Lab / Newsroom / Download / 活动 / 八周年全裸奔 | 先做通用语义层（`--surface-* / --text-* / --border-*`），页面专属文件降级为只写差异；加 CI 校验"每个路由都有暗色覆盖" |
 | **V3** | **`!important` 收敛** | 736 处，暗色文件是重灾区。根因是"用优先级打补丁"而非"用层叠解决问题" | 用 `@layer` 定顺序（tokens → base → components → utilities → overrides），暗色走 `[data-theme=dark]` 变量覆写而非逐条 `!important`；CI 计数门禁（只降不升） |
 | **V4** | **双 token 合并** | `--liquid-*` 与 `@theme` 两套色板并存，新项目该用哪套没有答案 | 保留 `--liquid-*`（它有 `boh-perf-lite` 降级档，是真资产），把 Tailwind 主题色板映射到它，配 codemod 迁移 |
 | **V5** | **断点常量化** | `pages/section__header.css` 20 处散装 `@media`、unified-nav 16 处 | 抽 `--bp-sm/md/lg` + 一组工具类，禁止业务 CSS 裸写 `@media` |

@@ -153,10 +153,10 @@ import { useOverviewIsland } from '@/composables/useOverviewIsland.js';
 /* 横屏左栏的页面级规则（body.page-home 段）与 UserSpace / 他人空间共用同一份，
    断点与栏宽档位只在这一个文件里定义。
    ⚠️ 用 JS import 而不是 `<style src>`（原第 610 行）—— 同一份 landscape-rail.css
-   已被 BOHAI/BOHAI/index.vue 以 JS import 引入，`<style src>` 形态下 CSS 去重后
+   已被 Bolek/Bolek/index.vue 以 JS import 引入，`<style src>` 形态下 CSS 去重后
    vite-plugin-pwa 的 buildEnd 会拿到 undefined descriptor
    （`Cannot read properties of undefined (reading 'scoped')`）崩构建；
-   2026-11-14 在 BOHAI 侧实测过同一坑，2026-11-17 部署链再次触发（CI run 44025124952）。 */
+   2026-11-14 在博莱克侧实测过同一坑，2026-11-17 部署链再次触发（CI run 44025124952）。 */
 import '@/views/user-center/UserSpace/styles/landscape-rail.css';
 import { themeManager } from '@/utils/theme-manager.js';
 import { logoutAndReload } from '@/utils/logout-and-reload.js';

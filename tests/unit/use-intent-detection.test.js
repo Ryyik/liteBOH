@@ -12,7 +12,7 @@ import {
   isSharedMemorySaveReject,
   formatMemorySavePrompt,
   summarizeThinkingSubject,
-} from '@/views/BOHAI/composables/useIntentDetection.js';
+} from '@/views/Bolek/composables/useIntentDetection.js';
 
 // ─── isCommunityQuestion ─────────────────────────────────────────────────────
 

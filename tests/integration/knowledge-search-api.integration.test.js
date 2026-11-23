@@ -11,22 +11,22 @@ vi.mock('../../src/utils/supabase-client.js', () => ({
 }));
 
 import { clearRequestCache } from '../../src/utils/request-core.js';
-import { searchBohAIKnowledgeForAI } from '../../src/utils/api/treehole/knowledge-search-api.js';
+import { searchBolekKnowledgeForAI } from '../../src/utils/api/treehole/knowledge-search-api.js';
 
-describe('knowledge-search-api: searchBohAIKnowledgeForAI', () => {
+describe('knowledge-search-api: searchBolekKnowledgeForAI', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     clearRequestCache();
   });
 
   it('returns empty when query is empty', async () => {
-    const result = await searchBohAIKnowledgeForAI({ query: '' });
+    const result = await searchBolekKnowledgeForAI({ query: '' });
     expect(result.ok).toBe(true);
     expect(result.data.chunks).toEqual([]);
   });
 
   it('returns empty when sourceTypes is empty', async () => {
-    const result = await searchBohAIKnowledgeForAI({ query: 'test', sourceTypes: [] });
+    const result = await searchBolekKnowledgeForAI({ query: 'test', sourceTypes: [] });
     expect(result.ok).toBe(true);
     expect(result.data.chunks).toEqual([]);
   });
@@ -46,7 +46,7 @@ describe('knowledge-search-api: searchBohAIKnowledgeForAI', () => {
       error: null,
     });
 
-    const result = await searchBohAIKnowledgeForAI({
+    const result = await searchBolekKnowledgeForAI({
       query: 'how to work',
       sourceTypes: ['shared_memory', 'core_memory'],
       limit: 5,
@@ -77,7 +77,7 @@ describe('knowledge-search-api: searchBohAIKnowledgeForAI', () => {
       error: null,
     });
 
-    await searchBohAIKnowledgeForAI({
+    await searchBolekKnowledgeForAI({
       query: 'test',
       sourceTypes: ['core_memory', 'invalid_source', 'knowledge_base'],
     });
@@ -93,7 +93,7 @@ describe('knowledge-search-api: searchBohAIKnowledgeForAI', () => {
       error: null,
     });
 
-    await searchBohAIKnowledgeForAI({
+    await searchBolekKnowledgeForAI({
       query: '翼儿是谁',
       entityIds: ['person-yier', 'bad id', 'person-liuzhenfu', 'person-yier'],
     });
@@ -108,10 +108,10 @@ describe('knowledge-search-api: searchBohAIKnowledgeForAI', () => {
       error: null,
     });
 
-    await searchBohAIKnowledgeForAI({ query: 'test', limit: 100 });
+    await searchBolekKnowledgeForAI({ query: 'test', limit: 100 });
     expect(km.supabaseFunctions.invoke.mock.calls[0][1].body.matchCount).toBe(24);
 
-    await searchBohAIKnowledgeForAI({ query: 'test', limit: 0 });
+    await searchBolekKnowledgeForAI({ query: 'test', limit: 0 });
     expect(km.supabaseFunctions.invoke.mock.calls[1][1].body.matchCount).toBe(1);
   });
 
@@ -121,7 +121,7 @@ describe('knowledge-search-api: searchBohAIKnowledgeForAI', () => {
       error: null,
     });
 
-    const result = await searchBohAIKnowledgeForAI({ query: 'test' });
+    const result = await searchBolekKnowledgeForAI({ query: 'test' });
     expect(result.ok).toBe(false);
     expect(result.error.code).toBe('VECTOR_SEARCH_FAILED');
   });
@@ -132,7 +132,7 @@ describe('knowledge-search-api: searchBohAIKnowledgeForAI', () => {
       error: { message: 'Edge function error' },
     });
 
-    const result = await searchBohAIKnowledgeForAI({ query: 'test' });
+    const result = await searchBolekKnowledgeForAI({ query: 'test' });
     expect(result.ok).toBe(false);
     expect(result.error).toBeDefined();
   });

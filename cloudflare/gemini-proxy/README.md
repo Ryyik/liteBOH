@@ -74,7 +74,7 @@ data: {"choices":[{"delta":{"extra_content":{"google":{"thought_signature":"EsIB
 data: [DONE]
 ```
 
-→ `bohai_model_configs.max_tokens` 别设太小，建议 ≥ 512。
+→ `bolek_model_configs.max_tokens` 别设太小，建议 ≥ 512。
 
 **4. 非流式带 usage，流式不带**
 

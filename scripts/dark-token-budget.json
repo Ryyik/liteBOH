@@ -1,7 +1,7 @@
 {
   "total": 2410,
   "perFile": {
-    "src/styles/themes/bohai-dark.css": 225,
+    "src/styles/themes/bolek-dark.css": 225,
     "src/styles/themes/forum-dark.css": 178,
     "src/styles/themes/user-space-dark.css": 153,
     "src/styles/themes/post-detail-dark.css": 120,

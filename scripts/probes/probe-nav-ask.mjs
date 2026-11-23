@@ -1,10 +1,10 @@
 import { chromium } from 'playwright';
 
-// 探针：BohIsland —— 和 BOHAI 聊天的入口（2026-11-04 终版口径）
+// 探针：BohIsland —— 和博莱克聊天的入口（2026-11-04 终版口径）
 //   1) `/`、⌘K、导航栏按钮、竖屏下拉，四种唤起都落在同一颗岛（全局唯一根节点）
-//   2) 岛只有一个面：对话输入框（占位「问 BOHAI…」），没有搜索列表面板
+//   2) 岛只有一个面：对话输入框（占位「问博莱克…」），没有搜索列表面板
 //   3) **不按回车不出结果**：输入过程中不发请求、不出任何结果块
-//   4) 回车后：页面类问题 → 「为你找到以下页面：」+ 可点页面胶囊；其余 → BOHAI 流式回答
+//   4) 回车后：页面类问题 → 「为你找到以下页面：」+ 可点页面胶囊；其余 → 博莱克流式回答
 //   5) 岛从公共导航栏长出来：surface 撑高（has-boh-island），卡片透明、材质由 surface 提供
 //   6) 开/退场都有过渡（surface 高度动画），点空白收回（横竖屏同一套逻辑）
 //   7) 主题跟随：浅色/深色都用导航同款玻璃，不再是恒黑岛
@@ -128,8 +128,8 @@ await withPage(
       focused: document.activeElement?.classList?.contains('boh-answer-input') === true,
     }));
     check(
-      '③ 唤起即对话面：输入框在场、占位「问 BOHAI…」、自动聚焦',
-      face.input && face.placeholder === '问 BOHAI…' && face.focused,
+      '③ 唤起即对话面：输入框在场、占位「问博莱克…」、自动聚焦',
+      face.input && face.placeholder === '问博莱克…' && face.focused,
       JSON.stringify(face),
     );
 
@@ -147,7 +147,7 @@ await withPage(
       JSON.stringify(typing),
     );
 
-    // 回车 → 真问句走 BOHAI
+    // 回车 → 真问句走博莱克
     await page.keyboard.press('Enter');
     await page
       .waitForFunction(
@@ -161,7 +161,7 @@ await withPage(
       streaming: !!document.querySelector('.boh-activity'),
     }));
     check(
-      '⑤ 回车 → BOHAI 回答落到消息区（回显 + 正文）',
+      '⑤ 回车 → 博莱克回答落到消息区（回显 + 正文）',
       answered.echo.includes('八周年') && answered.answer.length > 0,
       JSON.stringify(answered),
     );
@@ -207,7 +207,7 @@ await withPage(
   },
   {
     setupPage: (page) => {
-      void page.route('**/rest/v1/rpc/list_public_bohai_modes', (r) =>
+      void page.route('**/rest/v1/rpc/list_public_bolek_modes', (r) =>
         r.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -307,7 +307,7 @@ await withPage(
     }));
     check(
       '⑭ 下拉 80px → 开岛且落在对话输入框',
-      chat.open && chat.input && chat.focused && chat.placeholder === '问 BOHAI…',
+      chat.open && chat.input && chat.focused && chat.placeholder === '问博莱克…',
       JSON.stringify(chat),
     );
 

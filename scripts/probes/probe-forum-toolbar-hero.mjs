@@ -1,8 +1,8 @@
 import { chromium } from 'playwright';
 
 // 探针：论坛工具栏横屏 hero 改版（2026-09-15）
-// 草图规格：横屏 ≥993 工具栏 = 大号液态玻璃容器（输入区在上，底部 [签到][问BOHAI] 左 + 圆形搜索钮右）；
-// 筛选下拉横屏移除，#标签名 语法筛选 + chip；问BOHAI = 查库 → 顶部 AI 岛回复（Fast）。
+// 草图规格：横屏 ≥993 工具栏 = 大号液态玻璃容器（输入区在上，底部 [签到][问博莱克] 左 + 圆形搜索钮右）；
+// 筛选下拉横屏移除，#标签名 语法筛选 + chip；问博莱克 = 查库 → 顶部 AI 岛回复（Fast）。
 // 移动端 DOM 行为保持原样。
 const BASE = 'http://localhost:5173';
 let pass = 0;
@@ -147,7 +147,7 @@ check(
   geo.searchActions?.display,
 );
 check(
-  'hero 按钮恰好三个（签到/问BOHAI/搜索圆钮）',
+  'hero 按钮恰好三个（签到/问Bolek/搜索圆钮）',
   geo.pillTexts.length === 2 && !!geo.circle && geo.circle.visible,
   `pills=[${geo.pillTexts.join(' | ')}] circle=${geo.circle ? 'ok' : 'missing'}`,
 );
@@ -209,12 +209,12 @@ const chipGone = await landPage.evaluate(
 );
 check('chip × 清除标签筛选', chipGone);
 
-// ---------- 问BOHAI：点击 → 检索 → AI 岛打开（或给出提示），无页面错误 ----------
+// ---------- 问博莱克：点击 → 检索 → AI 岛打开（或给出提示），无页面错误 ----------
 await landPage.fill('.forum-page .toolbar-search-input', '怎么快速升级');
 await landPage.click('.forum-page .toolbar-hero-left .glass-pill-btn.tone-soft');
 await landPage.waitForTimeout(1800);
 const askState = await landPage.evaluate(() => {
-  const island = document.querySelector('.bohai-island');
+  const island = document.querySelector('.bolek-island');
   const hint = document.querySelector('.forum-page .toolbar-ai-hint');
   const status = document.querySelector('.forum-page .toolbar-ai-status');
   const composer = island ? island.querySelector('textarea, [contenteditable="true"]') : null;
@@ -226,9 +226,9 @@ const askState = await landPage.evaluate(() => {
     statusShown: !!status,
   };
 });
-check('问BOHAI 无页面错误', landErrors.length === 0, landErrors.join(' ; '));
+check('问博莱克无页面错误', landErrors.length === 0, landErrors.join(' ; '));
 check(
-  '问BOHAI 有响应（岛打开 / 检索状态 / 提示文案）',
+  '问博莱克有响应（岛打开 / 检索状态 / 提示文案）',
   askState.islandOpen || askState.statusShown || askState.hint.length > 0,
   `island=${askState.islandOpen} status=${askState.statusShown} hint="${askState.hint}"`,
 );

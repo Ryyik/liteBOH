@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createTaskScheduler } from '../../src/views/BOHAI/agents/core/TaskScheduler.js';
-import { createAgentRegistry } from '../../src/views/BOHAI/agents/core/AgentRegistry.js';
-import { createMessageBus } from '../../src/views/BOHAI/agents/core/MessageBus.js';
-import { createAgentRuntime } from '../../src/views/BOHAI/agents/core/AgentRuntime.js';
-import { AGENT_AGENT_STATUS } from '../../src/views/BOHAI/agents/core/agent-events.js';
+import { createTaskScheduler } from '../../src/views/Bolek/agents/core/TaskScheduler.js';
+import { createAgentRegistry } from '../../src/views/Bolek/agents/core/AgentRegistry.js';
+import { createMessageBus } from '../../src/views/Bolek/agents/core/MessageBus.js';
+import { createAgentRuntime } from '../../src/views/Bolek/agents/core/AgentRuntime.js';
+import { AGENT_AGENT_STATUS } from '../../src/views/Bolek/agents/core/agent-events.js';
 
 describe('TaskScheduler: createTaskScheduler', () => {
   it('throws when registry is missing', () => {
@@ -96,10 +96,12 @@ describe('TaskScheduler: run', () => {
 
   it('runs single agent successfully', async () => {
     const registry = createAgentRegistry();
-    registry.register(createAgentRuntime({
-      name: 'worker',
-      run: vi.fn().mockResolvedValue({ ok: true, output: 'done' }),
-    }));
+    registry.register(
+      createAgentRuntime({
+        name: 'worker',
+        run: vi.fn().mockResolvedValue({ ok: true, output: 'done' }),
+      }),
+    );
     const bus = createMessageBus();
     const scheduler = createTaskScheduler({ registry, bus });
 
@@ -113,10 +115,12 @@ describe('TaskScheduler: run', () => {
 
   it('handles agent failure', async () => {
     const registry = createAgentRegistry();
-    registry.register(createAgentRuntime({
-      name: 'worker',
-      run: vi.fn().mockRejectedValue(new Error('boom')),
-    }));
+    registry.register(
+      createAgentRuntime({
+        name: 'worker',
+        run: vi.fn().mockRejectedValue(new Error('boom')),
+      }),
+    );
     const bus = createMessageBus();
     const scheduler = createTaskScheduler({ registry, bus });
 
@@ -128,24 +132,28 @@ describe('TaskScheduler: run', () => {
   it('runs multiple agents concurrently', async () => {
     const registry = createAgentRegistry();
     const calls = [];
-    registry.register(createAgentRuntime({
-      name: 'worker1',
-      run: vi.fn(async () => {
-        calls.push('w1-start');
-        await new Promise((r) => setTimeout(r, 50));
-        calls.push('w1-end');
-        return { ok: true, output: 'r1' };
+    registry.register(
+      createAgentRuntime({
+        name: 'worker1',
+        run: vi.fn(async () => {
+          calls.push('w1-start');
+          await new Promise((r) => setTimeout(r, 50));
+          calls.push('w1-end');
+          return { ok: true, output: 'r1' };
+        }),
       }),
-    }));
-    registry.register(createAgentRuntime({
-      name: 'worker2',
-      run: vi.fn(async () => {
-        calls.push('w2-start');
-        await new Promise((r) => setTimeout(r, 50));
-        calls.push('w2-end');
-        return { ok: true, output: 'r2' };
+    );
+    registry.register(
+      createAgentRuntime({
+        name: 'worker2',
+        run: vi.fn(async () => {
+          calls.push('w2-start');
+          await new Promise((r) => setTimeout(r, 50));
+          calls.push('w2-end');
+          return { ok: true, output: 'r2' };
+        }),
       }),
-    }));
+    );
     const bus = createMessageBus();
     const scheduler = createTaskScheduler({ registry, bus, maxConcurrency: 2 });
 
@@ -163,17 +171,21 @@ describe('TaskScheduler: run', () => {
   it('passes dep outputs to dependent tasks', async () => {
     const registry = createAgentRegistry();
     let receivedDeps = null;
-    registry.register(createAgentRuntime({
-      name: 'worker1',
-      run: vi.fn().mockResolvedValue({ ok: true, output: 'dep result' }),
-    }));
-    registry.register(createAgentRuntime({
-      name: 'worker2',
-      run: vi.fn(async ({ context }) => {
-        receivedDeps = context.depsOutputs;
-        return { ok: true, output: 'final' };
+    registry.register(
+      createAgentRuntime({
+        name: 'worker1',
+        run: vi.fn().mockResolvedValue({ ok: true, output: 'dep result' }),
       }),
-    }));
+    );
+    registry.register(
+      createAgentRuntime({
+        name: 'worker2',
+        run: vi.fn(async ({ context }) => {
+          receivedDeps = context.depsOutputs;
+          return { ok: true, output: 'final' };
+        }),
+      }),
+    );
     const bus = createMessageBus();
     const scheduler = createTaskScheduler({ registry, bus, maxConcurrency: 1 });
 
@@ -188,16 +200,29 @@ describe('TaskScheduler: run', () => {
 
   it('respects signal cancellation', async () => {
     const registry = createAgentRegistry();
-    registry.register(createAgentRuntime({
-      name: 'worker',
-      run: vi.fn(({ signal: sig }) => new Promise((_, reject) => {
-        if (sig) sig.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')));
-      })),
-      timeoutMs: 30000,
-    }));
+    registry.register(
+      createAgentRuntime({
+        name: 'worker',
+        run: vi.fn(
+          ({ signal: sig }) =>
+            new Promise((_, reject) => {
+              if (sig)
+                sig.addEventListener('abort', () =>
+                  reject(new DOMException('Aborted', 'AbortError')),
+                );
+            }),
+        ),
+        timeoutMs: 30000,
+      }),
+    );
     const bus = createMessageBus();
     const controller = new AbortController();
-    const scheduler = createTaskScheduler({ registry, bus, signal: controller.signal, totalTimeoutMs: 60000 });
+    const scheduler = createTaskScheduler({
+      registry,
+      bus,
+      signal: controller.signal,
+      totalTimeoutMs: 60000,
+    });
 
     const resultPromise = scheduler.run([{ id: 't1', agent: 'worker' }]);
     // Small delay to ensure the agent has started

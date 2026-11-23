@@ -23,7 +23,7 @@
  *   ROUNDS=5 node scripts/probes/probe-psych-dialog-quality.mjs   # 只跑前 5 轮
  */
 import { chromium } from 'playwright';
-import { detectViolations, splitQuestions } from '../../src/views/BOHAI/expert-roles/guards.js';
+import { detectViolations, splitQuestions } from '../../src/views/Bolek/expert-roles/guards.js';
 
 const BASE = process.env.BASE || 'http://localhost:5173';
 const MAX_ROUNDS = Math.max(1, Math.min(9, Number(process.env.ROUNDS) || 9));
@@ -109,7 +109,7 @@ const page = await browser.newPage({ viewport: { width: 1400, height: 1000 } });
 const pageErrors = [];
 page.on('pageerror', (e) => pageErrors.push(String(e.message).slice(0, 160)));
 
-// 真实 BOHAI 的消息结构（与 demo 不同）：
+// 真实博莱克的消息结构（与 demo 不同）：
 //   .message-wrapper.{assistant|user} > .message-content-inner > .message.{role} > .message-content
 const readState = () =>
   page.evaluate(() => {

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createAgentRuntime } from '../../src/views/BOHAI/agents/core/AgentRuntime.js';
-import { AGENT_AGENT_STATUS } from '../../src/views/BOHAI/agents/core/agent-events.js';
-import { createMessageBus } from '../../src/views/BOHAI/agents/core/MessageBus.js';
+import { createAgentRuntime } from '../../src/views/Bolek/agents/core/AgentRuntime.js';
+import { AGENT_AGENT_STATUS } from '../../src/views/Bolek/agents/core/agent-events.js';
+import { createMessageBus } from '../../src/views/Bolek/agents/core/MessageBus.js';
 
 describe('AgentRuntime: createAgentRuntime', () => {
   it('throws when run is not a function', () => {
@@ -132,7 +132,10 @@ describe('AgentRuntime: execute', () => {
       run: vi.fn(() => new Promise((r) => setTimeout(r, 500))),
     });
 
-    const result = await agent.execute({ task: { id: 't1', agent: 'worker' }, overrideTimeoutMs: 50 });
+    const result = await agent.execute({
+      task: { id: 't1', agent: 'worker' },
+      overrideTimeoutMs: 50,
+    });
     expect(result.ok).toBe(false);
     expect(result.status).toBe(AGENT_AGENT_STATUS.FAILED);
   });
@@ -192,9 +195,15 @@ describe('AgentRuntime: execute', () => {
     const agent = createAgentRuntime({
       name: 'worker',
       timeoutMs: 30000,
-      run: vi.fn(({ signal: sig }) => new Promise((_, reject) => {
-        if (sig) sig.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')));
-      })),
+      run: vi.fn(
+        ({ signal: sig }) =>
+          new Promise((_, reject) => {
+            if (sig)
+              sig.addEventListener('abort', () =>
+                reject(new DOMException('Aborted', 'AbortError')),
+              );
+          }),
+      ),
     });
     const controller = new AbortController();
 

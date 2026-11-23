@@ -2,7 +2,7 @@
  * 「按当前筛选删除全部」的条件装配（纯函数，供单测；plans/027 E6.3 / 042 B3）。
  *
  * 与列表查询同源：`fetchTabData` 对 4 个 tab 有额外的基础过滤（reportedPosts /
- * reviewPosts / reviewComments / bohaiModels）。服务端 RPC 的 count 预检拿的是
+ * reviewPosts / reviewComments / bolekModels）。服务端 RPC 的 count 预检拿的是
  * `totalRecordCount`（含基础过滤），如果这里只拼用户筛选，这 4 个 tab 会稳定
  * count mismatch。抽成纯函数后，列表与批量删除的条件口径由单测锁死。
  *
@@ -21,14 +21,14 @@
  */
 import { buildSearchMatchSpec, escapeLikePattern } from '@/utils/search-core.js';
 import { endOfDayIso, hasFilterValue, resolveAdvancedRules } from './useDataAdminFilters.js';
-import { INTERNAL_MODE_PREFIX } from '../config/bohai-internal-modes.js';
+import { INTERNAL_MODE_PREFIX } from '../config/bolek-internal-modes.js';
 
 /** tab 级基础过滤 → RPC 条件（与 DataAdmin 的 fetchTabData 逐条对应） */
 const BASE_SCOPE_CONDITIONS = {
   reportedPosts: [{ column: 'status', op: 'eq', value: 'limited' }],
   reviewPosts: [{ column: 'status', op: 'ilike', value: 'rejected' }],
   reviewComments: [{ column: 'status', op: 'ilike', value: 'rejected' }],
-  bohaiModels: [{ column: 'mode_id', op: 'not_like', value: `${INTERNAL_MODE_PREFIX}%` }],
+  bolekModels: [{ column: 'mode_id', op: 'not_like', value: `${INTERNAL_MODE_PREFIX}%` }],
 };
 
 /**

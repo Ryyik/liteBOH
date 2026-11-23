@@ -118,7 +118,7 @@ const segInfo = (page) =>
 
   /* ---------- 筛选下拉（2026-10-22 已按用户要求移除） ----------
      反证锁：手机/平板那一行「最新 · 全部标签」不再存在，
-     搜索框是一整条横框（签到在左、问BOHAI 在右），排序固定最新、标签走 #标签 语法。 */
+     搜索框是一整条横框（签到在左、问博莱克在右），排序固定最新、标签走 #标签 语法。 */
   const toolbarShape = await page.evaluate(() => {
     const q = (s) => document.querySelector(s);
     const r = q('.forum-toolbar')?.getBoundingClientRect();
@@ -283,9 +283,9 @@ const segInfo = (page) =>
   );
   /* 签到是登录态专属（游客不渲染，v-if=isLoggedIn）—— 游客断言只要求「不出现别的入口」 */
   check(
-    '移动端左侧是签到（登录态）/右侧只剩问BOHAI',
+    '移动端左侧是签到（登录态）/右侧只剩问博莱克',
     (shape.checkin === '' || shape.checkin.includes('签')) &&
-      shape.ai === '问 BOHAI' &&
+      shape.ai === '问博莱克' &&
       !shape.filter &&
       !shape.magnifier,
     JSON.stringify(shape),

@@ -93,8 +93,8 @@
 
 ### C-1 BOH AI 输入区 composer
 
-改 `views/BOHAI/BOHAI/components/BohComposer.vue` + `styles/boh-composer.css`（底行两胶囊（模型 / 工具）/ 模型与工具浮层 / 用量圆钮）：
-跑 `node scripts/probes/probe-bohai-composer.mjs`（32，含独立页 + AI 岛两形态 + 设置面板）。
+改 `views/Bolek/Bolek/components/BohComposer.vue` + `styles/boh-composer.css`（底行两胶囊（模型 / 工具）/ 模型与工具浮层 / 用量圆钮）：
+跑 `node scripts/probes/probe-bolek-composer.mjs`（32，含独立页 + AI 岛两形态 + 设置面板）。
 
 ⚠️ 三条已实测的坑：
 1. 探针里切换选项要用**页面内 `element.click()`**，Playwright 坐标点击在窄浮层边缘会落到遮罩上、被 `handleClickOutside` 关掉面板，看起来「面板收起了」其实动作没跑；
@@ -115,29 +115,29 @@
 
 **2026-10-11：思考强度控件整体下线**（5 个在用模式里只有 gemini 支持调，且服务端 `buildRuntimePayload`
 会用 DB 值覆盖客户端采样参数 ⇒ 空转）⇒ A1 不再断言强度胶囊、原 A4（换档）改成两颗胶囊的互斥断言；
-无残骸由 `tests/unit/bohai-glass-surfaces.test.js` 在源码层锁死。
+无残骸由 `tests/unit/bolek-glass-surfaces.test.js` 在源码层锁死。
 
 ### C-2 BOH AI 输入区两胶囊 + 空态
 
 改模型/工具两颗独立胶囊、浮层玻璃材质、空态居中与 FLIP、输入框底色与横屏高度：
-跑 `node scripts/probes/probe-bohai-composer.mjs`（**31 条**：A1 两胶囊（含强度控件已下线）/ A2a 模型菜单 /
+跑 `node scripts/probes/probe-bolek-composer.mjs`（**31 条**：A1 两胶囊（含强度控件已下线）/ A2a 模型菜单 /
 A2b hover 卡 / A4 两胶囊互斥 / A5 选模式 / A6 工具四件）
-+ `node scripts/probes/probe-bohai-shell.mjs`（**39 条**，含场景 D：第一条消息的 FLIP 位移 +
++ `node scripts/probes/probe-bolek-shell.mjs`（**39 条**，含场景 D：第一条消息的 FLIP 位移 +
 场景 E：AI 回复靠左/宽 880、用户气泡贴右且白底、输入框玻璃与浮层重叠）
-+ `node scripts/probes/probe-bohai-slash-commands.mjs`（C1 空态只剩虚影字）。
++ `node scripts/probes/probe-bolek-slash-commands.mjs`（C1 空态只剩虚影字）。
 
 2026-10-11 用户口径：
 1. 底行拆成「模型名 ⌄ / 工具 ⌄」**两颗**独立胶囊（原来是**一颗**「模型名+强度」→ 单浮层两视图 + 滑杆，那套已下线），状态收敛成**一颗 `activeMenu`**；同日**思考强度整体下线**（只有 gemini 支持调、且服务端覆盖客户端采样参数 ⇒ 空转），不再是「3 档」；
-2. 空态只剩一行虚影 BOHAI（`--boh-ghost-word`），输入框整组居中，靠 `.boh-stream{margin-top:auto}` + `.boh-composer-wrap{margin-bottom:auto}` 分工（**两处都写 auto 会在两者之间裂开 309px 空洞**），第一条消息的位移靠 `BOHAIMain.animateComposerHome` 做 FLIP（watcher 必须 `flush:'pre'`，否则差值恒 0）；
+2. 空态只剩一行虚影博莱克（`--boh-ghost-word`），输入框整组居中，靠 `.boh-stream{margin-top:auto}` + `.boh-composer-wrap{margin-bottom:auto}` 分工（**两处都写 auto 会在两者之间裂开 309px 空洞**），第一条消息的位移靠 `BolekMain.animateComposerHome` 做 FLIP（watcher 必须 `flush:'pre'`，否则差值恒 0）；
 3. 输入框：2026-10-11 是「纯白底（令牌 `--boh-composer-bg`，别改 `--boh-bg-card`）+ 灰框线」；**2026-10-12 用户口径反转成液态玻璃**（「带点透明，滚动的时候会透出下面的内容」）⇒ 进 `@supports` 玻璃组（第 6 个消费者），基础规则仍保留 `--boh-composer-bg` 作不支持 backdrop-filter 时的实色兜底；**同时输入区改成浮在消息流之上**（否则底下没有可透的内容）—— 壳实测高度写 `--boh-composer-h`，输入区 `margin-top` 负掉它、消息区补等高的 `padding-bottom`。横屏（>600 高）`min-height:44px` 不变。
 
-玻璃材质**六个**消费者共用一组，引用 `--liquid-filter-sm` + `--boh-glass-*`（BOHAI 主题不跟站点主题联动）。
-单测：`tests/unit/bohai-glass-surfaces.test.js`。
+玻璃材质**六个**消费者共用一组，引用 `--liquid-filter-sm` + `--boh-glass-*`（博莱克主题不跟站点主题联动）。
+单测：`tests/unit/bolek-glass-surfaces.test.js`。
 
 ### C-3 BOH AI 斜杠命令
 
 改 `/` 命令表、命令解析、或**新增任何「用户发出这条输入」的入口**：
-跑 `node scripts/probes/probe-bohai-slash-commands.mjs`（7）。
+跑 `node scripts/probes/probe-bolek-slash-commands.mjs`（7）。
 
 ⚠️ **2026-10-08 用户报障**：输入 `/cloud` 后 AI 回「你发送了 /cloud 指令」—— 命令被当**普通文本**发了。
 根因：**执行逻辑只挂在 2 个入口**（菜单项 `mousedown`、菜单开着时的 Enter 拦截），**发送路径零斜杠分支**
@@ -148,14 +148,14 @@ A2b hover 卡 / A4 两胶囊互斥 / A5 选模式 / A6 工具四件）
 1. **带参数命令菜单永不开** —— `slashQuery` 要求整条输入不含空白（`.vue:1644`），`/cloud 素材盘点成表格` 直接退化成普通消息；
 2. **移动端全入口失效** —— `isCoarsePointer` 让 `handleEnter` 直接 return（`:1502`），触屏只剩「点菜单项」，而带参数时菜单不开 ⇒ 唯一畅通的路径恰好是错的那条；
 3. **空态建议卡在教用户写错** —— Work 形态第 4 张卡带 `command: '/cloud'`（`BohEmptyState.vue:97-110`），点击填入 `/cloud 素材盘点成表格`，而实现只认「整条输入是一个命令字」；
-4. **老探针抓不到** —— `probe-bohai-composer.mjs` 的 A8 只断言菜单**文案**存在、**从未点击过命令项**（`grep -c boh-slash-item` → 0），所以 22 条全绿而功能不可用。
+4. **老探针抓不到** —— `probe-bolek-composer.mjs` 的 A8 只断言菜单**文案**存在、**从未点击过命令项**（`grep -c boh-slash-item` → 0），所以 22 条全绿而功能不可用。
 
-判据/修复设计见 `docs/reports/2026-10/2026-10-08-BOHAI对齐Codex优化方案与斜杠命令修复.md`。
+判据/修复设计见 `docs/reports/2026-10/2026-10-08-博莱克对齐Codex优化方案与斜杠命令修复.md`。
 
-**2026-10-10 已修**：真源抽成 `src/views/BOHAI/BOHAI/bohai-slash-commands.js`（定义 + 解析 + 菜单构造），
-三个入口（发送键 / Enter / 菜单点击）统一过 `BOHAIMain` 的 `handleSend` 闸门；未知命令**拦住 + 提示**
+**2026-10-10 已修**：真源抽成 `src/views/Bolek/Bolek/bolek-slash-commands.js`（定义 + 解析 + 菜单构造），
+三个入口（发送键 / Enter / 菜单点击）统一过 `BolekMain` 的 `handleSend` 闸门；未知命令**拦住 + 提示**
 （`//` 前缀是转义逃生口），带参数命令剥掉命令字再发；探针 **7/7**，单测
-`tests/unit/bohai-slash-commands.test.js`（18）。
+`tests/unit/bolek-slash-commands.test.js`（18）。
 ⇒ 新增「用户发出这条输入」的入口只许汇到 `handleSend` / `executeSlashCommand`，**不许再写第三处 `startsWith('/')`**。
 
 **2026-10-16 补两条命令 + 一条不变量断言**
@@ -168,7 +168,7 @@ A2b hover 卡 / A4 两胶囊互斥 / A5 选模式 / A6 工具四件）
 **却忘了在 `executeSlashCommand` 的 switch 里加 case** ⇒ 用户敲 `/memory` 只会得到「未知命令」。
 这类「加了开关没加命令」在测试里原本没有任何东西能发现。
 
-⇒ 已补的不变量断言（`tests/unit/bohai-slash-commands.test.js`，18 → **21** 条）：
+⇒ 已补的不变量断言（`tests/unit/bolek-slash-commands.test.js`，18 → **21** 条）：
 **每条固定命令的 `action` 都必须在壳的 switch 里有对应 `case`** —— 逐条遍历 `BOH_SLASH_COMMANDS`
 去壳源码里找 `case '<action>':`。反证已做（注释掉 `case 'memory':` → 断言 FAIL 且报的正是它）。
 **新增命令时两处都要动**（真源表 + 壳里 case），单测会兜住漏掉的那处。

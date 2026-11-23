@@ -22,7 +22,7 @@
 
 ### 2.1 运行时性能实测数据
 
-| 指标 | 首页 | BOHAI | 用户中心 | 活动列表 | AI广场 | 评级 |
+| 指标 | 首页 | 博莱克 | 用户中心 | 活动列表 | AI广场 | 评级 |
 |------|------|-------|---------|---------|--------|------|
 | **首次加载时间** | 29.04s | 0.00s | 0.00s | 0.01s | 0.00s | ⭐⭐⭐ |
 | **FCP (首次内容绘制)** | 192ms | 120ms | 120ms | 120ms | 120ms | ⭐⭐⭐⭐⭐ |
@@ -48,7 +48,7 @@
 | 组件名称 | 文件大小 | Computed数量 | Watcher数量 | Ref/Reactive数量 | 评级 |
 |---------|---------|------------|-----------|----------------|------|
 | **ForumMain.vue** | 3387行（2026-09-29 更正：现 **5402 行**，`wc -l`） | 30+ | 20+ | 50+ | ⭐⭐ 巨型组件 |
-| **BOHAIMain.vue** | 1612行 | 20+ | 15+ | 40+ | ⭐⭐ 巨型组件 |
+| **BolekMain.vue** | 1612行 | 20+ | 15+ | 40+ | ⭐⭐ 巨型组件 |
 | **Messages/index.vue** | 856行 | 15+ | 10+ | 30+ | ⭐⭐⭐ 中型组件 |
 | **PostCard.vue** | 580行 | 8+ | 5+ | 15+ | ⭐⭐⭐⭐ 正常 |
 
@@ -59,7 +59,7 @@
 | **虚拟滚动** | ForumMain.vue | ⭐⭐⭐⭐⭐ 大幅减少DOM节点 | 第1727-1753行 |
 | **组件懒加载** | async-loaders.js | ⭐⭐⭐⭐⭐ 智能预加载策略 | src/views/user-center/UserSpace/ |
 | **图片懒加载** | ForumMain.vue | ⭐⭐⭐⭐⭐ IntersectionObserver + LQIP | 第1663-1698行 |
-| **Markdown缓存** | BOHAIMain.vue | ⭐⭐⭐⭐ FIFO缓存160条消息 | 第615-632行 |
+| **Markdown缓存** | BolekMain.vue | ⭐⭐⭐⭐ FIFO缓存160条消息 | 第615-632行 |
 | **请求队列** | request-core.js | ⭐⭐⭐⭐⭐ 最大并发6，优先级队列 | src/utils/ |
 
 ---
@@ -91,12 +91,12 @@
 #### ⚠️ 性能问题
 
 **P0 - 巨型组件复杂度过高** (⭐⭐)
-- **问题**: ForumMain.vue (3387行) 和 BOHAIMain.vue (1612行) 包含大量状态管理
+- **问题**: ForumMain.vue (3387行) 和 BolekMain.vue (1612行) 包含大量状态管理
 - **影响**: 
   - 内存占用大（50+ reactive状态）
   - 计算开销高（30+ computed属性）
   - 响应式更新可能延迟
-- **文件**: [ForumMain.vue](file:///Users/ryyik/Documents/BOHLITEForMacLatest/BOHLITEBeta2.5/src/views/Forum/ForumMain.vue), [BOHAIMain.vue](file:///Users/ryyik/Documents/BOHLITEForMacLatest/BOHLITEBeta2.5/src/views/BOHAI/BOHAI/BOHAIMain.vue)
+- **文件**: [ForumMain.vue](file:///Users/ryyik/Documents/BOHLITEForMacLatest/BOHLITEBeta2.5/src/views/Forum/ForumMain.vue), [BolekMain.vue](file:///Users/ryyik/Documents/BOHLITEForMacLatest/BOHLITEBeta2.5/src/views/Bolek/Bolek/BolekMain.vue)
 - **建议**: 
   - 拆分为5-6个子组件 + 4-5个composables
   - 提取 `useForumData.js`, `useForumDraft.js`, `useForumNotifications.js`
@@ -105,7 +105,7 @@
 - **问题**: 使用 `{ deep: true }` 的watcher会深度遍历对象
 - **位置**: 
   - [ForumMain.vue#L1360](file:///Users/ryyik/Documents/BOHLITEForMacLatest/BOHLITEBeta2.5/src/views/Forum/ForumMain.vue#L1360)
-  - [BOHAIMain.vue#L1381](file:///Users/ryyik/Documents/BOHLITEForMacLatest/BOHLITEBeta2.5/src/views/BOHAI/BOHAI/BOHAIMain.vue#L1381)
+  - [BolekMain.vue#L1381](file:///Users/ryyik/Documents/BOHLITEForMacLatest/BOHLITEBeta2.5/src/views/Bolek/Bolek/BolekMain.vue#L1381)
 - **建议**: 
   - 监听具体属性而非整个对象
   - 使用 `watchEffect` 替代部分场景
@@ -304,7 +304,7 @@
 
 1. **代码分割** (manualChunks精细化)
    - 按依赖类型分组（vendor/utils/markdown等）
-   - 按视图分组（view-forum/view-bohai等）
+   - 按视图分组（view-forum/view-bolek等）
    - 预估首屏JS减少60%
 
 2. **PWA Service Worker**
@@ -376,7 +376,7 @@
 ### 📅 短期计划（本月）
 
 #### 任务4: 优化Watcher
-- **文件**: [ForumMain.vue](file:///Users/ryyik/Documents/BOHLITEForMacLatest/BOHLITEBeta2.5/src/views/Forum/ForumMain.vue), [BOHAIMain.vue](file:///Users/ryyik/Documents/BOHLITEForMacLatest/BOHLITEBeta2.5/src/views/BOHAI/BOHAI/BOHAIMain.vue)
+- **文件**: [ForumMain.vue](file:///Users/ryyik/Documents/BOHLITEForMacLatest/BOHLITEBeta2.5/src/views/Forum/ForumMain.vue), [BolekMain.vue](file:///Users/ryyik/Documents/BOHLITEForMacLatest/BOHLITEBeta2.5/src/views/Bolek/Bolek/BolekMain.vue)
 - **实现**: 替换深度监听为具体属性监听
 
 #### 任务5: 增强重试策略

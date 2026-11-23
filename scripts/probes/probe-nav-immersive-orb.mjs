@@ -1,13 +1,13 @@
 /**
  * probe-nav-immersive-orb.mjs — BOH AI 沉浸导航「球」探针（2026-10-08）
  *
- * 用户口径：打开 BOHAI 时顶部导航**收成一颗球**落在横向左栏的品牌 logo 位上，
+ * 用户口径：打开博莱克时顶部导航**收成一颗球**落在横向左栏的品牌 logo 位上，
  * 页面因此顶到满屏；点那颗球唤醒完整导航。
  *
  * 复用阅读页/创作页已有的 `immersiveNav` 机制（球 ↔ 胶囊 FLIP morph），
  * 本次新增的是**三件联动**，也正是本探针要钉死的东西：
  *   ① 球位 = 左栏品牌 logo 位（不是默认的左上角 14/14）；
- *   ② 球态写 `body.nav-orb-mode` ⇒ `--bohai-standalone-nav-height` 归零 ⇒ `.bohai-page` 顶满；
+ *   ② 球态写 `body.nav-orb-mode` ⇒ `--bolek-standalone-nav-height` 归零 ⇒ `.bolek-page` 顶满；
  *   ③ 点球展开 / 再点收回，且页面高度跟着来回。
  *
  * ⚠️ 球几何是**单一真源 CSS 变量** `--nav-orb-*`（style.scoped.css），
@@ -56,7 +56,7 @@ const readState = (page) =>
     const surface = q('#unified-nav-container .unified-nav-surface');
     const bar = q('#unified-nav-container.unified-nav');
     const mark = q('.userspace-rail-brand-mark');
-    const pageEl = q('.bohai-page');
+    const pageEl = q('.bolek-page');
     const cs = surface ? getComputedStyle(surface) : null;
     return {
       surface: rect(surface),
@@ -184,7 +184,7 @@ try {
         w: surface ? Math.round(surface.getBoundingClientRect().width) : 0,
         x: cs?.getPropertyValue('--nav-orb-x').trim(),
         y: cs?.getPropertyValue('--nav-orb-y').trim(),
-        marginTop: getComputedStyle(document.querySelector('.bohai-page')).marginTop,
+        marginTop: getComputedStyle(document.querySelector('.bolek-page')).marginTop,
       };
     });
     check(

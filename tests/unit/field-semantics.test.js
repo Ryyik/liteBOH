@@ -7,7 +7,7 @@ import { FIELD_SEMANTICS, describeField } from '../../src/config/field-semantics
 // 跨表同名字段语义守卫
 //
 //   背景：`model_id` 在三张表里指三个东西，其中 lab_ai_model_configs.model_id
-//   存的是 bohai_model_configs.mode_id（列名与语义不符）—— 这是最容易写错代码的坑。
+//   存的是 bolek_model_configs.mode_id（列名与语义不符）—— 这是最容易写错代码的坑。
 //
 //   本测试锁两件事：
 //     ① 「声明」本身正确（lab 那条必须点明存的是 mode_id、且不是 freemodels.model_id）；
@@ -33,7 +33,7 @@ describe('跨表同名字段语义（model_id 三义）', () => {
   it('三个 model_id 的说明互不相同（同名不同义必须写清）', () => {
     const texts = [
       FIELD_SEMANTICS['freemodels.model_id'],
-      FIELD_SEMANTICS['bohai_model_configs.model_id'],
+      FIELD_SEMANTICS['bolek_model_configs.model_id'],
       FIELD_SEMANTICS['lab_ai_model_configs.model_id'],
     ];
     expect(new Set(texts).size).toBe(3);
@@ -48,10 +48,10 @@ describe('跨表同名字段语义（model_id 三义）', () => {
     expect(fn).toContain(`from('lab_ai_model_configs')`);
     expect(fn).toContain('model_id');
     // EF 内注释必须复述同表语义（列名与语义不符的坑在服务端同样致命）
-    expect(fn).toContain('model_id 存 bohai_model_configs.mode_id');
+    expect(fn).toContain('model_id 存 bolek_model_configs.mode_id');
   });
 
-  it('面板的模型下拉以 bohai mode_id 作为选项值', () => {
+  it('面板的模型下拉以 bolek mode_id 作为选项值', () => {
     const vue = read('src/views/DataManagement/components/LabAiModelConfig.vue');
     expect(vue).toMatch(/:value="m\.mode_id"/);
   });
@@ -59,5 +59,9 @@ describe('跨表同名字段语义（model_id 三义）', () => {
   it('DB 侧有对应注释（防止前端单方面改口径）', () => {
     const migration = read('supabase/migrations/2026091201_lab_model_use_bohai_modes.sql');
     expect(migration).toContain('model_id 存 bohai_model_configs.mode_id');
+    // 2026-11-23 BOHAI→Bolek 更名：注释文本随迁移 2026112301 同步改写指向 bolek_model_configs
+    const rename = read('supabase/migrations/2026112201_bohai_to_bolek_rename.sql');
+    expect(rename).toContain('comment on table public.lab_ai_model_configs');
+    expect(rename).toContain('model_id 存 bolek_model_configs.mode_id');
   });
 });

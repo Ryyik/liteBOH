@@ -78,7 +78,7 @@ const measure = async (hostSel, label) => {
   );
 };
 
-await measure('.host-h1', 'H1 宿主 relative（非堆叠上下文）—— BOHAI 同款');
+await measure('.host-h1', 'H1 宿主 relative（非堆叠上下文）—— 博莱克同款');
 await measure('.host-h2', 'H2 宿主 relative + z-index:1（堆叠上下文）');
 await measure('.host-h3', 'H3 宿主 fixed（堆叠上下文）—— 顶栏尝试 2 同款');
 

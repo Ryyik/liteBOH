@@ -28,7 +28,7 @@
 - `light`：`tokens.css` 的 `:root` 变量。
 - `dark`：token 层覆写（`tokens.css` 的 `[data-theme="dark"]`）+ 8 个按需加载文件
   （`dark-mode / navbar-dark / forum-dark / post-detail-dark / user-space-dark /
-  user-center-dark / bohai-dark / messages-dark`，见 `src/utils/theme-css-loader.js`）。
+  user-center-dark / bolek-dark / messages-dark`，见 `src/utils/theme-css-loader.js`）。
 - `system`：解析为 light/dark，不引入新样式。
 - `home-cat` / `anniversary-mc`：**没有 token 层**，全部是页面级选择器覆盖。
 
@@ -107,7 +107,7 @@ grep -rn "data-theme=\"dark\"\|data-theme='dark'" src --include='*.css' | wc -l
 
 ```bash
 # 逐目录检查两个自定义主题是否有任何引用；0 即零适配
-for d in Home Newsroom Shop SmartOverview CommunityAlbums BOHAI \
+for d in Home Newsroom Shop SmartOverview CommunityAlbums Bolek \
          BOH8YearsEvent BOH8YearsJourney AnniversaryCafe Download AboutUs History; do
   echo -n "$d: "; grep -rc 'home-cat\|anniversary-mc' "src/views/$d" 2>/dev/null | awk -F: '{s+=$2} END{print s+0}'
 done
@@ -135,7 +135,7 @@ done
    `theme-manager.js` 给 11 个容器写 `data-theme`：
    `.forum-page` / `.post-detail-page` / `.user-space-page` / `.account-security-page` /
    `.address-page` / `.subscription-page` / `.notification-settings-page` / `.shared-memory-page` /
-   `#unified-nav-container` / `.bohai-page` / `.x-notifications-container`。
+   `#unified-nav-container` / `.bolek-page` / `.x-notifications-container`。
    其中只有前 3 个有自定义主题 CSS，其余 8 个是空挂。
 
 ---

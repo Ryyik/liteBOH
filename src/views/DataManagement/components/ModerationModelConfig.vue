@@ -178,7 +178,7 @@
             <span class="g-list-text">
               <span class="g-eyebrow">说明</span>
               <span class="g-field-hint">
-                配置保存至 bohai_model_configs 的 moderation-text / moderation-image
+                配置保存至 bolek_model_configs 的 moderation-text / moderation-image
                 行（服务端裁决，前端不可篡改）。 行为 disabled
                 时审核调用收到「未配置」，自动走本地兜底。
               </span>
@@ -205,11 +205,11 @@ import DashboardNotice from './shared/DashboardNotice.vue';
 import {
   MODERATION_TEXT_MODE_ID,
   MODERATION_IMAGE_MODE_ID,
-} from '../config/bohai-internal-modes.js';
+} from '../config/bolek-internal-modes.js';
 
 const WORKER_CHAT_URL = 'https://boh-gemini-proxy.18768487974.workers.dev/v1/chat/completions';
-// mode_id 字面量的单一真源在 config/bohai-internal-modes.js ——
-// DataAdmin 用同源的 mode_id 前缀把这两行从「BOHAI 模型」列表里排除。
+// mode_id 字面量的单一真源在 config/bolek-internal-modes.js ——
+// DataAdmin 用同源的 mode_id 前缀把这两行从「博莱克模型」列表里排除。
 const TEXT_MODE_ID = MODERATION_TEXT_MODE_ID;
 const IMAGE_MODE_ID = MODERATION_IMAGE_MODE_ID;
 const LEGACY_STORAGE_MIGRATION_HINT =
@@ -285,7 +285,7 @@ function buildModeRow(kind) {
     status: block.enabled ? 'active' : 'disabled',
     sort_order: isImage ? 901 : 900,
     notes:
-      '审核专用模式：由「审核模型配置」页维护，已从 BOHAI 模式列表中自动排除（口径见 config/bohai-internal-modes.js）。',
+      '审核专用模式：由「审核模型配置」页维护，已从博莱克模式列表中自动排除（口径见 config/bolek-internal-modes.js）。',
   };
 }
 
@@ -317,7 +317,7 @@ function applyModelDefaults(kind) {
 async function loadDbConfig() {
   try {
     const { data, error } = await supabase
-      .from('bohai_model_configs')
+      .from('bolek_model_configs')
       .select('mode_id, provider, provider_label, model_id, api_url, capability, status, notes')
       .in('mode_id', [TEXT_MODE_ID, IMAGE_MODE_ID]);
     if (error) throw error;
@@ -390,7 +390,7 @@ const handleSave = async () => {
 
     const rows = blockDefs.map((def) => buildModeRow(def.kind));
     const { error: upsertError } = await supabase
-      .from('bohai_model_configs')
+      .from('bolek_model_configs')
       .upsert(rows, { onConflict: 'mode_id' });
     if (upsertError) throw upsertError;
 

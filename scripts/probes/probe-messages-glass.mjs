@@ -1,7 +1,7 @@
 /**
  * probe-messages-glass.mjs — 消息中心液态玻璃验收探针（2026-10-15）
  *
- * 四类断言同批（交接 §5 纪律；方法论照 probe-bohai-glass.mjs 复制）：
+ * 四类断言同批（交接 §5 纪律；方法论照 probe-bolek-glass.mjs 复制）：
  *   1. 玻璃挂载：页头 .x-header-minimal / 列表 .x-inbox-list 的 computed backdrop-filter 非 none；
  *   2. 材质口径：底色 == --liquid-bg token 值（亮 rgba(255,255,255,.72) / 暗 rgba(28,28,36,.72)），
  *      页头内控件（.x-filter-chip）必须实底 token 且 computed blur == none（§21.11 采样死区）；

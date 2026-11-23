@@ -8,7 +8,7 @@ version: 2
 # 设计取舍：
 #   1. **minor/patch 分组**：把 development 与 production 的 minor/patch 各自合成一个 PR，
 #      避免一次冒出 20 个 PR 把人淹没（Dependabot 最常见的失败模式）。
-#   2. **major 一律不自动提**：本仓有 `check:bohai-params` / `check:project-structure` /
+#   2. **major 一律不自动提**：本仓有 `check:bolek-params` / `check:project-structure` /
 #      分层棘轮等一堆约束，大版本升级必须人工评估 + 跑全量 verify。
 #   3. **限 5 个 PR**：够用，且不会占满 CI 并发（CI 的 concurrency 是 cancel-in-progress）。
 #   4. github-actions 单独一条：workflow 里引用的 action 版本也该被追踪，

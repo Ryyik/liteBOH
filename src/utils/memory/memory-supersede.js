@@ -1,12 +1,12 @@
 /**
  * memory-supersede.js — 记忆判重 / 同主题改口（supersede）判定，**纯函数，零依赖**。
  *
- * 来源：从 `views/BOHAI/utils/memory/dedupe.js` **原样下沉**（plans/044 · 阶段 0 B）。
- * 值与算法逐字不变（存量行为锁在 `tests/unit/bohai-memory-dedupe.test.js`）。
+ * 来源：从 `views/Bolek/utils/memory/dedupe.js` **原样下沉**（plans/044 · 阶段 0 B）。
+ * 值与算法逐字不变（存量行为锁在 `tests/unit/bolek-memory-dedupe.test.js`）。
  *
  * 为什么要下沉：`utils/api/treehole/treehole-space-api.js`（自动沉淀路径）也要用这套判定，
- * 而 utils 层反向 import `views/BOHAI/utils` 是下层引上层的架构债。判定本身没有
- * BOHAI 专属语义（纯文本比较），归位到 `utils/memory/`；BOHAI 侧 dedupe.js 改为
+ * 而 utils 层反向 import `views/Bolek/utils` 是下层引上层的架构债。判定本身没有
+ * 博莱克专属语义（纯文本比较），归位到 `utils/memory/`；博莱克侧 dedupe.js 改为
  * re-export，消费方 import 路径一行不改 —— 单一真源仍是本文件。
  */
 

@@ -41,7 +41,7 @@ const IDLE_PREFETCH_STORAGE_KEY = 'boh_route_idle_prefetch_v1';
  *
  * ⚠️ 别把 '/ai-chat' 加回来（2026-11-14 实测移除，见
  *    docs/reports/2026-11/2026-11-14-首屏与userspace性能勘察.md §3）：
- *    /ai-chat 的依赖闭包 = BOHAI 页 77.4 + useChatEngine 115.5 + markdown 29.7
+ *    /ai-chat 的依赖闭包 = 博莱克页 77.4 + useChatEngine 115.5 + markdown 29.7
  *    ≈ 225.8 KiB，A/B 实测首屏 1026.8→709.0 KiB、158→136 请求、LCP −1.21 s。
  *    它排在 idle 里、又和首屏 LCP 那张帖子图抢 1.6 Mbps 的带宽 —— 收益（AI 首开快几百 ms）
  *    远小于代价（所有首次访客都下，包括从不打开 AI 的人）。

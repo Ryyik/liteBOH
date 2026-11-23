@@ -40,14 +40,14 @@ Apple 的 HIG 不是给本文加一层美学形容词，而是给 A/B/C 三条�
 顶部导航、底部四席、横屏左栏全部是**按页挂载**：
 
 - 底栏：`src/views/Home/index.vue:81`、`src/views/user-center/UserSpace/UserSpaceMain.vue:361`
-- 左栏：`src/views/Home/index.vue:66`、`UserSpaceMain.vue:348`、`Profile/ProfileMain.vue`、`BOHAI/BOHAI/BOHAIMain.vue`
+- 左栏：`src/views/Home/index.vue:66`、`UserSpaceMain.vue:348`、`Profile/ProfileMain.vue`、`Bolek/Bolek/BolekMain.vue`
 - 商城还有**第 4 套独立底栏**：`src/views/Shop/index.vue:298`（`.shop-bottom-nav`，4 席但席位与全局底栏不同）
 
 后果：切 tab 时导航跟着页面一起重建/重排，原生 APP 里绝不会发生。
 
 **事实 2｜两种滚动模型并存，返回位置恢复因此有三套机制。**
 - Home / Shop / ActivitiesWall / Newsroom = **window 长文档滚动** + 页脚（网站模型）
-- UserSpace / BOHAI = `height:100dvh; overflow:hidden` + 内部容器滚动（APP 模型）
+- UserSpace / 博莱克 = `height:100dvh; overflow:hidden` + 内部容器滚动（APP 模型）
 - 结果：`router/index.ts:48-66` 的 `savedPosition` 只管 window；UserSpace 另有 `saveTabScrollPosition`；论坛另有 `forum-return-state.js` 存 sessionStorage。
 
 **事实 3｜「返回」没有统一定义 —— 这是 APP 化的头号硬伤。**
@@ -349,12 +349,12 @@ Apple 的空间计算原则里，对 Web 产品唯一有迁移价值的是「**�
 | 维度 | Apple（2026） | BOH 现状 | 判据命令 |
 | --- | --- | --- | --- |
 | **模型来源是否披露** | ✅ 官网首页即「With ChatGPT from OpenAI integrated into Siri」；AFM 3 Core 与 Google 共同开发并公开命名 | ❌ **系统提示词明令禁止**：<br>`不要提及任何第三方公司（如 OpenAI / Anthropic / Google / Amazon / 阿里 / 字节等）或底层模型名称，即便用户追问也不透露`<br>（`chat-engine-config.js:159`） | `git grep '即便用户追问' -- src` |
-| **实际推理发生地** | PCC（Apple 自建 + 第三方模型），**协议层可验证 + 有可导出报告** | SiliconFlow / 智谱云端，经 api-key-vault 代理（`bohai-model-client.js:68-73`）。密钥不落浏览器，但**对话文本与私有检索上下文确实发给第三方** | `git grep -n 'SILICON_CLOUD\|ZHIPU_CHAT' -- src` |
-| **透明度 UI** | ✅ Apple Intelligence Report，可选时长、可导出文件 | ❌ **0 处**。`DataPrivacyPanel.vue`（81 行）唯一可操作项是「公共记忆管理」 | `git grep -i '推理\|发送至\|端侧\|数据流向' -- src/views/BOHAI src/views/user-center` |
-| **形态** | 系统层工具 + Siri AI app。命题是 **「no need to jump between tools」** | ⚠️ **底栏第三席是 `fullPage` 目的地**（`bottom-nav.ts:47`），另配 **17 条 slash command**（`bohai-slash-commands.js:34-154`） | `git grep -n "'ai', *label" -- src/config/bottom-nav.ts` |
+| **实际推理发生地** | PCC（Apple 自建 + 第三方模型），**协议层可验证 + 有可导出报告** | SiliconFlow / 智谱云端，经 api-key-vault 代理（`bolek-model-client.js:68-73`）。密钥不落浏览器，但**对话文本与私有检索上下文确实发给第三方** | `git grep -n 'SILICON_CLOUD\|ZHIPU_CHAT' -- src` |
+| **透明度 UI** | ✅ Apple Intelligence Report，可选时长、可导出文件 | ❌ **0 处**。`DataPrivacyPanel.vue`（81 行）唯一可操作项是「公共记忆管理」 | `git grep -i '推理\|发送至\|端侧\|数据流向' -- src/views/Bolek src/views/user-center` |
+| **形态** | 系统层工具 + Siri AI app。命题是 **「no need to jump between tools」** | ⚠️ **底栏第三席是 `fullPage` 目的地**（`bottom-nav.ts:47`），另配 **17 条 slash command**（`bolek-slash-commands.js:34-154`） | `git grep -n "'ai', *label" -- src/config/bottom-nav.ts` |
 | **命名依据** | 按**能力**（Siri / Writing Tools / Summarize） | 按**性能档**：极速响应 / 质量 / 超级高质量（`2026061002_bohai_model_configs.sql:98-101`） | 同上迁移文件 |
-| **人格** | 明确去人格化 | 4 种回答风格含「苏格拉底」「心理专家」（`chat-engine-config.js:321-372`） | `git grep -n 'socratic\|psychologist' -- src/views/BOHAI` |
-| **工作产物** | Writing Tools / 摘要 / Image Playground 都有明确产物 | ⚠️ Work 的 `artifacts` **源码注释写明恒为空**，generators 尚未接入（`BohWorkPanel.vue:72-74`） | `git grep -n 'artifacts' -- src/views/BOHAI` |
+| **人格** | 明确去人格化 | 4 种回答风格含「苏格拉底」「心理专家」（`chat-engine-config.js:321-372`） | `git grep -n 'socratic\|psychologist' -- src/views/Bolek` |
+| **工作产物** | Writing Tools / 摘要 / Image Playground 都有明确产物 | ⚠️ Work 的 `artifacts` **源码注释写明恒为空**，generators 尚未接入（`BohWorkPanel.vue:72-74`） | `git grep -n 'artifacts' -- src/views/Bolek` |
 
 #### ⚠️ 与 §2.2 第 3 条原则的正面冲突（**本轮只记录事实，不改实现**）
 
@@ -394,7 +394,7 @@ Apple Music 的五席全是**内容形态**（Library / For You / Browse / Radio
 | 2 分享 / 9 SEO | 与主线 B「详情补 URL」是同一件事的两面，合并做 |
 
 **执行建议**：
-- 纯后端项（BOHAI A 模型升级）可与本方案阶段 0 **并行**，互不阻塞。
+- 纯后端项（博莱克 A 模型升级）可与本方案阶段 0 **并行**，互不阻塞。
 - 所有前端功能项**排在阶段 1 之后**，否则等于在旧骨架上盖二层。
 - **无障碍（主线 D）不是收尾项**：D1/D3/D4 与阶段 1 并行，D2 紧跟阶段 2（模态协议）。理由见 §2.2 原则 3 —— 「从第一天做」是字面意思。
 
@@ -435,7 +435,7 @@ AppShell.vue
 | `meta.shell` | 用于 | 现有页面 |
 | --- | --- | --- |
 | `tab` | 有底栏的主页面 | Home、UserSpace、Shop、ActivitiesWall |
-| `immersive` | 导航收成球 | BOHAI、PostDetail、影集阅读 |
+| `immersive` | 导航收成球 | 博莱克、PostDetail、影集阅读 |
 | `fullscreen` | 无壳，独占 | 登录、发帖编辑器、图片查看器 |
 | `bare` | 无导航 | admin、营销落地页 |
 
@@ -584,7 +584,7 @@ themes/dark.css   仅 [data-theme=dark] 覆写语义变量（4 组 × 3 阶）
 ```
 组件只读语义变量，**永不写裸色**。
 
-三步走：① 立语义层并让新代码用；② 按页迁移（论坛 → 帖子详情 → 用户空间 → BOHAI）；③ 删补丁文件。
+三步走：① 立语义层并让新代码用；② 按页迁移（论坛 → 帖子详情 → 用户空间 → 博莱克）；③ 删补丁文件。
 门禁：`scripts/dark-gate-scopes.json` 的 `strict` 名单**从空数组开始填**，每迁完一页加一个，该页裸色必须为 0。
 
 ### C3. 字号跟随系统
@@ -624,10 +624,10 @@ themes/dark.css   仅 [data-theme=dark] 覆写语义变量（4 组 × 3 阶）
 | 摄影集 | 1 |
 | BOH AI | 1 |
 
-**问题不是「有债」，是「债的可见范围太窄」**：消息中心、商城、用户空间、BOHAI 设置、发帖编辑器都不在扫描范围 —— 恰恰是交互最密的地方。
+**问题不是「有债」，是「债的可见范围太窄」**：消息中心、商城、用户空间、博莱克设置、发帖编辑器都不在扫描范围 —— 恰恰是交互最密的地方。
 
 **动作**：
-1. 覆盖页 5 → 12：+ 消息中心、商城、用户空间（需登录态 fixture）、帖子详情、发帖编辑器、BOHAI 设置
+1. 覆盖页 5 → 12：+ 消息中心、商城、用户空间（需登录态 fixture）、帖子详情、发帖编辑器、博莱克设置
 2. 基线**只降不升**；每修完一页跑 `--update` 把数字压下去
 3. 补两类规则开关：`forced-colors`（Windows 高对比，当前 **0 处**）、`prefers-contrast`（当前 **3 处**）
 4. **禁止**用「关规则」换绿色 —— 与 `AGENTS.md` 的反自欺纪律一致
@@ -860,7 +860,7 @@ DataManagement/components/KeysAndModels.vue:292-542   10 个控件
 | 8 | **无障碍是否作为发布阻断项** | A 是：D1/D2/D4 未达标不发版<br>B 否：作为「持续改善」不阻断 | **A** | 这是本章唯一一条「治理决策」：一旦定为不阻断，D 主线会永远排在功能后面（历史上暗色、性能都这样拖过）。阻断范围可收窄为「新增违规为 0」，不要求存量清零 |
 | 9 | **策展接回 feed**（§2.8） | A 周报精选带署名进「官方」tab<br>B 进 feed 顶部固定位<br>C 维持现状（策展只在 splash gate 与侧栏） | **A** | BOH 已有的两套策展都长在错误的地方：`home_heroes` 驱动进站前的 splash gate，AI 周报 `featured_posts`（**已带 `reason` 字段**）躺在侧栏不回 feed。进 feed 的是裸 `created_at DESC`。A 最便宜 —— 只需把周报已产出的数据接到「官方」tab 并补一个署名位（对齐 Apple「By <策展人>」模式）。B 会挤占首屏，与 C4「首屏 chrome 收敛」直接冲突。**注意此项与主线 A/C 正交，须独立排期** |
 | 10 | **论坛是否引入 Q&A 语义**（§2.8） | A 加 Accepted Answer（楼主标记采纳）<br>B 再加「官方推荐」徽章<br>C 两者都做<br>D 不做 | **A**，B 视运营人力再定 | Apple 论坛的权力来自「被采纳/被官方推荐」，BOH 来自粉丝数（`ProfileMain.vue:354-356`）。A 语义清晰、权限天然（仅楼主）、**不需要任何运营人力**，能立刻改变「什么样的行为被奖励」。B 技术是 S，但需要有人每天真的在看 —— 没有运营承诺的徽章是空壳，会比不做更伤。⚠️ **前置判断**：BOH 4 个标签里只有「#提问」是提问类，所以 A 只对这类帖子生效，**不要试图全站改造** |
-| 11 | **AI 来源披露口径**（§2.9） | A 如实披露（改 prompt + UI）<br>B 只加 UI 静态说明，不动 prompt<br>C 维持现状，并把 §2.2 Responsibility 的措辞改成它实际能兑现的范围 | **本轮：C**（2026-10-19 用户裁定：**只记录事实，暂不改 prompt**） | 事实是：实际推理在 SiliconFlow / 智谱云端（`bohai-model-client.js:68-73`），而 prompt 明令禁止提及第三方（`chat-engine-config.js:159`）。与 §2.2 原则 3「保持透明」方向相反。<br>**若最终不披露，C 是唯一诚实的选项** —— 不是删掉原则，而是把原则的表述边界改成它兑现得了的范围，避免文档挂一条永远不兑现的承诺。改 prompt 属产品口径变更，需单独评估回归断言，不应混进形态改造 |
+| 11 | **AI 来源披露口径**（§2.9） | A 如实披露（改 prompt + UI）<br>B 只加 UI 静态说明，不动 prompt<br>C 维持现状，并把 §2.2 Responsibility 的措辞改成它实际能兑现的范围 | **本轮：C**（2026-10-19 用户裁定：**只记录事实，暂不改 prompt**） | 事实是：实际推理在 SiliconFlow / 智谱云端（`bolek-model-client.js:68-73`），而 prompt 明令禁止提及第三方（`chat-engine-config.js:159`）。与 §2.2 原则 3「保持透明」方向相反。<br>**若最终不披露，C 是唯一诚实的选项** —— 不是删掉原则，而是把原则的表述边界改成它兑现得了的范围，避免文档挂一条永远不兑现的承诺。改 prompt 属产品口径变更，需单独评估回归断言，不应混进形态改造 |
 | 12 | **AI 是否该占底栏一席**（§2.9） | A 保持现状（AI 一级席位）<br>B 降级为岛，底栏换内容形态<br>C 混合：底栏留席 + 岛做成真正跨页入口 | **C** | Apple Music 五席全是内容形态，AI 不在其中。但**这条不能照抄** —— Apple 有系统级 AI 可依附，BOH 是独立网页 APP 没有系统层，AI 不占席位就没有一级入口。B 会牺牲 AI 的可达性。折中即 C |
 | 13 | **`hot_score` 去留**（§2.8，建议随决策 9 一起拍） | A 降级为命名榜单「本周热门」，默认排序回归纯时间序<br>B 改单指标（去掉 `comment×1.5`）<br>C 维持现状 | **A** | 现公式 `like×1.0 + comment×1.5 + recency/24` 有三处结构问题：**评论权重 1.5× 于赞**（等于把吵架定价成好看）、**48h 硬崖**（超时 recency 归零只剩互动量）、**全局加权和而非个性化**（所有人看到的「最热」完全相同）。且**无法按赞单独排序** —— 榜单根本不存在。Apple 的 Top Charts 是单指标降序 + 有名字 + 有时效。A 同时解决「假榜单」与「默认排序被两个按钮承担」两个问题 |
 
@@ -873,7 +873,7 @@ DataManagement/components/KeysAndModels.vue:292-542   10 个控件
 | 全量重写 11,320 个裸色 | 收益/风险比极差；用「新代码强制 + 搭便车替换 + 棘轮」替代 |
 | 引入 UI 框架（Vant / NutUI） | 现有液态玻璃与动效体系是品牌资产，框架会推翻它 |
 | 改品牌色 / 液态玻璃材质 | 与本目标无关，`check:liquid-glass` 门禁已锁 |
-| 动 BOHAI 交互 | 它已经是全站最像原生的一页（去顶栏 + 球态 + 输入框 FLIP），别修好的 |
+| 动博莱克交互 | 它已经是全站最像原生的一页（去顶栏 + 球态 + 输入框 FLIP），别修好的 |
 | 改 `useIsland` 仲裁逻辑 | 优先级（AI > 任务 > 通知）是经过验证的，只升级宿主不改仲裁 |
 | **复刻 iOS 原生 chrome** | 不引入 SF 字体文件（系统栈 `ui-sans-serif, system-ui` 已经能在 Apple 设备上拿到 SF）；不仿 iOS 状态栏、开关、返回箭头。**要的是 HIG 的判据，不是 iOS 的皮** |
 | **玻璃叠玻璃** | HIG 明确不鼓励；本仓已有「嵌套玻璃退化为静默填充」规则（`liquid-glass.css:98-110`），继续守住 |
@@ -966,7 +966,7 @@ DataManagement/components/KeysAndModels.vue:292-542   10 个控件
 2. 拍板后把本文拆成 `plans/030-app-shell-stage0.md` 施工单（含逐文件改动清单）
 3. **零风险四件先做**：全局 `.sr-only`（D4 前置）、四把尺子令牌、safe-area、D4 热区扩区 + 图标命名 —— 前三件不改架构、当天可验证
 4. **D8 动作 1（toast 加 `role="status"` + `aria-atomic`）单独立一个 PR** —— 一行级改动，覆盖全站最常用的通知通道，收益与风险比最高
-5. 阶段 0 与「BOHAI 模型升级」（纯后端）并行，互不阻塞
+5. 阶段 0 与「博莱克模型升级」（纯后端）并行，互不阻塞
 6. 所有前端功能项（表情、多模态、Work generators）等阶段 1 完成后再排
 7. **D1 无障碍扩面立即启动**：它不改任何产品代码，只是把探针覆盖面从 5 页扩到 12 页 —— 先让债可见，再谈还债
 8. **把 `probe-dark-admin-theme.mjs:205` 的文件级守卫升为全仓级**，锁住那 4 处漏网的 `prefers-color-scheme`（现只有 DataManagement 有守卫）

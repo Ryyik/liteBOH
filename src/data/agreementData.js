@@ -24,7 +24,7 @@ export const userAgreementContent = `
 <p>本平台为用户提供包括但不限于以下服务：</p>
 <ul>
   <li>社区论坛：发帖、评论、点赞、关注、私信等互动功能</li>
-  <li>BOHAI 智能对话：基于 AI 的聊天服务，支持自然语言交互</li>
+  <li>博莱克智能对话：基于 AI 的聊天服务，支持自然语言交互</li>
   <li>BOH Cloud+：云端笔记、内容整理、跨平台同步、社群资料库</li>
   <li>用户中心：个人资料管理、树洞、消息、创作者工作台、订阅管理等</li>
   <li>商城服务：商品浏览、好礼兑换、周边购买</li>
@@ -42,7 +42,7 @@ export const userAgreementContent = `
 <p>本平台提供的服务均按"现状"和"可用"的基础提供。本平台不保证服务一定能满足用户的要求，也不保证服务不会中断，对服务的及时性、安全性、准确性均不作保证。</p>
 
 <h3>2.3 AI 服务说明</h3>
-<p>BOHAI 智能对话与 BOH Lab 等基于人工智能的服务存在以下特性，用户应知悉：</p>
+<p>博莱克智能对话与 BOH Lab 等基于人工智能的服务存在以下特性，用户应知悉：</p>
 <ul>
   <li>AI 生成的内容可能存在错误、偏差或不准确之处，仅供参考，不应作为专业建议</li>
   <li>AI 服务的可用性受上游模型服务影响，可能因不可抗力中断</li>
@@ -132,7 +132,7 @@ export const userAgreementContent = `
 </ul>
 
 <h3>5.3 AI 服务使用规范</h3>
-<p>用户使用 BOHAI 智能对话、BOH Lab 等 AI 服务时应遵守：</p>
+<p>用户使用博莱克智能对话、BOH Lab 等 AI 服务时应遵守：</p>
 <ul>
   <li>不得利用 AI 服务生成违法违规内容</li>
   <li>不得利用 AI 服务从事欺诈、恶意攻击等行为</li>
@@ -171,7 +171,7 @@ export const userAgreementContent = `
 </ul>
 
 <h3>6.3 AI 生成内容</h3>
-<p>用户使用 BOHAI、BOH Lab 等 AI 服务生成的内容，其知识产权归属按以下原则处理：</p>
+<p>用户使用博莱克、BOH Lab 等 AI 服务生成的内容，其知识产权归属按以下原则处理：</p>
 <ul>
   <li>用户基于自身输入与提示词生成的内容，用户享有合理使用权</li>
   <li>AI 生成内容可能受上游模型服务商条款约束，用户应知悉相关限制</li>
@@ -328,7 +328,7 @@ export const privacyPolicyContent = `
 <h3>3.1 提供和维护服务</h3>
 <ul>
   <li>为您提供注册、登录、账户管理等基础功能</li>
-  <li>运营和维护论坛、BOHAI AI 对话、BOH Lab、Cloud+ 笔记、通知系统等服务功能</li>
+  <li>运营和维护论坛、博莱克 AI 对话、BOH Lab、Cloud+ 笔记、通知系统等服务功能</li>
   <li>处理您的订单、交易、支付与订阅服务</li>
   <li>管理抽奖、生日纪念、遇见系列等活动</li>
 </ul>
@@ -374,7 +374,7 @@ export const privacyPolicyContent = `
 <ul>
   <li>云服务提供商（数据存储、计算等）</li>
   <li>支付服务提供商</li>
-  <li>AI 模型服务提供商（用于提供 BOHAI、BOH Lab 等服务）</li>
+  <li>AI 模型服务提供商（用于提供博莱克、BOH Lab 等服务）</li>
   <li>浏览器推送服务提供商（仅当你开启应用内通知时）</li>
   <li>内容分发网络（CDN）</li>
   <li>其他协助我们提供服务的供应商</li>
@@ -486,7 +486,7 @@ export const privacyPolicyContent = `
 
 <p>本平台涉及的第三方服务包括但不限于：</p>
 <ul>
-  <li>AI 模型服务商（提供 BOHAI、BOH Lab 底层能力）</li>
+  <li>AI 模型服务商（提供博莱克、BOH Lab 底层能力）</li>
   <li>浏览器推送服务提供商（仅当你开启应用内通知时）</li>
   <li>支付服务提供商</li>
   <li>云服务与存储提供商</li>
@@ -495,7 +495,7 @@ export const privacyPolicyContent = `
 <h2>十、AI 服务特别说明</h2>
 
 <h3>10.1 数据处理</h3>
-<p>您在使用 BOHAI、BOH Lab 等 AI 服务时，输入的内容与生成的结果可能被传输至上游 AI 模型服务商进行处理。我们建议您：</p>
+<p>您在使用博莱克、BOH Lab 等 AI 服务时，输入的内容与生成的结果可能被传输至上游 AI 模型服务商进行处理。我们建议您：</p>
 <ul>
   <li>不要输入敏感个人信息（如身份证号、银行卡号等）</li>
   <li>不要输入商业机密或他人隐私信息</li>

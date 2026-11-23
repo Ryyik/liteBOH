@@ -11,7 +11,7 @@ import {
   createEmptyAgentRunTrace,
   normalizeAgentPlan,
   buildAgentRunId,
-} from '../../src/views/BOHAI/agents/core/agent-events.js';
+} from '../../src/views/Bolek/agents/core/agent-events.js';
 
 describe('agent-events: constants', () => {
   it('AGENT_EVENT_TYPES includes all expected types', () => {

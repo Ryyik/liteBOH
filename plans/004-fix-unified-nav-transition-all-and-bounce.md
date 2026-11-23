@@ -117,7 +117,7 @@
 
 ## Repo conventions to follow
 
-- **Token 来源**：Plan 001 新建的 `src/styles/common/tokens.css` 定义了 `--ease-out` / `--ease-emphasized`。BOHAI [motion-system.css:5-6](file:///Users/ryyik/Documents/BOHLITEForMacLatest/BOHLITEBeta2.5/src/views/BOHAI/BOHAI/styles/motion-system.css#L5) 已示范 `--ease-emphasized: cubic-bezier(0.16, 1, 0.3, 1)` 用于关键过渡。
+- **Token 来源**：Plan 001 新建的 `src/styles/common/tokens.css` 定义了 `--ease-out` / `--ease-emphasized`。博莱克 [motion-system.css:5-6](file:///Users/ryyik/Documents/BOHLITEForMacLatest/BOHLITEBeta2.5/src/views/Bolek/Bolek/styles/motion-system.css#L5) 已示范 `--ease-emphasized: cubic-bezier(0.16, 1, 0.3, 1)` 用于关键过渡。
 - **import 顺序**：unified-nav.css 在 [main.js:8](file:///Users/ryyik/Documents/BOHLITEForMacLatest/BOHLITEBeta2.5/src/main.js#L8) 导入，**在 tokens.css 之前**。需要把 tokens.css 的导入移到 unified-nav.css 之前。
 
 **main.js 调整：**

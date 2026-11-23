@@ -270,7 +270,7 @@ src/
 │   ├── Forum/              # 页面目录（index.vue + style.scoped.css）
 │   ├── Profile.vue         # 入口壳（转发到 ./Profile/index.vue）
 │   ├── Profile/            # 页面目录（含 creatorPlatforms.js）
-│   ├── BOHAI/              # AI 功能页（BOHAI.vue + BOHAI/index.vue + composables）
+│   ├── Bolek/              # AI 功能页（博莱克.vue + Bolek/index.vue + composables）
 │   ├── activities/         # 活动子页面（list/photo-wall）
 │   ├── user-center/        # 用户中心子页面（含 BOHTreehole/Messages 等拆分目录）
 │   └── ...                 # 其余页面按同样模式组织
@@ -422,10 +422,10 @@ bagStore.loadShoppingBag();
 - **数据存储**: Supabase (posts, comments, likes 表)
 - **权限控制**: 作者或管理员可删除/编辑
 
-### 3.2 AI 聊天系统 (`src/views/BOHAI/`)
+### 3.2 AI 聊天系统 (`src/views/Bolek/`)
 
 - **功能**: AI 对话、Markdown 渲染、打字机效果
-- **页面结构**: `src/views/BOHAI/BOHAI.vue`（入口壳）+ `src/views/BOHAI/BOHAI/index.vue`（实现）
+- **页面结构**: `src/views/Bolek/博莱克.vue`（入口壳）+ `src/views/Bolek/Bolek/index.vue`（实现）
 - **Composables**: `useChatEngine`
 
 ### 3.3 通知系统 (`src/stores/notifications.js`, `src/utils/auth.js`)
@@ -526,7 +526,7 @@ bagStore.loadShoppingBag();
 
 | 问题 | 位置 | 风险 | 修复建议 | 状态 |
 |------|------|------|----------|------|
-| **API Key 硬编码** | `src/views/BOHAI/composables/useChatEngine.js`（历史审计路径） | 密钥泄露风险 | 通过 `api-key-vault` Edge Function 代理，前端不持有第三方 Key | ✅ 已修复（2026-09-07 复核） |
+| **API Key 硬编码** | `src/views/Bolek/composables/useChatEngine.js`（历史审计路径） | 密钥泄露风险 | 通过 `api-key-vault` Edge Function 代理，前端不持有第三方 Key | ✅ 已修复（2026-09-07 复核） |
 | **RLS 策略缺失** | 数据库表 | 数据越权访问 | 为所有表启用 RLS 策略 | ✅ 已修复（2026-09-08：migration 2026090803 列级加固，anon 探针全过） |
 | **权限检查在客户端** | `forum-api.js` | 权限绕过 | 服务端验证用户角色 | ✅ 已修复（2026-09-08：0907/0908 RPC 服务端判 admin + 090803 profiles 列级 update 白名单强制） |
 | **XSS 风险** | `Forum.vue:L181` | 脚本注入 | 使用 DOMPurify 净化内容 | ✅ 已修复 |

@@ -101,7 +101,7 @@
           v-model="draft"
           type="text"
           class="boh-answer-input"
-          placeholder="问 BOHAI…"
+          placeholder="问博莱克…"
           aria-label="追问"
           autocomplete="off"
           spellcheck="false"
@@ -116,17 +116,17 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { ArrowUpRight, ChevronDown, Sparkles } from 'lucide-vue-next';
-import { useChatEngine } from '@/views/BOHAI/composables/useChatEngine.js';
-import { BOH_DEFAULT_MODE_ID } from '@/views/BOHAI/composables/chat-engine-config.js';
+import { useChatEngine } from '@/views/Bolek/composables/useChatEngine.js';
+import { BOH_DEFAULT_MODE_ID } from '@/views/Bolek/composables/chat-engine-config.js';
 import {
   BOH_ACTIVITY_LOAD_TITLES,
   formatCommunityActivityLine,
   resolveActivityLine,
   resolveBohActivityStage,
-} from '@/views/BOHAI/BOHAI/components/boh-activity.js';
+} from '@/views/Bolek/Bolek/components/boh-activity.js';
 import { setPetStage } from '@/utils/boh-pet-bus.js';
-import { renderMarkdown } from '@/views/BOHAI/BOHAI/components/boh-markdown.js';
-import { isGenerationErrorText } from '@/views/BOHAI/utils/chatErrorMessages.js';
+import { renderMarkdown } from '@/views/Bolek/Bolek/components/boh-markdown.js';
+import { isGenerationErrorText } from '@/views/Bolek/utils/chatErrorMessages.js';
 import { logger } from '@/utils/logger.js';
 import { toSafeExternalHref } from '@/utils/external-link.js';
 import { useBohIsland } from '@/composables/useBohIsland.js';
@@ -136,10 +136,10 @@ import { SITE_SEARCH_PAGES } from '@/config/site-search-sources';
  * BohIslandAnswer —— plans/038 §3.5 回答面：只做「流 + 来源 + 收起」。
  *
  * ⚠️ 引擎归属：本组件持有**自己的** useChatEngine 实例（快速会话，§3.4 不接主会话）。
- *   多实例共写 `boh_chat_sessions` 由 bohai-chat-session-store.js 的写入守卫仲裁
+ *   多实例共写 `boh_chat_sessions` 由 bolek-chat-session-store.js 的写入守卫仲裁
  *   （/ai-chat KeepAlive 与旧灵动岛共存的同款先例，2026-10-11 建立）。组件卸载时
  *   引擎经 onScopeDispose 自行中止流与定时器（useChatEngine.js:2038）。
- * ⚠️ 不引 BOHAIMain：侧栏/设置/工具/模型选择一律去全页（§3.6 减法清单）。
+ * ⚠️ 不引 BolekMain：侧栏/设置/工具/模型选择一律去全页（§3.6 减法清单）。
  */
 const props = defineProps({
   /** 关岛（去全页时调用） */
@@ -308,7 +308,7 @@ watch(showLoading, (loading) => {
 /* ---------------- 站内页面命中：用一句对话回复代替搜索列表 ---------------- */
 
 /**
- * 2026-11-04 用户口径：这颗岛是「和 BOHAI 聊天」的入口，不是搜索面板。
+ * 2026-11-04 用户口径：这颗岛是「和博莱克聊天」的入口，不是搜索面板。
  * 页面类问题（「论坛」「订阅在哪」）不弹列表，直接回一句
  * 「为你找到以下页面：…」并给出可点的页面胶囊 —— 与 AI 回答同一条 UI 通道。
  */
@@ -371,7 +371,7 @@ const send = async (text) => {
     return;
   }
 
-  // ② 其余一律当问题交给 BOHAI（这颗岛的默认语义）
+  // ② 其余一律当问题交给博莱克（这颗岛的默认语义）
   pageLinks.value = [];
   localQuestion.value = '';
   engine.inputMessage.value = q;
@@ -501,8 +501,8 @@ watch(bodyRef, (el) => {
  *    之后 face 用 v-show 切换（BohIsland.vue）—— 岛不关就不会重挂载。一次性消费会把
  *    两条主路径静默吞掉：
  *      · 问一句 → Esc 回搜索面 → 换个问题再问（搜索面第 0 项 / ⌘↵）；
- *      · 岛已在回答面时，论坛「问 BOHAI」再送一条种子问题。
- *    旧岛用 `watch(pendingPrompt)` 处理同一场景（BOHAIIsland.vue 注释原话：
+ *      · 岛已在回答面时，论坛「问博莱克」再送一条种子问题。
+ *    旧岛用 `watch(pendingPrompt)` 处理同一场景（BolekIsland.vue 注释原话：
  *    「岛已展开时又收到新的 open({prompt})（isExpanded 不会变化），同样立即消费」），
  *    P3 迁移到新岛时丢了，2026-11-04 复核补回。
  */
@@ -548,7 +548,7 @@ onMounted(async () => {
   engine.startNewChat('quick-ask');
   // 岛内恒定平衡档（§3.6，产品口径）：岛里没有模型选择 UI，一律走 balance，
   // 不继承全页上次选的 pro/fast —— 否则同一个问题在全页与岛内会得到不同成本/延迟。
-  // ⚠️ P3 迁移时 `showIsland.ai({mode:'fast'})` 变成静默忽略 ⇒ 论坛「问 BOHAI」实际跑的是
+  // ⚠️ P3 迁移时 `showIsland.ai({mode:'fast'})` 变成静默忽略 ⇒ 论坛「问博莱克」实际跑的是
   //    用户上次的档位（缺省 `BOH_DEFAULT_MODE_ID='balance'`），行为随人而变。
   //    档位契约落在这里（唯一实现处）；模式表已加载却没有 balance（降级/分级场景）时不硬写，
   //    交给引擎自己的兜底（当前档位不在表里时会被改写成表内首项）。

@@ -2642,7 +2642,7 @@ html[data-boh-detail-returning] .user-space-page .profile-service-panel {
 }
 
 /* BOH AI 满屏工作区（2026-09-09）：页签以下、底栏以上整块卡片化，
-   显式限高让 BOHAI 内部滚动链（chat-container）在竖屏拿到确定边界 */
+   显式限高让博莱克内部滚动链（chat-container）在竖屏拿到确定边界 */
 .messages-tab .ai-host {
   flex: 0 0 auto;
   height: calc(100vh - var(--userspace-messages-top-inset, 62px) - 48px - 92px);

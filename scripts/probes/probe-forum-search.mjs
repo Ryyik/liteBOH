@@ -6,14 +6,14 @@ import { chromium } from 'playwright';
      2. ⌘K / Ctrl+K 聚焦搜索框
      3. 最近搜索（显式提交才写入 / 聚焦空输入时展开 / 点回填 / 清除）
      4. 结果计数（只在该出现的时候出现）
-     5. 无结果引导（问 BOHAI + 清除搜索）
-     6. 「问 BOHAI」内联回答卡片（2026-11-22）：点问 BOHAI 不弹悬浮岛 —— 卡片出现在
+     5. 无结果引导（问博莱克 + 清除搜索）
+     6. 「问博莱克」内联回答卡片（2026-11-22）：点问博莱克不弹悬浮岛 —— 卡片出现在
         空态下方 / 帖子列表前面，原句回显，SSE 流式文字进卡片，点卡片跳 /ai-chat 交接
    ⚠️ 网络全程 mock：
      搜索结果的**正确性**（中文子串命中、相关度排序）在 SQL 层验证，不在本探针内；
      这里只验证「搜索相关的 UI 行为」与前端交互链，所以刻意断网，避免数据漂移。
    ⚠️ 同一 path 只注册一条 route（Playwright 按注册逆序匹配 → catch-all 先注册）。
-   ⚠️ AI 链路的 mock 手法抄 probe-bohai-keepalive-stream.mjs：SSE 一次性给、
+   ⚠️ AI 链路的 mock 手法抄 probe-bolek-keepalive-stream.mjs：SSE 一次性给、
       addInitScript 注入 fetch 包装逐块重放（且必须接住 abort 信号）——
       route.fulfill 一次给完会让「有内容」恒真（假绿）。 */
 const BASE = process.env.BASE || 'http://[::1]:5173';
@@ -61,7 +61,7 @@ const MOCK_ROW = {
   has_more: false,
 };
 
-/* ── 「问 BOHAI」内联回答卡片的 AI 链路 mock（手法抄 probe-bohai-keepalive-stream）── */
+/* ── 「问博莱克」内联回答卡片的 AI 链路 mock（手法抄 probe-bolek-keepalive-stream）── */
 
 const MOCK_AI_MODES = [
   {
@@ -155,9 +155,9 @@ const openForum = async (rows, options = {}) => {
   );
 
   if (options.ai) {
-    // 模式清单 mock（list_public_bohai_modes）。⚠️ 必填 model_id：normalize 会把缺
+    // 模式清单 mock（list_public_bolek_modes）。⚠️ 必填 model_id：normalize 会把缺
     // model_id 的行整条丢掉 ⇒ availableModels 为空 ⇒ 流根本没起来（keepalive 探针同坑）。
-    await page.route('**/rest/v1/rpc/list_public_bohai_modes*', (route) =>
+    await page.route('**/rest/v1/rpc/list_public_bolek_modes*', (route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -365,7 +365,7 @@ try {
       emptyText.replace(/\s+/g, ' ').slice(0, 60),
     );
     check(
-      'G2 出现「问 BOHAI」引导',
+      'G2 出现「问博莱克」引导',
       (await page.locator('.empty-action-btn.is-primary').count()) === 1,
     );
     check(
@@ -419,7 +419,7 @@ try {
   {
     const { context, page, errors } = await openForum([], { ai: true });
 
-    console.log('\n--- I 问 BOHAI 内联卡片（无结果） ---');
+    console.log('\n--- I 问博莱克内联卡片（无结果） ---');
     await page.fill('.forum-page .toolbar-search-input', '不存在的关键词');
     await page.keyboard.press('Enter');
     await page.waitForTimeout(900);
@@ -495,7 +495,7 @@ try {
     );
 
     check('Z4 零 JS 运行时错误', errors.length === 0, errors.slice(0, 2).join(' | '));
-    await page.screenshot({ path: `${OUT}/forum-search-bohai-card-empty.png` });
+    await page.screenshot({ path: `${OUT}/forum-search-bolek-card-empty.png` });
     await context.close();
   }
 
@@ -503,12 +503,12 @@ try {
   {
     const { context, page, errors } = await openForum([MOCK_ROW], { ai: true });
 
-    console.log('\n--- J 问 BOHAI 内联卡片（有结果） ---');
+    console.log('\n--- J 问博莱克内联卡片（有结果） ---');
     await page.fill('.forum-page .toolbar-search-input', '关键词');
     await page.keyboard.press('Enter');
     await page.waitForTimeout(900);
 
-    // 有结果时空态不在场：走搜索行内的「问 BOHAI」胶囊（⚠️ hero 版本 display:none，必须 :visible）
+    // 有结果时空态不在场：走搜索行内的「问博莱克」胶囊（⚠️ hero 版本 display:none，必须 :visible）
     await page.locator('.toolbar-search-actions .toolbar-ai-btn:visible').click();
     await page.waitForSelector('.boh-forum-answer', { timeout: 15000 });
 
@@ -539,7 +539,7 @@ try {
     );
 
     check('Z5 零 JS 运行时错误', errors.length === 0, errors.slice(0, 2).join(' | '));
-    await page.screenshot({ path: `${OUT}/forum-search-bohai-card-results.png` });
+    await page.screenshot({ path: `${OUT}/forum-search-bolek-card-results.png` });
     await context.close();
   }
 } catch (error) {

@@ -159,9 +159,9 @@ Deno.serve(async (request) => {
     if (configError) throw configError;
     if (!config?.is_active) throw new Error('论坛周报 AI 配置未启用。');
 
-    // model_id 存 bohai_model_configs.mode_id（BOH AI 现有模型模式），服务端按模式解析实际模型与平台
+    // model_id 存 bolek_model_configs.mode_id（BOH AI 现有模型模式），服务端按模式解析实际模型与平台
     const { data: model, error: modelError } = await client
-      .from('bohai_model_configs')
+      .from('bolek_model_configs')
       .select('mode_id, provider, model_id, api_url')
       .ilike('mode_id', safeText(config.model_id, 80))
       .eq('status', 'active')

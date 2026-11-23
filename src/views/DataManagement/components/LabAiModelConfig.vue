@@ -26,7 +26,7 @@
     </DashboardNotice>
 
     <!-- BOH AI 模型库为空时的提示 -->
-    <DashboardNotice v-if="!isLoadingModels && bohaiModels.length === 0" tone="warn">
+    <DashboardNotice v-if="!isLoadingModels && bolekModels.length === 0" tone="warn">
       BOH AI 模型库为空，请先在「BOH AI 模型」中添加并启用模型模式。
     </DashboardNotice>
 
@@ -71,7 +71,7 @@
               <option value="" disabled>
                 {{ isLoadingModels ? '加载中...' : '请选择模型模式' }}
               </option>
-              <option v-for="m in bohaiModels" :key="m.mode_id" :value="m.mode_id">
+              <option v-for="m in bolekModels" :key="m.mode_id" :value="m.mode_id">
                 {{ m.display_name }} ({{ m.provider_label || m.provider }}){{
                   m.min_tier && m.min_tier !== 'free' ? ` · 需${m.min_tier}` : ''
                 }}
@@ -190,7 +190,7 @@ import DashboardNotice from './shared/DashboardNotice.vue';
 const { confirm } = useConfirmDialog();
 
 const configs = ref([]);
-const bohaiModels = ref([]);
+const bolekModels = ref([]);
 const apiKeys = ref([]);
 const isLoading = ref(false);
 const isLoadingModels = ref(false);
@@ -225,16 +225,16 @@ const FEATURE_ICONS = {
 
 const getFeatureIcon = (key) => FEATURE_ICONS[key] || FileText;
 
-async function loadBohaiModels() {
+async function loadBolekModels() {
   isLoadingModels.value = true;
   try {
     const { data, error: fetchError } = await supabase
-      .from('bohai_model_configs')
+      .from('bolek_model_configs')
       .select('mode_id, display_name, provider, provider_label, min_tier')
       .eq('status', 'active')
       .order('sort_order', { ascending: true });
     if (fetchError) throw fetchError;
-    bohaiModels.value = data || [];
+    bolekModels.value = data || [];
   } catch (e) {
     errorMessage.value = `加载 BOH AI 模型列表失败: ${e.message}`;
   } finally {
@@ -256,7 +256,7 @@ async function loadApiKeys() {
 }
 
 function getFilteredApiKeys(modeId) {
-  const model = bohaiModels.value.find((m) => m.mode_id === modeId);
+  const model = bolekModels.value.find((m) => m.mode_id === modeId);
   const provider = model?.provider || 'siliconflow';
   return apiKeys.value.filter((k) => k.provider === provider);
 }
@@ -279,7 +279,7 @@ async function loadConfigs() {
 }
 
 async function loadAll() {
-  await Promise.all([loadBohaiModels(), loadApiKeys(), loadConfigs()]);
+  await Promise.all([loadBolekModels(), loadApiKeys(), loadConfigs()]);
 }
 
 async function handleSave(config) {

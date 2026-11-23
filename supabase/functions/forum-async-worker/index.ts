@@ -32,7 +32,7 @@ const moderationModel = String(
   Deno.env.get('MODERATION_MODEL_ID') || 'Qwen/Qwen2.5-7B-Instruct',
 ).trim();
 const requestTimeoutMs = 12000;
-// 图片复审复用**同一条审核链**：模型 / 端点 / 参数全部从 bohai_model_configs 的
+// 图片复审复用**同一条审核链**：模型 / 端点 / 参数全部从 bolek_model_configs 的
 // moderation-image 行读取（与 api-key-vault 的 runtime-chat 查同一张表），这里只保留密钥。
 // ⚠️ 刻意**不建** MODERATION_IMAGE_MODEL_ID 这类独立配置：那会出现「发帖时由 3.5-flash-lite
 //    放行、6 分钟后另一个模型撤下」的两套口径，用户会觉得莫名其妙。
@@ -216,14 +216,14 @@ type ModerationHop = {
 const MODERATION_IMAGE_MODE = 'moderation-image';
 
 /**
- * 从 bohai_model_configs 读出图片审核链（最多 3 跳）。
+ * 从 bolek_model_configs 读出图片审核链（最多 3 跳）。
  *
  * 这是「与现有审核链同源」的落点：不复制模型名、不新建 env，只按主行 + 它声明的
  * fallback_mode_ids 排序。主行改了模型/降级顺序，这里自动跟随，不需要第二次改动。
  */
 const loadModerationImageChain = async (client: SupabaseClient): Promise<ModerationHop[]> => {
   const { data, error } = await client
-    .from('bohai_model_configs')
+    .from('bolek_model_configs')
     .select('mode_id, model_id, api_url, max_tokens, temperature, fallback_mode_ids')
     .like('mode_id', 'moderation-image%')
     .eq('status', 'active');

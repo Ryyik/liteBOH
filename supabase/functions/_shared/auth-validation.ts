@@ -17,7 +17,7 @@ const USERNAME_RESERVED_WORDS = new Set([
   'service',
   'security',
   'boh',
-  'bohai',
+  'bolek',
   '管理员',
   '官方',
   '系统',
@@ -46,7 +46,10 @@ export const validateUsername = (username: string) => {
   }
 
   const normalizedLowerCase = safeUsername.toLowerCase();
-  if (USERNAME_RESERVED_WORDS.has(safeUsername) || USERNAME_RESERVED_WORDS.has(normalizedLowerCase)) {
+  if (
+    USERNAME_RESERVED_WORDS.has(safeUsername) ||
+    USERNAME_RESERVED_WORDS.has(normalizedLowerCase)
+  ) {
     return '该方块 ID 为保留词，请更换后重试。';
   }
 
@@ -54,7 +57,9 @@ export const validateUsername = (username: string) => {
 };
 
 export const validateEmail = (email: string) => {
-  const safeEmail = String(email || '').trim().toLowerCase();
+  const safeEmail = String(email || '')
+    .trim()
+    .toLowerCase();
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRegex.test(safeEmail)) {
     return '请输入有效的邮箱地址';

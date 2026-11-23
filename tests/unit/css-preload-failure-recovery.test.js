@@ -177,7 +177,7 @@ describe('暗色主题 CSS 的失败自愈', () => {
       'post-detail-dark',
       'user-space-dark',
       'user-center-dark',
-      'bohai-dark',
+      'bolek-dark',
       'messages-dark',
     ]);
   });

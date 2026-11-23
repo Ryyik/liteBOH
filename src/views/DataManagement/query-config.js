@@ -36,7 +36,7 @@ export const STATUS_FILTER_FIELDS = {
   coreMemories: 'status',
   aiMemories: 'status',
   forumMemories: 'status',
-  bohaiModels: 'status',
+  bolekModels: 'status',
   lotteries: 'status',
   lotteryFulfillments: 'status',
   lotterySchedulerLogs: 'status',
@@ -73,7 +73,7 @@ export const DATE_FILTER_FIELDS = {
   coreMemories: 'updated_at',
   aiMemories: 'created_at',
   forumMemories: 'created_at',
-  bohaiModels: 'updated_at',
+  bolekModels: 'updated_at',
   lotteries: 'draw_at',
   lotteryFulfillments: 'updated_at',
   lotteryEntries: 'created_at',
@@ -240,7 +240,7 @@ export const TAB_SELECT_COLUMNS = {
     created_at,
     updated_at
   `,
-  bohaiModels:
+  bolekModels:
     'id, mode_id, display_name, tagline, description, provider, provider_label, model_id, api_url, capability, icon, temperature, top_p, frequency_penalty, max_tokens, quota_multiplier, min_tier, status, sort_order, notes, created_by, updated_by, created_at, updated_at',
   lotteries:
     'id, title, description, prize_title, prize_description, pity_reward_title, pity_reward_description, pity_overflow_reward_title, pity_overflow_reward_description, cover_image_url, status, is_community_visible, is_home_visible, enforce_account_age_check, max_entries, winner_count, pity_mode, entry_deadline_at, draw_at, drawn_at, draw_attempted_at, draw_failed_at, draw_failure_message, draw_entry_count_snapshot, draw_candidate_hash, draw_algorithm_version, winner_entry_id, winner_user_id, winner_username, fulfillment_status, created_by, updated_by, created_at, updated_at',
@@ -613,7 +613,7 @@ export const TAB_DEFAULT_SORT = {
   },
   aiMemories: { column: 'created_at', ascending: false },
   forumMemories: { column: 'created_at', ascending: false },
-  bohaiModels: {
+  bolekModels: {
     column: 'sort_order',
     ascending: true,
     secondary: { column: 'display_name', ascending: true },
@@ -672,7 +672,7 @@ export const TAB_SORT_COLUMNS = {
   coreMemories: new Set(['priority', 'updated_at', 'category', 'status']),
   aiMemories: new Set(['created_at', 'updated_at', 'confidence', 'status']),
   forumMemories: new Set(['created_at', 'confidence', 'status', 'category']),
-  bohaiModels: new Set([
+  bolekModels: new Set([
     'sort_order',
     'display_name',
     'provider',
@@ -865,7 +865,7 @@ export const TAB_SEARCH_FIELDS = {
     { column: 'category', type: 'text' },
     { column: 'status', type: 'text' },
   ],
-  bohaiModels: [
+  bolekModels: [
     { column: 'id', type: 'uuid' },
     { column: 'mode_id', type: 'text' },
     { column: 'display_name', type: 'text' },

@@ -375,7 +375,7 @@
     <section class="panel" data-panel="cmp">
       <div class="cmp">
         <figure>
-          <figcaption><b>面板：导航栏的延长</b><span>现在 BOHAIIsland 的做法 —— surface 撑高</span></figcaption>
+          <figcaption><b>面板：导航栏的延长</b><span>现在 BolekIsland 的做法 —— surface 撑高</span></figcaption>
           <div class="mini">
             <div class="mnav"><div class="logo" style="transform:scale(.85);transform-origin:left"><i></i><b>方块之家</b></div></div>
             <div style="height:52px;border-bottom:.5px solid var(--line2)"></div>
@@ -385,7 +385,7 @@
                 <div style="font-size:11px;color:rgba(255,255,255,.6)">BOH AI 已就绪</div>
                 <div style="flex:1"></div><div style="font-size:10px;color:rgba(255,255,255,.4)">＋ ⤢ ×</div>
               </div>
-              <div style="height:110px;display:grid;place-items:center;color:rgba(255,255,255,.25);font-size:12px">BOHAI</div>
+              <div style="height:110px;display:grid;place-items:center;color:rgba(255,255,255,.25);font-size:12px">Bolek</div>
               <div style="border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:8px 10px">
                 <div style="height:18px;color:rgba(255,255,255,.4);font-size:11px">有什么想问的</div>
                 <div style="display:flex;gap:8px;margin-top:6px;font-size:10px;color:rgba(255,255,255,.4)"><span>联网</span><span>模型</span><span>工具</span><span style="flex:1"></span><span>68%</span></div>
@@ -436,7 +436,7 @@
           <tbody>
             <tr><td>胶囊</td><td>156 × 40</td><td>999</td><td>图标 + 「问一句」</td></tr>
             <tr><td>输入</td><td>344 × 52（含最近 140）</td><td>26</td><td>输入框 + 发送</td></tr>
-            <tr><td>结果</td><td>352 × ≤ 340</td><td>26</td><td>第 0 项「问 BOHAI」+ 站内结果</td></tr>
+            <tr><td>结果</td><td>352 × ≤ 340</td><td>26</td><td>第 0 项「问博莱克」+ 站内结果</td></tr>
             <tr><td>回答</td><td>352 × clamp(240, 可用, 480)</td><td>30</td><td>答案 + 来源 + 站内卡片</td></tr>
           </tbody>
         </table>
@@ -570,7 +570,7 @@
     if(!S.hotTouched) S.hot=(list.length===0||isQuestion(q))?0:1;
     var html='<div class="row'+(S.hot===0?' hot':'')+'" data-idx="0">'+
       '<span class="ri"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3.5l1.9 5.1 5.1 1.9-5.1 1.9L12 17.5l-1.9-5.1L5 10.5l5.1-1.9z"/></svg></span>'+
-      '<span style="min-width:0"><span class="rt">问 BOHAI：<b>'+esc(q||'…')+'</b></span>'+
+      '<span style="min-width:0"><span class="rt">问博莱克：<b>'+esc(q||'…')+'</b></span>'+
       '<span class="rs">'+(list.length===0?'站内没找到，让它直接回答':'用一句话回答，不用翻列表')+'</span></span>'+
       '<span class="rg">⌘↵</span></div>';
     if(!list.length) return html+'<div class="empty">站内没有匹配的内容</div>';
@@ -654,7 +654,7 @@
     $('#mW').textContent=Math.round(w)+'px';
     $('#mH').textContent=Math.round(h)+'px';
     $('#mTop').textContent=top+'px';
-    $('#mHot').textContent = shape==='list' ? (S.hot===0?'第 0 项 · 问 BOHAI':'结果 #'+S.hot) : '—';
+    $('#mHot').textContent = shape==='list' ? (S.hot===0?'第 0 项 · 问博莱克':'结果 #'+S.hot) : '—';
     $('#mKb').textContent=(S.kb?336:0)+'px';
 
     var bottom=top+52, ok=!S.kb||bottom<=limit;

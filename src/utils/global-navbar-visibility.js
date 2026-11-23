@@ -7,7 +7,7 @@
  * ⚠️ 历史坑（保留档案）：旧 AI 岛挂在导航栏内时，「导航栏已隐藏但 meta 没标记」的路由上
  * `showIsland.ai()` 会静默假成功。2026-11-04 plans/038 P3 后 AI 岛已迁移为 App 级
  * BohIsland（Teleport 到 body、canOpen 不看本函数），这类路由不再有黑洞 ——
- * 但 ForumToolbar 等带「问 BOHAI」按钮的视图列表留在这里作背景。
+ * 但 ForumToolbar 等带「问博莱克」按钮的视图列表留在这里作背景。
  *
  * 所以：App.vue 的 showGlobalNavbar 调用本函数。要加新的隐藏条件，只改这里一处。
  *

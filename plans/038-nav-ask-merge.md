@@ -5,15 +5,15 @@
 - **触发**：用户口径「直接把 AI 对话融入搜索框，兼顾网站搜索与 AI 问答」；二改口径「不是下拉面板，按岛做」
 - **影响面**：新增 `BohIsland.vue`（独立悬浮岛，Teleport 到 body）/ `useBohIsland.js`；
   改造 `useGlobalSearch.js` / `GlobalSearchIsland.vue`（并入岛的第一个形态）；
-  `BOHAIIsland.vue` 退场或退化为壳；**不改数据库、不改 EF**
-- **关联**：`plans/020-site-global-search.md`（搜索面板）、`plans/025`（BOHAI 组件化）、`plans/030`（策略与模型档位）、`plans/031`（竖屏模式面板）
+  `BolekIsland.vue` 退场或退化为壳；**不改数据库、不改 EF**
+- **关联**：`plans/020-site-global-search.md`（搜索面板）、`plans/025`（博莱克组件化）、`plans/030`（策略与模型档位）、`plans/031`（竖屏模式面板）
 
 ---
 
 ## 1. 一句话结论
 
 **一颗悬浮的胶囊，靠自己的尺寸说话。** 小胶囊＝待命，条＝可输入，大卡＝正在回答；搜索与问答共用这一颗岛，
-第 0 项是「问 BOHAI」，回车即走。它 **Teleport 在 body 上、不属于导航栏** —— 这一条同时解掉三个老问题：
+第 0 项是「问博莱克」，回车即走。它 **Teleport 在 body 上、不属于导航栏** —— 这一条同时解掉三个老问题：
 快捷键互抢（`useGlobalSearch.js:135-140` 记录的实测）、`surface` 撑高的几何耦合、以及四成路由没有导航栏就用不了 AI。
 
 
@@ -24,11 +24,11 @@
 | # | 事实 | 判据 |
 | --- | --- | --- |
 | 2.1 | 搜索面板**已经**走 `showIsland.custom()` 渲染进导航 surface，高度由 ResizeObserver 上报到 `customCardHeight` | `useGlobalSearch.js:123`、`index.vue:704-710` |
-| 2.2 | AI 岛走**另一条**通道（`useGlobalAiOverlay` 单例 + `has-bohai-island` 撑高），与 custom 槽位互斥 | `index.vue:18`、`useGlobalAiOverlay.js:39-50` |
+| 2.2 | AI 岛走**另一条**通道（`useGlobalAiOverlay` 单例 + `has-bolek-island` 撑高），与 custom 槽位互斥 | `index.vue:18`、`useGlobalAiOverlay.js:39-50` |
 | 2.3 | 两个快捷键互相打架：`/` 归搜索、`⌘K` 归 AI 岛，且「两边都监听 window，preventDefault 挡不住对方」 | `useGlobalSearch.js:132-141` |
 | 2.4 | 搜索面板里已有「问 AI」，但是**二级动作 + 模板 prompt**（`请帮我在站内找与「X」相关的内容…`） | `GlobalSearchIsland.vue:549-562` |
-| 2.5 | AI 岛直接内嵌 `BOHAIMain`（全功能：侧栏/设置/工具/模型/用量），在 380×456 的框里 | `BOHAIIsland.vue:55` |
-| 2.6 | 岛高 `min(50vh,520px)` / 竖屏 `min(54vh,460px)`，**没有扣 `--kb-inset`** | `BOHAIIsland.vue:256,460` |
+| 2.5 | AI 岛直接内嵌 `BolekMain`（全功能：侧栏/设置/工具/模型/用量），在 380×456 的框里 | `BolekIsland.vue:55` |
+| 2.6 | 岛高 `min(50vh,520px)` / 竖屏 `min(54vh,460px)`，**没有扣 `--kb-inset`** | `BolekIsland.vue:256,460` |
 | 2.7 | 全站键盘高度已有单一真源，岛没消费 | `composables/useKeyboardInset.js`（写 `--kb-inset`）|
 
 > 2.1 是复用前提：搜索面板的数据层与交互已经完整（历史 / 结果分组 / 键盘导航 / 埋点），可以整块搬进岛的
@@ -45,7 +45,7 @@
 | --- | --- | --- |
 | 归属 | 导航栏的延长，必须有导航栏 | 独立悬浮物，任何页面都能存在 |
 | 状态语言 | 只有开 / 关 | 尺寸本身是状态：胶囊＝待命，条＝可输入，大卡＝正在回答 |
-| 几何耦合 | 要覆盖 `surface` 的 height，还要处理 mini caps / 沉浸球（`BOHAIIsland.vue:253-275`） | 与导航栏零耦合 |
+| 几何耦合 | 要覆盖 `surface` 的 height，还要处理 mini caps / 沉浸球（`BolekIsland.vue:253-275`） | 与导航栏零耦合 |
 | 可用范围 | 约四成路由没有导航栏 ⇒ AI 不可用（`useGlobalAiOverlay.js:27-36`） | Teleport 到 body ⇒ 全站可用 |
 | 遮挡 | 撑高会改变导航栏几何 | 只盖住它自己那一块，页面不跳 |
 
@@ -75,7 +75,7 @@
 
 ### 2.9.1 架构硬约束：壳同步渲染，内容懒加载
 
-现有实现岛打开后要等 `BOHAIMain` 异步加载完成才 `focusComposer()`（`BOHAIIsland.vue:118-126`，最长等 5s），
+现有实现岛打开后要等 `BolekMain` 异步加载完成才 `focusComposer()`（`BolekIsland.vue:118-126`，最长等 5s），
 用户看到的是「点了没反应、键盘晚一步」。这条比任何手势都更影响「能不能顺手用起来」：
 
 - **岛的壳（胶囊 + 输入条）在 App 挂载时同步渲染** —— 只有一个 `input` 和一个图标，体积可忽略；
@@ -93,7 +93,7 @@
 | --- | --- | --- | --- |
 | **胶囊** | 148 × 40 | 999 | 图标 + 「问一句」（待命） |
 | **输入** | 344 × 52（含「最近」140） | 26 | 输入框 + 发送 |
-| **列表** | 352 × ≤ 340 | 26 | 第 0 项「问 BOHAI：<原句>」+ 站内结果分组 |
+| **列表** | 352 × ≤ 340 | 26 | 第 0 项「问博莱克：<原句>」+ 站内结果分组 |
 | **回答** | 352 × `min(52 + 内容高 + 12, 上限)` | 30 | 答案 + 来源 chip + 站内卡片 + 展开/去全页 |
 
 **回答态高度随字数生长**（2026-11-04 用户确认）：短答案岛就矮，长答案逐帧向下长到上限后内部滚动 ——
@@ -149,7 +149,7 @@
 - 来源合并成**一行 chip**（「站内 2 · 网页 1 · 本页」），展开才看清单
 - 流式阶段只出一行活动文字（复用 `boh-activity.js` 的单阶段真源），完成后该行消失
 - 问题在答案区顶部以一行小字回显，输入框清空（随时可追问）
-- **不加 header、不加第二层玻璃**（外层 surface 已有玻璃，叠两层会发灰 —— `MEMORY-bohai-liquid.md`）
+- **不加 header、不加第二层玻璃**（外层 surface 已有玻璃，叠两层会发灰 —— `MEMORY-bolek-liquid.md`）
 
 ### 3.6 减法清单
 
@@ -190,11 +190,11 @@
 | 搜索并入 | `GlobalSearchIsland.vue` → 岛的「输入 / 列表」形态 | 数据层（`site-search-sources` / 历史 / 键盘导航 / 埋点）整块复用 |
 | 删两套状态互斥 | `useGlobalSearch.js:120`、`index.vue:437-441` | 合并后只剩一颗岛的状态 |
 | 快捷键归一 | `App.vue:293-311`、`useGlobalSearch.js:142` | `⌘K` 与 `/` 都召唤同一颗岛 |
-| 回答渲染 | 新增 `BohIslandAnswer.vue` | 只做「流 + 来源 + 收起」，不引 `BOHAIMain` |
-| 旧岛退场 | `BOHAIIsland.vue`、`has-bohai-island` 的 height 覆盖 | 连带删掉 mini caps / 沉浸球的特殊处理 |
+| 回答渲染 | 新增 `BohIslandAnswer.vue` | 只做「流 + 来源 + 收起」，不引 `BolekMain` |
+| 旧岛退场 | `BolekIsland.vue`、`has-bolek-island` 的 height 覆盖 | 连带删掉 mini caps / 沉浸球的特殊处理 |
 | 键盘 | 岛高扣 `--kb-inset`（`useKeyboardInset.js` 已是单一真源） | P0，纯 bug |
 
-⚠️ **不要把 `BOHAIMain` 塞进岛**：它有侧栏、设置页（2877 行）、工作台，gzip 与挂载成本远超一颗胶囊该付的。
+⚠️ **不要把 `BolekMain` 塞进岛**：它有侧栏、设置页（2877 行）、工作台，gzip 与挂载成本远超一颗胶囊该付的。
 回答形态只该有「流 + 来源 + 收起」。
 
 ⚠️ **岛必须在 `body` 上，不能挂在导航栏内**：挂在导航栏里就退化成面板，`canOpen` 又会被
@@ -209,7 +209,7 @@
 | **P0**（✅ 2026-11-04 `73ced89e`） | 旧岛三个纯 bug：岛高扣 `--kb-inset`、岛内隐藏模型/工具/用量、删 header | 自证 14/14 + 两探针绿 |
 | **P1**（✅ 2026-11-04 `abe16fa4`） | 起 `BohIsland`（Teleport + 胶囊/展开两态，展开卡承载 `GlobalSearchIsland`）+ 搜索并入 + 第 0 项原句直传 + `/` 归岛（无导航栏路由可用）+ 深色岛材质 | `probe-nav-ask` 22/22 + `probe-global-search` 58/58 |
 | **P2**（✅ 2026-11-04 本笔） | 回答形态（`BohIslandAnswer`：自有引擎实例 + 流式 + 高度随字数生长 + 来源 chip + 展开全文/去全页）+ Esc 分层 + 快速会话（岛内独立会话） | `probe-nav-ask` **34/34**（回答档 12 条）+ `probe-global-search` 58/58 |
-| **P3a**（✅ 2026-11-04 本笔） | **入口收敛 + 旧 AI 岛退场（同笔）**：`⌘K` 改线新岛；`AiEdgeTrigger`/`useEdgeSwipeGesture`/`BOHAIIsland.vue`/`useGlobalAiOverlay.js` 四文件删除；`showIsland.ai()` 直连 `useBohIsland.askDirect`（opener 注册机制废除）；导航栏 surface 全部 `has-bohai-island` 联动拆除；设置面板手势/呼出高度组删除；UserSpace railNavSync 冻结与边缘手势拆除 | `probe-nav-ask` **39/39**（+旧岛退场/⌘K/连问两轮/提升落盘）+ `probe-global-search` **59/59**（互斥段随语义重写） |
+| **P3a**（✅ 2026-11-04 本笔） | **入口收敛 + 旧 AI 岛退场（同笔）**：`⌘K` 改线新岛；`AiEdgeTrigger`/`useEdgeSwipeGesture`/`BolekIsland.vue`/`useGlobalAiOverlay.js` 四文件删除；`showIsland.ai()` 直连 `useBohIsland.askDirect`（opener 注册机制废除）；导航栏 surface 全部 `has-bolek-island` 联动拆除；设置面板手势/呼出高度组删除；UserSpace railNavSync 冻结与边缘手势拆除 | `probe-nav-ask` **39/39**（+旧岛退场/⌘K/连问两轮/提升落盘）+ `probe-global-search` **59/59**（互斥段随语义重写） |
 | **P3b**（✅ 2026-11-04 本笔） | 快速会话「在搜索里问过」：`startNewChat(origin)` 透传 + 会话持久化白名单登记 `origin`（'quick-ask'）；侧栏独立分组（置顶之下）+「问一句」徽标 + 菜单「提升为主会话」（清 origin） | `probe-nav-ask` ㊋（origin 落账）+ store 单测 22/22 + 侧栏 DOM 断言（groups/badges） |
 | **P4**（方向已冻结，设计待做） | **概览与周报融合**（2026-11-04 用户口径）：今日总结（今日无新帖不显示）、周总结（周无新帖不显示）；**暂时下掉智能概览**，改为「离开这段时间摘要」+ 从离开那天起可回看 —— 回看交互需设计，暂缓 | 设计稿 + 概览探针 |
 
@@ -235,7 +235,7 @@
 >   `options.mode`（论坛 'fast'）静默忽略：岛内档位恒 **balance（平衡档）**（§3.6 减法，档位指定落在
 >   `BohIslandAnswer` 一处；复核补记里修的是「只忽略不指定」导致实际跑用户上次的档位）。
 > · 按钮语义：导航栏搜索按钮保持 toggle（岛开着点它 = 收起，探针 ⑱d/⑱e 断言）。
-> · 快速会话 origin 落盘：`bohai-chat-session-store` 白名单**必须登记** origin（不登记在保存时被
+> · 快速会话 origin 落盘：`bolek-chat-session-store` 白名单**必须登记** origin（不登记在保存时被
 >   静默丢弃 —— expertState 同款坑）；`temporary` 会话本就被保存过滤，两者正交。
 > · AGENTS.md 数字门禁的「脚本数」口径与 `ls | wc -l` 不一致（门禁实测 284/223 vs ls 283/222）——
 >   以门禁实测为准回填，别用 ls 硬怼。
@@ -332,7 +332,7 @@
   `::before` 四团大半径 radial（柔和青 / 霓虹紫 / 柔粉）叠成 mesh 光雾，整层 `blur(22–26px)`，
   18s `translate+scale` 缓慢呼吸；`::after` 底部一条 2.5px、左右各收 4% 的柔光边，
   青→紫→粉横向 16s 流动。**色相只有三支**（用户明确「避免颜色过于杂乱刺眼」），
-  BohBeam 那套红橙绿蓝紫只留在 BOHAI 全页。
+  BohBeam 那套红橙绿蓝紫只留在博莱克全页。
 - **输入区收起（2026-11-05 第三次）**：生成中**整条输入区不渲染**
   （`<Transition name="boh-bar">` + `v-if="!streaming"`，max-height/padding/opacity 一起收）。
   中途试过的「彩虹条 + 方块暂停按钮」已被用户否掉（原话「不要暂停条和暂停按钮，
@@ -348,7 +348,7 @@
 ## 10. 补记：Siri 式形态（2026-11-05 第五次口径，已落地）
 
 用户给了两张 iOS 参考（加载态「Searching events」、回复态灵动岛），并明确
-**「不再执着于做彩虹」**、**「仍然需要岛的形态，只不过唤起 BOHAI 整个岛自动变成深色」**。
+**「不再执着于做彩虹」**、**「仍然需要岛的形态，只不过唤起博莱克整个岛自动变成深色」**。
 后续三次细化：不要进度数字、不要加载态停止按钮、底色要「黑色到底部慢慢渐变成微透」。
 
 ### 10.1 架构：docked 不变，只换材质
@@ -399,7 +399,7 @@
 
 | 态 | 条件 | 形态 |
 |---|---|---|
-| 空闲 | 未生成且无内容 | 一行输入条（`问 BOHAI…` + `↵ 发送`） |
+| 空闲 | 未生成且无内容 | 一行输入条（`问博莱克…` + `↵ 发送`） |
 | 加载 | `streaming && !answerText && !pageLinks` | 54px 白点环 + 一行进行时状态 |
 | 回复 | 有正文 / 页面命中 | 问题（15.5px 白）+ 正文 + 「查看完整回答」胶囊 + 输入条返场 |
 

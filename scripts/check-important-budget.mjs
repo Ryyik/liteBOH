@@ -4,7 +4,7 @@
  *
  * 背景（2026-09-08 全站盘点）：src 下 !important 共 1917 处，其中
  *   - src/styles/themes/*.css（暗色机制层，~500 处）是刻意设计，白名单豁免；
- *   - 其余散落在 BOHAI styles、vendor 导航、组件 scoped 里，是历史债。
+ *   - 其余散落在博莱克 styles、vendor 导航、组件 scoped 里，是历史债。
  * 存量由 important-budget.json 锁死（棘轮）：任何文件超出基线即失败；
  * 文件减少时应顺手下调基线，让预算单调递减。
  *

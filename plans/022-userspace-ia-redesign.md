@@ -132,7 +132,7 @@ const MESSAGE_SECTION_ITEMS = [
 ]
 ```
 
-AI 组件 `AsyncBOHAI` 在 `:230-238` 以 `embedded` 模式挂在消息 tab 的 `ai` 段。
+AI 组件 `AsyncBolek` 在 `:230-238` 以 `embedded` 模式挂在消息 tab 的 `ai` 段。
 全屏落点路由已存在：`src/router/routes/public.ts:95` → `path: "/ai-chat"`。
 
 ### 3.6 已落地的 Cloud+ 代码（2026-09-29 16:55）
@@ -269,7 +269,7 @@ export const FORUM_SECTION_ITEMS: ForumSectionItem[] = [
   - `资产` 段 = 复用现有 `assets-shell` 块（`AssetsHubPanel` + `SponsorPanel`，`:135-195`）
   - `印象` 段 = 从 `ForumSectionShell.vue` 搬入的 `ProfileImpressionsPanel` + 其自持数据层
 - **消息 tab 移除 AI 段**（2026-09-30 拍板）：`MESSAGE_SECTION_ITEMS` 去掉 `{ id: 'ai' }`，
-  `AsyncBOHAI` 的 `embedded` 挂载块（`:230-238`）一并移除；消息 tab 只剩通知收件箱
+  `AsyncBolek` 的 `embedded` 挂载块（`:230-238`）一并移除；消息 tab 只剩通知收件箱
 - **印象搬迁**：`ForumSectionShell.vue` 的 impressions 分支（`:37-48`）与**它自持的数据层**一并移出，
   挂到「我」页的「印象」段；`ProfileImpressionsPanel.vue` 组件本体不动
 - ⚠️ 分段值需重定：原 `contentSection` 为 `'home' | 'cloud'`，新增 `'assets' | 'impressions'`；
@@ -434,7 +434,7 @@ export const FORUM_SECTION_ITEMS: ForumSectionItem[] = [
 | 2 | 收掉 `/user-space/tags-impressions` | ✅ 完成 | 路由改 redirect（`/user-center/tags-impressions` 与 `/user-space/tags-impressions` 两条都走新增的 `redirectToUserSpaceImpressions`）；删 `TagsImpressions.vue`（476 行）；`user-center-dark.css` 16 处 `.tags-impressions-page` 清零；`theme-manager.js` 容器移除；`ai-site-guide.js` 印象路径改指 `?tab=community&view=impressions` |
 | 4 | 底栏 5 席 → 4 席 | ✅ 完成 | `bottom-nav.ts` 改为 **内容 / 消息 / AI / 我**；新增 `fullPage` 字段（AI 席 `fullPage:true`，点它 `router.push('/ai-chat')` 不参与 tab 切换）；`USERSPACE_TAB_TO_BOTTOM_NAV_ID` 改为多对一（`assets`/`settings` → `posts`）；`useUserSpaceTabs.js` 的 `activeNavIndex` 与 `UserSpaceMain` 的 `:current-tab` 都改走映射（否则 `findIndex` 得 -1 会错误高亮第一席）；`handleBottomNavClick` 加 `fullPage` 分流；`Home/index.vue` 注释「五席」→「四席」 |
 | 6 | 设置入口齿轮 → 文字「设置」 | ✅ 完成 | `ProfileHomePanel.vue:22-42` 的齿轮 SVG 换为文字；`.profile-settings-btn` 由 40×40 圆形改文字胶囊（`min-height:32px` / `padding:0 14px` / `border-radius:999px` / `font-size:13px`）；移除已无用的 `.profile-settings-btn svg` 规则 |
-| 5 | 「我」页三段 tab + 印象数据层搬迁 | ✅ 完成（2026-10-01） | **已完成**：消息 tab 去掉 AI 段（模板删 `SegmentTabs` + `ai-host`；脚本删 `MESSAGE_SECTION_ITEMS` / `bohaiActivatedOnVisit` + 两个 watch / `setMessagesSection` / 预载 watch；清 `AsyncBOHAI`、`preloadBOHAIComponent` import）。**已补齐（2026-10-01）**：`[空间｜资产｜印象]` 三段 tab 全部落地 —— 资产块从独立 tab-page 搬进 posts tab（闩锁改用 `assetsSegmentVisited`），印象数据层从 `ForumSectionShell.vue` 抽到 `composables/useProfileImpressions.js` + `ProfileImpressionsSection.vue`，论坛侧 `impressions` 席与 `FORUM_SECTION_ITEMS` 条目一并移除。⚠️ 剩余遗留死 CSS：`.ai-host` / `.ai-workspace` 在 `shell-community.css`（~7 处）与 `landscape-rail.css`（2 处）待清理（`.content-cloud-host` 已随本次改名清掉） |
+| 5 | 「我」页三段 tab + 印象数据层搬迁 | ✅ 完成（2026-10-01） | **已完成**：消息 tab 去掉 AI 段（模板删 `SegmentTabs` + `ai-host`；脚本删 `MESSAGE_SECTION_ITEMS` / `bolekActivatedOnVisit` + 两个 watch / `setMessagesSection` / 预载 watch；清 `AsyncBolek`、`preloadBolekComponent` import）。**已补齐（2026-10-01）**：`[空间｜资产｜印象]` 三段 tab 全部落地 —— 资产块从独立 tab-page 搬进 posts tab（闩锁改用 `assetsSegmentVisited`），印象数据层从 `ForumSectionShell.vue` 抽到 `composables/useProfileImpressions.js` + `ProfileImpressionsSection.vue`，论坛侧 `impressions` 席与 `FORUM_SECTION_ITEMS` 条目一并移除。⚠️ 剩余遗留死 CSS：`.ai-host` / `.ai-workspace` 在 `shell-community.css`（~7 处）与 `landscape-rail.css`（2 处）待清理（`.content-cloud-host` 已随本次改名清掉） |
 | 3 | 论坛分区 7 席 → 4 档 | 🔄 部分 | 现为 **6 席**（印象已移除；news/activity 去留待拍板，见未完成任务清单 §20 第 5 项），`forum-sections.ts` 收敛未做 |
 | 7 | 探针更新 + 全量自证 | ✅ 完成 | 探针重写对齐收口版（`16e723d3`，91 断言）；2026-10-15 在当前工作树复跑 **91 PASS / 0 FAIL ×2** |
 
@@ -453,7 +453,7 @@ export const FORUM_SECTION_ITEMS: ForumSectionItem[] = [
 **过程记录（值得留档）**：
 - 又一次踩到 **bash `grep "a\|b"` 在本环境恒返回 0 匹配**（BRE 交替不生效）：查 `BOTTOM_NAV_ITEMS` 消费方时假阴性，改用 Grep 工具才查到。已写入 `.workbuddy-ai/memory/MEMORY.md`。
 - `check:important-budget --update` 曾出现一次读数不一致（报 1319 / 66 文件，实时读数却是 1316），重跑后恢复正常（1316 / 65 文件）。**结论：棘轮 --update 后要复核一次实时读数**。
-- `tests/unit/bohai-quick-sidebar.test.js` 在整链 verify 中偶发 1 例失败（BOHAI 模块，与本轮改动无关：该测试只读 `BohaiSidebar.vue` / `BOHAIMain.vue`）。单跑通过、整测试集重跑也通过 ⇒ **判定为并发抖动**，非本轮引入。
+- `tests/unit/bolek-quick-sidebar.test.js` 在整链 verify 中偶发 1 例失败（博莱克模块，与本轮改动无关：该测试只读 `BolekSidebar.vue` / `BolekMain.vue`）。单跑通过、整测试集重跑也通过 ⇒ **判定为并发抖动**，非本轮引入。
 
 ---
 

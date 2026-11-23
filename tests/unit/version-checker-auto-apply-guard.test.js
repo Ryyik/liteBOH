@@ -10,6 +10,8 @@
  *    否则「根本没走到刷新逻辑」也会让断言绿。
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 const createStorage = () => ({
   getItem: vi.fn(() => null),
@@ -95,7 +97,7 @@ describe('version-checker 自动强刷护栏', () => {
     vi.unstubAllEnvs();
   });
 
-  it('用户填过内容且焦点已离开 ⇒ 不自动强刷，退化成弹提示', async () => {
+  it('用户填过内容且焦点已离开 ⇒ 不自动强刷，只把切换顺延（不通知任何人）', async () => {
     const field = textArea('写了一半的帖子');
     // activeElement 是 body：模拟「打完字点了别处」—— 这正是 isTypingInForm 失效的场景
     const { listeners } = stubDocument({ editables: [field] });
@@ -110,7 +112,11 @@ describe('version-checker 自动强刷护栏', () => {
     await vi.waitFor(() => expect(window.dispatchEvent).toHaveBeenCalledOnce());
 
     expect(window.location.replace).not.toHaveBeenCalled();
+    // 2026-11-23：派发的必须是「挂起」信号，**不是**任何要求用户处理的通知。
+    // 事件名本身就是契约 —— 叫 update-pending 的东西只能被观测，不能被弹出来。
+    expect(window.dispatchEvent.mock.calls[0][0].type).toBe('boh:update-pending');
     expect(window.dispatchEvent.mock.calls[0][0].detail.remoteBuildId).toBe('remote-build');
+    expect(window.dispatchEvent.mock.calls[0][0].detail).not.toHaveProperty('message');
     destroyVersionChecker();
   });
 
@@ -179,7 +185,7 @@ describe('version-checker 自动强刷护栏', () => {
     beginUpload();
     initVersionChecker();
     // upload 护栏排在最前，会短路掉后面的 media/editing 探测（所以不能等 querySelectorAll），
-    // 直接等流程的必经出口「弹提示」
+    // 直接等流程的必经出口「挂起信号」
     await vi.waitFor(() => expect(window.dispatchEvent).toHaveBeenCalledOnce());
 
     expect(window.location.replace).not.toHaveBeenCalled();
@@ -260,7 +266,7 @@ describe('version-checker 自动强刷护栏', () => {
   it('搜索框里的关键词不算「未提交内容」⇒ 仍然自动强刷', async () => {
     // 真回归（2026-11-01 复核发现）：`type=search` 曾在 TEXT_INPUT_TYPES 里，而搜索框
     // 的关键词从不自动清空 ⇒ 商城 / 四个控制台 / Cloud+ / 抽奖发放这些**页内常驻筛选框**
-    // 只要打过一次字，该页存续期间自动应用就永久退化成弹提示。
+    // 只要打过一次字，该页存续期间自动应用就永久被顺延（旧口径叫「退化成弹提示」）。
     const search = {
       nodeType: 1,
       tagName: 'INPUT',
@@ -390,6 +396,55 @@ describe('version-checker 自动强刷护栏', () => {
     it('还没有任何交互记录 ⇒ 不轮询（避免 0 被当成「很久以前」而恒真）', async () => {
       const { shouldPollNow } = await import('../../src/utils/version-checker.js');
       expect(shouldPollNow(0, NOW, 'visible')).toBe(false);
+    });
+  });
+
+  /* ============================================================
+     2026-11-23 口径：更新**不弹窗、不通知**。
+     这一组是那个决定的守卫 —— 它锁的不是「某个函数能跑」，而是
+     「没人再把这个提示挂回 UI 上」。任何人想恢复弹窗，必须先让这两条变红。
+     ============================================================ */
+  describe('更新不通知用户（2026-11-23 定稿）', () => {
+    it('护栏命中时派发的是挂起信号，且 detail 里没有任何要展示的文案', async () => {
+      const field = textArea('写了一半');
+      const { listeners } = stubDocument({ editables: [field] });
+      mockRemoteBuild();
+      const { initVersionChecker, destroyVersionChecker } =
+        await import('../../src/utils/version-checker.js');
+
+      initVersionChecker();
+      listeners.get('input')?.({ target: field });
+      await vi.waitFor(() => expect(window.dispatchEvent).toHaveBeenCalledOnce());
+
+      const event = window.dispatchEvent.mock.calls[0][0];
+      expect(event.type).toBe('boh:update-pending');
+      // 有 message 字段就意味着「有人准备把它显示出来」—— 那是我们要禁掉的东西
+      expect(event.detail).not.toHaveProperty('message');
+      destroyVersionChecker();
+    });
+
+    it('源码里不再有任何消费者监听更新事件（弹窗组件已删除，不许挂回来）', () => {
+      // 用 readFileSync 而不是 import：要断言的是「文件里没有这个字符串」，
+      // 导入拿不到这个视角。扫的是 src 全树，防止有人换个文件名重新挂上。
+      const srcDir = new URL('../../src/', import.meta.url).pathname;
+      const hits = [];
+      const walk = (dir) => {
+        for (const entry of readdirSync(dir, { withFileTypes: true })) {
+          const full = join(dir, entry.name);
+          if (entry.isDirectory()) {
+            walk(full);
+            continue;
+          }
+          if (!/\.(vue|js|ts)$/.test(entry.name)) continue;
+          const text = readFileSync(full, 'utf8');
+          // 监听写法才算消费；注释里提到事件名（解释历史）不算
+          if (/addEventListener\(\s*['"]boh:update-(available|pending)['"]/.test(text)) {
+            hits.push(full.replace(srcDir, 'src/'));
+          }
+        }
+      };
+      walk(srcDir);
+      expect(hits).toEqual([]);
     });
   });
 });
