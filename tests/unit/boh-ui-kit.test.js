@@ -195,12 +195,18 @@ describe('BohModal · 浮层安全件守卫', () => {
     expect(Number(decl)).toBeLessThan(2147483000);
   });
 
-  it('定制只开 maxWidth / #head / flush 三个口子', () => {
+  it('定制只开 maxWidth / #head / flush / portraitPage 四个口子', () => {
     const src = modalSrc();
     expect(src).toContain('maxWidth');
     expect(src).toContain('--boh-modal-max-w');
     expect(src).toContain('$slots.head');
     expect(src).toContain('boh-modal__body--flush');
+    /* portraitPage 是第四个口子（2026-11-23 第四家族时开的），理由写在组件头：
+       窄屏默认是贴底 Sheet，但 Shop 那一族（OrderDetail/AdminOrder/Checkout）的
+       既定用户口径是「竖屏整页 = 翻到下一页」，靠 maxWidth/flush 都表达不了
+       —— 形态是几何问题，只能由壳给变体。开这一个口子，后面三个同形态宿主不用各写一套。 */
+    expect(src).toContain('portraitPage');
+    expect(src).toContain('boh-modal__dialog--page');
   });
 });
 
@@ -291,6 +297,89 @@ describe('BohModal · 商城商品设置面板接线（ProductEditSheet）', () 
     expect(code).not.toContain('pes-root');
     expect(code).not.toContain('pes-panel');
     expect(code).not.toContain('pes-enter');
+  });
+});
+
+/* 第四家族（Shop 订单管理）：首个用 portraitPage 的宿主，也是「竖屏整页」这一族的样板。 */
+describe('BohModal · 商城订单管理接线（AdminOrderSheet）', () => {
+  const src = () => squeezeSource(stripComments(read('src/views/Shop/AdminOrderSheet.vue')));
+
+  it('壳走 BohModal，头部与筛选条走 #head 槽', () => {
+    const code = src();
+    expect(code).toContain('BohModal');
+    expect(code).toContain('v-model="modalOpen"');
+    expect(code).toContain('max-width="720px"');
+    expect(code).toContain('template #head');
+    // flush 让滚动交给壳的 body，列表自己只管内衬
+    expect(code).toContain('flush');
+  });
+
+  it('竖屏整页形态靠 portraitPage（形态是用户口径，不许悄悄退化成贴底 Sheet）', () => {
+    expect(src()).toContain('portrait-page');
+  });
+
+  /* 商城域 token 不能丢：本组件 Teleport 到 body、不在 .store-page 里，
+     只能靠自带 `shop-sheet-tokens` 拿到 store-tokens.css 的暗色档。
+     丢了的表现是卡片比页面更暗（层次反了），探针 F3 抓这个 —— 这里再加一道源码锁，
+     免得有人「清理无用类名」时凭感觉删掉它。 */
+  it('自带 shop-sheet-tokens（商城域 token 不靠祖先继承）', () => {
+    expect(src()).toContain('shop-sheet-tokens');
+  });
+
+  /* 列表区必须用次级底：整页形态若把页面色一路铺到底，亮色下页面 #fff + 白卡 #fff
+     ⇒ 卡片边界消失（实测一片纯白）。头部/筛选条用页面色、列表用 --boh-bg-secondary，
+     与迁移前「白头部 + 浅灰列表」一致。探针 C11 锁视觉值，这里锁源码口径。 */
+  it('列表区走次级底（卡片才浮得起来）', () => {
+    const code = src();
+    const bodyBlock = code.slice(code.indexOf('.ao-body'));
+    expect(bodyBlock).toContain('--boh-bg-secondary');
+  });
+
+  it('关闭统一走 requestClose，Esc/滚锁交给壳', () => {
+    const code = src();
+    expect(code).toContain('const modalOpen = computed');
+    expect(code).toContain('requestClose');
+    expect(code).not.toContain("addEventListener('keydown'");
+    // 滚锁是壳内置的同一份真源；再 import 一次就是双层引用计数
+    expect(code).not.toContain('useBodyScrollLock');
+  });
+
+  it('旧手写外壳（Teleport/根/遮罩/面板/过渡名）不再回来', () => {
+    const code = src();
+    for (const legacy of [
+      'Teleport',
+      'ao-root',
+      'ao-scrim',
+      'ao-sheet',
+      'name="ao"',
+      'ao-enter-active',
+    ]) {
+      expect(code).not.toContain(legacy);
+    }
+  });
+});
+
+describe('BohModal · portraitPage 变体的几何契约', () => {
+  it('断点走 orientation（与 Shop 九份弹层既有口径一致，不是宽度）', () => {
+    const css = stripComments(read('src/components/ui/BohModal.vue'));
+    const pageBlock = css.slice(css.indexOf('boh-modal__overlay--page'));
+    // 整页变体必须挂在 orientation: portrait 里；用 max-width 断点会让
+    // 900×1200 的竖屏平板退化成居中弹窗（属行为变化）
+    expect(css).toContain('@media (orientation: portrait)');
+    expect(pageBlock).toContain('height: 100%');
+    expect(pageBlock).toContain('border-radius: 0');
+  });
+
+  it('整页不糊底层：不透明页面色 + 不跑全屏 backdrop-filter', () => {
+    const css = stripComments(read('src/components/ui/BohModal.vue'));
+    const dialogPage = css.slice(css.indexOf('.boh-modal__dialog--page'), css.indexOf('/* 窄屏'));
+    expect(dialogPage).toContain('--boh-page-bg');
+    expect(dialogPage).toContain('backdrop-filter: none');
+  });
+
+  it('整页下 grab 条消失（不是"浮一层"心智）', () => {
+    const css = stripComments(read('src/components/ui/BohModal.vue'));
+    expect(css).toMatch(/\.boh-modal__dialog--page\s+\.boh-modal__grab\s*\{\s*display:\s*none/);
   });
 });
 

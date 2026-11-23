@@ -37,6 +37,7 @@
 | **BohModal 试点宿主**（HeroConsole「从抽奖活动选择」：层级=2147482600 / 520 宽 / flush / 搜索过滤 / 滚锁在 html / Esc 关闭释放 / 竖屏退化成贴底 Sheet + grab 条 / 暗色浅字） | `probe-hero-lottery-picker.mjs` | 19 |
 | **商城规格面板**（BohModal 第二家族：560 宽 / #head 保住 kicker+关闭钮 / 既有规格回填 / 新增一行 / 重复值校验上屏且不关面板 / 取消释放滚锁 / 竖屏 Sheet / 暗色输入可读；入口 `/admin/shop-editor` → 卡片「规格 N」） | `probe-shop-specs-sheet.mjs` | 20 |
 | **商城商品设置面板**（BohModal 第三家族：600 宽 / 积分价·库存·支付方式回填 / 切支付方式后积分价被换出 / 0 价校验上屏且不关面板 / 取消释放滚锁 / 竖屏 Sheet / 暗色输入可读；入口 `/admin/shop-editor` → 卡片定价入口） | `probe-shop-product-edit-sheet.mjs` | 20 |
+| **商城订单管理**（BohModal 第四家族 + **首个 `portraitPage` 宿主**：层级 / 720 宽 / **竖屏整页铺满·零圆角·无 grab 条** / 横屏回圆角居中 / 筛选条纵向堆叠且可见 / 状态-动作严格对应 / Esc 与滚锁交给壳 / 暗色卡片比页面亮；入口 `/shop` → 头像 →「礼物管理」） | `probe-shop-admin-orders.mjs` | 32 |
 | **商城大屏布局**（超大屏内容限宽 1480 居中（真源 `--page-content-max`）+ 商品/抽奖 auto-fill 自适应增列（2560→5 列 ~283px）+ 订单/袋/地址 760 面板居中；1440 档回归旧三列口径、竖屏 2 列不动；含反证） | `probe-large-screen-layout.mjs` | 17 |
 | 竖屏导航菜单的接缝与内部几何（一级/二级/三级 + 窄横屏档） | `probe-nav-mobile-menu.mjs` | 48 |
 | **数据管理面板「按功能名找入口」**（侧栏搜「补发」→ 积分发放 / 订阅发放；独立控制台页也能搜到；↵ 直接打开；⌘K 与侧栏共用同一份索引；同一个模块不在「功能」「模块」两组重复出现）。功能清单唯一真源 `src/views/DataManagement/config/function-index.js`（别名表也在里面），纯逻辑由 `tests/unit/admin-function-index.test.js` 覆盖 | `probe-admin-function-search.mjs` | 16 |
@@ -252,13 +253,14 @@ F5 后不得掉回整页详情：A 横屏刷新仍是弹窗 / B 仍是同一帖 
 | --- | --- | --- |
 | `probe-shop-detail-scroll.mjs` | — | 探针：商品详情的「滚动归属」（2026-11-10 用户报障「商城详情的滚动还是在滚动商品列表页」）。真因是页面滚动发生在 `html` 上（`html{overflow-y:auto!important}` + `body{overflow-y:visible!important}`），而代码只锁 `body` 的 inline 样式 ⇒ 等于没锁。A 组（横屏）钉：打开即锁根元素 / 封面·遮罩·内容三处滚轮都不带动背后列表 / 上锁不横向位移 / 关闭后恢复可滚；B 组（竖屏）钉内容区自己能滚且页面不动；C 组钉抽奖·订单分区没有误上锁。**反证**：撤掉 `useBodyScrollLock` 里锁 `documentElement` 那几行 → A1–A3 立刻红（2026-11-10 实测） |
 
-### BohModal 浮层体系（3）
+### BohModal 浮层体系（4）
 
 | 文件 | npm script | 说明 |
 | --- | --- | --- |
 | `probe-hero-lottery-picker.mjs` | — | **BohModal 首批试点（19，2026-11-23 plans/045 阶段 2）**：HeroConsole「从抽奖活动选择」从手写 Teleport+遮罩迁到 `components/ui/BohModal.vue`。A 组（1280×900）钉：overlay `z-index === 2147482600`（`--boh-z-modal`，必须落在详情层 2147482400 之上、图片查看器 2147483000 之下）、`max-width="520px"` 生效、`flush` 后 body 内衬 0、搜索过滤、**滚锁判据读 `documentElement`**（本站真滚动容器是 html，body 被 `visible !important` 钉死）、Esc 关闭并释放锁；B 组（390×844）钉退化成贴底 Sheet + grab 条；C 组钉暗色下标题/候选是浅字、弹层底不是纯白。⚠️ 两个假红来源：① `boh-pop` 进场 0.96→1 的 scale 未落定就量宽高（520 量成 504、390 量成 378），统一等 ≥350ms；② 候选列表异步拉取，几何断言前要先等条目到位。**反证**：去掉 `max-width="520px"` → A3 当场 FAIL（回到默认 420，2026-11-23 实测） |
 | `probe-shop-specs-sheet.mjs` | — | **商城规格面板（20，BohModal 第二家族）**：`/admin/shop-editor` 注入就地编辑后点卡片「规格 N」。A 组钉层级/560 宽/#head 的 kicker+关闭钮/两条既有规格回填/新增一行/重复值校验上屏且面板不关/取消关闭后滚锁释放；B 组钉竖屏贴底 Sheet；C 组钉暗色标题与输入是浅字、输入框非纯白。⚠️ 焦点坑：陷阱在 overlay mounted 的 rAF 里把焦点给关闭钮，本面板的 watcher rAF 更早注册 ⇒ 必须**双 rAF**才抢得回输入框（实测单 rAF 仍停在 `BUTTON.specs-close`）。**反证**：去掉 `max-width="560px"` → A2 FAIL（420） |
 | `probe-shop-product-edit-sheet.mjs` | — | **商城商品设置面板（20，BohModal 第三家族）**：同一入口点卡片定价（`.p-price-editable`）开面板。A 组钉层级/600 宽/垂直居中/「商品设置」kicker + 标题/积分价·库存·支付方式回填/切「纯现金」后积分价被换出/0 价校验上屏且面板不关/取消关闭后滚锁释放；B 组钉竖屏贴底 Sheet；C 组钉暗色标题与输入是浅字、输入框非纯白。⚠️ 与规格面板同一焦点双 rAF 口径；「桌面居中」断言写成 `|top − (900−bottom)| ≤ 2`（面板高度贴着 max-height 时 top 恰好 99，用「上留白 > 100」会把居中判成失败）。**反证**：去掉 `max-width="600px"` → A2 FAIL（420，2026-11-23 实测） |
+| `probe-shop-admin-orders.mjs` | — | **商城订单管理（32，BohModal 第四家族 + 首个 `portraitPage` 宿主）**：`/shop` → 头像 →「礼物管理」。A 组钉入口只对管理员出现（普通用户点头像走「我的礼物」）；B 组钉壳能力 + **竖屏整页**（铺满 390×844、`border-radius: 0`、无 grab 条、层级 2147482600、滚锁落在 html）；C 组钉三单全列/状态与动作严格对应（送达态不给推进按钮）/筛选/顶栏单数，外加 C8–C11 的**筛选条几何**与**亮色卡片层次**；D 组 Esc 关闭并释放滚锁；E 组横屏回圆角居中弹窗（720 宽）+ 点遮罩关闭；F 组暗色（主题真生效 → 底是深色 → 标题浅字 → **卡片比页面底更亮**）。⚠️ 三条实测坑：① **`#head` 槽外层是 flex 行容器**，把「头部」和「筛选条」两个块级元素直接塞进去会横排挤扁，筛选条整条消失，而探针的 click 仍能命中（假绿）⇒ 必须包一层 `flex-direction: column`，并断言**堆叠关系**（`filters.top ≥ head.bottom` + 横向重叠），只测高度/宽度/inView 抓不到（第一版反证实测仍绿）；② 切暗色必须写 localStorage 的 `boh-theme` 让 themeManager 懒加载 8 份暗色 CSS，手动 `setAttribute('data-theme')` 是假路径（`--boh-page-bg` 暗色值只在按需加载的 `dark-mode.css` 里）；③ 组件 Teleport 到 body、不在 `.store-page` 里，必须自带 `shop-sheet-tokens` 才拿得到商城域 token，丢了会让卡片比页面更暗（层次反向）—— F3 抓这个；④ 整页形态最容量错的还有一处**亮色层次**：页面色一路铺到底会让「页面 #fff + 白卡 #fff」糊成一片，列表区必须用次级底（C11 抓这个）。**反证**：去掉 `portrait-page` → B4/B5/B6 三条同时 FAIL（退化成贴底 Sheet，高 179 / 圆角 28px / grab=block）；去掉 `shop-sheet-tokens` → F3 FAIL（card=rgb(10,10,15) < page=rgb(22,18,14)），其余 31 条仍绿 |
 
 ### 数据管理面板 / RLS / 权限（9）
 

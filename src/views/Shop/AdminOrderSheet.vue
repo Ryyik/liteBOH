@@ -4,102 +4,111 @@
        定位：管理员的**操作台**，不是数据后台的表格 —— 一屏能看到"谁买的、多少钱、
        到哪一步了"，并当场推进（现金单收完钱就能点发货）。
        通知（站内信 + 进度邮件）由数据库触发器发，这里只写 status。 -->
-  <Teleport to="body">
-    <Transition name="ao">
-      <div v-if="visible" class="ao-root shop-sheet-tokens">
-        <div class="ao-scrim" @click="$emit('close')"></div>
+  <BohModal v-model="modalOpen" :title="'礼物管理'" max-width="720px" portrait-page flush>
+    <template #head>
+      <!-- ⚠️ 必须包一层 column：#head 槽外层是 flex **行**容器（壳里那条
+           justify-content: space-between 是给「标题 + 关闭钮」准备的）。直接把
+           头部和筛选条两个块级子元素一起塞进去，它们会横排并被挤扁 ——
+           实测表现是筛选条整条消失，而 Playwright 的 click 仍能命中（假绿），
+           只有截图才看得出来。
 
-        <section class="ao-sheet" role="dialog" aria-modal="true" aria-labelledby="ao-title">
-          <header class="ao-head">
-            <h2 id="ao-title" class="ao-title">礼物管理</h2>
-            <span class="ao-count">{{ orders.length }} 单</span>
-            <button
-              type="button"
-              class="ao-close"
-              aria-label="关闭礼物管理"
-              @click="$emit('close')"
-            >
-              <X :size="19" :stroke-width="1.9" aria-hidden="true" />
-            </button>
-          </header>
+           🔴 `shop-sheet-tokens` 不能丢：store-tokens.css 给商城域重定义了
+           --boh-bg-primary（暗色 #1c1c1e）/ --boh-page-bg 等，注释里写明
+           「类名由组件根元素自带」。本组件挂到 body 上、**不在 .store-page 里**
+           ⇒ 拿不到那份 token，卡片会回落成全站暗色的 #0a0a0f，
+           比页面底（#16120e）更暗 —— 层次反了（截图实测）。
+           壳接管了根元素，所以这层类要挂在内容容器上。 -->
+      <div class="ao-head-wrap shop-sheet-tokens">
+        <header class="ao-head">
+          <h2 id="ao-title" class="ao-title">礼物管理</h2>
+          <span class="ao-count">{{ orders.length }} 单</span>
+          <button type="button" class="ao-close" aria-label="关闭礼物管理" @click="requestClose">
+            <X :size="19" :stroke-width="1.9" aria-hidden="true" />
+          </button>
+        </header>
 
-          <div class="ao-filters" role="tablist" aria-label="按状态筛选">
-            <button
-              v-for="option in FILTERS"
-              :key="option.value"
-              type="button"
-              role="tab"
-              class="ao-filter"
-              :class="{ active: filter === option.value }"
-              :aria-selected="filter === option.value"
-              @click="filter = option.value"
-            >
-              {{ option.label }}
-              <em v-if="countOf(option.value)">{{ countOf(option.value) }}</em>
-            </button>
-          </div>
-
-          <div class="ao-body">
-            <p v-if="loading" class="ao-hint">正在加载礼物…</p>
-            <p v-else-if="loadError" class="ao-hint is-error">{{ loadError }}</p>
-            <p v-else-if="!visibleOrders.length" class="ao-hint">
-              {{ filter === 'all' ? '还没有礼物' : '这个状态下没有礼物' }}
-            </p>
-
-            <ul v-else class="ao-list">
-              <li v-for="order in visibleOrders" :key="order.id" class="ao-item">
-                <div class="ao-item-head">
-                  <strong class="ao-no">{{ order.orderNo || '—' }}</strong>
-                  <span class="ao-status" :class="`is-${order.status}`">
-                    {{ order.statusLabel }}
-                  </span>
-                </div>
-
-                <p class="ao-line">
-                  <span>{{ order.buyerName }}</span>
-                  <span class="ao-dot" aria-hidden="true">·</span>
-                  <span>{{ order.priceText || '—' }}</span>
-                  <span class="ao-dot" aria-hidden="true">·</span>
-                  <span>{{ formatTime(order.createdAt) }}</span>
-                </p>
-                <p class="ao-items">{{ itemLine(order) }}</p>
-                <p v-if="order.shipping && order.shipping.address" class="ao-addr">
-                  {{ order.shipping.recipient }} {{ order.shipping.phone }} ·
-                  {{ order.shipping.address }}
-                </p>
-                <p v-if="order.remark" class="ao-remark">备注：{{ order.remark }}</p>
-
-                <div class="ao-actions">
-                  <button
-                    v-if="nextStatus(order)"
-                    type="button"
-                    class="ao-advance"
-                    :disabled="busyId === order.id"
-                    @click="advance(order)"
-                  >
-                    {{ busyId === order.id ? '处理中…' : advanceLabel(order) }}
-                  </button>
-                  <span v-else class="ao-done">{{ doneText(order) }}</span>
-                </div>
-              </li>
-            </ul>
-          </div>
-        </section>
+        <div class="ao-filters" role="tablist" aria-label="按状态筛选">
+          <button
+            v-for="option in FILTERS"
+            :key="option.value"
+            type="button"
+            role="tab"
+            class="ao-filter"
+            :class="{ active: filter === option.value }"
+            :aria-selected="filter === option.value"
+            @click="filter = option.value"
+          >
+            {{ option.label }}
+            <em v-if="countOf(option.value)">{{ countOf(option.value) }}</em>
+          </button>
+        </div>
       </div>
-    </Transition>
-  </Teleport>
+    </template>
+
+    <!-- ⚠️ `shop-sheet-tokens` 必须同时挂在**两个槽的内容容器**上（#head 与默认槽
+         是两个兄弟节点，token 只能各自继承）。store-tokens.css 给商城域重定义了
+         --boh-bg-primary（暗色 #1c1c1e）/ --boh-bg-secondary（暗色 #0c0c0e）等，
+         「类名由组件根元素自带」。本组件挂到 body 上、
+         **不在 .store-page 里** ⇒ 不挂这个类就拿不到那份 token：
+         卡片会回落成全站暗色的 #0a0a0f，比页面底更暗，层次整个反了（截图实测）。 -->
+    <div class="ao-body shop-sheet-tokens">
+      <p v-if="loading" class="ao-hint">正在加载礼物…</p>
+      <p v-else-if="loadError" class="ao-hint is-error">{{ loadError }}</p>
+      <p v-else-if="!visibleOrders.length" class="ao-hint">
+        {{ filter === 'all' ? '还没有礼物' : '这个状态下没有礼物' }}
+      </p>
+
+      <ul v-else class="ao-list">
+        <li v-for="order in visibleOrders" :key="order.id" class="ao-item">
+          <div class="ao-item-head">
+            <strong class="ao-no">{{ order.orderNo || '—' }}</strong>
+            <span class="ao-status" :class="`is-${order.status}`">
+              {{ order.statusLabel }}
+            </span>
+          </div>
+
+          <p class="ao-line">
+            <span>{{ order.buyerName }}</span>
+            <span class="ao-dot" aria-hidden="true">·</span>
+            <span>{{ order.priceText || '—' }}</span>
+            <span class="ao-dot" aria-hidden="true">·</span>
+            <span>{{ formatTime(order.createdAt) }}</span>
+          </p>
+          <p class="ao-items">{{ itemLine(order) }}</p>
+          <p v-if="order.shipping && order.shipping.address" class="ao-addr">
+            {{ order.shipping.recipient }} {{ order.shipping.phone }} ·
+            {{ order.shipping.address }}
+          </p>
+          <p v-if="order.remark" class="ao-remark">备注：{{ order.remark }}</p>
+
+          <div class="ao-actions">
+            <button
+              v-if="nextStatus(order)"
+              type="button"
+              class="ao-advance"
+              :disabled="busyId === order.id"
+              @click="advance(order)"
+            >
+              {{ busyId === order.id ? '处理中…' : advanceLabel(order) }}
+            </button>
+            <span v-else class="ao-done">{{ doneText(order) }}</span>
+          </div>
+        </li>
+      </ul>
+    </div>
+  </BohModal>
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { X } from 'lucide-vue-next';
+import BohModal from '@/components/ui/BohModal.vue';
 import {
   advanceShopOrderStatus,
   fetchAllShopOrders,
   shopStatusLabel,
 } from '@/utils/api/shop-orders-api.js';
 import { logger } from '@/utils/logger.js';
-import { useBodyScrollLock } from '@/composables/useBodyScrollLock.js';
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
@@ -107,9 +116,20 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'notify']);
 
-/* 订单管理也是盖在 /shop 长文档流上的整页层（2026-11-10 商品详情同一类报障：
-   不锁页面时滚轮滚的是背后的列表）。组件常驻挂载、靠 `visible` 显示 ⇒ 用声明式锁。 */
-useBodyScrollLock(() => props.visible, 'shop-admin-orders');
+/* 外壳走 BohModal（2026-11-23，plans/045 阶段 2）：Teleport / 遮罩 / 滚锁 /
+   Esc / 焦点陷阱 / 竖屏整页形态都在组件里，这里只留内容与推进逻辑。
+   滚锁删掉了原来的 useBodyScrollLock —— 壳已内置（同一份真源，双层锁只会多一份引用计数）。 */
+
+const requestClose = () => emit('close');
+
+/* BohModal 的 v-model 是「关得比开得快」的：Esc / 遮罩 / 关闭钮都只发 false。
+   真源仍是宿主的 visible，所以 setter 只处理关闭。 */
+const modalOpen = computed({
+  get: () => props.visible,
+  set: (next) => {
+    if (!next) requestClose();
+  },
+});
 
 const FILTERS = [
   { value: 'all', label: '全部' },
@@ -204,51 +224,32 @@ const advance = async (order) => {
   }
 };
 
-const onKeydown = (event) => {
-  if (event.key === 'Escape') emit('close');
-};
-
+/* 打开时重置筛选并拉列表。Esc 与滚锁已交给壳（BohModal 的焦点陷阱负责 Esc，
+   stopPropagation 后不会漏到页面级监听），所以这里不再挂 document 级 keydown。 */
 watch(
   () => props.visible,
   (visible) => {
     if (visible) {
       filter.value = 'all';
       void load();
-      document.addEventListener('keydown', onKeydown);
     } else {
-      document.removeEventListener('keydown', onKeydown);
       busyId.value = '';
     }
   },
 );
-
-onBeforeUnmount(() => document.removeEventListener('keydown', onKeydown));
 </script>
 
 <style scoped>
-.ao-root {
-  position: fixed;
-  inset: 0;
-  /* 与结算 / 商品详情 / 支付成功同档：压过全局导航（9999）与灵动岛 */
-  z-index: 2147482400;
-  color: var(--boh-text-primary, #1d1d1f);
-}
+/* 旧手写外壳（.ao-root / .ao-scrim / .ao-sheet / 进出场 keyframes）已随迁移删除：
+   层级、遮罩、竖屏整页/横屏居中的几何全部由 BohModal 承担。
+   这里只剩「头部 + 筛选条 + 列表」的内容样式。 */
 
-.ao-scrim {
-  position: absolute;
-  inset: 0;
-  background: rgba(15, 23, 42, 0.32);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-}
-
-/* 竖屏：整页（手机上就是"下一页"），与结算页同一套形态 */
-.ao-sheet {
-  position: absolute;
-  inset: 0;
+/* #head 槽外层是 flex 行容器（壳里那条 space-between 是给标题+关闭钮的），
+   这一层把「头部 + 筛选条」重新排成纵向，并强制占满槽宽。 */
+.ao-head-wrap {
   display: flex;
   flex-direction: column;
-  background: var(--boh-bg-secondary, #f5f5f7);
+  width: 100%;
 }
 
 .ao-head {
@@ -256,9 +257,13 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKeydown));
   display: flex;
   align-items: center;
   gap: 10px;
+  /* 上面那层已经铺满槽宽；这里不再需要 width: 100%（留给 count 的 auto 边距） */
   padding: calc(10px + env(safe-area-inset-top, 0px)) 14px 10px;
-  border-bottom: 1px solid var(--boh-divider, rgba(0, 0, 0, 0.06));
-  background: var(--boh-bg-primary, #fff);
+  border-bottom: 1px solid var(--liquid-border);
+  /* 整页形态下头部与列表是**同一页**：底色必须跟页面色走。
+     用 --boh-bg-primary 会在暗色下露出色带（那里是 #0a0a0f 纯黑，
+     而页面是 #16120e 暖炭）—— 截图实测过。 */
+  background: var(--boh-page-bg);
 }
 
 .ao-title {
@@ -297,7 +302,8 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKeydown));
   gap: 6px;
   padding: 10px 14px;
   overflow-x: auto;
-  background: var(--boh-bg-primary, #fff);
+  /* 同 .ao-head：整页形态下跟页面底色走（暗色色带见该处注释） */
+  background: var(--boh-page-bg);
   border-bottom: 1px solid var(--boh-divider, rgba(0, 0, 0, 0.06));
   scrollbar-width: none;
 }
@@ -331,12 +337,18 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKeydown));
   opacity: 0.7;
 }
 
+/* 滚动交给壳的 body（flush 已去掉内衬），这里只留列表自己的内衬与底安全区。
+   底色必须是**次级底**：原设计是「浅灰页面 + 白卡」形成层次，
+   只剩 --boh-page-bg（亮色 #fff、暗色 #16120e）+ 白卡会让两者在亮色下同为纯白，
+   卡片边界直接消失（实测 card=rgb(255,255,255) / page=rgb(255,255,255)）。
+   头部与筛选条仍走 --boh-page-bg —— 与迁移前的白头部 + 灰列表一致。 */
 .ao-body {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
   padding: 12px 12px calc(16px + env(safe-area-inset-bottom, 0px));
+  background: var(--boh-bg-secondary, #f5f5f7);
+  /* 列表短时也要铺满壳的 body，否则灰底只到内容底部、下面露出页面底色，
+     整页形态下会出现"半张灰纸"的断裂感 */
+  min-height: 100%;
+  box-sizing: border-box;
 }
 
 .ao-hint {
@@ -471,54 +483,6 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKeydown));
   font-size: 12px;
 }
 
-/* 横屏 / 宽屏：居中弹窗，四边留白（与结算页同一套断点） */
-@media (orientation: landscape) {
-  .ao-sheet {
-    inset: auto;
-    top: 50%;
-    left: 50%;
-    width: min(720px, calc(100vw - 64px));
-    height: min(600px, calc(100vh - 40px));
-    transform: translate(-50%, -50%);
-    border-radius: var(--liquid-radius-lg, 24px);
-    overflow: hidden;
-    box-shadow: 0 24px 80px rgba(15, 23, 42, 0.28);
-  }
-}
-
-.ao-enter-active,
-.ao-leave-active {
-  transition: opacity 180ms ease;
-}
-
-.ao-enter-from,
-.ao-leave-to {
-  opacity: 0;
-}
-
-.ao-enter-active .ao-sheet,
-.ao-leave-active .ao-sheet {
-  transition: transform 300ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1));
-}
-
-.ao-enter-from .ao-sheet,
-.ao-leave-to .ao-sheet {
-  transform: translateX(100%);
-}
-
-@media (orientation: landscape) {
-  .ao-enter-from .ao-sheet,
-  .ao-leave-to .ao-sheet {
-    transform: translate(-50%, calc(-50% + 10px));
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .ao-enter-active,
-  .ao-leave-active,
-  .ao-enter-active .ao-sheet,
-  .ao-leave-active .ao-sheet {
-    transition-duration: 1ms;
-  }
-}
+/* 横屏居中弹窗（720 宽、四边留白）、进出场、reduced-motion 全部由 BohModal 承担，
+   这里不再留第二份几何/动画 —— 手写那份是 .ao-sheet 的，类已经不存在了。 */
 </style>

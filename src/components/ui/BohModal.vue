@@ -15,11 +15,16 @@ import './motion.css';
  *   · v-model 开关 + 出入场动画（motion.css 的 boh-fade / boh-pop）；
  *   · 窄屏（≤560px）自动变底部 Sheet：对齐到底、grab 条出现——同一组件两种形态。
  *
- * 定制口子（只开这三个，别再往里加）：
+ * 定制口子（只开这四个，别再往里加）：
  *   · maxWidth —— 弹层最大宽度（默认 420px；窄屏仍占满）；
  *   · #head —— 整块自定义头部（kicker + 标题 + 图标关闭钮这类形态）；
  *     用了它就不渲染默认 title/关闭钮，关闭按钮要自己给；
- *   · flush —— 去掉 body 内衬（内容自带 padding 的通栏布局：搜索栏 + 列表）。
+ *   · flush —— 去掉 body 内衬（内容自带 padding 的通栏布局：搜索栏 + 列表）；
+ *   · portraitPage —— 竖屏**整页**形态（不贴底）。断点走 `orientation`，与 Shop
+ *     9 份弹层既有口径一致（plans/037 定它「全站最成熟的形态」）：竖屏铺满视口、
+ *     零圆角零边框、无 grab 条；横屏仍回到居中弹窗（maxWidth 生效）。
+ *     与默认窄屏贴底 Sheet 的区别是**心智**而非像素：贴底是「浮一层」，
+ *     整页是「翻到下一页」，用户能看到导航语义差异，所以由宿主显式选择。
  *
  * 层级：overlay 的 z-index 读 `--boh-z-modal`（tokens.css，2147482600）——
  * 全站 z-index 是一张乱账（导航 9999、灵动岛 10001、商城弹层/详情 2147482400、
@@ -51,6 +56,8 @@ const props = defineProps({
   maxWidth: { type: String, default: '' },
   /** 去掉 body 内衬——内容自带 padding 的通栏布局用 */
   flush: { type: Boolean, default: false },
+  /** 竖屏整页形态（不贴底）；断点走 orientation，横屏仍居中弹窗 */
+  portraitPage: { type: Boolean, default: false },
 });
 
 const emit = defineEmits(['update:modelValue', 'close']);
@@ -80,11 +87,13 @@ function onBackdropClick(event) {
         v-if="isOpen"
         v-dialog-focus="requestClose"
         class="boh-modal__overlay"
+        :class="{ 'boh-modal__overlay--page': portraitPage }"
         @click="onBackdropClick"
       >
         <Transition name="boh-pop" appear>
           <div
             class="boh-modal__dialog"
+            :class="{ 'boh-modal__dialog--page': portraitPage }"
             role="dialog"
             aria-modal="true"
             :aria-label="title || '对话框'"
@@ -234,6 +243,40 @@ function onBackdropClick(event) {
   }
   .boh-modal__head {
     padding-top: 10px;
+  }
+}
+
+/* 竖屏整页形态（portraitPage）：铺满视口、零圆角零边框、无 grab 条。
+   断点走 orientation 而非宽度 —— 与 Shop 9 份弹层的既有口径一致（plans/037
+   把「竖屏全屏 / 横屏居中」定为全站最成熟形态）。横屏走不进来，仍回到居中弹窗。
+   必须写在上面那条 max-width 媒体查询**之后**：同特异性下靠源序覆盖。 */
+@media (orientation: portrait) {
+  .boh-modal__overlay--page {
+    align-items: stretch;
+  }
+  .boh-modal__dialog--page {
+    width: 100%;
+    height: 100%;
+    max-height: none;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    /* 整页背后就是站点自己的页面 ⇒ 半透明玻璃只会把下面那层糊成一片脏底。
+       改不透明页面色（与 OrderDetail / Checkout / ProductDetail 同一档），
+       顺手省掉一趟全屏 backdrop-filter 的合成开销。 */
+    background: var(--boh-page-bg);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+  /* 整页不是「浮一层」而是「翻到下一页」，grab 条（拖拽暗示）必须消失 */
+  .boh-modal__dialog--page .boh-modal__grab {
+    display: none;
+  }
+  /* 整页下内容区自己要吃掉剩余高度并独立滚动（默认形态靠 max-height 收口）——
+     少了这两条，flush 宿主的内层滚动容器拿不到确定高度，长列表会顶穿视口。 */
+  .boh-modal__dialog--page .boh-modal__body {
+    flex: 1;
+    min-height: 0;
   }
 }
 </style>
