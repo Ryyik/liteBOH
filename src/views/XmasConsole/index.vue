@@ -299,6 +299,7 @@
 
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue';
+import { useConfirmDialog } from '@/composables/useConfirmDialog.js';
 import { AlertTriangle, Check, ExternalLink, RefreshCw, Shuffle } from 'lucide-vue-next';
 
 import treeUrl from '@/assets/images/xmas-hero-tree.svg';
@@ -323,6 +324,8 @@ const heroesStore = useHomeHeroesStore();
 const state = reactive({ exists: false, event: null, participants: [], matches: [] });
 const draft = ref(null);
 const heroRecord = ref(null);
+const { confirm: confirmDialog } = useConfirmDialog();
+
 const busy = ref(false);
 const saving = ref(false);
 const notReady = ref(false);
@@ -578,7 +581,11 @@ async function drawPairs(force) {
 }
 
 async function resetMatches() {
-  if (!window.confirm('清空本轮配对？参与者与挂位不受影响，但已生成的结果会丢失。')) return;
+  const ok = await confirmDialog({
+    title: '清空配对',
+    message: '清空本轮配对？参与者与挂位不受影响，但已生成的结果会丢失。',
+  });
+  if (!ok) return;
   busy.value = true;
   try {
     const result = await resetXmasMatches();
@@ -590,7 +597,11 @@ async function resetMatches() {
 }
 
 async function removePerson(person) {
-  if (!window.confirm(`把「${person.name}」从树上摘下来？挂位会留空，不会被后面的人顶掉。`)) return;
+  const ok = await confirmDialog({
+    title: '摘下此人',
+    message: `把「${person.name}」从树上摘下来？挂位会留空，不会被后面的人顶掉。`,
+  });
+  if (!ok) return;
   busy.value = true;
   try {
     const result = await removeXmasParticipant(person.userId, '管理员移除');
