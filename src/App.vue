@@ -47,6 +47,8 @@ const BohPetBlock = createPanelAsync(() => import('@/components/BohPetBlock.vue'
 });
 import { useConfirmDialog } from '@/composables/useConfirmDialog.js';
 import PostDetailModal from './views/PostDetail/PostDetailModal.vue';
+// Boh UI Kit Toast 宿主（plans/045）：静态引入——壳极轻（TransitionGroup + 空列表零渲染）
+import BohToastHost from '@/components/ui/BohToastHost.vue';
 import {
   restorePostDetailModalFromHistory,
   usePostDetailModal,
@@ -677,6 +679,11 @@ const showGlobalNavbar = computed(() => isGlobalNavbarVisible(route, homeGateScr
       </div>
     </div>
   </Transition>
+
+  <!-- Boh UI Kit Toast 宿主（plans/045 阶段 1）：全站唯一轻提示通道，
+       业务侧 import { bohtoast } 调 bohtoast.show(type, message)。
+       ⚠️ 旧 welcome-toast（boh_notify 事件通道）暂并存，收编完成后下线。 -->
+  <BohToastHost />
 
   <!-- 账户绑定引导（底部弹窗）：未注册通行密钥时首次进站提示，可「不再提醒」 -->
   <AccountBindPrompt />

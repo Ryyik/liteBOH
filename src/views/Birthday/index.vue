@@ -353,13 +353,6 @@
       </section>
     </main>
 
-    <transition name="fade">
-      <div v-if="showToast" class="toast">
-        <Heart :size="16" stroke-width="2.5" fill="#ff453a" />
-        <span>{{ toastText }}</span>
-      </div>
-    </transition>
-
     <!-- 分享海报是离屏渲染源（html2canvas 抓取），没有寿星时不应存在：
          否则 DOM 里仍躺着一份「愿你新的一岁」的假文案。 -->
     <div v-if="hasCelebration" class="poster-render-root" aria-hidden="true">
@@ -419,6 +412,7 @@ import {
   WandSparkles,
   X,
 } from 'lucide-vue-next';
+import { bohtoast } from '@/components/ui/boh-toast-controller.js';
 import { useAuthStore } from '@/stores/auth';
 import { storeToRefs } from 'pinia';
 import { getImageUrl } from '@/utils/asset-helper.js';
@@ -442,8 +436,6 @@ const showPosterModal = ref(false);
 const isGeneratingPoster = ref(false);
 const hasMadeWish = ref(false);
 const showSmoke = ref(false);
-const showToast = ref(false);
-const toastText = ref('');
 const visitorName = ref('');
 const visitorMessage = ref('');
 const isSubmitting = ref(false);
@@ -459,7 +451,6 @@ const isLoading = ref(true);
 
 let scratchContext = null;
 let isScratching = false;
-let toastTimer = null;
 let pointerStartX = 0;
 let pointerDeltaX = 0;
 
@@ -601,12 +592,8 @@ const scrollTo = (section) => {
 };
 
 const showToastMessage = (text) => {
-  toastText.value = text;
-  showToast.value = true;
-  if (toastTimer) clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => {
-    showToast.value = false;
-  }, 2800);
+  // plans/045 阶段 1：走全站 BohToast 通道（生日活动保留 ok 语义）
+  bohtoast.show('ok', text);
 };
 
 const burstConfetti = (origin = { y: 0.5 }) => {

@@ -96,6 +96,34 @@ describe('boh-toast-controller · 状态机纯函数', () => {
     expect(seen.length).toBe(2); // 退订后不再推送
   });
 
+  it('迁移别名归一：success/error/warning → ok/err/warn', () => {
+    const c = createToastController();
+    c.show('success', 'a');
+    c.show('error', 'b');
+    c.show('warning', 'c');
+    expect(c.snapshot().map((t) => t.type)).toEqual(['ok', 'err', 'warn']);
+  });
+
+  it('sticky=true 不自动消失，dismiss 可手动关', () => {
+    const c = createToastController();
+    const id = c.show('error', '必须用户处理', { sticky: true });
+    vi.advanceTimersByTime(DEFAULT_DURATION_MS * 10);
+    expect(c.snapshot().length).toBe(1);
+    expect(c.dismiss(id)).toBe(true);
+  });
+
+  it('action 透传给渲染层（label 收成字符串，run 透传）', () => {
+    const c = createToastController();
+    const run = vi.fn();
+    c.show('info', '已删除', { action: { label: '撤销', run } });
+    const item = c.snapshot()[0];
+    expect(item.action).toEqual({ label: '撤销', run });
+    c.show('info', '无动作');
+    expect(c.snapshot()[1].action).toBeNull();
+    c.show('info', 'label 缺失不算动作', { action: { run } });
+    expect(c.snapshot()[2].action).toBeNull();
+  });
+
   it('全站单例 bohtoast 存在且接口齐全', () => {
     expect(typeof bohtoast.show).toBe('function');
     expect(typeof bohtoast.dismiss).toBe('function');

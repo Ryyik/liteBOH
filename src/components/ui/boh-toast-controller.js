@@ -20,12 +20,19 @@ const MAX_STACK = 3;
 /** 默认停留时长（业务口径，非动画） */
 export const DEFAULT_DURATION_MS = 2400;
 
+/**
+ * 类型别名归一：迁移期各存量调用方写法不一（success/error/warning），
+ * 控制器统一收口为 ok/err/warn/info 四类（plans/045 阶段 1 迁移用）。
+ */
+const TYPE_ALIASES = { success: 'ok', error: 'err', warning: 'warn' };
+const VALID_TYPES = ['ok', 'warn', 'err', 'info'];
+
 export function createToastController({
   durationMs = DEFAULT_DURATION_MS,
   maxStack = MAX_STACK,
 } = {}) {
   let nextId = 1;
-  /** @type {Array<{id:number, type:string, message:string, durationMs:number}>} */
+  /** @type {Array<{id:number, type:string, message:string, durationMs:number, action:(?{label:string, run:?Function})|null}>} */
   let items = [];
   /** @type {Map<number, ReturnType<typeof setTimeout>>} */
   const timers = new Map();
@@ -54,13 +61,16 @@ export function createToastController({
 
   /**
    * 弹一条提示。
-   * @param {'ok'|'warn'|'err'|'info'} type 语义类（渲染层映射图标与配色）
+   * @param {'ok'|'warn'|'err'|'info'|'success'|'error'|'warning'} type 语义类（后三个是迁移别名，归一到 ok/err/warn）
    * @param {string} message 文案（纯文本，调用方不传 HTML）
-   * @param {{ durationMs?: number }} [opts] 覆盖停留时长
+   * @param {{ durationMs?: number, sticky?: boolean, action?: {label: string, run?: Function} }} [opts]
+   *   sticky=true 不自动消失（error 类语义：必须用户处理后手动关）；
+   *   action 渲染为可点按钮，点击执行 run 后自动关。
    * @returns {number} 本条 toast 的 id（可传给 dismiss 手动提前关）
    */
   function show(type, message, opts = {}) {
-    const validType = ['ok', 'warn', 'err', 'info'].includes(type) ? type : 'info';
+    const normalized = TYPE_ALIASES[type] || type;
+    const validType = VALID_TYPES.includes(normalized) ? normalized : 'info';
     // 超上限：挤掉最旧的（先摘它的 timer）
     while (items.length >= maxStack) remove(items[0].id);
     const item = {
@@ -68,9 +78,13 @@ export function createToastController({
       type: validType,
       message: String(message ?? ''),
       durationMs: opts.durationMs ?? durationMs,
+      action:
+        opts.action && opts.action.label
+          ? { label: String(opts.action.label), run: opts.action.run ?? null }
+          : null,
     };
     items = [...items, item];
-    schedule(item.id, item.durationMs);
+    if (!opts.sticky) schedule(item.id, item.durationMs);
     notify();
     return item.id;
   }

@@ -60,7 +60,11 @@ describe('data admin editing flow', () => {
     expect(view).toContain('patchStoreRow');
     expect(view).toContain('moderateAndAdvance');
     expect(view).toContain('undoModeration');
-    expect(view).toContain('toast-action');
+    // 2026-11-23 plans/045 阶段 1：手写 toast 换全站 bohtoast 通道，
+    // 「撤销」从 toast-action 按钮改为 bohtoast action 对象（宿主渲染）
+    expect(view).toContain('boh-toast-controller.js');
+    expect(view).toContain("label: '撤销'");
+    expect(view).toContain('run: () => undoModeration');
   });
 
   it('narrow/short-landscape renders sidebar as drawer instead of hover-expand', () => {

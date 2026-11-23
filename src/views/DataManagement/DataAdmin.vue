@@ -2120,36 +2120,11 @@
     </Transition>
 
     <ShortcutHelp :show="showShortcutHelp" @close="showShortcutHelp = false" />
-
-    <Transition name="toast">
-      <div
-        v-if="toast.show"
-        class="toast"
-        :class="`toast-${toast.type}`"
-        :role="toast.type === 'error' ? 'alert' : 'status'"
-        :aria-live="toast.type === 'error' ? 'assertive' : 'polite'"
-      >
-        <span class="toast-icon" aria-hidden="true">{{
-          toast.type === 'success' ? '✓' : toast.type === 'error' ? '✗' : 'ℹ'
-        }}</span>
-        <span class="toast-message">{{ toast.message }}</span>
-        <button v-if="toast.action" class="toast-action" @click="runToastAction">
-          {{ toast.action.label }}
-        </button>
-        <button
-          v-if="toast.type === 'error'"
-          class="toast-dismiss"
-          @click="dismissToast"
-          aria-label="关闭提示"
-        >
-          <X :size="14" aria-hidden="true" />
-        </button>
-      </div>
-    </Transition>
   </div>
 </template>
 
 <script setup>
+import { bohtoast } from '@/components/ui/boh-toast-controller.js';
 import {
   ref,
   computed,
@@ -2882,40 +2857,13 @@ const autoRefreshInterval = ref(null);
 const secondsUntilRefresh = ref(30);
 
 // 提示消息（action 为可选操作按钮，如审核撤销）
-const toast = reactive({
-  show: false,
-  message: '',
-  type: 'info',
-  timer: null,
-  action: null,
-});
-
-let toastTimer = null;
+// plans/045 阶段 1：Toast 走全站 bohtoast 单例（error sticky 由宿主渲染手动关闭）
 const showToast = (message, type = 'info', action = null) => {
-  if (toastTimer) clearTimeout(toastTimer);
-  if (toast.timer) clearTimeout(toast.timer);
-  toast.message = message;
-  toast.type = type;
-  toast.action = action;
-  toast.show = true;
-  if (type !== 'error') {
-    toastTimer = setTimeout(() => {
-      toast.show = false;
-      toast.action = null;
-      toastTimer = null;
-    }, 4000);
-  }
-};
-const runToastAction = () => {
-  const action = toast.action;
-  toast.show = false;
-  toast.action = null;
-  action?.run?.();
-};
-const dismissToast = () => {
-  if (toastTimer) clearTimeout(toastTimer);
-  toast.show = false;
-  toast.action = null;
+  bohtoast.show(type, message, {
+    durationMs: 4000,
+    sticky: type === 'error',
+    action: action && action.label ? { label: action.label, run: action.run } : null,
+  });
 };
 
 const clearFieldErrors = () => {
@@ -8822,7 +8770,6 @@ setupDataAdminLifecycle({
   userPickerKeyword,
   searchDebounceTimer,
   userPickerSearchDebounceTimer,
-  toast,
   isSubscriptionTab,
   showUserPickerModal,
   SUBSCRIPTION_PLAN_NAMES,

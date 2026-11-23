@@ -51,11 +51,6 @@
         </button>
       </div>
 
-      <!-- Toast -->
-      <transition name="toast-fade">
-        <div v-if="toast.show" class="ap-toast" :class="toast.type">{{ toast.message }}</div>
-      </transition>
-
       <!-- Loading -->
       <div v-if="loading" class="ap-loading">
         <div v-for="n in 2" :key="n" class="ap-skeleton"></div>
@@ -193,6 +188,7 @@ import { useAuthStore } from '@/stores/auth';
 import { supabase } from '@/utils/supabase-client.js';
 import { logger } from '@/utils/logger.js';
 import EmptyState from '@/components/ui/EmptyState.vue';
+import { bohtoast } from '@/components/ui/boh-toast-controller.js';
 import { showIsland } from '@/composables/useIsland.js';
 
 defineProps({
@@ -219,17 +215,6 @@ const form = reactive({
   is_default: false,
 });
 
-const toast = reactive({ show: false, message: '', type: 'info' });
-let toastTimer = null;
-const _originShowToast = (message, type = 'info') => {
-  if (toastTimer) clearTimeout(toastTimer);
-  toast.message = message;
-  toast.type = type;
-  toast.show = true;
-  toastTimer = setTimeout(() => {
-    toast.show = false;
-  }, 3000);
-};
 const showToast = (message, type = 'info') => {
   const text = String(message || '');
   const icon =
@@ -276,7 +261,8 @@ const showToast = (message, type = 'info') => {
     ok = false;
   }
   if (ok) return;
-  return _originShowToast(message, type);
+  // 兜底走全站 BohToast 通道（plans/045 阶段 1）
+  bohtoast.show(type, message);
 };
 
 const pointsDisplay = computed(() => {
@@ -963,39 +949,6 @@ onMounted(() => {
   padding: 48px 16px;
   color: var(--ap-text-tertiary);
   font-size: 14px;
-}
-
-/* ===== Toast ===== */
-.ap-toast {
-  position: fixed;
-  z-index: 200;
-  left: 50%;
-  bottom: 100px;
-  transform: translateX(-50%);
-  padding: 10px 20px;
-  border-radius: 20px;
-  background: rgba(29, 29, 31, 0.88);
-  backdrop-filter: var(--liquid-filter);
-  -webkit-backdrop-filter: var(--liquid-filter);
-  color: #ffffff;
-  font-size: 13px;
-  font-weight: 500;
-  white-space: nowrap;
-  letter-spacing: -0.01em;
-}
-.ap-toast.error {
-  background: rgba(255, 59, 48, 0.92);
-}
-.toast-fade-enter-active,
-.toast-fade-leave-active {
-  transition:
-    opacity 180ms ease,
-    transform 200ms ease;
-}
-.toast-fade-enter-from,
-.toast-fade-leave-to {
-  opacity: 0;
-  transform: translate(-50%, 8px);
 }
 
 /* ===== Page mode overrides ===== */

@@ -395,14 +395,13 @@
         @confirm="handleCropConfirm"
         @cancel="releaseCropSource"
       />
-
-      <div v-if="toast.show" class="console-toast" role="status">{{ toast.message }}</div>
     </div>
   </AdminConsoleShell>
 </template>
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
+import { bohtoast } from '@/components/ui/boh-toast-controller.js';
 import {
   Crop,
   Image as ImageIcon,
@@ -458,8 +457,6 @@ const cropInputRef = ref(null);
 const directInputRef = ref(null);
 const cropVisible = ref(false);
 const cropSource = ref('');
-const toast = ref({ show: false, message: '' });
-let toastTimer = null;
 let tempCounter = 0;
 
 const categoryOptions = PRODUCT_CATEGORY_OPTIONS;
@@ -539,11 +536,8 @@ const productStatus = (product) => {
 };
 
 function showToast(message) {
-  toast.value = { show: true, message };
-  if (toastTimer) clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => {
-    toast.value.show = false;
-  }, 3000);
+  // plans/045 阶段 1：走全站 BohToast 通道（boh-toast-controller 单例）
+  bohtoast.show('info', message);
 }
 function selectProduct(product) {
   const id = parseId(product);
@@ -896,7 +890,6 @@ onBeforeUnmount(() => {
   releaseCropSource();
   if (selectedProduct.value?.image?.startsWith('blob:'))
     URL.revokeObjectURL(selectedProduct.value.image);
-  if (toastTimer) clearTimeout(toastTimer);
 });
 </script>
 

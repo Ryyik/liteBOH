@@ -1,12 +1,5 @@
 <template>
   <div ref="pageRef" class="community-lottery-page">
-    <Transition name="lottery-toast">
-      <div v-if="toast.show" class="lottery-toast" :class="`toast-${toast.type}`" role="status">
-        <strong>{{ toast.title }}</strong>
-        <span>{{ toast.message }}</span>
-      </div>
-    </Transition>
-
     <main class="community-lottery-main">
       <header class="community-lottery-header">
         <div class="community-lottery-heading">
@@ -658,6 +651,7 @@ import { useAuthStore } from '@/stores/auth';
 import { getImageUrl } from '../../utils/asset-helper.js';
 import { getCommunityLotteries, joinCommunityLottery } from '../../utils/api/lottery-api.js';
 import { getMyLotteryPityStatus } from '../../utils/api/subscription-api.js';
+import { bohtoast } from '@/components/ui/boh-toast-controller.js';
 import { showIsland } from '@/composables/useIsland.js';
 import PityIslandCard from './PityIslandCard.vue';
 
@@ -724,14 +718,7 @@ const selectedLottery = ref(null);
 const pityStatus = ref(null);
 const pityLoading = ref(false);
 const pityError = ref('');
-const toast = ref({
-  show: false,
-  type: 'info',
-  title: '',
-  message: '',
-});
 let nowTimer = null;
-let toastTimer = null;
 let dueRefreshLotteryIds = new Set();
 const COMMUNITY_LOTTERY_CACHE_TTL = 30 * 1000;
 const COMMUNITY_LOTTERY_CACHE_PREFIX = 'boh:community-lotteries:';
@@ -768,12 +755,8 @@ const visibleHistoryLotteries = computed(() => {
 });
 
 const _originShowPageToast = (title, message, type = 'info') => {
-  if (toastTimer) window.clearTimeout(toastTimer);
-  toast.value = { show: true, type, title, message };
-  toastTimer = window.setTimeout(() => {
-    toast.value.show = false;
-    toastTimer = null;
-  }, 3200);
+  // 兜底走全站 BohToast 通道（plans/045 阶段 1）：标题并入正文
+  bohtoast.show(type, [title, message].filter(Boolean).join('：'));
 };
 const showPageToast = (title, message, type = 'info') => {
   const iconMap = {
@@ -1294,7 +1277,6 @@ onUnmounted(() => {
   document.removeEventListener('click', handlePityOutsideClick);
   document.removeEventListener('keydown', handleGlobalKeydown);
   stopNowTimer();
-  if (toastTimer) window.clearTimeout(toastTimer);
   lotteryNavResizeObserver?.disconnect();
   lotteryNavResizeObserver = null;
   // 先关岛再置空句柄（showIsland.custom 关闭按组件身份守卫，防跨页误关）

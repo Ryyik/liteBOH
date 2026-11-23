@@ -1332,14 +1332,13 @@
           </div>
         </Transition>
       </Teleport>
-
-      <div v-if="toast.show" class="console-toast" role="status">{{ toast.message }}</div>
     </div>
   </AdminConsoleShell>
 </template>
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
+import { bohtoast } from '@/components/ui/boh-toast-controller.js';
 import AdminConsoleShell from '@/views/DataManagement/components/AdminConsoleShell.vue';
 import {
   Crop,
@@ -1458,8 +1457,6 @@ const lotteryPickerKeyword = ref('');
 // fill = 整体填充英雄区；link = 仅配置某个按钮跳转到抽奖
 const lotteryPickerTarget = ref({ type: 'fill' });
 
-const toast = ref({ show: false, message: '' });
-let toastTimer = null;
 let previewResizeObserver = null;
 
 // 模板标签
@@ -1959,11 +1956,8 @@ const cropAspectRatio = computed(() => {
 });
 
 function showToast(message) {
-  toast.value = { show: true, message };
-  if (toastTimer) clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => {
-    toast.value.show = false;
-  }, 3000);
+  // plans/045 阶段 1：走全站 BohToast 通道（与 ShopConsole 同一单例）
+  bohtoast.show('info', message);
 }
 
 const cloneContentLayout = (layout) =>
@@ -2625,7 +2619,6 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   releaseCropSource();
   previewResizeObserver?.disconnect();
-  if (toastTimer) clearTimeout(toastTimer);
 });
 </script>
 

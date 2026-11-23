@@ -32,6 +32,15 @@ onBeforeUnmount(() => {
 function iconOf(type) {
   return ICONS[type] || ICONS.info;
 }
+
+/** action 按钮：执行回调后自动关（回调异常也必须关，避免坏 handler 永久卡屏） */
+function runAction(item) {
+  try {
+    item.action?.run?.();
+  } finally {
+    bohtoast.dismiss(item.id);
+  }
+}
 </script>
 
 <template>
@@ -41,11 +50,23 @@ function iconOf(type) {
         v-for="item in items"
         :key="item.id"
         class="boh-toast"
-        :class="`boh-toast--${item.type}`"
-        role="status"
+        :class="[`boh-toast--${item.type}`]"
+        :role="item.type === 'err' ? 'alert' : 'status'"
       >
         <span class="boh-toast__icon" aria-hidden="true">{{ iconOf(item.type) }}</span>
         <span class="boh-toast__msg">{{ item.message }}</span>
+        <button v-if="item.action" type="button" class="boh-toast__action" @click="runAction(item)">
+          {{ item.action.label }}
+        </button>
+        <button
+          v-if="item.type === 'err'"
+          type="button"
+          class="boh-toast__dismiss"
+          aria-label="关闭提示"
+          @click="bohtoast.dismiss(item.id)"
+        >
+          ×
+        </button>
       </div>
     </TransitionGroup>
   </div>
@@ -114,5 +135,38 @@ function iconOf(type) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.boh-toast__action {
+  appearance: none;
+  border: none;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 750;
+  color: var(--boh-accent-text);
+  background: transparent;
+  padding: 4px 8px;
+  border-radius: var(--liquid-radius-pill);
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+.boh-toast__action:hover {
+  background: var(--boh-accent-soft);
+}
+
+.boh-toast__dismiss {
+  appearance: none;
+  border: none;
+  cursor: pointer;
+  font: inherit;
+  font-size: 15px;
+  line-height: 1;
+  color: var(--liquid-text-tertiary);
+  background: transparent;
+  padding: 2px 4px;
+  border-radius: 50%;
+}
+.boh-toast__dismiss:hover {
+  color: var(--liquid-text-primary);
 }
 </style>

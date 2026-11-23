@@ -410,9 +410,7 @@
       @notify="showOperationToast"
     />
 
-    <Transition name="toast">
-      <div v-if="operationToast.show" class="operation-toast">{{ operationToast.message }}</div>
-    </Transition>
+    <Transition name="toast"> </Transition>
 
     <UserSpaceSideRail
       :nav-items="BOTTOM_NAV_ITEMS"
@@ -476,6 +474,7 @@ import {
 import mascotHeroUrl from '@/assets/images/mascot-new-landscape-orig.webp';
 import { resolveDbCardImage } from '@/utils/db-image-url.js';
 import { useImageFailure } from '@/composables/useImageFailure.js';
+import { bohtoast } from '@/components/ui/boh-toast-controller.js';
 import { useImageLoaded } from '@/composables/useImageLoaded.js';
 import { useAuthStore } from '@/stores/auth';
 import { useBagStore } from '@/stores/bag';
@@ -577,9 +576,7 @@ const checkoutAddress = ref(null);
 /* 老用户兜底：地址簿为空时用资料里的三条 shipping_* 拼出来的地址 */
 const fallbackAddress = ref(null);
 const submittingContact = ref(false);
-const operationToast = ref({ show: false, message: '' });
 const paymentSuccess = ref(null);
-let toastTimer = null;
 
 const allProducts = computed(() => productsData.value || []);
 /* 搜索取代了原来的分类 chip：按标题 / 描述 / 分类做包含匹配（大小写不敏感），
@@ -1149,11 +1146,8 @@ function showOperationToast(message) {
   }
   const ok = showShopIsland(title, detail, isError ? 'warning' : 'success', isError ? 3600 : 3000);
   if (ok) return;
-  if (toastTimer) clearTimeout(toastTimer);
-  operationToast.value = { show: true, message };
-  toastTimer = setTimeout(() => {
-    operationToast.value.show = false;
-  }, 2600);
+  // 岛不可用时的兜底也走全站 BohToast 通道（plans/045 阶段 1）
+  bohtoast.show(isError ? 'warn' : 'info', text);
 }
 
 const closeCheckout = () => {
@@ -1540,7 +1534,6 @@ onMounted(() => {
    onBeforeUnmount 仍然复用同一份（真正卸载时也要收干净）。 */
 const teardownTransient = () => {
   cancelLotteryPrefetch();
-  if (toastTimer) clearTimeout(toastTimer);
   unlockPageScroll();
   bagStore.flushShoppingBag();
   detachAvatarMenuGuards();

@@ -1068,20 +1068,6 @@
         </Transition>
       </div>
     </Teleport>
-
-    <Transition name="fade">
-      <div v-if="feedbackToast.visible" class="message-feedback-toast" :class="feedbackToast.type">
-        <span>{{ feedbackToast.message }}</span>
-        <button
-          v-if="feedbackToast.actionLabel"
-          type="button"
-          class="message-feedback-action"
-          @click="runFeedbackAction"
-        >
-          {{ feedbackToast.actionLabel }}
-        </button>
-      </div>
-    </Transition>
   </div>
 </template>
 
@@ -1140,6 +1126,7 @@ import {
 } from '@/utils/moderation-retry-cache.js';
 import { useDebounce, useThrottle } from '@/composables/useDebounceThrottle';
 import { useVirtualList } from '@vueuse/core';
+import { bohtoast } from '@/components/ui/boh-toast-controller.js';
 import { showIsland } from '@/composables/useIsland.js';
 import { useAutoGrowTextarea } from '@/composables/useAutoGrowTextarea.js';
 import { useSwipeActions } from '@/composables/useSwipeActions.js';
@@ -1347,14 +1334,6 @@ const archivedLoadedOnce = ref(false);
 const archivedLoadMoreSentinelRef = ref(null);
 let archivedLoadMoreObserver = null;
 let loadNotificationsInflight = null;
-const feedbackToast = reactive({
-  visible: false,
-  type: 'info',
-  message: '',
-  actionLabel: '',
-  action: null,
-});
-let feedbackToastTimer = null;
 
 const loadRetriedNotificationIds = () => {
   retriedNotificationIdSet.value = loadRetriedNotificationIdSet();
@@ -1405,12 +1384,6 @@ const withTaskTimeout = (promise, timeoutMs = TASK_TIMEOUT_MS, message = '请求
       });
   });
 
-const hideFeedback = () => {
-  feedbackToast.visible = false;
-  feedbackToast.actionLabel = '';
-  feedbackToast.action = null;
-};
-
 const showMessageIsland = (title, message = '', type = 'info', options = {}) => {
   const iconMap = {
     success: 'success',
@@ -1429,22 +1402,18 @@ const showMessageIsland = (title, message = '', type = 'info', options = {}) => 
   }
 };
 const _originShowFeedback = (message, type = 'info', options = {}) => {
-  if (feedbackToastTimer) {
-    clearTimeout(feedbackToastTimer);
-    feedbackToastTimer = null;
+  // 兜底走全站 BohToast 通道（plans/045 阶段 1）：actionLabel+action 归一为 action 对象
+  if (options.actionLabel) {
+    bohtoast.show(type, message, {
+      sticky: true,
+      action: {
+        label: options.actionLabel,
+        run: typeof options.action === 'function' ? options.action : null,
+      },
+    });
+    return;
   }
-  feedbackToast.message = message;
-  feedbackToast.type = type;
-  feedbackToast.actionLabel = options.actionLabel || '';
-  feedbackToast.action = typeof options.action === 'function' ? options.action : null;
-  feedbackToast.visible = true;
-  feedbackToastTimer = window.setTimeout(
-    () => {
-      hideFeedback();
-      feedbackToastTimer = null;
-    },
-    feedbackToast.action ? 5200 : 2400,
-  );
+  bohtoast.show(type, message);
 };
 const showFeedback = (message, type = 'info', options = {}) => {
   const text = String(message || '');
@@ -1469,17 +1438,6 @@ const showFeedback = (message, type = 'info', options = {}) => {
   const ok = showMessageIsland(title, msg, type, options);
   if (ok) return;
   return _originShowFeedback(message, type, options);
-};
-
-const runFeedbackAction = async () => {
-  const action = feedbackToast.action;
-  hideFeedback();
-  if (feedbackToastTimer) {
-    clearTimeout(feedbackToastTimer);
-    feedbackToastTimer = null;
-  }
-  if (!action) return;
-  await action();
 };
 
 const mergeById = (currentRows = [], incomingRows = []) => {
@@ -2082,10 +2040,6 @@ onUnmounted(() => {
   }
   bodyScrollPosition = 0;
 
-  if (feedbackToastTimer) {
-    clearTimeout(feedbackToastTimer);
-    feedbackToastTimer = null;
-  }
   if (realtimeRefreshTimer) {
     clearTimeout(realtimeRefreshTimer);
     realtimeRefreshTimer = null;

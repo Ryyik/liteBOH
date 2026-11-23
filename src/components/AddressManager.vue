@@ -1,16 +1,6 @@
 <template>
   <div class="address-manager" :class="[`variant-${variant}`]">
     <!-- 内部提示 -->
-    <transition name="am-toast-fade">
-      <div
-        v-if="notice.visible"
-        class="am-toast"
-        :class="notice.type"
-        @click="notice.visible = false"
-      >
-        {{ notice.text }}
-      </div>
-    </transition>
 
     <!-- 区块头 -->
     <div v-if="showHeader" class="am-section-head">
@@ -219,6 +209,7 @@
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue';
 import { Plus, Pencil, Trash2, ChevronRight, Sparkles, X } from 'lucide-vue-next';
+import { bohtoast } from '@/components/ui/boh-toast-controller.js';
 import { storeToRefs } from 'pinia';
 import { useAuthStore } from '@/stores/auth';
 import { supabase } from '@/utils/supabase-client.js';
@@ -252,19 +243,11 @@ const dialog = useConfirmDialog();
 const authStore = useAuthStore();
 const { userInfo } = storeToRefs(authStore);
 
-// --- 提示 ---
-let noticeTimer = null;
-const notice = reactive({ visible: false, text: '', type: 'info' });
+// --- 提示（plans/045 阶段 1：走全站 BohToast 通道）---
 const showNotice = (text, type = 'info') => {
-  notice.text = String(text || '').trim();
-  notice.type = type;
-  notice.visible = Boolean(notice.text);
-  if (noticeTimer) clearTimeout(noticeTimer);
-  if (notice.visible) {
-    noticeTimer = setTimeout(() => {
-      notice.visible = false;
-    }, 3500);
-  }
+  const clean = String(text || '').trim();
+  if (!clean) return;
+  bohtoast.show(type, clean);
 };
 
 // --- 状态 ---
@@ -697,44 +680,6 @@ onMounted(async () => {
   font-family:
     -apple-system, BlinkMacSystemFont, 'Inter', 'SF Pro Display', 'PingFang SC', sans-serif;
   box-sizing: border-box;
-}
-
-/* ============================================
-   提示 Toast
-   ============================================ */
-.am-toast {
-  position: fixed;
-  top: 88px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 10000;
-  padding: 12px 26px;
-  border-radius: 999px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.14);
-  max-width: 90vw;
-  text-align: center;
-  background: rgba(29, 29, 31, 0.92);
-  color: #ffffff;
-}
-.am-toast.error {
-  background: rgba(255, 59, 48, 0.94);
-}
-.am-toast.success {
-  background: rgba(52, 199, 89, 0.94);
-}
-.am-toast-fade-enter-active,
-.am-toast-fade-leave-active {
-  transition:
-    opacity 0.3s var(--am-ease),
-    transform 0.3s var(--am-ease);
-}
-.am-toast-fade-enter-from,
-.am-toast-fade-leave-to {
-  opacity: 0;
-  transform: translate(-50%, -12px);
 }
 
 /* ============================================

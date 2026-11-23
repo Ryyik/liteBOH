@@ -205,7 +205,6 @@ button { letter-spacing: 0; }
 .editor-footer > span { color: var(--secondary); font-size: 11px; }
 .selection-empty { grid-column: 2 / -1; min-height: 420px; padding: 30px; text-align: center; }
 .selection-empty h2 { margin: 0; color: var(--text); font-size: 18px; }
-.console-toast { position: fixed; z-index: 50; left: 50%; bottom: 24px; max-width: calc(100vw - 32px); padding: 10px 14px; border-radius: 10px; color: #fff; background: rgba(28,28,30,.84); box-shadow: 0 8px 30px rgba(0,0,0,.2); backdrop-filter: var(--liquid-filter-sm); transform: translateX(-50%); font-size: 13px; }
 .spinning { animation: spin .8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
@@ -240,25 +239,3 @@ button { letter-spacing: 0; }
   .console-toolbar, .glass-panel { background: #fff; backdrop-filter: none; -webkit-backdrop-filter: none; }
 }
 
-/* 控制台 toast 进场（2026-11-04 硬切审计 P2-2）；ShopConsole / HeroConsole 共用本文件 */
-.console-toast {
-  animation: console-toast-in 0.2s var(--ease-out, ease) both;
-}
-
-@keyframes console-toast-in {
-  from {
-    opacity: 0;
-    transform: translateX(-50%) translateY(8px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateX(-50%);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .console-toast {
-    animation: none;
-  }
-}
