@@ -1,5 +1,6 @@
 import { logger } from './logger.js';
 import { hasActiveUpload } from './upload-activity.js';
+import { captureUpdateContinuity } from './update-continuity.js';
 
 // ============================================
 // 独立版本指纹检测器
@@ -23,6 +24,12 @@ const ACTIVE_WINDOW_MS = 5 * 60 * 1000;
 // 页面隐藏超过这个时长后切回，才允许「切回即自动强刷」：短暂切走（回消息、切窗口）
 // 不打断；离开较久再回来时，页面本来就要重新进入，刷新代价最低。
 const AUTO_APPLY_AFTER_HIDDEN_MS = 30 * 1000;
+/* 空闲窗口（2026-11-23 新增，第五条静默通道）：连续这么久没有任何交互 ⇒ 切换构建。
+   20s 的取法：短于「回消息、看一眼别处」的典型离去时长，长于「读一段话、想一下」的
+   停顿 —— 后者用户其实还在这一页上，不该在这时候把它刷掉。 */
+const IDLE_APPLY_MS = 20 * 1000;
+/* 空闲检查的轮询粒度。不发请求，只读 pendingUpdate，所以可以密。 */
+const IDLE_TICK_MS = 3 * 1000;
 const VERSION_URL = './version.json'; // 相对路径，适配任意部署路径
 const RELOAD_TARGET_KEY = 'boh_version_reload_target';
 const UPDATE_QUERY_KEY = '__boh_update';
@@ -32,6 +39,7 @@ const VERSION_REQUEST_TIMEOUT = 10_000;
 const SERVICE_WORKER_UPDATE_TIMEOUT = 10_000;
 
 let intervalId = null;
+let idleApplyTimer = null;
 let visibilityHandler = null;
 let interactionHandler = null;
 /** 最近一次用户交互时间戳（0 = 本会话还没有交互记录） */
@@ -400,7 +408,15 @@ export const forceCleanAndReload = async (targetBuildId = '') => {
   const safeTargetBuildId = await resolveTargetBuildId(targetBuildId);
   const reloadPath = buildVersionReloadPath(window.location.href, safeTargetBuildId);
 
-  logger.info('version', '用户确认更新，正在切换到最新应用壳', {
+  /* 采集现场（2026-11-23）：静默切换能「不让用户看见」的前提就是这一步 ——
+     之后再补就没机会了，整页导航一旦开始，旧文档的滚动位置就没了。
+     放在这里而不是各调用方：五个静默通道（冷启动/切回/导航/空闲/落点自救）
+     全都汇入本函数，只有一处采集才不会有漏。 */
+  if (captureUpdateContinuity()) {
+    logger.debug('version', '已记录当前滚动位置，切换后复原');
+  }
+
+  logger.info('version', '开始切换到最新应用壳', {
     from: currentVersion,
     buildId: currentBuildId,
     target: safeTargetBuildId || '(未知)',
@@ -490,9 +506,6 @@ export const recoverIfStaleBuild = async () => {
   return 'reloading';
 };
 
-// 标记本次会话是否已派发过更新提示，避免重复弹窗打扰
-let updateNotified = false;
-
 /* ============================================
    落地失败的一次性自救（打断「点更新 → 还是弹」的死循环）
    ============================================
@@ -572,6 +585,14 @@ export const recoverStaleLanding = async () => {
     target,
   });
 
+  /* 硬重置同样是「整页重新加载」，用户眼前的位置照样会丢 —— 也要采集现场。
+     2026-11-23 补：这条路径此前**绕过 forceCleanAndReload 直接调 location.replace**，
+     于是成了「更新接续」的一个漏口。
+     ⚠️ 必须带 preserveExisting：走到这里说明**新文档已经加载完**（scrollY=0、
+     docH 只有一屏），重新采集会把上一次记下的真实位置覆盖成 0 —— 实测证据是
+     window.name 抓到 `yAtCapture:0, docH:800`，而切换前用户实际在 600px。 */
+  captureUpdateContinuity({ preserveExisting: true });
+
   await dismantleServiceWorkers();
 
   const cleanUrl = new URL(window.location.href);
@@ -592,9 +613,33 @@ export const recoverStaleLanding = async () => {
    所以把这个状态留在这里，交给 router 的导航守卫在**用户本来就要换页的那一拍**应用。 */
 let pendingUpdate = null;
 
+/* ============================================
+   「发现新构建」之后做什么：只记挂起态，不通知任何人
+   ============================================
+   2026-11-23 口径（用户定稿）：**更新不弹窗、也不做通知**。
+
+   为什么把「通知」整个删掉，而不只是把弹窗换成一个更轻的提示：
+     ① 两个选项的**执行结果完全一样**。用户点「立即更新」走的是
+        forceCleanAndReload(remoteBuildId)，系统在静默窗口做的也是这一句。
+        既然结果相同，问与不问不产生任何决策差异。
+     ② 「新版本」这三个字**不携带决策依据**。用户不知道改了什么、刷新会丢什么，
+        他手里的信息严格少于系统 —— 系统知道此刻有没有上传在跑、焦点在不在输入框、
+        有没有媒体在播、有没有填了没提交的内容。把判断权交给信息更少的一方，
+        不是体贴，是把责任推给用户。
+     ③ 通知本身是**在掩盖副作用**，不是消除副作用。页面跳回顶部、展开的帖子收起、
+        白屏一闪 —— 这些该由状态接续（update-continuity.js）和快照垫层解决；
+        解决了就不需要说，没解决就先说一声只是把「跳了」变成「跳了还多一个框」。
+
+   所以现在的语义是**顺延**（defer），而不是询问（ask）：
+     护栏命中 ⇒ 什么都不做，把挂起态留在 pendingUpdate 里，
+     等下一个静默窗口（切回 / 导航 / 空闲 20s / 冷启动）自然应用。
+     护栏全都是**有明确结束点**的（上传有 begin/end 计数、输入有 blur、
+     播放有 pause/ended），所以「等一会儿」总能等到，不存在永久卡死。
+   ============================================ */
+
 /**
  * 记录「远端有新构建可用」。
- * 与「弹提示」分开：提示是给人看的，本状态是给导航守卫用的，两者生命周期不同。
+ * 与「弹提示」彻底分开：这里只写状态，不产生任何用户可见的东西。
  */
 export const markUpdateAvailable = (remoteVersion, remoteBuildId) => {
   if (!remoteBuildId) return;
@@ -628,10 +673,10 @@ export const applyPendingUpdateBeforeNavigation = () => {
   const target = pendingUpdate?.remoteBuildId;
   if (!target) return false;
   if (!shouldAutoApplyVersion(target, readReloadTarget())) return false;
-  // 与 autoCheck 的四道护栏对齐，这里只需 upload 这一条：导航是用户主动发起的，
-  // 他本来就要离开当前页，typing/editing/media 的顾虑不成立；但上传中断的代价
-  // 照样是全部重传（Cloudinary 不可续传）。返回 false = 不刷新、照常导航，
-  // SPA 内切页不会打断 fetch/XHR，上传会继续跑完。
+  // 导航是用户主动发起的，他本来就要离开当前页 —— typing/editing/media 都不成立。
+  // 只留 upload 这一条：上传中断的代价照旧是全部重传（Cloudinary 不可续传），
+  // 而 SPA 内切页不会打断 fetch/XHR，上传会继续跑完。
+  // 返回 false = 不刷新、照常导航；挂起态留着，等空闲/下一次导航再说。
   if (hasActiveUpload()) return false;
   logger.info('version', '导航时发现挂起的新构建，先切构建再继续', {
     from: currentBuildId,
@@ -642,26 +687,25 @@ export const applyPendingUpdateBeforeNavigation = () => {
 };
 
 /**
- * 通知应用层有新版本可用（由自动轮询/visibilitychange 触发）
- * 通过自定义事件让 PWAUpdateToast 弹出统一对话框，不直接刷新
+ * 记录「远端有新构建可用」，并派发一个**只给诊断用**的事件。
+ *
+ * ⚠️ 这个事件**没有任何 UI 消费方，也不该有**（2026-11-23 定稿：不弹窗、不通知）。
+ * 保留它只为一件事：让探针/测试能观测到「挂起态已建立」这个时刻，而不必去读
+ * 模块内部变量（探针在浏览器里拿不到 ES 模块私有状态）。
+ * 名字刻意从 `boh:update-available` 改成 `boh:update-pending`：
+ * 前者读起来像「有个提示要弹」，后者只陈述「有个切换在排队」。如果哪天又有人
+ * 想在这里挂 UI，请先回去读本文件上方那段「顺延而不是询问」的论证。
  */
-const notifyUpdateAvailable = (remoteVersion, remoteBuildId) => {
+const markUpdatePending = (remoteVersion, remoteBuildId) => {
   markUpdateAvailable(remoteVersion, remoteBuildId);
-  if (updateNotified) {
-    logger.debug('version', '本次会话已派发过更新提示，跳过');
-    return;
-  }
-  updateNotified = true;
-  logger.info('version', '派发 boh:update-available 事件', { remoteVersion, remoteBuildId });
+  logger.info('version', '新构建已排队，等下一个静默窗口应用', {
+    remoteVersion,
+    remoteBuildId,
+    target: pendingUpdate?.remoteBuildId,
+  });
   window.dispatchEvent(
-    new CustomEvent('boh:update-available', {
-      detail: {
-        remoteVersion,
-        remoteBuildId,
-        currentVersion,
-        currentBuildId,
-        message: `发现新版本 ${remoteVersion}，建议立即刷新以获取最新内容。`,
-      },
+    new CustomEvent('boh:update-pending', {
+      detail: { remoteVersion, remoteBuildId, currentVersion, currentBuildId },
     }),
   );
 };
@@ -782,8 +826,8 @@ export const initVersionChecker = () => {
   lastInteractionAt = Date.now();
   idleSkipPending = false;
 
-  // 自动轮询检测：检测到新版本时派发 boh:update-available 事件，
-  // 由 PWAUpdateToast 弹出统一对话框提示用户，不直接强制刷新
+  // 自动轮询检测：发现新构建只**记挂起态**，然后在下一个静默窗口应用。
+  // 这里没有任何「通知用户」的代码，理由见上方「顺延而不是询问」那段。
   let hiddenAt = 0; // 页面进入后台的时刻（0 = 当前可见）
   const isTypingInForm = (el) => {
     if (!el) return false;
@@ -794,8 +838,7 @@ export const initVersionChecker = () => {
   };
 
   /**
-   * 是否有正在播放的媒体：自动强刷会打断播放（尤其是用户刚切回来继续看的那一支），
-   * 这种场景一律退化成「弹提示，由用户决定何时更新」。
+   * 是否有正在播放的媒体：切换构建会打断播放（尤其是用户刚切回来继续看的那一支）。
    * 注意：跨域 iframe 内的播放器查不到，只能覆盖页面内 <video>/<audio>。
    */
   const isMediaPlaying = () => {
@@ -807,53 +850,71 @@ export const initVersionChecker = () => {
     );
   };
 
-  const autoCheck = ({ autoApply = false } = {}) => {
+  /**
+   * 当前这一拍能不能安全地切换构建。返回**挡路的原因**，'' = 可以切。
+   *
+   * 抽成单一函数是这次改动的关键：判定只有一份，五个静默窗口（冷启动 / 切回 /
+   * 导航 / 空闲 / 挂机补查）全部调它。「一处判、多处用」替代了原来「每处各写一遍，
+   * 写漏一个就漏一道护栏」的写法。
+   *
+   * 四道护栏的语义已从「弹提示问用户」改成「顺延到下一个窗口」：
+   *   upload  —— 有文件正在上传（计数式 begin/end，有明确结束点）
+   *   typing  —— 焦点还在输入框里（blur 即结束）
+   *   media   —— 有媒体在播（pause/ended 即结束）
+   *   editing —— 填过内容但焦点已离开（导航/清空即结束；没有焦点信号，靠 input 追踪）
+   *
+   * upload 排第一位：它是唯一**不可恢复**的一种。typing/editing 丢的是 DOM 里的
+   * 文本（多数表单还有草稿），media 丢的只是播放进度；而上传一旦中断，Cloudinary
+   * 的 signed/unsigned 都不支持断点续传，用户必须从第一张重新传。
+   */
+  const blockReason = () => {
+    if (hasActiveUpload()) return 'upload';
+    if (isTypingInForm(document.activeElement)) return 'typing';
+    if (isMediaPlaying()) return 'media';
+    if (hasUnsavedEditableContent()) return 'editing';
+    return '';
+  };
+
+  /**
+   * 尝试应用一个已知的新构建。**唯一**的静默切换入口。
+   * @returns {Promise<boolean>} true = 已发起整页切换（调用方不要再继续）
+   */
+  const tryApply = async (remoteBuildId, { source } = {}) => {
+    // 防循环：同一目标本会话只试一次（CDN 未切换时会一直报「有新版本」，不闸就无限刷）
+    if (!shouldAutoApplyVersion(remoteBuildId, readReloadTarget())) {
+      logger.debug('version', '该目标构建本会话已尝试过，不再重试', remoteBuildId);
+      return false;
+    }
+    const reason = blockReason();
+    if (reason) {
+      logger.info('version', '有未完成的操作，本次切换顺延到下一个静默窗口', {
+        reason,
+        source,
+        remoteBuildId,
+      });
+      return false;
+    }
+    logger.info('version', '静默窗口到手，切换构建', {
+      currentBuildId,
+      remoteBuildId,
+      source,
+    });
+    await forceCleanAndReload(remoteBuildId);
+    return true;
+  };
+
+  const autoCheck = ({ autoApply = false, source = 'poll' } = {}) => {
     if (automaticCheckInFlight) return automaticCheckInFlight;
 
     automaticCheckInFlight = (async () => {
       try {
         const result = await checkVersion();
-        if (result.hasUpdate) {
-          const attemptedTarget = readReloadTarget();
-          if (autoApply && shouldAutoApplyVersion(result.remoteBuildId, attemptedTarget)) {
-            // 自动强刷的四道护栏，任一命中都退化成「弹提示，由用户决定何时更新」：
-            //   upload  —— 有文件正在上传（见下）
-            //   typing  —— 焦点还在输入框里（正在打字）
-            //   media   —— 有媒体在播（切回继续看的场景，刷了等于掐掉内容）
-            //   editing —— 用户填过内容但焦点已离开（点了别处 / 切预览），
-            //              这类没有焦点信号，只能靠 input 事件追踪兜住
-            //
-            // upload 排第一位是有原因的：它是唯一**不可恢复**的一种。typing/editing
-            // 丢掉的是 DOM 里的文本（多数表单还有草稿或暂存），media 丢的只是播放
-            // 进度；而上传一旦中断，Cloudinary 的 signed/unsigned 都不支持断点续传，
-            // 用户必须从第一张重新传，中断前的分片还会留下孤儿资源。
-            // 这个场景原来的三道护栏恰好都覆盖不到：只传图、一个字没打的（相册补图、
-            // Cloud+ 传素材、换封面），activeElement 是 body、没有脏输入、没有媒体在播。
-            const blockedBy = hasActiveUpload()
-              ? 'upload'
-              : isTypingInForm(document.activeElement)
-                ? 'typing'
-                : isMediaPlaying()
-                  ? 'media'
-                  : hasUnsavedEditableContent()
-                    ? 'editing'
-                    : '';
-            if (blockedBy) {
-              logger.info('version', '用户正在输入/播放/上传/有未提交内容，跳过本次自动强刷', {
-                reason: blockedBy,
-                remoteBuildId: result.remoteBuildId,
-              });
-            } else {
-              logger.info('version', '页面启动时发现新构建，自动清理旧缓存并刷新', {
-                currentBuildId,
-                remoteBuildId: result.remoteBuildId,
-              });
-              await forceCleanAndReload(result.remoteBuildId);
-              return;
-            }
-          }
-          notifyUpdateAvailable(result.remoteVersion, result.remoteBuildId);
-        }
+        if (!result.hasUpdate) return;
+        if (autoApply && (await tryApply(result.remoteBuildId, { source }))) return;
+        // 没能立刻应用（护栏挡着 / 防循环闸门）：只记挂起态，等下一个窗口。
+        // 注意这里**不派发任何提示** —— markUpdatePending 只是诊断信号，
+        // 全站没有任何组件监听它（2026-11-23 定稿，见该函数注释）。
+        markUpdatePending(result.remoteVersion, result.remoteBuildId);
       } catch (err) {
         logger.warn('version', '自动版本检查异常', err?.message || err);
       }
@@ -864,6 +925,26 @@ export const initVersionChecker = () => {
     return automaticCheckInFlight;
   };
 
+  /**
+   * 空闲窗口：用户连续 `IDLE_APPLY_MS` 没有任何交互、页面在前台、且挂着待应用的
+   * 新构建 ⇒ 静默切。
+   *
+   * 这是本次新增的第五条通道，补的是原来最大的空档：用户停在某一页持续操作
+   * （不导航、不切走、也不打字）时，四条通道全都轮不到，旧构建会一直跑到他自己撞上
+   * 已删除的 hash 资源为止。加了它，「页面开着不动」也终于是个切换时机。
+   *
+   * 为什么判「无交互」而不是判「无操作」：pointerdown/keydown 的沉默是最廉价可靠的
+   * 信号，且与挂机降频用的信号完全一致（ACTIVE_WINDOW_MS）。它和护栏是**叠加**关系：
+   * 沉默 20s 不代表没有上传在跑（上传是异步的，用户可以点完就走），所以 tryApply
+   * 里照样过全部四道护栏。
+   */
+  const maybeApplyWhenIdle = () => {
+    if (!pendingUpdate?.remoteBuildId) return;
+    if (document.visibilityState !== 'visible') return;
+    if (blockReason()) return;
+    void tryApply(pendingUpdate.remoteBuildId, { source: 'idle' });
+  };
+
   // 页面启动时若发现自己属于旧构建，自动应用一次新构建。同一目标 buildId
   // 只尝试一次，CDN 尚未完成切换时会退回更新提示，避免刷新循环。
   //
@@ -871,8 +952,8 @@ export const initVersionChecker = () => {
   // 「同一目标只试一次」的护栏会让它退化成反复弹窗 —— 由 recoverStaleLanding
   // 做一次性硬重置彻底跳出循环（详见该函数注释）。
   void (async () => {
-    if (await recoverStaleLanding()) return; // 已发起硬重置导航，本次不再检查/弹窗
-    await autoCheck({ autoApply: true });
+    if (await recoverStaleLanding()) return; // 已发起硬重置导航，本次不再检查
+    await autoCheck({ autoApply: true, source: 'boot' });
   })();
 
   // 定时轮询
@@ -884,22 +965,37 @@ export const initVersionChecker = () => {
       idleSkipPending = true;
       return;
     }
-    autoCheck();
+    autoCheck({ source: 'poll' });
   }, CHECK_INTERVAL);
+
+  /* ── 第五条通道：空闲窗口 ─────────────────────────────────────────
+     用户连续 IDLE_APPLY_MS 没有任何交互 ⇒ 就是「他现在没在用」，切构建代价最低。
+     这条补的是原来最大的空档：人停在某一页持续操作（不导航、不切走、也不打字）时，
+     另外四条通道全都轮不到，旧构建会一直跑到他自己撞上已删除的 hash 资源为止。
+
+     定时器刻意**不复用 CHECK_INTERVAL**：轮询间隔 90s 是为省 version.json 回源，
+     而这里不发任何请求（只在已挂起时动手），所以可以密得多。3s 一跳 = 20s 沉默
+     后最多 3s 内就切走，用户感知不到「卡在旧版本」。
+     ⚠️ 它只在 pendingUpdate 存在时才真正干活，没有挂起更新时几乎零开销。 */
+  idleApplyTimer = setInterval(() => {
+    if (!lastInteractionAt) return;
+    if (Date.now() - lastInteractionAt < IDLE_APPLY_MS) return;
+    maybeApplyWhenIdle();
+  }, IDLE_TICK_MS);
 
   // 记交互：挂机降频后，用户一碰页面就把「跳过的那次检查」补回来
   const markInteraction = () => {
     lastInteractionAt = Date.now();
     if (!idleSkipPending) return;
     idleSkipPending = false;
-    autoCheck();
+    autoCheck({ source: 'resume' });
   };
   interactionHandler = markInteraction;
   document.addEventListener('pointerdown', interactionHandler, true);
   document.addEventListener('keydown', interactionHandler, true);
 
   // 页面从隐藏切换回可见时立即检查；离开超过 AUTO_APPLY_AFTER_HIDDEN_MS 才允许
-  // 自动强刷（短暂切走不打断），刷新由 autoCheck 内的护栏最终裁决。
+  // 自动强刷（短暂切走不打断），刷新由 tryApply 内的护栏最终裁决。
   visibilityHandler = () => {
     if (document.visibilityState === 'visible') {
       // 切回来的这一拍本身就是活跃信号，定时轮询不必再等下一个交互才恢复
@@ -907,7 +1003,7 @@ export const initVersionChecker = () => {
       idleSkipPending = false;
       const awayMs = hiddenAt ? Date.now() - hiddenAt : 0;
       hiddenAt = 0;
-      autoCheck({ autoApply: awayMs >= AUTO_APPLY_AFTER_HIDDEN_MS });
+      autoCheck({ autoApply: awayMs >= AUTO_APPLY_AFTER_HIDDEN_MS, source: 'visibility' });
       return;
     }
     hiddenAt = Date.now();
@@ -920,7 +1016,8 @@ export const initVersionChecker = () => {
     'version',
     `版本检测器已启动（前台活跃时每 ${CHECK_INTERVAL / 1000} 秒检查一次，` +
       `连续 ${ACTIVE_WINDOW_MS / 60000} 分钟无交互则暂停轮询；` +
-      `离开超过 ${AUTO_APPLY_AFTER_HIDDEN_MS / 1000} 秒后切回会自动应用）`,
+      `离开超过 ${AUTO_APPLY_AFTER_HIDDEN_MS / 1000} 秒后切回会自动应用；` +
+      `静默 ${IDLE_APPLY_MS / 1000} 秒也会应用）`,
   );
 };
 
@@ -931,6 +1028,10 @@ export const destroyVersionChecker = () => {
   if (intervalId) {
     clearInterval(intervalId);
     intervalId = null;
+  }
+  if (idleApplyTimer) {
+    clearInterval(idleApplyTimer);
+    idleApplyTimer = null;
   }
   if (visibilityHandler) {
     document.removeEventListener('visibilitychange', visibilityHandler);

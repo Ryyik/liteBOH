@@ -64,6 +64,7 @@ import { logger } from './utils/logger.js';
 import { setupVitePreloadErrorRecovery } from './utils/vite-preload-recovery.js';
 import { initImageOptimizer } from './utils/image-optimizer.js';
 import { initVersionChecker } from './utils/version-checker.js';
+import { resumeUpdateContinuity } from './utils/update-continuity.js';
 import { applyPerformanceProfile, watchPerformanceProfile } from './utils/performance-profile.js';
 import { initKeyboardInset } from './composables/useKeyboardInset.js';
 
@@ -154,6 +155,26 @@ if (typeof window !== 'undefined') {
 
   initMonitoring();
 
+  // 边缘落点采样：**动态引入 + 空闲期执行**，绝不进首屏关键路径。
+  // 刻意不用静态 import —— 静态引入会把它算进入口闭包，而首屏预算只剩 0.2KB
+  // 余量（check:first-paint-budget）。探针与首屏无关，晚几秒没有任何损失。
+  // 目的与约束见 utils/edge-probe.js 文件头；数据落点见
+  // supabase/migrations/2026112301_edge_probe_events.sql。
+  const scheduleEdgeProbe = () => {
+    const boot = () =>
+      import('./utils/edge-probe.js').then(({ initEdgeProbe }) => initEdgeProbe()).catch(() => {});
+    if (typeof window.requestIdleCallback === 'function') {
+      window.requestIdleCallback(boot, { timeout: 6000 });
+    } else {
+      setTimeout(boot, 4000);
+    }
+  };
+  if (document.readyState === 'complete') {
+    scheduleEdgeProbe();
+  } else {
+    window.addEventListener('load', scheduleEdgeProbe, { once: true });
+  }
+
   // Supabase API 预连接（运行时从环境变量动态注入）
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
   if (supabaseUrl) {
@@ -179,7 +200,8 @@ if (typeof window !== 'undefined') {
   // ============================================
   // PWA 更新检测机制
   // 版本指纹由 version-checker 负责：启动时发现旧构建会自动更新一次，
-  // 运行期发现新版本则由 PWAUpdateToast 提示。这里只负责让 sw.js 及时更新。
+  // 运行期发现新版本则在下一个静默窗口（切回 / 导航 / 空闲）自动应用，
+  // **不弹窗也不通知**。这里只负责让 sw.js 及时更新。
   // ============================================
   if ('serviceWorker' in navigator && !import.meta.env.DEV) {
     // 监听 Service Worker 更新事件
@@ -199,18 +221,19 @@ if (typeof window !== 'undefined') {
         }
       });
 
-      // SW 检测到新版本安装完成时，派发统一事件供 PWAUpdateToast 弹窗
-      // （作为 version-checker 的补充路径；skipWaiting:true 下新 SW 会立即激活）
-      const dispatchUpdateAvailable = () => {
-        window.dispatchEvent(
-          new CustomEvent('boh:update-available', {
-            detail: { message: '发现新版本，建议立即刷新以获取最新内容。' },
-          }),
-        );
+      /* SW 层只负责「让新 sw.js 被及时拉下来」，**不再派发任何提示事件**。
+         2026-11-23 口径：更新不通知用户（详见 version-checker.js 的护栏段注释）。
+         此前这里会 dispatch `boh:update-available` 触发全屏模态弹窗 —— 那是把
+         「系统自己能判断的事」推给信息更少的用户，而两个选项最终都调同一个
+         forceCleanAndReload，问与不问的执行结果完全一致。
+         现在新 SW 激活后由 version-checker 的轮询/可见性检查通过 version.json
+         建立挂起态，再在下一个静默窗口应用；SW 这条路径只补一句日志便于归因。 */
+      const noteWorkerInstalled = (reason) => {
+        logger.info('pwa', reason);
       };
 
       if (registration.waiting) {
-        dispatchUpdateAvailable();
+        noteWorkerInstalled('已有待激活的新 Service Worker（等 version.json 轮询建立挂起态）');
       }
 
       registration.addEventListener('updatefound', () => {
@@ -218,17 +241,18 @@ if (typeof window !== 'undefined') {
         if (newWorker) {
           newWorker.addEventListener('statechange', () => {
             if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-              logger.info('pwa', '新版本 SW 已安装，派发更新事件');
-              dispatchUpdateAvailable();
+              noteWorkerInstalled('新版本 SW 已安装（等 version.json 轮询建立挂起态）');
             }
           });
         }
       });
     });
 
-    // controllerchange 不再自动 reload：新 SW 激活后由用户在弹窗中确认刷新
+    /* controllerchange **不自动 reload**，也不提示：新 SW 激活只意味着「应用壳可以
+       换新」，真正何时切换由 version-checker 的静默窗口决定（它掌握上传/输入/媒体
+       这些护栏状态，这里看不到）。 */
     navigator.serviceWorker.addEventListener('controllerchange', () => {
-      logger.info('pwa', '新 Service Worker 已激活，等待用户在弹窗中确认刷新');
+      logger.info('pwa', '新 Service Worker 已激活，切换时机交给 version-checker 的静默窗口');
     });
   }
 
@@ -309,6 +333,14 @@ const authStore = useAuthStore();
 const bagStore = useBagStore();
 
 app.mount('#app');
+
+/* 切换构建后的现场接续（2026-11-23）：趁上一次整页刷新前记下的滚动位置，在这里复原。
+   必须在 mount 之后调 —— 恢复逻辑要查 DOM 里的滚动容器，早于挂载则什么都找不到。
+   顺序也刻意放在 initVersionChecker 之前：接续是「上一次刷新的收尾」，而版本检查
+   是「下一次刷新的开头」，收尾没做完就开新局会让两者抢同一份 sessionStorage 状态。 */
+if (resumeUpdateContinuity()) {
+  logger.info('version', '已复原上次切换构建前的滚动位置');
+}
 
 // 非首屏维护任务延后到首个可交互帧之后，避免与首页英雄区竞争主线程和网络。
 const schedulePostMountMaintenance = () => {

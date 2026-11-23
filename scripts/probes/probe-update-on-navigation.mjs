@@ -1,11 +1,15 @@
 /**
  * probe-update-on-navigation.mjs —— 「导航时先切构建」的端到端验收
  *
- * 背景（2026-10-13）：用户一直开着页面时，version-checker 的轮询/可见性检查发现新构建
- * 只弹 toast、不刷新，页面继续跑旧构建；而他下一次点导航正好去请求**已被新部署删掉的
- * hash 资源**（实测：点底栏毫无反应 / 半样式，只能等恢复链整页兜）。
+ * 背景（2026-10-13）：用户一直开着页面时，version-checker 的轮询/可见性检查发现新构建，
+ * 页面继续跑旧构建；而他下一次点导航正好去请求**已被新部署删掉的 hash 资源**
+ * （实测：点底栏毫无反应 / 半样式，只能等恢复链整页兜）。
  * 修法是把强刷放到「用户本来就要换页的那一拍」（router.beforeEach 最前面），
  * 同一目标 buildId 只试一次（沿用 boh_version_reload_target 护栏）。
+ *
+ * 2026-11-23 跟进：弹窗与「发现新版本」提示已整体删除，发现新构建只记挂起态。
+ * 观测点从 `boh:update-available` 换成 `boh:update-pending` —— 后者是**纯诊断信号**，
+ * 全站没有任何 UI 监听它（改名就是为了让「想挂 UI 的人」先停下来读一遍注释）。
  *
  * 本探针要证四件事：
  *   ① 远端与当前一致时，导航**不**触发任何刷新（不能影响正常导航）；
@@ -61,7 +65,9 @@ try {
 
   await page.addInitScript(() => {
     window.__bohUpdateEvents = [];
-    window.addEventListener('boh:update-available', (e) => {
+    // 2026-11-23：事件从 boh:update-available 改名为 boh:update-pending。
+    // 它只用来观测「挂起态已建立」，没有任何 UI 消费方（弹窗已删）。
+    window.addEventListener('boh:update-pending', (e) => {
       window.__bohUpdateEvents.push(e?.detail?.remoteBuildId || 'unknown');
     });
   });

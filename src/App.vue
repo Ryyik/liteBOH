@@ -46,7 +46,6 @@ const BohPetBlock = createPanelAsync(() => import('@/components/BohPetBlock.vue'
   silent: true,
 });
 import { useConfirmDialog } from '@/composables/useConfirmDialog.js';
-import PWAUpdateToast from '@/components/PWAUpdateToast/index.vue';
 import PostDetailModal from './views/PostDetail/PostDetailModal.vue';
 import {
   restorePostDetailModalFromHistory,
@@ -255,7 +254,7 @@ const LoginView = createPanelAsync(() => import('./views/Login/index.vue'), {
 });
 const showToast = computed(() => notificationStoreRef.value?.showToast || false);
 
-// plans/038 P3：AI 岛统一为 App 级 BohIsland（旧 useGlobalAiOverlay/BOHAIIsland 已退场），
+// plans/038 P3：AI 岛统一为 App 级 BohIsland（旧 useGlobalAiOverlay/BolekIsland 已退场），
 // ⌘K 快捷键经此改线到新岛（偏好里的 shortcutEnabled/shortcut 设置沿用）。
 const bohIsland = useBohIsland();
 const { preferences: globalAiPreferences } = useGlobalAiPreferences();
@@ -451,9 +450,16 @@ const showGlobalNavbar = computed(() => isGlobalNavbarVisible(route, homeGateScr
 
   <!-- BohIsland（plans/038）：搜索 + 「问一句」的独立悬浮岛。Teleport 到 body、
        App 级常驻（壳同步渲染、内容懒加载）—— 不依赖导航栏存在，
-       hideNavbar / user-space 子视图等路由照样可用；`/` 快捷键归它管 -->
-  <BohIsland />
-  <BohPetBlock />
+       hideNavbar / user-space 子视图等路由照样可用；`/` 快捷键归它管。
+       hideAmbient（2026-11-23）：活动沉浸页（圣诞树）把树本身当主体，岛退成悬浮球
+       会压掉树冠，宠物还会飘出「我在。」台词 ⇒ 这类路由整层挂件退出。 -->
+  <BohIsland v-if="!route.meta.hideAmbient" />
+  <!-- 全局挂件「小方」：可用设置页 / 右键菜单关掉（偏好 petEnabled）。
+       关掉时**连懒加载 chunk 都不下载** —— v-if 让 createPanelAsync 整个不实例化，
+       比「渲染出来但隐藏」省一次请求与一整个 canvas 引擎。 -->
+  <BohPetBlock
+    v-if="globalAiPreferences.petEnabled && !route.meta.hideAmbient && !route.meta.hidePet"
+  />
 
   <!-- 首屏加载态：路由就绪前替代主体空白（骨架样式来自 index.html 内联样式） -->
   <div
@@ -602,7 +608,7 @@ const showGlobalNavbar = computed(() => isGlobalNavbarVisible(route, homeGateScr
                   与本 bug 的表现一模一样，所以这条由单测 + 探针双重守。
                 · `:key` 必须按「缓存 / 不缓存」分开：缓存页用 name（同页换 query 不重建），
                   不缓存页用 path（/news/1 → /news/2 要重建，见下方长注释）。
-                · `:max` 是兜底而不是策略：白名单现有 **6** 条（Home / Shop / BohAiChat /
+                · `:max` 是兜底而不是策略：白名单现有 **6** 条（Home / Shop / BolekChat /
                   UserSpace / CloudPlus / BetaPreview），8 = 6 + 2 格余量。
                   ⚠️ 别把它调回 6：那就正好等于当前席位数，再加一页就会静默触发 LRU 淘汰
                   （被淘汰的页不再缓存，且没有任何报错）。
@@ -671,9 +677,6 @@ const showGlobalNavbar = computed(() => isGlobalNavbarVisible(route, homeGateScr
       </div>
     </div>
   </Transition>
-
-  <!-- PWA 更新提示（非阻塞） -->
-  <PWAUpdateToast />
 
   <!-- 账户绑定引导（底部弹窗）：未注册通行密钥时首次进站提示，可「不再提醒」 -->
   <AccountBindPrompt />
