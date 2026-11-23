@@ -35,6 +35,7 @@
 | 订阅权益 / 配额 | `probe-subscription-benefits.mjs` | 49 |
 | **商城商品详情的滚动归属**（详情打开期间背后列表必须一动不动；竖屏详情内容区自己能滚；关闭后页面恢复可滚；上锁不引起横向位移；抽奖/订单分区不误上锁） | `probe-shop-detail-scroll.mjs` | 11 |
 | **BohModal 试点宿主**（HeroConsole「从抽奖活动选择」：层级=2147482600 / 520 宽 / flush / 搜索过滤 / 滚锁在 html / Esc 关闭释放 / 竖屏退化成贴底 Sheet + grab 条 / 暗色浅字） | `probe-hero-lottery-picker.mjs` | 19 |
+| **商城规格面板**（BohModal 第二家族：560 宽 / #head 保住 kicker+关闭钮 / 既有规格回填 / 新增一行 / 重复值校验上屏且不关面板 / 取消释放滚锁 / 竖屏 Sheet / 暗色输入可读；入口 `/admin/shop-editor` → 卡片「规格 N」） | `probe-shop-specs-sheet.mjs` | 20 |
 | **商城大屏布局**（超大屏内容限宽 1480 居中（真源 `--page-content-max`）+ 商品/抽奖 auto-fill 自适应增列（2560→5 列 ~283px）+ 订单/袋/地址 760 面板居中；1440 档回归旧三列口径、竖屏 2 列不动；含反证） | `probe-large-screen-layout.mjs` | 17 |
 | 竖屏导航菜单的接缝与内部几何（一级/二级/三级 + 窄横屏档） | `probe-nav-mobile-menu.mjs` | 48 |
 | **数据管理面板「按功能名找入口」**（侧栏搜「补发」→ 积分发放 / 订阅发放；独立控制台页也能搜到；↵ 直接打开；⌘K 与侧栏共用同一份索引；同一个模块不在「功能」「模块」两组重复出现）。功能清单唯一真源 `src/views/DataManagement/config/function-index.js`（别名表也在里面），纯逻辑由 `tests/unit/admin-function-index.test.js` 覆盖 | `probe-admin-function-search.mjs` | 16 |
@@ -250,11 +251,12 @@ F5 后不得掉回整页详情：A 横屏刷新仍是弹窗 / B 仍是同一帖 
 | --- | --- | --- |
 | `probe-shop-detail-scroll.mjs` | — | 探针：商品详情的「滚动归属」（2026-11-10 用户报障「商城详情的滚动还是在滚动商品列表页」）。真因是页面滚动发生在 `html` 上（`html{overflow-y:auto!important}` + `body{overflow-y:visible!important}`），而代码只锁 `body` 的 inline 样式 ⇒ 等于没锁。A 组（横屏）钉：打开即锁根元素 / 封面·遮罩·内容三处滚轮都不带动背后列表 / 上锁不横向位移 / 关闭后恢复可滚；B 组（竖屏）钉内容区自己能滚且页面不动；C 组钉抽奖·订单分区没有误上锁。**反证**：撤掉 `useBodyScrollLock` 里锁 `documentElement` 那几行 → A1–A3 立刻红（2026-11-10 实测） |
 
-### BohModal 浮层体系（1）
+### BohModal 浮层体系（2）
 
 | 文件 | npm script | 说明 |
 | --- | --- | --- |
 | `probe-hero-lottery-picker.mjs` | — | **BohModal 首批试点（19，2026-11-23 plans/045 阶段 2）**：HeroConsole「从抽奖活动选择」从手写 Teleport+遮罩迁到 `components/ui/BohModal.vue`。A 组（1280×900）钉：overlay `z-index === 2147482600`（`--boh-z-modal`，必须落在详情层 2147482400 之上、图片查看器 2147483000 之下）、`max-width="520px"` 生效、`flush` 后 body 内衬 0、搜索过滤、**滚锁判据读 `documentElement`**（本站真滚动容器是 html，body 被 `visible !important` 钉死）、Esc 关闭并释放锁；B 组（390×844）钉退化成贴底 Sheet + grab 条；C 组钉暗色下标题/候选是浅字、弹层底不是纯白。⚠️ 两个假红来源：① `boh-pop` 进场 0.96→1 的 scale 未落定就量宽高（520 量成 504、390 量成 378），统一等 ≥350ms；② 候选列表异步拉取，几何断言前要先等条目到位。**反证**：去掉 `max-width="520px"` → A3 当场 FAIL（回到默认 420，2026-11-23 实测） |
+| `probe-shop-specs-sheet.mjs` | — | **商城规格面板（20，BohModal 第二家族）**：`/admin/shop-editor` 注入就地编辑后点卡片「规格 N」。A 组钉层级/560 宽/#head 的 kicker+关闭钮/两条既有规格回填/新增一行/重复值校验上屏且面板不关/取消关闭后滚锁释放；B 组钉竖屏贴底 Sheet；C 组钉暗色标题与输入是浅字、输入框非纯白。⚠️ 焦点坑：陷阱在 overlay mounted 的 rAF 里把焦点给关闭钮，本面板的 watcher rAF 更早注册 ⇒ 必须**双 rAF**才抢得回输入框（实测单 rAF 仍停在 `BUTTON.specs-close`）。**反证**：去掉 `max-width="560px"` → A2 FAIL（420） |
 
 ### 数据管理面板 / RLS / 权限（9）
 

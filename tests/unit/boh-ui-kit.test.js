@@ -233,6 +233,37 @@ describe('BohModal · 试点宿主接线（HeroConsole 抽奖选择器）', () =
   });
 });
 
+/* 第二家族（Shop 规格面板）：同一套壳，但用 #head / #footer 槽保住 kicker + 双按钮底栏。
+   守卫同样只锁「接线」，不锁排版细节。 */
+describe('BohModal · 商城规格面板接线（ProductSpecsSheet）', () => {
+  const src = () => squeezeSource(stripComments(read('src/views/Shop/ProductSpecsSheet.vue')));
+
+  it('壳走 BohModal，头部与底栏走槽位', () => {
+    const code = src();
+    expect(code).toContain('BohModal');
+    expect(code).toContain('v-model="modalOpen"');
+    expect(code).toContain('max-width="560px"');
+    expect(code).toContain('template #head');
+    expect(code).toContain('template #footer');
+  });
+
+  it('关闭统一走 requestClose（saving 闸门只此一处）', () => {
+    const code = src();
+    expect(code).toContain('const modalOpen = computed');
+    expect(code).toContain('requestClose');
+    // 组件级 Esc 监听已交给焦点陷阱，别再手写一份
+    expect(code).not.toContain("addEventListener('keydown'");
+  });
+
+  it('旧壳（Teleport/遮罩/panel/过渡名）不再回来', () => {
+    const code = src();
+    expect(code).not.toContain('Teleport');
+    expect(code).not.toContain('specs-root');
+    expect(code).not.toContain('specs-panel');
+    expect(code).not.toContain('specs-sheet-enter');
+  });
+});
+
 describe('BohToastHost · 渲染层守卫', () => {
   it('消费单例 bohtoast + aria-live + TransitionGroup 预设', () => {
     const src = hostSrc();
