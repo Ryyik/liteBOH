@@ -80,7 +80,13 @@ const submitState = (page) =>
     };
   });
 
-const browser = await chromium.launch({ args: ['--no-sandbox'] });
+/* 与其它 Shop 探针一致：走系统 Chrome + 直连代理。
+   本机 Playwright 的 chromium_headless_shell 不一定装了，裸 launch() 会直接抛
+   「Executable doesn't exist」；PROBE_CHANNEL 可覆盖。 */
+const browser = await chromium.launch({
+  channel: process.env.PROBE_CHANNEL || 'chrome',
+  args: ['--no-sandbox', '--no-proxy-server', '--proxy-server=direct://', '--proxy-bypass-list=*'],
+});
 
 // ---------- A) 竖屏：整页形态 ----------
 {
@@ -271,6 +277,226 @@ const browser = await chromium.launch({ args: ['--no-sandbox'] });
       (await page.isVisible('.payment-success-secondary')),
   );
   check('F5 写明后续步骤', text.includes('管理员确认') && text.includes('备货寄出'));
+  await ctx.close();
+}
+
+// ---------- G) 结果页形态（2026-11-23 迁 BohModal 第五家族） ----------
+// F 组只测话术与出口；这一组测**壳契约与分区**，那是这份弹窗最容易回归的地方：
+// ① 卡片（动画本体）与关闭钮必须钉住不动，只有文字滚 —— 2026-11-10 用户报障
+//    「结算动画全部飘到页面外面」的修法就是这条分区，迁壳时最容易被摊平掉；
+// ② 窄屏是贴底 Sheet、横屏是居中弹窗（与 BohModal 既有口径一致）；
+// ③ 标题吃的是 --boh-text-primary，不是壳 body 的 --liquid-text-secondary
+//    （迁移时踩过：标题一度回落成 rgb(110,110,115) 中灰，截图才看得出来）。
+const openResult = async (page) => {
+  await page.evaluate(() => {
+    const st = document.querySelector('.store-page').__vueParentComponent.setupState;
+    st.userInfo.points = 1145;
+    st.paymentSuccess = {
+      orderNo: 'BOH20261103220218',
+      paymentSummary: '55 积分 + ¥11.90',
+      itemSummary: '围巾小狗 等 2 件',
+      shippingTo: '张三 · 江苏省苏州市',
+      emailState: 'sent',
+    };
+  });
+  await page.waitForTimeout(2600); // 等卡片翻转 + 文字 reveal 落定
+};
+
+// G1–G9：竖屏（贴底 Sheet + 分区 + 滚动行为）
+{
+  const ctx = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    isMobile: true,
+    hasTouch: true,
+  });
+  const page = await ctx.newPage();
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(String(e)));
+  await bootShop(page, { openCheckout: false });
+  await openResult(page);
+
+  const geo = await page.evaluate(() => {
+    const dlg = document.querySelector('.boh-modal__dialog');
+    const body = document.querySelector('.boh-modal__body');
+    const r = dlg.getBoundingClientRect();
+    return {
+      x: Math.round(r.x),
+      y: Math.round(r.y),
+      w: Math.round(r.width),
+      bottom: Math.round(r.bottom),
+      radius: getComputedStyle(dlg).borderTopLeftRadius,
+      grab: getComputedStyle(document.querySelector('.boh-modal__grab')).display,
+      z: Number(getComputedStyle(document.querySelector('.boh-modal__overlay')).zIndex),
+      closeInHead: !!document.querySelector('.boh-modal__head .payment-success-close'),
+      headCount: document.querySelectorAll('.boh-modal__head').length,
+      scrollable: body.scrollHeight > body.clientHeight + 2,
+      scrollRatio: `${body.scrollHeight}/${body.clientHeight}`,
+      bodyOverflow: getComputedStyle(body).overflowY,
+    };
+  });
+  check(
+    'G1 竖屏贴底 Sheet（满宽 + 贴底）',
+    geo.x === 0 && geo.w === 390 && Math.abs(geo.bottom - 844) <= 1,
+    JSON.stringify(geo),
+  );
+  check('G2 贴底形态有 grab 条', geo.grab !== 'none', geo.grab);
+  check('G3 层级读 --boh-z-modal（压过导航 9999 与灵动岛）', geo.z === 2147482600, `z=${geo.z}`);
+  check('G4 关闭钮在 #head 槽内（不随文字滚走）', geo.closeInHead === true);
+  check(
+    'G5 唯一滚动体是壳的 body（卡片钉住、只滚文字）',
+    geo.scrollable === true && geo.bodyOverflow === 'auto',
+    JSON.stringify({
+      scrollable: geo.scrollable,
+      ratio: geo.scrollRatio,
+      overflow: geo.bodyOverflow,
+    }),
+  );
+
+  // 滚到底：卡片与关闭钮必须仍在原位（这是那条报障的判据）
+  const snapshot = () =>
+    page.evaluate(() => {
+      const card = document.querySelector('.payment-card-scene');
+      const close = document.querySelector('.payment-success-close');
+      const body = document.querySelector('.boh-modal__body');
+      if (!card || !close || !body) return null;
+      const c = card.getBoundingClientRect();
+      const x = close.getBoundingClientRect();
+      return { cardTop: Math.round(c.top), closeTop: Math.round(x.top) };
+    });
+  const before = await snapshot();
+  await page.evaluate(() => {
+    const body = document.querySelector('.boh-modal__body');
+    if (body) body.scrollTop = body.scrollHeight;
+  });
+  await page.waitForTimeout(400);
+  const after = await snapshot();
+  /* 判据：滚到底后两个元素的位置**完全不变**。
+     元素缺失时给 null → 直接判红（而不是让探针崩掉）：反证时要能看到是哪条红的。 */
+  check(
+    'G6 滚到底后卡片与关闭钮原地不动（2026-11-10 报障的回归判据）',
+    Boolean(before) &&
+      Boolean(after) &&
+      after.cardTop === before.cardTop &&
+      after.closeTop === before.closeTop,
+    `${JSON.stringify(before)} → ${JSON.stringify(after)}`,
+  );
+
+  const titleColor = await page.evaluate(() => {
+    const el = document.querySelector('#payment-success-title');
+    if (!el) return null;
+    const rgb = getComputedStyle(el).color;
+    const [r, g, b] = rgb.match(/\d+/g).map(Number);
+    // 壳的 body 自带 --liquid-text-secondary；标题若没显式给基色就会精确等于它
+    const shell = getComputedStyle(document.querySelector('.boh-modal__body')).color;
+    return {
+      rgb,
+      lum: (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255,
+      shell,
+      sameAsShell: rgb === shell,
+    };
+  });
+  check(
+    'G7 亮色标题是深字，且不吃壳 body 的中灰',
+    Boolean(titleColor) && titleColor.lum < 0.3 && !titleColor.sameAsShell,
+    titleColor
+      ? `${titleColor.rgb} lum=${titleColor.lum.toFixed(2)} shell=${titleColor.shell}`
+      : '标题元素缺失',
+  );
+
+  // 不点遮罩关闭：这一屏是"单已提交"的确认态，误关会让人以为没成功
+  await page.locator('.boh-modal__overlay').click({ position: { x: 8, y: 8 } });
+  await page.waitForTimeout(400);
+  check(
+    'G8 点遮罩不关闭（closeOnBackdrop=false）',
+    (await page.locator('.boh-modal__overlay').count()) === 1,
+  );
+  check('G9 无 JS 错误', errors.length === 0, errors.join(' | '));
+  await ctx.close();
+}
+
+// G10–G12：横屏（居中弹窗 + 暗色）
+{
+  const ctx = await browser.newContext({ viewport: { width: 844, height: 390 } });
+  const page = await ctx.newPage();
+  await bootShop(page, { openCheckout: false });
+  await openResult(page);
+  const land = await page.evaluate(() => {
+    const dlg = document.querySelector('.boh-modal__dialog');
+    const r = dlg.getBoundingClientRect();
+    return {
+      x: Math.round(r.x),
+      w: Math.round(r.width),
+      radius: getComputedStyle(dlg).borderTopLeftRadius,
+      vw: window.innerWidth,
+      grab: getComputedStyle(document.querySelector('.boh-modal__grab')).display,
+      bodyScrollable: (() => {
+        const b = document.querySelector('.boh-modal__body');
+        return b.scrollHeight > b.clientHeight + 2;
+      })(),
+    };
+  });
+  check(
+    'G10 横屏居中且不溢出',
+    Math.abs(land.x + land.w / 2 - land.vw / 2) <= 1 && land.w <= land.vw - 60,
+    JSON.stringify(land),
+  );
+  check(
+    'G11 横屏有圆角、无 grab 条',
+    land.radius !== '0px' && land.grab === 'none',
+    JSON.stringify(land),
+  );
+  check('G12 横屏文字区仍可滚（矮视口不把内容挤没）', land.bodyScrollable === true);
+  await ctx.close();
+}
+
+{
+  const ctx = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    isMobile: true,
+    hasTouch: true,
+  });
+  const page = await ctx.newPage();
+  /* 切暗色必须写 localStorage 的 boh-theme（让 themeManager 懒加载暗色 CSS）；
+     手动 setAttribute('data-theme') 是假路径，量出来白底黑字像真回归。 */
+  await page.addInitScript(() => {
+    try {
+      localStorage.setItem('boh-theme', 'dark');
+    } catch {
+      /* 隐私模式忽略 */
+    }
+  });
+  await bootShop(page, { openCheckout: false });
+  await openResult(page);
+  const dark = await page.evaluate(() => {
+    const theme = document.documentElement.getAttribute('data-theme');
+    const title = getComputedStyle(document.querySelector('#payment-success-title')).color;
+    const dlg = getComputedStyle(document.querySelector('.boh-modal__dialog')).backgroundColor;
+    // 壳 body 的继承色：暗色下是 #a1a1a6（lum≈0.63）—— 只看"够不够亮"抓不到它
+    const shell = getComputedStyle(document.querySelector('.boh-modal__body')).color;
+    const lum = (rgb) => {
+      const [r, g, b] = rgb.match(/\d+/g).map(Number);
+      return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+    };
+    return {
+      theme,
+      title,
+      titleLum: lum(title),
+      dlg,
+      dlgLum: lum(dlg),
+      shell,
+      sameAsShell: title === shell,
+    };
+  });
+  check('G13 暗色主题真生效', dark.theme === 'dark', dark.theme);
+  check('G14 暗色弹窗底是深色', dark.dlgLum < 0.35, dark.dlg);
+  /* ⚠️ 只判 lum > 0.5 是假绿：壳 body 的 --liquid-text-secondary 暗色值是 #a1a1a6
+     （lum≈0.63），漏给基色时标题仍然"够亮"，这条照样过。
+     真判据是「标题色 ≠ 壳 body 继承色」—— 那才证明基色是宿主自己给的。 */
+  check(
+    'G15 暗色标题是浅字，且不吃壳 body 的中灰',
+    dark.titleLum > 0.5 && !dark.sameAsShell,
+    `${dark.title} lum=${dark.titleLum.toFixed(2)} shell=${dark.shell}`,
+  );
   await ctx.close();
 }
 

@@ -1,151 +1,161 @@
 <template>
-  <Teleport to="body">
-    <Transition name="payment-success">
-      <div v-if="visible" class="payment-success-overlay shop-sheet-tokens" role="presentation">
-        <section
-          class="payment-success-dialog"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="payment-success-title"
+  <!-- 礼物提交结果页（BohModal 第五家族，2026-11-23 plans/045 阶段 2）
+       ⚠️ 结构上有一处**不能照家族惯例摊平**：这一屏曾经出过用户报障
+       「结算动画全部飘到页面外面」（2026-11-10）—— 内容实测 1005~1046px 高，
+       而手机上视口只有 640~844px、横屏只有 390px。当时的修法是
+       「卡片（动画本体）与关闭按钮钉住不动，只有下面的文字滚动」。
+       迁进壳后这条不能丢，所以：
+         · #head 槽 = **钉住不动**的部分（标语 + 翻转卡片 + 关闭按钮）；
+         · 默认槽（壳的 body）= **唯一可滚动**的部分（全部文字与两个出口）。
+       🔴 关掉壳的 closeOnBackdrop：这一屏是"钱已经付了/单已经提交"的确认态，
+          误点遮罩关掉会让人以为没成功。出口只留两个按钮与右上角 X。
+       🔴 不用壳的默认关闭钮（show-close=false）：它的直径 30px 且贴在 #head 的
+          右上角，而本屏 #head 里是一张 2.08:1 的翻转卡片，X 必须浮在卡片右上、
+          直径 34px（触控目标）。所以自己给按钮，塞进 #head 的绝对定位层。 -->
+  <BohModal
+    v-model="modalOpen"
+    max-width="424px"
+    flush
+    :show-close="false"
+    :close-on-backdrop="false"
+  >
+    <template #head>
+      <!-- 🔴 `shop-sheet-tokens` 必须挂在这里（#head 槽与默认槽是**兄弟节点**，
+           token 只能各自继承）。本组件挂到 body、不在 .store-page 里，
+           商城域的 --boh-* 只由 store-tokens.css 那一份提供；
+           少挂一处的表现是标题/标语回落成灰字（--boh-text-primary 为空 ⇒
+           color-mix 退化成中灰，实测 rgb(110,110,115)），卡片底色也发灰。 -->
+      <div class="payment-success-head shop-sheet-tokens">
+        <button
+          type="button"
+          class="payment-success-close"
+          aria-label="关闭礼物结果提示"
+          @click="requestClose"
         >
-          <button
-            type="button"
-            class="payment-success-close"
-            aria-label="关闭礼物结果提示"
-            @click="$emit('close')"
-          >
-            <X :size="19" aria-hidden="true" />
-          </button>
+          <X :size="19" aria-hidden="true" />
+        </button>
 
-          <p class="payment-success-kicker">BOH STORE</p>
-          <div class="payment-card-scene" :class="{ 'is-flipping': isFlipping }" aria-hidden="true">
-            <div class="payment-card-flip">
-              <div class="payment-card-face payment-card-front">
-                <PointsCard
-                  :points="points"
-                  :username="username"
-                  tier-label="BOH"
-                  :skin="skin"
-                  :image-url="imageUrl"
-                  compact
-                />
-              </div>
-              <div class="payment-card-face payment-card-back">
-                <span class="payment-card-back-mark"
-                  ><Check :size="25" :stroke-width="2.5" aria-hidden="true"
-                /></span>
-                <span class="payment-card-back-brand">方块商店</span>
-                <strong>已提交</strong>
-                <span class="payment-card-back-order">{{ orderNo }}</span>
-                <span class="payment-card-back-footer">BOH STORE</span>
-              </div>
+        <p class="payment-success-kicker">BOH STORE</p>
+        <div class="payment-card-scene" :class="{ 'is-flipping': isFlipping }" aria-hidden="true">
+          <div class="payment-card-flip">
+            <div class="payment-card-face payment-card-front">
+              <PointsCard
+                :points="points"
+                :username="username"
+                tier-label="BOH"
+                :skin="skin"
+                :image-url="imageUrl"
+                compact
+              />
+            </div>
+            <div class="payment-card-face payment-card-back">
+              <span class="payment-card-back-mark"
+                ><Check :size="25" :stroke-width="2.5" aria-hidden="true"
+              /></span>
+              <span class="payment-card-back-brand">方块商店</span>
+              <strong>已提交</strong>
+              <span class="payment-card-back-order">{{ orderNo }}</span>
+              <span class="payment-card-back-footer">BOH STORE</span>
             </div>
           </div>
-
-          <!-- 文字区单独成滚动体（2026-11-10 用户报障「结算动画全部飘到页面外面」）：
-               这一屏内容实测 1005~1046px 高，而手机上视口只有 640~844px、横屏只有 390px。
-               原来弹窗既没有 max-height 也没有滚动容器（overflow: hidden），于是
-               ① 顶部被切掉 189~379px —— 正好切掉卡片翻转动画那一块；
-               ② 横屏时上下各溢出 328px，整屏内容都在页面外。
-               现在：卡片（动画本体）与关闭按钮钉住不动，只有下面这些文字滚动。
-               ⚠️ 别把 overflow-y 挪到 .payment-success-dialog 上：那样关闭按钮
-               （position: absolute）会跟着滚走，用户滚到下面就找不到退出入口。 -->
-          <div class="payment-success-body">
-            <div class="payment-success-copy" :class="{ revealed: isComplete }">
-              <!-- 文案从「支付成功」改成「订单已提交」（2026-11-03）：
-                 现金部分是管理员线下确认的，这里说"支付成功"是事实性误导 ——
-                 用户会以为钱已经收到了，而实际还有一步没走完。
-                 2026-11-04 再补一层：**含现金的单必须写清"待付多少、谁来收"**，
-                 否则「已提交」三个字照样让人不知道还欠一笔钱。 -->
-              <span class="payment-success-state" :class="{ 'is-due': cashDue > 0 }">
-                {{ cashDue > 0 ? '待付款' : '积分已扣除' }}
-              </span>
-              <h2 id="payment-success-title">
-                {{ cashDue > 0 ? '礼物已提交，还差一步' : '礼物已提交' }}
-              </h2>
-              <p>{{ paymentSummary || '礼物已确认' }}</p>
-              <p v-if="cashDue > 0" class="payment-success-due">
-                现金 {{ cashDueText }} 由管理员联系收取，收款后寄出
-              </p>
-            </div>
-
-            <dl class="payment-success-details" :class="{ revealed: isComplete }">
-              <!-- 订单号独占一行（grid-column 1/-1）：两列并排时 18 位单号必被截断，
-                 而截断的订单号等于没有 —— 用户报单号给管理员时读不全。 -->
-              <div>
-                <dt>编号</dt>
-                <dd class="payment-success-orderno">
-                  <span>{{ orderNo || '—' }}</span>
-                  <button type="button" class="payment-success-copy-btn" @click="copyOrderNo">
-                    {{ copied ? '已复制' : '复制' }}
-                  </button>
-                </dd>
-              </div>
-              <div>
-                <dt>剩余积分</dt>
-                <dd>{{ formattedPoints }}</dd>
-              </div>
-              <div>
-                <!-- 运费口径 2026-11-04「大部分地区不收邮费」：结果页也写一句，
-                   这样"我到底付了多少钱、还有没有别的费用"在同一个屏里闭环 -->
-                <dt>运费</dt>
-                <dd>大部分地区包邮</dd>
-              </div>
-            </dl>
-
-            <div
-              v-if="itemSummary || shippingTo"
-              class="payment-success-extra"
-              :class="{ revealed: isComplete }"
-            >
-              <p v-if="itemSummary"><span>商品</span>{{ itemSummary }}</p>
-              <p v-if="shippingTo"><span>寄往</span>{{ shippingTo }}</p>
-            </div>
-
-            <!-- 后续三步：下单之后到底发生什么，是这一屏最该回答的问题 -->
-            <ol class="payment-success-steps" :class="{ revealed: isComplete }">
-              <li>
-                <strong>{{ cashDue > 0 ? '管理员联系收款' : '管理员确认' }}</strong
-                ><span>{{
-                  cashDue > 0
-                    ? `通过资料电话联系你，收取现金 ${cashDueText}`
-                    : '通过资料电话联系你，确认寄送细节'
-                }}</span>
-              </li>
-              <li><strong>备货寄出</strong><span>进度可在「礼物」查看</span></li>
-              <li><strong>收货确认</strong><span>收到后自动转「完成」，中途可取消</span></li>
-            </ol>
-
-            <!-- 邮件通知结果（2026-11-02）：以前失败时弹的是顶部灵动岛，而岛正好压在
-               卡片翻转动画上。现在结果就地说清楚，岛只在弹窗关闭后才提醒。 -->
-            <p
-              v-if="emailState === 'failed'"
-              class="payment-success-note"
-              :class="{ revealed: isComplete }"
-              role="status"
-            >
-              <AlertTriangle :size="14" aria-hidden="true" />
-              <span>进度 Email 发送失败，礼物已记录</span>
-            </p>
-
-            <div class="payment-success-actions" :class="{ revealed: isComplete }">
-              <button type="button" class="payment-success-confirm" @click="$emit('view-orders')">
-                查看礼物
-              </button>
-              <button type="button" class="payment-success-secondary" @click="$emit('continue')">
-                继续逛逛
-              </button>
-            </div>
-          </div>
-        </section>
+        </div>
       </div>
-    </Transition>
-  </Teleport>
+    </template>
+
+    <div class="payment-success-body shop-sheet-tokens">
+      <div class="payment-success-copy" :class="{ revealed: isComplete }">
+        <!-- 文案从「支付成功」改成「订单已提交」（2026-11-03）：
+             现金部分是管理员线下确认的，这里说"支付成功"是事实性误导 ——
+             用户会以为钱已经收到了，而实际还有一步没走完。
+             2026-11-04 再补一层：**含现金的单必须写清"待付多少、谁来收"**，
+             否则「已提交」三个字照样让人不知道还欠一笔钱。 -->
+        <span class="payment-success-state" :class="{ 'is-due': cashDue > 0 }">
+          {{ cashDue > 0 ? '待付款' : '积分已扣除' }}
+        </span>
+        <h2 id="payment-success-title">
+          {{ cashDue > 0 ? '礼物已提交，还差一步' : '礼物已提交' }}
+        </h2>
+        <p>{{ paymentSummary || '礼物已确认' }}</p>
+        <p v-if="cashDue > 0" class="payment-success-due">
+          现金 {{ cashDueText }} 由管理员联系收取，收款后寄出
+        </p>
+      </div>
+
+      <dl class="payment-success-details" :class="{ revealed: isComplete }">
+        <!-- 订单号独占一行（grid-column 1/-1）：两列并排时 18 位单号必被截断，
+                 而截断的订单号等于没有 —— 用户报单号给管理员时读不全。 -->
+        <div>
+          <dt>编号</dt>
+          <dd class="payment-success-orderno">
+            <span>{{ orderNo || '—' }}</span>
+            <button type="button" class="payment-success-copy-btn" @click="copyOrderNo">
+              {{ copied ? '已复制' : '复制' }}
+            </button>
+          </dd>
+        </div>
+        <div>
+          <dt>剩余积分</dt>
+          <dd>{{ formattedPoints }}</dd>
+        </div>
+        <div>
+          <!-- 运费口径 2026-11-04「大部分地区不收邮费」：结果页也写一句，
+                   这样"我到底付了多少钱、还有没有别的费用"在同一个屏里闭环 -->
+          <dt>运费</dt>
+          <dd>大部分地区包邮</dd>
+        </div>
+      </dl>
+
+      <div
+        v-if="itemSummary || shippingTo"
+        class="payment-success-extra"
+        :class="{ revealed: isComplete }"
+      >
+        <p v-if="itemSummary"><span>商品</span>{{ itemSummary }}</p>
+        <p v-if="shippingTo"><span>寄往</span>{{ shippingTo }}</p>
+      </div>
+
+      <!-- 后续三步：下单之后到底发生什么，是这一屏最该回答的问题 -->
+      <ol class="payment-success-steps" :class="{ revealed: isComplete }">
+        <li>
+          <strong>{{ cashDue > 0 ? '管理员联系收款' : '管理员确认' }}</strong
+          ><span>{{
+            cashDue > 0
+              ? `通过资料电话联系你，收取现金 ${cashDueText}`
+              : '通过资料电话联系你，确认寄送细节'
+          }}</span>
+        </li>
+        <li><strong>备货寄出</strong><span>进度可在「礼物」查看</span></li>
+        <li><strong>收货确认</strong><span>收到后自动转「完成」，中途可取消</span></li>
+      </ol>
+
+      <!-- 邮件通知结果（2026-11-02）：以前失败时弹的是顶部灵动岛，而岛正好压在
+               卡片翻转动画上。现在结果就地说清楚，岛只在弹窗关闭后才提醒。 -->
+      <p
+        v-if="emailState === 'failed'"
+        class="payment-success-note"
+        :class="{ revealed: isComplete }"
+        role="status"
+      >
+        <AlertTriangle :size="14" aria-hidden="true" />
+        <span>进度 Email 发送失败，礼物已记录</span>
+      </p>
+
+      <div class="payment-success-actions" :class="{ revealed: isComplete }">
+        <button type="button" class="payment-success-confirm" @click="$emit('view-orders')">
+          查看礼物
+        </button>
+        <button type="button" class="payment-success-secondary" @click="$emit('continue')">
+          继续逛逛
+        </button>
+      </div>
+    </div>
+  </BohModal>
 </template>
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import { AlertTriangle, Check, X } from 'lucide-vue-next';
+import BohModal from '@/components/ui/BohModal.vue';
 import PointsCard from '@/views/user-center/UserSpace/components/PointsCard.vue';
 
 const props = defineProps({
@@ -168,7 +178,20 @@ const props = defineProps({
   emailState: { type: String, default: 'pending' },
 });
 
-defineEmits(['close', 'view-orders', 'continue']);
+const emit = defineEmits(['close', 'view-orders', 'continue']);
+
+/* 外壳走 BohModal（2026-11-23，plans/045 阶段 2 第五家族）：Teleport / 遮罩 /
+   滚锁 / Esc / 焦点陷阱 / 窄屏贴底 Sheet 全部由壳承担。
+   BohModal 的 v-model 是「关得比开得快」的：Esc / 关闭钮都只发 false，
+   真源仍是宿主的 visible —— 所以 setter 只处理关闭。 */
+const modalOpen = computed({
+  get: () => props.visible,
+  set: (next) => {
+    if (!next) requestClose();
+  },
+});
+
+const requestClose = () => emit('close');
 
 const isFlipping = ref(false);
 const isComplete = ref(false);
@@ -227,69 +250,49 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.payment-success-overlay {
-  position: fixed;
-  /* 与 Shop 的 .modal-scrim 同档（2147482400）：全局导航容器是 9999、且灵动岛
-     就挂在它里面 —— 原来这里是 1000，于是「BOH STORE」和关闭按钮被岛压住，
-     卡片翻转动画也被切掉一截（2026-11-02 用户截图报障）。 */
-  z-index: 2147482400;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  /* 顶部多留安全区：刘海/状态栏在移动端会吃掉弹窗上沿 */
-  padding: calc(24px + env(safe-area-inset-top)) 24px 24px;
-  /* 2026-11-02 暗色适配：原来这里是写死的浅灰遮罩 + #1d1d1f 文字。
-     改走 --boh-page-bg / --boh-text-primary —— 这两个 token 与页面底色
-     定义在同一份 themes/dark-mode.css 里，亮暗永远同进同出；
-     浅色档 token 未定义时逐条回退到原值，观感不变。 */
-  color: var(--boh-text-primary, #1d1d1f);
-  background: color-mix(in srgb, var(--boh-page-bg, #e9edf2) 68%, transparent);
-  backdrop-filter: var(--liquid-filter);
-  -webkit-backdrop-filter: var(--liquid-filter);
-}
-.payment-success-dialog {
+/* 旧外层（.payment-success-overlay / .payment-success-dialog / 进出场 keyframes）
+   已随迁移删除：层级（--boh-z-modal，压过导航 9999 与灵动岛）、遮罩、滚锁、
+   窄屏贴底 / 横屏居中的几何全部由 BohModal 承担。
+
+   ⚠️ 两个「不能丢」的东西留在本文件里：
+     ① `.shop-sheet-tokens`（挂在下层 body 容器上）—— 本组件挂到 body、不在
+        `.store-page` 里，暗色档的 --boh-page-bg / --boh-text-primary 只由
+        store-tokens.css 那一份提供（2026-11-02 用户截图报障「暗色下整块发光白卡」）；
+     ② 「卡片钉住、只滚文字」的分区 —— 见模板头部注释（2026-11-10 用户报障）。 */
+
+/* #head 槽 = 钉住不动的头部：标语 + 翻转卡片 + 关闭钮。
+   关闭钮用绝对定位浮在卡片右上（原实现如此），所以这一层必须是 position: relative
+   的定位上下文 —— 交给 #head 槽的 flex 包层会失去基准。
+   🔴 底部那道渐变**不是装饰**：滚动发生在壳的 body 上，内容会紧贴卡片下沿"穿出"，
+   看起来像卡片被切了一半。原来 dialog 有 overflow: hidden + 内层独立滚动区，天然
+   有边界；现在用一条与弹窗底色同色的渐隐把这层边界补回来（滚动时必须看得出来
+   "下面还有内容"，而不是"这里被截断了"）。 */
+.payment-success-head {
   position: relative;
-  /* max-height 100% = 不超过 overlay 的 padding box（即视口减去安全区与 24px 边距）。
-     没有它，内容一长就整块跑出屏幕（见模板里那段注释）。 */
-  max-height: 100%;
-  display: flex;
-  flex-direction: column;
-  width: min(424px, 100%);
-  padding: 31px 31px 28px;
-  overflow: hidden;
-  border: 1px solid var(--boh-border-primary, rgba(255, 255, 255, 0.74));
-  border-radius: 22px;
+  width: 100%;
+  padding: 31px 31px 0;
   text-align: center;
-  background: color-mix(in srgb, var(--boh-page-bg, #ffffff) 78%, transparent);
-  box-shadow:
-    0 28px 80px rgba(23, 39, 58, 0.2),
-    inset 0 1px var(--boh-border-primary, rgba(255, 255, 255, 0.86));
+  /* 同 .payment-success-body：不依赖壳的继承色（见那处注释） */
+  color: var(--boh-text-primary, #1d1d1f);
+}
+.payment-success-head::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -14px;
+  height: 22px;
+  pointer-events: none;
+  /* 基色必须用壳的玻璃底（--liquid-bg-strong）而不是 --boh-page-bg：
+     后者是不透明纯色，渐变会糊出一条实心白带，而弹窗本身是半透明玻璃。 */
+  background: linear-gradient(to bottom, var(--liquid-bg-strong) 30%, transparent);
 }
 
-/* 文字区：唯一可滚动的部分。min-height: 0 是 flex 子项能真正收缩的前提，
-   少了它 flex 会按内容高度撑开、max-height 白写。 */
-.payment-success-body {
-  min-height: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
-  overscroll-behavior: contain;
-  scrollbar-width: thin;
-}
-
-/* 滚动体在窄屏贴边时，留 2px 给滚动条，避免它压住文字右缘 */
-.payment-success-body::-webkit-scrollbar {
-  width: 4px;
-}
-
-.payment-success-body::-webkit-scrollbar-thumb {
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--boh-text-primary, #1d2735) 22%, transparent);
-}
 .payment-success-close {
   position: absolute;
   top: 14px;
   right: 14px;
-  /* 压过滚动体：卡片与关闭按钮都不参与滚动，但要保证点击不被文字区吃掉 */
+  /* 浮在卡片之上，但不参与滚动（它在这一层，而滚动的是壳的 body） */
   z-index: 2;
   width: 34px;
   height: 34px;
@@ -298,15 +301,15 @@ onBeforeUnmount(() => {
   border-radius: 50%;
   display: grid;
   place-items: center;
-  color: var(--boh-text-secondary, #5d6269);
-  background: color-mix(in srgb, var(--boh-text-primary, #ebedf1) 10%, transparent);
+  color: var(--liquid-text-secondary);
+  background: var(--liquid-bg-nested);
   cursor: pointer;
   transition:
-    transform 160ms ease,
-    background-color 160ms ease;
+    transform var(--duration-fast) var(--ease-out),
+    background-color var(--duration-fast) var(--ease-out);
 }
 .payment-success-close:hover {
-  background: color-mix(in srgb, var(--boh-text-primary, #e5e8ec) 16%, transparent);
+  background: var(--liquid-bg);
 }
 .payment-success-close:active {
   transform: scale(0.92);
@@ -314,7 +317,7 @@ onBeforeUnmount(() => {
 .payment-success-kicker {
   flex: none;
   margin: 0 0 22px;
-  color: color-mix(in srgb, var(--boh-text-primary, #7a8089) 58%, transparent);
+  color: var(--liquid-text-tertiary);
   font-size: 11px;
   font-weight: 700;
   line-height: 1;
@@ -412,6 +415,18 @@ onBeforeUnmount(() => {
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.07em;
+}
+/* 文字区：**唯一可滚动的部分**。滚动本身由壳的 body 承担（flush 掉了内衬），
+   这里只负责内衬与左右对齐。⚠️ 不要再给它 overflow-y —— 双层滚动容器会让
+   「卡片钉住、只滚文字」的分区失效（滚动会落到内层，壳的 max-height 白写）。 */
+.payment-success-body {
+  padding: 0 31px 28px;
+  text-align: center;
+  /* 基色必须显式给：旧实现在 .payment-success-overlay 上写了
+     `color: var(--boh-text-primary)`，整屏（含 h2）靠它继承。
+     壳的 body 自带 --liquid-text-secondary（中灰），不加这条会让标题变灰字
+     （实测 rgb(110,110,115)）—— 这是迁移最容易漏的一处。 */
+  color: var(--boh-text-primary, #1d1d1f);
 }
 .payment-success-copy {
   margin-top: 23px;
@@ -682,33 +697,16 @@ onBeforeUnmount(() => {
 .payment-success-secondary:hover {
   color: var(--boh-text-primary, #1d2735);
 }
-.payment-success-enter-active,
-.payment-success-leave-active {
-  transition: opacity 220ms ease;
-}
-.payment-success-enter-from,
-.payment-success-leave-to {
-  opacity: 0;
-}
-.payment-success-enter-active .payment-success-dialog,
-.payment-success-leave-active .payment-success-dialog {
-  transition:
-    transform 280ms cubic-bezier(0.22, 0.92, 0.3, 1),
-    opacity 180ms ease;
-}
-.payment-success-enter-from .payment-success-dialog,
-.payment-success-leave-to .payment-success-dialog {
-  opacity: 0;
-  transform: translateY(12px) scale(0.98);
-}
+/* 进出场（fade + 上浮缩放）已交给壳的 boh-fade / boh-pop 预设；
+   这里不再留第二份 —— 旧规则挂在 .payment-success-dialog 上，那个类已不存在。 */
 @media (max-width: 440px) {
-  .payment-success-overlay {
-    padding: 14px;
-    align-items: end;
+  /* 贴底 Sheet、圆角、安全区内衬全由壳的窄屏分支负责；
+     这里只留本屏自己的两处收档（标语与卡背排版） */
+  .payment-success-head {
+    padding: 27px 22px 0;
   }
-  .payment-success-dialog {
-    padding: 27px 22px calc(22px + env(safe-area-inset-bottom));
-    border-radius: 20px;
+  .payment-success-body {
+    padding: 0 22px calc(22px + env(safe-area-inset-bottom));
   }
   .payment-success-kicker {
     margin-bottom: 19px;
@@ -735,8 +733,11 @@ onBeforeUnmount(() => {
    滚动区只剩几十像素，等于把结果页又挤成"看不见内容"。
    padding 用带 safe-area 的表达式重写，不能直接写死 —— 竖屏手机同样命中这条。 */
 @media (max-height: 620px) {
-  .payment-success-dialog {
-    padding: 20px 22px calc(18px + env(safe-area-inset-bottom));
+  .payment-success-head {
+    padding: 20px 22px 0;
+  }
+  .payment-success-body {
+    padding: 0 22px calc(18px + env(safe-area-inset-bottom));
   }
   .payment-success-kicker {
     margin-bottom: 13px;

@@ -359,6 +359,63 @@ describe('BohModal · 商城订单管理接线（AdminOrderSheet）', () => {
   });
 });
 
+/* 第五家族（Shop 支付成功）：结构最特殊的一份 —— 卡片钉住、只有文字滚。
+   2026-11-10 用户报障「结算动画全部飘到页面外面」，修法就是这条分区，
+   迁壳时最容易被摊平成"整块一起滚"。 */
+describe('BohModal · 商城支付成功接线（ShopPaymentSuccessModal）', () => {
+  const src = () =>
+    squeezeSource(stripComments(read('src/views/Shop/ShopPaymentSuccessModal.vue')));
+
+  it('壳走 BohModal，钉住区走 #head 槽、文字走默认槽', () => {
+    const code = src();
+    expect(code).toContain('BohModal');
+    expect(code).toContain('v-model="modalOpen"');
+    expect(code).toContain('max-width="424px"');
+    expect(code).toContain('template #head');
+  });
+
+  it('关闭钮在 #head 槽内（不能靠 absolute 挂在滚动容器上）', () => {
+    const code = src();
+    const headBlock = code.slice(
+      code.indexOf('template #head'),
+      code.indexOf('payment-success-body'),
+    );
+    expect(headBlock).toContain('payment-success-close');
+    // 卡片（动画本体）也必须钉住
+    expect(headBlock).toContain('payment-card-scene');
+  });
+
+  it('两个槽各自挂 shop-sheet-tokens（兄弟节点不继承）', () => {
+    /* ⚠️ 不能数裸词出现次数：CSS/模板注释里也会提到 `.shop-sheet-tokens`
+       （"为什么必须挂这里"的说明），数词会让断言在真删掉类名后依然满足 —— 假绿。
+       只认 class 属性里的实际挂载。 */
+    const code = src();
+    expect(code).toContain('class="payment-success-head shop-sheet-tokens"');
+    expect(code).toContain('class="payment-success-body shop-sheet-tokens"');
+  });
+
+  it('标题/正文显式给基色（否则继承壳 body 的中灰）', () => {
+    const code = src();
+    expect(code).toContain('color: var(--boh-text-primary');
+  });
+
+  it('不点遮罩关闭（这是"已提交"确认态，误关会让人以为没成功）', () => {
+    expect(src()).toContain(':close-on-backdrop="false"');
+  });
+
+  it('旧手写外壳与过渡不再回来', () => {
+    const code = src();
+    for (const legacy of [
+      'Teleport',
+      'payment-success-overlay',
+      'payment-success-dialog',
+      'payment-success-enter-active',
+    ]) {
+      expect(code).not.toContain(legacy);
+    }
+  });
+});
+
 describe('BohModal · portraitPage 变体的几何契约', () => {
   it('断点走 orientation（与 Shop 九份弹层既有口径一致，不是宽度）', () => {
     const css = stripComments(read('src/components/ui/BohModal.vue'));
