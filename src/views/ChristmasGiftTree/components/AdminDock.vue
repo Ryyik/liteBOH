@@ -10,6 +10,7 @@
  * 权限判定也在服务端（current_user_is_admin），这里隐藏按钮只是少给误触。
  */
 import { computed, onUnmounted, reactive, ref, watch } from 'vue';
+import { useConfirmDialog } from '@/composables/useConfirmDialog.js';
 
 import {
   XMAS_STATUS_LABELS,
@@ -29,6 +30,8 @@ const props = defineProps({
 const emit = defineEmits(['close', 'changed']);
 
 const loading = ref(false);
+const { confirm: confirmDialog } = useConfirmDialog();
+
 const busy = ref(false);
 const notReady = ref(false);
 const notice = ref('');
@@ -86,9 +89,11 @@ async function afterWrite(ok, message) {
 
 async function removePerson(person) {
   if (busy.value) return;
-  if (!window.confirm(`把「${person.name}」从树上摘下来？挂位会留空，不会被后面的人顶掉。`)) {
-    return;
-  }
+  const ok = await confirmDialog({
+    title: '摘下此人',
+    message: `把「${person.name}」从树上摘下来？挂位会留空，不会被后面的人顶掉。`,
+  });
+  if (!ok) return;
   busy.value = true;
   try {
     const res = await removeXmasParticipant(person.userId, '页面内管理移除');
@@ -103,7 +108,8 @@ async function draw(force) {
   const tip = force
     ? '重新洗牌？已有配对会被丢弃并重新生成。'
     : '现在生成配对？不会让用户提前看到（结果接口在揭晓前不返回内容）。';
-  if (!window.confirm(tip)) return;
+  const ok = await confirmDialog({ title: force ? '重新洗牌' : '生成配对', message: tip });
+  if (!ok) return;
   busy.value = true;
   try {
     const res = await drawXmas(force);
@@ -115,7 +121,11 @@ async function draw(force) {
 
 async function resetMatches() {
   if (busy.value) return;
-  if (!window.confirm('清空本轮配对？参与者与挂位不受影响。')) return;
+  const ok = await confirmDialog({
+    title: '清空配对',
+    message: '清空本轮配对？参与者与挂位不受影响。',
+  });
+  if (!ok) return;
   busy.value = true;
   try {
     const res = await resetXmasMatches();
