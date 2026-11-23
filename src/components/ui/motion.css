@@ -1,0 +1,100 @@
+/**
+ * ==============================================
+ * Boh UI Kit — Motion 预设层（plans/045 §0a）
+ * ==============================================
+ * 动画长在组件里，本文件是 Kit 的共享过渡预设。
+ * 铁律：
+ *   ① 时长/缓动一律读 tokens.css 的 --duration-* / --ease-* / --motion-*，
+ *      禁止写死毫秒（check 门禁 + 单测守卫锁这条）；
+ *   ② Vue <Transition name="boh-..."> 约定：boh-pop / boh-fade / boh-slide-up；
+ *   ③ prefers-reduced-motion 下一律退化为直切。
+ * 消费方：BohButton / BohModal / BohToastHost / BohDropdown …（src/components/ui/）
+ * ==============================================
+ */
+
+/* ── Vue <Transition name="boh-pop">：弹层出入（Modal / Dropdown / Popover）── */
+.boh-pop-enter-active,
+.boh-pop-leave-active {
+  transition:
+    opacity var(--duration-base) var(--ease-out),
+    transform var(--duration-base) var(--ease-emphasized);
+}
+.boh-pop-enter-from,
+.boh-pop-leave-to {
+  opacity: 0;
+  transform: translateY(10px) scale(0.97);
+}
+
+/* ── Vue <Transition name="boh-fade">：遮罩淡入淡出 ── */
+.boh-fade-enter-active,
+.boh-fade-leave-active {
+  transition: opacity var(--duration-base) var(--ease-out);
+}
+.boh-fade-enter-from,
+.boh-fade-leave-to {
+  opacity: 0;
+}
+
+/* ── Vue <Transition name="boh-slide-up">：Toast / 底部条滑入滑出 ── */
+.boh-slide-up-enter-active,
+.boh-slide-up-leave-active {
+  transition:
+    opacity var(--duration-base) var(--ease-out),
+    transform var(--duration-base) var(--ease-emphasized);
+}
+.boh-slide-up-enter-from {
+  opacity: 0;
+  transform: translateY(-12px);
+}
+.boh-slide-up-leave-to {
+  opacity: 0;
+  transform: translateY(-8px);
+}
+
+/* ── 列表入场 stagger：给子项加 .boh-stagger-item，容器加 .boh-stagger ──
+   每项 55ms（--motion-stagger），最多叠 6 项（--motion-stagger-max），
+   第 7 项起不再加延迟 —— 与 tokens.css 的 Ladder 口径一致。 */
+.boh-stagger-item {
+  opacity: 0;
+  transform: translateY(8px);
+  animation: boh-stagger-in var(--motion-enter) var(--ease-emphasized) forwards;
+}
+.boh-stagger-item:nth-child(2) {
+  animation-delay: var(--motion-stagger);
+}
+.boh-stagger-item:nth-child(3) {
+  animation-delay: calc(var(--motion-stagger) * 2);
+}
+.boh-stagger-item:nth-child(4) {
+  animation-delay: calc(var(--motion-stagger) * 3);
+}
+.boh-stagger-item:nth-child(5) {
+  animation-delay: calc(var(--motion-stagger) * 4);
+}
+.boh-stagger-item:nth-child(6) {
+  animation-delay: calc(var(--motion-stagger) * 5);
+}
+.boh-stagger-item:nth-child(n + 7) {
+  animation-delay: calc(var(--motion-stagger) * 6);
+}
+@keyframes boh-stagger-in {
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ── 可达性：prefers-reduced-motion 下一律直切 ── */
+@media (prefers-reduced-motion: reduce) {
+  .boh-pop-enter-active,
+  .boh-pop-leave-active,
+  .boh-fade-enter-active,
+  .boh-fade-leave-active,
+  .boh-slide-up-enter-active,
+  .boh-slide-up-leave-active,
+  .boh-stagger-item {
+    transition-duration: 0s;
+    animation-duration: 0s;
+    animation-delay: 0s;
+  }
+}

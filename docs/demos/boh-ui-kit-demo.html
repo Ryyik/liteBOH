@@ -63,6 +63,8 @@
   --duration-slow: 360ms;
   --ease-emphasized: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-morph-out: cubic-bezier(0.32, 0.72, 0, 1);  /* 返程专用（拷贝自 tokens.css） */
+  --motion-morph-out: 360ms;
 }
 html[data-theme="dark"] {
   --boh-page-bg: #0a0a0f;
@@ -469,6 +471,62 @@ html[data-theme="dark"] .seg-demo button.on { background: rgba(255,255,255,0.14)
 .ticon.err { background: var(--boh-danger); }
 .ticon.info { background: var(--boh-info); }
 
+/* 导航头 NavHeader */
+.nav-header-demo {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--liquid-bg-nested);
+  border: 1px solid var(--liquid-border-hairline);
+  border-radius: var(--liquid-radius-pill); padding: 8px 12px;
+  transition: opacity var(--motion-morph-out) var(--ease-morph-out), transform var(--motion-morph-out) var(--ease-morph-out);
+}
+.nav-header-demo.leaving { opacity: 0.35; transform: translateX(-16px); }
+.nav-header-demo .nh-title { flex: 1; font-size: 13px; font-weight: 700; }
+.back-btn {
+  appearance: none; border: none; cursor: pointer; font: inherit;
+  font-size: 13px; font-weight: 700; color: var(--boh-accent-text);
+  background: transparent; display: inline-flex; align-items: center; gap: 2px;
+  padding: 4px 10px 4px 6px; border-radius: var(--liquid-radius-pill);
+  transition: background var(--duration-fast);
+}
+.back-btn:hover { background: var(--boh-accent-soft); }
+.back-btn .chev { font-size: 17px; line-height: 1; transform: translateY(-1px); font-weight: 800; }
+
+/* 下拉 / Popover */
+.dd { position: relative; display: inline-block; }
+.dd-panel {
+  position: absolute; top: calc(100% + 8px); left: 0; min-width: 180px;
+  background: var(--liquid-bg-strong);
+  border: 1px solid var(--liquid-border-strong);
+  backdrop-filter: var(--liquid-filter-lg); -webkit-backdrop-filter: var(--liquid-filter-lg);
+  box-shadow: var(--liquid-highlight), var(--liquid-shadow-overlay);
+  border-radius: var(--liquid-radius-md); padding: 6px; z-index: 20;
+  opacity: 0; transform: translateY(-6px) scale(0.98); pointer-events: none;
+  transition: opacity var(--duration-base) var(--ease-out), transform var(--duration-base) var(--ease-emphasized);
+}
+.dd.open .dd-panel { opacity: 1; transform: none; pointer-events: auto; }
+.dd-item {
+  display: flex; align-items: center; gap: 8px; width: 100%; text-align: left;
+  appearance: none; border: none; background: transparent; cursor: pointer; font: inherit;
+  font-size: 13px; color: var(--liquid-text-primary);
+  padding: 9px 12px; border-radius: 10px;
+  transition: background var(--duration-fast);
+}
+.dd-item:hover { background: var(--liquid-bg-nested); }
+.dd-item .dd-ic { font-size: 12px; width: 18px; text-align: center; color: var(--liquid-text-tertiary); }
+
+/* 骨架屏 Skeleton */
+.skel-demo { display: flex; flex-direction: column; gap: 10px; }
+.sk { position: relative; overflow: hidden; background: var(--liquid-bg-nested); border-radius: 8px; }
+.sk::after {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(90deg, transparent, var(--liquid-bg-strong), transparent);
+  transform: translateX(-100%); animation: boh-shimmer 1.4s infinite;
+}
+.sk-line { height: 12px; width: 70%; }
+.sk-line.w60 { width: 45%; }
+.sk-block { height: 64px; }
+@keyframes boh-shimmer { to { transform: translateX(100%); } }
+
 /* 标注开关 */
 body.notes-on .demo-cell[data-note]::after, body.notes-on .wpanel[data-note]::after, body.notes-on .mantra[data-note]::after {
   content: attr(data-note);
@@ -491,10 +549,10 @@ footer.foot { margin-top: 72px; font-size: 12px; color: var(--liquid-text-tertia
   <!-- ============ 头部 ============ -->
   <header class="hero">
     <span class="eyebrow">BOH · 统一组件库提案 v0</span>
-    <h1>大换血：全站从 12 个零件里拼 UI</h1>
+    <h1>大换血：全站从 18 个零件里拼 UI</h1>
     <p class="sub">材质基因完全取自你喜欢的<b>论坛 UI</b>：液态玻璃（28px 模糊 + 180% 饱和）、发丝描边、28/16/胶囊三档圆角。下面每一块都是活的——按钮会弹 Toast、卡片会开弹窗，切暗色看全组件的双主题表现。</p>
     <div class="mantra" data-note="一句话总纲：以后写任何页面 = 材质层 × 权重 × 语义色，不许再自带第四套写法">
-      一套材质、<b>四档按钮权重</b>、<b>五类语义色</b>、<b>十二个必选组件</b> —— 页面不再自带 UI，只负责内容和数据。
+      一套材质、<b>四档按钮权重</b>、<b>五类语义色</b>、<b>十八个必选组件</b> —— 页面不再自带 UI，只负责内容和数据。
     </div>
   </header>
 
@@ -518,8 +576,8 @@ footer.foot { margin-top: 72px; font-size: 12px; color: var(--liquid-text-tertia
 
   <!-- ============ ① 清单 ============ -->
   <section class="section" id="sec-kit">
-    <div class="sec-head"><span class="no">01</span><h2>组件最少要涵盖什么 —— 12 个必选零件</h2></div>
-    <p class="sec-desc">判断标准不是「设计系统大全」，而是<b>「现状里被手写了几遍的东西」</b>：审计发现弹窗被手写 68 处、toast 8 套、spinner 17 处、空态 34 处——这些就是必选清单的来源。</p>
+    <div class="sec-head"><span class="no">01</span><h2>组件最少要涵盖什么 —— 18 个必选零件</h2></div>
+    <p class="sec-desc">判断标准不是「设计系统大全」，而是<b>「现状里被手写了几遍的东西」</b>。2026-11-23 全站四域并行扫描实测：弹窗遮罩 68 处、返回按钮 22 处、筛选 chips 23 处、骨架屏 28 处、空态 34 处、下拉/Popover 15 处、无限滚动 10 处、toast 8 套——每张卡的红色「现状」标签都是真实搜索计数。</p>
     <div class="kit-grid">
       <div class="kit-card mandatory"><div class="name"><span class="idx">1</span>材质层 · Liquid Glass</div><div class="why">不是组件，是地基。7 档玻璃类（strong/subtle/overlay/pill/inset/clear）+ 26 个 token，全站唯一允许 backdrop-filter 的地方。</div><span class="pain">现状：56 个文件裸写 backdrop-filter，违反自家门禁</span></div>
       <div class="kit-card mandatory"><div class="name"><span class="idx">2</span>按钮 BohButton</div><div class="why">四档权重（primary / secondary / ghost / danger）× 三档尺寸，内置 loading 态。primary 语义收紧为「每屏唯一主操作」。</div><span class="pain">现状：btn-primary 17 文件 62 处，21 文件硬编码蓝 hex</span></div>
@@ -527,12 +585,19 @@ footer.foot { margin-top: 72px; font-size: 12px; color: var(--liquid-text-tertia
       <div class="kit-card mandatory"><div class="name"><span class="idx">4</span>底部 Sheet BohSheet</div><div class="why">移动端主力浮层（商城 11 个 Sheet 全是这个形态）。玻璃 + grab 条 + 下滑手势关闭。</div><span class="pain">现状：Shop 一个目录 11 个各自手写的 Sheet</span></div>
       <div class="kit-card mandatory"><div class="name"><span class="idx">5</span>确认框 BohConfirm</div><div class="why">Promise 化 confirm/alert/三选一，接 App.vue 全局渲染。danger 操作强制走它。</div><span class="pain">现状：useConfirmDialog 已有但仅 5 处采用，还有 3 处原生 confirm</span></div>
       <div class="kit-card mandatory"><div class="name"><span class="idx">6</span>Toast · notify()</div><div class="why">全局提示唯一通道：utils/notify.js 已存在，只需删掉 8 套手写 UI 换成调用。支持五类语义。</div><span class="pain">现状：8 套手写 toast 状态机，notify.js 0 采用</span></div>
-      <div class="kit-card mandatory"><div class="name"><span class="idx">7</span>加载 BohSpinner + 骨架</div><div class="why">唯一 spin 动画真源 + 骨架屏档位，@keyframes 全站只许定义这一次。</div><span class="pain">现状：17 文件手写 spinner，@keyframes 重定义 113 次</span></div>
+      <div class="kit-card mandatory"><div class="name"><span class="idx">7</span>加载 BohSpinner + 骨架屏</div><div class="why">唯一 spin 动画真源 + SkeletonLine/Block 两个基元，@keyframes 和 shimmer 全站只许定义这一次。</div><span class="pain">现状：17 文件手写 spinner、28 文件 4 套骨架命名体系、@keyframes 重定义 113 次</span></div>
       <div class="kit-card mandatory"><div class="name"><span class="idx">8</span>空态 EmptyState</div><div class="why">已有！icon + 标题 + 描述 + 动作槽四件套，五类语义变体。收编 Bolek 的双胞胎。</div><span class="pain">现状：已有组件仅 10 文件采用，34 文件仍在手写</span></div>
       <div class="kit-card mandatory"><div class="name"><span class="idx">9</span>输入件 Field 族</div><div class="why">Input / Textarea / Switch / Segmented 统一玻璃面 + accent 聚焦环 + 错误态。</div><span class="pain">现状：聚焦环颜色全站至少 4 种写法</span></div>
       <div class="kit-card mandatory"><div class="name"><span class="idx">10</span>标签 Tag / Badge</div><div class="why">五类语义色的胶囊标签 + 状态圆点徽标。帖子分类、订单状态、消息角标全走它。</div><span class="pain">现状：各页面 tag/badge 样式至少 9 套</span></div>
       <div class="kit-card mandatory"><div class="name"><span class="idx">11</span>头像 Avatar</div><div class="why">尺寸三档（lg/md/sm）+ 头像框槽 + 上传态，把 ProfileMain 那套手搓头像栈收编成唯一实现。</div><span class="pain">现状：无共享组件，55 个文件各自渲染头像</span></div>
-      <div class="kit-card optional"><div class="name"><span class="idx">12</span>卡片 BohCard</div><div class="why">帖子卡/商品卡/列表行的玻璃基底 + hover 抬升。第二批做：先统一弹窗和反馈，卡片允许渐进迁移。</div><span class="pain">现状：border-radius 裸写 1041 处 / 129 文件</span></div>
+      <div class="kit-card mandatory"><div class="name"><span class="idx">12</span>导航头 BohNavHeader</div><div class="why">返回 + 标题 + 右侧动作槽，返程动画内置 --ease-morph-out(360ms)。泛化现有 UserCenterPageHeader（user-center 域内 93% 采用，已验证走得通）。</div><span class="pain">现状：22 个文件手写返回按钮，类名散落 5 个 CSS 文件</span></div>
+      <div class="kit-card mandatory"><div class="name"><span class="idx">13</span>下拉/选择器 BohDropdown</div><div class="why">下拉菜单、选择面板、Popover 统一壳：触发器 + 玻璃面板 + 外点/Esc 关闭 + 位置翻转。发帖器的「更多」面板、消息筛选、位置选择全走它。</div><span class="pain">现状：15 文件手写 dropdown/popover（PostComposer 一文件 12 处）</span></div>
+      <div class="kit-card mandatory"><div class="name"><span class="idx">14</span>无限滚动 useInfiniteScroll</div><div class="why">纯逻辑 composable：哨兵 + 触底回调 + 加载态一行接入，顺带统一「加载更多」的骨架占位。</div><span class="pain">现状：10 文件手写 IntersectionObserver，ForumMain 一个文件写了 2 个</span></div>
+      <div class="kit-card mandatory"><div class="name"><span class="idx">15</span>图片查看器 ImageLightbox</div><div class="why">zoom/pan/morph 灯箱唯一实现。Forum 与 PostDetail 两份现在是逐行级复制分叉，合并立即消掉双份 bug 面。</div><span class="pain">现状：2 份核心实现逐行雷同（139 处同构命中）</span></div>
+      <div class="kit-card mandatory"><div class="name"><span class="idx">16</span>设置分组行 GroupedSettingList</div><div class="why">icon + label + 描述 + value/chevron/toggle 的分组行，数据驱动。ProfileSettingsPanel 就是现成蓝本。</div><span class="pain">现状：9 个面板文件逐份复制 gs-row/gs-group 标记与 CSS</span></div>
+      <div class="kit-card mandatory"><div class="name"><span class="idx">17</span>上传管线 useUploadPipeline</div><div class="why">选图 → 压缩 → 裁剪 → 审核 → 上传 → 回填 URL 一条 composable 收口。原语全已共享（AvatarCropModal 7 方），缺的只是编排层。</div><span class="pain">现状：编排逻辑 5+ 处重复（Join 380 行手搓最典型）</span></div>
+      <div class="kit-card mandatory"><div class="name"><span class="idx">18</span>筛选 Chips</div><div class="why">横向滚动的筛选胶囊组：单选/多选 + 选中态 accent。论坛工具条、消息筛选、图片编辑 chips 收编于此。</div><span class="pain">现状：23 文件手写 chip 样式，选中态写法互不兼容</span></div>
+      <div class="kit-card optional"><div class="name"><span class="idx">19</span>卡片 BohCard</div><div class="why">帖子卡/商品卡/列表行的玻璃基底 + hover 抬升。第二批做：先统一弹窗和反馈，卡片允许渐进迁移。</div><span class="pain">现状：border-radius 裸写 1041 处 / 129 文件</span></div>
     </div>
   </section>
 
@@ -643,12 +708,43 @@ footer.foot { margin-top: 72px; font-size: 12px; color: var(--liquid-text-tertia
         </div>
         <p class="cell-note">窄屏（≤560px）时「居中弹窗」自动变底部 Sheet——同一组件两种形态。</p>
       </div>
+      <div class="demo-cell" data-note="BohNavHeader：返回 + 标题 + 右侧动作；返程曲线内置（--ease-morph-out 360ms，当年为「返回过慢」专项调的）">
+        <div class="cell-title">导航头 NavHeader</div>
+        <div class="nav-header-demo" id="d-navheader">
+          <button class="back-btn" onclick="demoBack()"><span class="chev">‹</span>返回</button>
+          <span class="nh-title">设置 · 通知偏好</span>
+          <button class="btn btn-ghost btn-sm" onclick="demoToast('info','右侧动作槽')">保存</button>
+        </div>
+        <p class="cell-note">点「返回」看返程动画——组件内置曲线，页面不再自己写 router.back 样板。</p>
+      </div>
+      <div class="demo-cell" data-note="BohDropdown：触发器 + 玻璃面板 + 外点/Esc 关闭，全站唯一">
+        <div class="cell-title">下拉 / Popover</div>
+        <div class="dd" id="d-dd">
+          <button class="btn btn-secondary btn-sm" onclick="demoDropdown(event)">更多操作 ▾</button>
+          <div class="dd-panel" role="menu">
+            <button class="dd-item" onclick="ddPick('置顶帖子')"><span class="dd-ic">↑</span>置顶帖子</button>
+            <button class="dd-item" onclick="ddPick('复制链接')"><span class="dd-ic">⎘</span>复制链接</button>
+            <button class="dd-item" onclick="ddPick('举报')"><span class="dd-ic">⚑</span>举报</button>
+          </div>
+        </div>
+        <p class="cell-note">点外部或 Esc 关闭；面板是嵌套玻璃（不叠第二层 blur，材质纪律）。</p>
+      </div>
+      <div class="demo-cell" data-note="Skeleton 基元：SkeletonLine/Block + 全站唯一 shimmer keyframes">
+        <div class="cell-title">骨架屏 Skeleton</div>
+        <div class="skel-demo">
+          <div class="sk sk-block"></div>
+          <div class="sk sk-line"></div>
+          <div class="sk sk-line w60"></div>
+        </div>
+        <p class="cell-note">两个基元 + 一个动画，替换全站 28 个文件里 4 套骨架命名体系。</p>
+      </div>
     </div>
   </section>
 
   <footer class="foot">
-    BOH 统一组件库提案 v0 · 2026-11-23 · 材质基因：src/styles/common/tokens.css（--liquid-* 单源拷贝，搬进 .vue 时删除本份、直接引用项目 token，否则 check:liquid-glass 门禁 fail）<br>
-    落地顺序建议：Toast 统一 → BohModal/BohSheet → BohSpinner → EmptyState 补采用 → BohButton + token 更名。
+    BOH 统一组件库提案 v0.1（全站四域并行扫描版）· 2026-11-23 · 材质基因：src/styles/common/tokens.css（--liquid-* 单源拷贝，搬进 .vue 时删除本份、直接引用项目 token，否则 check:liquid-glass 门禁 fail）<br>
+    落地顺序建议：Toast 统一 → BohModal/BohSheet → BohNavHeader（泛化 UserCenterPageHeader）→ BohSpinner + Skeleton → EmptyState 补采用 → BohDropdown → BohButton + token 更名。<br>
+    附加架构改造（非组件）：主题接入声明化——14 个页面手动 import themeManager 的样板，下沉到 router meta + 全局守卫一次删净。
   </footer>
 </div>
 
@@ -742,7 +838,33 @@ document.querySelectorAll('.overlay').forEach(function (ov) {
 document.addEventListener('keydown', function (e) {
   if (e.key === 'Escape') {
     document.querySelectorAll('.overlay.show').forEach(function (ov) { closeOverlay(ov.id); });
+    document.getElementById('d-dd').classList.remove('open');
   }
+});
+
+/* ── 导航头返程 ── */
+var navBusy = false;
+function demoBack() {
+  if (navBusy) return;
+  navBusy = true;
+  var el = document.getElementById('d-navheader');
+  el.classList.add('leaving');
+  demoToast('info', '已返回上一页（返程 360ms · --ease-morph-out）');
+  setTimeout(function () { el.classList.remove('leaving'); navBusy = false; }, 700);
+}
+
+/* ── 下拉 / Popover ── */
+function demoDropdown(e) {
+  e.stopPropagation();
+  document.getElementById('d-dd').classList.toggle('open');
+}
+function ddPick(label) {
+  document.getElementById('d-dd').classList.remove('open');
+  demoToast('info', label + '（统一下拉通道）');
+}
+document.addEventListener('click', function (e) {
+  var dd = document.getElementById('d-dd');
+  if (dd.classList.contains('open') && !dd.contains(e.target)) dd.classList.remove('open');
 });
 
 /* ── 按钮 loading 态 ── */

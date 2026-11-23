@@ -191,7 +191,29 @@
   --liquid-text-secondary: #6e6e73;
   --liquid-text-tertiary: #8b9098;
 
-  /* ── 折射级液态玻璃（站点级单源登记，2026-10-14 §21.11）─────────────────────
+  /* ── 语义色层（plans/045 Boh UI Kit · 2026-11-23 新增）─────────────────────
+     全站 Kit 组件唯一取色处。三条纪律（demo boh-ui-kit-demo.html §02 同款）：
+       ① accent 是动作色不是装饰色，永远不用于大面积铺底，一屏一个 primary；
+       ② 「填充面白字」用 --boh-accent（深），「暗底彩字」用 --boh-accent-text（浅）；
+          暗色下两者必须分工——#0a84ff 配白字只有 3.65:1，压深到 #0a72da 才达 WCAG AA
+          （4.74:1，探针实测）；暗底彩字用 #6cb0ff（soft 底上 5.7:1）。
+       ③ 组件禁止写死毫秒动画与 hex 色值，一律读本层。
+     ⚠️ 旧名 --boh-brand-blue 暂保持原状（15 文件在用），阶段 5 BohButton 迁移时统一切换，
+        不要在本层加第二份蓝色 hex。 */
+  --boh-accent: #0071e3;
+  --boh-accent-text: var(--boh-accent);
+  --boh-accent-strong: #0058b8;
+  --boh-accent-soft: rgba(0, 113, 227, 0.1);
+  --boh-success: #0f8a6a;
+  --boh-success-soft: rgba(15, 138, 106, 0.1);
+  --boh-warning: #b45309;
+  --boh-warning-soft: rgba(180, 83, 9, 0.1);
+  --boh-danger: #b3261e;
+  --boh-danger-soft: rgba(179, 38, 30, 0.09);
+  --boh-info: #5e5ce6;
+  --boh-info-soft: rgba(94, 92, 230, 0.1);
+
+  /* ── 折射级液态玻璃（站点级单源登记，2026-10-14 §21.11）────────────────────
      与上面「模糊级」`--liquid-*` 平级：模糊级 = 纯 backdrop-filter；
      折射级 = 在 backdrop 之上再加**边缘位移/色差**（`@wxperia/liquid-glass-vue`，JS 内联，
      不经过 `--liquid-filter-*`，故 `check:liquid-glass` 扫不到 —— 本组令牌就是它的**登记处**）。
@@ -233,6 +255,20 @@
   --liquid-text-primary: #f5f5f7;
   --liquid-text-secondary: #a1a1a6;
   --liquid-text-tertiary: #8a919c;
+
+  /* 语义色层暗色覆写（plans/045）：accent 压深保白字 AA，彩字换浅变体，五类语义提亮 */
+  --boh-accent: #0a72da;
+  --boh-accent-text: #6cb0ff;
+  --boh-accent-strong: #3b8ff0;
+  --boh-accent-soft: rgba(10, 114, 218, 0.18);
+  --boh-success: #30b891;
+  --boh-success-soft: rgba(48, 184, 145, 0.14);
+  --boh-warning: #e0a04a;
+  --boh-warning-soft: rgba(224, 160, 74, 0.14);
+  --boh-danger: #ff6b61;
+  --boh-danger-soft: rgba(255, 107, 97, 0.13);
+  --boh-info: #8f8ef2;
+  --boh-info-soft: rgba(143, 142, 242, 0.14);
 
   /* 折射级白膜：只切 RGB 三元组（α 是共享的 `--refract-alpha`，两主题同值）。
      ⚠️ 这里必须写**站点**主题（`[data-theme="dark"]`）；博莱克域内由 `.bolek-page` 覆写。 */
@@ -300,6 +336,11 @@
   --boh-glass-border: rgba(232, 222, 209, 0.92);
   --boh-brand-blue: #2f2f2f;
   --boh-brand-blue-soft: rgba(47, 47, 47, 0.08);
+  /* 语义色层跟随自定义主题（plans/045）：accent 取本主题主色，保持与 brand-blue 同步 */
+  --boh-accent: #2f2f2f;
+  --boh-accent-text: #2f2f2f;
+  --boh-accent-strong: #1a1a1a;
+  --boh-accent-soft: rgba(47, 47, 47, 0.08);
   --apple-bg: #fffdf8;
   --apple-text: #2f2f2f;
   --apple-gray: #6f6960;
@@ -346,6 +387,11 @@
   --boh-glass-border: rgba(57, 51, 41, 0.24);
   --boh-brand-blue: #5f7d49;
   --boh-brand-blue-soft: rgba(95, 125, 73, 0.12);
+  /* 语义色层跟随自定义主题（plans/045）：accent 取本主题主色，保持与 brand-blue 同步 */
+  --boh-accent: #5f7d49;
+  --boh-accent-text: #5f7d49;
+  --boh-accent-strong: #4a6339;
+  --boh-accent-soft: rgba(95, 125, 73, 0.12);
   --apple-bg: #fbf7e9;
   --apple-text: #292923;
   --apple-gray: #5f5b50;
