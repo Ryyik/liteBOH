@@ -16,12 +16,14 @@ export const DIRECTOR_TICK_MS = 9000; // 导演醒来间隔（ms）
 export const ACT_MIN_GAP_MS = 20000; // 任意两个自主动作的最小间隔
 
 export const PET_ACTS = [
-  /* 打盹小剧场：waiting → sleeping → 伸懒腰（伸展/抖动由挂件按 id 演 CSS） */
-  { id: 'doze', dur: 3400, cooldown: 45000, weight: (mood) => (mood < 45 ? 3 : 1) },
+  /* 打盹小剧场：waiting → sleeping → 伸懒腰（伸展/抖动由挂件按 id 演 CSS）
+     `line` = 动作结束后顺带说一句的场景（2026-11-23 台词联动）。
+     留空表示「这个动作不说话」—— 打盹本来就不该在睡着时冒气泡。 */
+  { id: 'doze', dur: 3400, cooldown: 45000, weight: (mood) => (mood < 45 ? 3 : 1), line: '' },
   /* 原地蹦跳：心情好时多跳（落地爆粒） */
-  { id: 'hop', dur: 900, cooldown: 45000, weight: (mood) => (mood >= 60 ? 2.5 : 1) },
+  { id: 'hop', dur: 900, cooldown: 45000, weight: (mood) => (mood >= 60 ? 2.5 : 1), line: 'cheer' },
   /* 好奇张望：眼睛/身体往贴边方向瞟一下 */
-  { id: 'look', dur: 1200, cooldown: 60000, weight: () => 1 },
+  { id: 'look', dur: 1200, cooldown: 60000, weight: () => 1, line: 'idle' },
 ];
 
 /**
@@ -30,7 +32,7 @@ export const PET_ACTS = [
  *   mood?: number,       // 0~100 心情（高 = 多活泼动作）
  *   typing?: boolean,    // 用户输入框聚焦中（真 ⇒ 恒不演）
  *   hidden?: boolean,    // 页面隐藏（真 ⇒ 恒不演）
- *   busy?: boolean,      // BOHAI 忙（真 ⇒ 恒不演，状态让位给阶段动效）
+ *   busy?: boolean,      // 博莱克忙（真 ⇒ 恒不演，状态让位给阶段动效）
  *   reduced?: boolean,   // reduce-motion（真 ⇒ 恒不演）
  *   now?: number,
  *   lastActId?: string | null,

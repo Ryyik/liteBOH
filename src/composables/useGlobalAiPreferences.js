@@ -25,6 +25,12 @@ const defaults = Object.freeze({
   glassOpacity: LIQUID_GLASS_SPEC.tintAlphaDefault,
   animationsEnabled: true,
   showDetails: true,
+  /* 全局挂件「小方」是否出场（2026-11-23 用户口径：要能关掉）。
+     ⚠️ 放在这里而不是另起一个 store：本模块**已在首屏壳**（vite.config.js 的
+     SHELL_CHUNKS），加一个布尔字段首屏零增长；而 App.vue 要拿它做 v-if
+     （关掉后连 BohPetBlock 的懒加载 chunk 都不下载），新建模块反而会把整块
+     拽进入口图。语义务必保持「布尔偏好」，不要往这里塞小方的运行期状态。 */
+  petEnabled: true,
 });
 
 function readPreferences() {
