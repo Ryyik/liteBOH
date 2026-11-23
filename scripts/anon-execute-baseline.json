@@ -1,5 +1,5 @@
 {
-  "total": 116,
+  "total": 120,
   "names": [
     "assert_cloudinary_upload_allowed",
     "avatar_frame_tier_rank",
@@ -16,7 +16,6 @@
     "create_forum_post_with_images",
     "create_forum_post_with_images_idempotent",
     "create_points_card_preset",
-    "create_shop_order",
     "current_user_can_speak",
     "current_user_is_admin",
     "delete_my_account",
@@ -68,6 +67,7 @@
     "gtrgm_picksplit",
     "gtrgm_same",
     "gtrgm_union",
+    "guard_forum_daily_image_quota",
     "increment_ad_clicks",
     "increment_xp",
     "is_allowed_push_endpoint",
@@ -76,6 +76,7 @@
     "join_home_lottery",
     "list_forum_comment_thread",
     "list_my_avatar_frame_unlocks",
+    "list_public_bohai_modes",
     "list_public_bolek_modes",
     "lottery_pity_threshold",
     "mark_all_as_read",
@@ -85,6 +86,7 @@
     "profile_restriction_is_active",
     "profile_showcase_post_ids_are_valid",
     "purchase_avatar_frame",
+    "record_edge_probe",
     "record_lab_usage",
     "record_lottery_auto_draw_failure",
     "redeem_points_card_cats",
@@ -116,7 +118,9 @@
     "word_similarity_commutator_op",
     "word_similarity_dist_commutator_op",
     "word_similarity_dist_op",
-    "word_similarity_op"
+    "word_similarity_op",
+    "xmas_my_result",
+    "xmas_roster"
   ],
   "tables": [],
   "note": "匿名可执行面基线（棘轮）。只能通过显式 revoke … from anon, public 下调。见 scripts/check-anon-execute.mjs 顶部说明与 docs/reports/2026-09/2026-09-21-安全审计报告核验与全量复检.md §6.7。"

@@ -43,6 +43,7 @@
   --liquid-text-tertiary: #6e7681;
   /* ── 语义色（提案：全站唯一的五类语义色）── */
   --boh-accent: #0071e3;
+  --boh-accent-text: var(--boh-accent);  /* 彩字用（浅色下与主色同值） */
   --boh-accent-strong: #0058b8;
   --boh-accent-soft: rgba(0, 113, 227, 0.10);
   --boh-success: #0f8a6a;
@@ -81,9 +82,10 @@ html[data-theme="dark"] {
   --liquid-text-primary: #f5f5f7;
   --liquid-text-secondary: #a1a1a6;
   --liquid-text-tertiary: #8a919c;
-  --boh-accent: #0a84ff;
-  --boh-accent-strong: #409cff;
-  --boh-accent-soft: rgba(10, 132, 255, 0.16);
+  --boh-accent: #0a72da;  /* 暗色主色压深一档：#0a84ff 配白字仅 3.65:1，不达 WCAG AA；#0a72da = 4.74:1 */
+  --boh-accent-text: #6cb0ff;  /* 暗色下彩字提亮：深蓝压暗底不达 AA，文字必须用浅变体 */
+  --boh-accent-strong: #3b8ff0;
+  --boh-accent-soft: rgba(10, 114, 218, 0.18);
   --boh-success: #30b891;
   --boh-success-soft: rgba(48, 184, 145, 0.14);
   --boh-warning: #e0a04a;
@@ -120,7 +122,7 @@ html[data-theme="dark"] .bg-blobs span { opacity: 0.32; }
 .hero .eyebrow {
   display: inline-flex; align-items: center; gap: 8px;
   font-size: 12px; font-weight: 600; letter-spacing: 0.08em;
-  color: var(--boh-accent); background: var(--boh-accent-soft);
+  color: var(--boh-accent-text); background: var(--boh-accent-soft);
   padding: 6px 14px; border-radius: var(--liquid-radius-pill);
 }
 .hero h1 { font-size: 30px; font-weight: 800; margin: 16px 0 10px; letter-spacing: -0.01em; }
@@ -133,7 +135,7 @@ html[data-theme="dark"] .bg-blobs span { opacity: 0.32; }
   border-radius: var(--liquid-radius-md);
   padding: 16px 20px; font-size: 14px; font-weight: 600; line-height: 1.6;
 }
-.mantra b { color: var(--boh-accent); }
+.mantra b { color: var(--boh-accent-text); }
 
 /* ============ 控制条（sticky，非 fixed）============ */
 .control-bar {
@@ -182,7 +184,7 @@ html[data-theme="dark"] .seg button.on { background: rgba(255,255,255,0.14); }
 .kit-card .name .idx {
   width: 22px; height: 22px; border-radius: 7px; flex: 0 0 22px;
   display: inline-flex; align-items: center; justify-content: center;
-  font-size: 11px; font-weight: 800; color: var(--boh-accent); background: var(--boh-accent-soft);
+  font-size: 11px; font-weight: 800; color: var(--boh-accent-text); background: var(--boh-accent-soft);
 }
 .kit-card .why { font-size: 12px; color: var(--liquid-text-secondary); line-height: 1.65; margin-top: 8px; }
 .kit-card .pain {
@@ -203,6 +205,7 @@ html[data-theme="dark"] .seg button.on { background: rgba(255,255,255,0.14); }
 
 /* ============ ② 权重与配色 ============ */
 .weight-demo { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+@media (max-width: 760px) { .weight-demo { grid-template-columns: 1fr; } }
 .wpanel {
   background: var(--liquid-bg); border: 1px solid var(--liquid-border);
   backdrop-filter: var(--liquid-filter); -webkit-backdrop-filter: var(--liquid-filter);
@@ -227,7 +230,7 @@ html[data-theme="dark"] .seg button.on { background: rgba(255,255,255,0.14); }
   padding: 12px 14px; border-radius: var(--liquid-radius-md);
   background: var(--liquid-bg-nested); border: 1px solid var(--liquid-border-hairline);
 }
-.rule-note b.accent { color: var(--boh-accent); }
+.rule-note b.accent { color: var(--boh-accent-text); }
 .rule-note b.warn { color: var(--boh-warning); }
 .rule-note b.ok { color: var(--boh-success); }
 
@@ -258,7 +261,7 @@ html[data-theme="dark"] .btn-primary { color: #fff; }
 }
 .btn-secondary:hover { background: var(--liquid-bg); }
 /* 权重 3：Ghost —— 无底轻动作 */
-.btn-ghost { background: transparent; color: var(--boh-accent); }
+.btn-ghost { background: transparent; color: var(--boh-accent-text); }
 .btn-ghost:hover { background: var(--boh-accent-soft); }
 /* 权重 4：Danger —— 破坏性，永远和确认框绑定 */
 .btn-danger { background: var(--boh-danger-soft); color: var(--boh-danger); border: 1px solid transparent; }
@@ -332,7 +335,7 @@ html[data-theme="dark"] .switch .knob { background: #d8d8de; }
   background: transparent; color: var(--liquid-text-secondary);
   transition: all var(--duration-fast) var(--ease-out);
 }
-.seg-demo button.on { background: var(--liquid-bg-strong); color: var(--boh-accent); box-shadow: var(--liquid-shadow-sm); }
+.seg-demo button.on { background: var(--liquid-bg-strong); color: var(--boh-accent-text); box-shadow: var(--liquid-shadow-sm); }
 html[data-theme="dark"] .seg-demo button.on { background: rgba(255,255,255,0.14); }
 
 /* Tag / Badge */
@@ -341,7 +344,7 @@ html[data-theme="dark"] .seg-demo button.on { background: rgba(255,255,255,0.14)
   font-size: 11px; font-weight: 700; padding: 5px 12px;
   border-radius: var(--liquid-radius-pill); display: inline-flex; align-items: center; gap: 5px;
 }
-.tag-accent { color: var(--boh-accent); background: var(--boh-accent-soft); }
+.tag-accent { color: var(--boh-accent-text); background: var(--boh-accent-soft); }
 .tag-success { color: var(--boh-success); background: var(--boh-success-soft); }
 .tag-warning { color: var(--boh-warning); background: var(--boh-warning-soft); }
 .tag-danger { color: var(--boh-danger); background: var(--boh-danger-soft); }
@@ -383,7 +386,7 @@ html[data-theme="dark"] .seg-demo button.on { background: rgba(255,255,255,0.14)
 .post-card .pc-title { font-size: 14px; font-weight: 700; margin-bottom: 6px; }
 .post-card .pc-body { font-size: 12px; color: var(--liquid-text-secondary); line-height: 1.6; }
 .post-card .pc-meta { display: flex; gap: 14px; margin-top: 12px; font-size: 11px; color: var(--liquid-text-tertiary); }
-.post-card .pc-meta b { color: var(--boh-accent); }
+.post-card .pc-meta b { color: var(--boh-accent-text); }
 
 /* Spinner */
 .spinner-row { display: flex; align-items: center; gap: 18px; }
