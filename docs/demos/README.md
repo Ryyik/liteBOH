@@ -21,18 +21,18 @@
 
 ## 已迁入（2026-10-15）
 
-- `boh-fenjing-demo.html`（BOH分镜原型）· `demo-bohai-glass-refract.html` · `demo-wxperia-liquid.html`
+- `boh-fenjing-demo.html`（BOH分镜原型）· `demo-bolek-glass-refract.html` · `demo-wxperia-liquid.html`
   —— 原在仓库根，随全量入库迁到这里（单文件零依赖，直接打开可用）。
 - `boot-timeout-fallback-demo.html` · `demo-data-admin-cf-layout.html`
 - **`beta7-plan-vs-reality.html`**（2026-10-19 新增）—— Beta7 计划 vs 现状差异看板。
   数据全部来自 `plans/029-beta7-app-shell.md` 的四轮实测（§2.5 HIG 15 检查点 / §2.6 Glass 实测 /
   §2.7–2.9 Apple 五张脸对照 / D1–D8 / 7 阶段 / 13 决策 / 17 探针 15 门禁 / 11 风险）。
   **每个数字都带判据命令，可原样重跑。** 单文件零依赖，含 `prefers-color-scheme` 适配。
-- **`bohai-portrait-audit.mjs`**（2026-10-21 新增）—— BOHAI 竖屏模式选择体检脚本，A–I 九组
+- **`bolek-portrait-audit.mjs`**（2026-10-21 新增）—— 博莱克竖屏模式选择体检脚本，A–I 九组
   （四档菜单几何 / 触屏热区 / 竖屏 hover 卡 / 软键盘 / Esc / 游客锁态 / 设置页口径 / RPC 失败态 / 岛形态）。
   **刻意不做断言** ⇒ 它是诊断脚本不是探针，所以放这里、不进 `scripts/probes/` 的探针计数
   （`AGENTS.md` 的「198 个 probes」由 `check:doc-truth` 按 `git ls-tree HEAD` 对账，加进去要同步改文档）。
-  方案落地后应转成带断言的 `scripts/probes/probe-bohai-mode-sheet.mjs`（见 `plans/031` §5）。
+  方案落地后应转成带断言的 `scripts/probes/probe-bolek-mode-sheet.mjs`（见 `plans/031` §5）。
   ⚠️ 它跑真实 RPC（不 mock 模式表）：实测 RPC 0.6–9.6s 抖动，脚本已用「等骨架消失 + 行出现」重试，
   但偶发单节数据缺失时会在日志里打 `⚠️ 模式菜单未在 36s 内出现行`，不是脚本坏了。
 - **`portrait-adaptive-audit.mjs`**（2026-10-22 新增）—— 竖屏「全宽布局 + 加载提示」体检脚本，
@@ -56,6 +56,16 @@
   ⚠️ **它不是单文件零依赖**：页面用相对路径引 `mascot-refs/product/web/*.webp`（6 张成品图，
   1.3MB，一起入库在本目录下）。原始扒站截图与抠图中间产物仍在根目录 `mascot-refs/`（已 gitignore），
   两者目录名相同但互不影响 —— 迁移/改名时别只搬 html。
+
+- **`boh-2026-recap.html`**（2026-11-23 新增）—— **年终片**，8 幕 / 73.5s，白底黑字。
+  不是视频、没有一帧图片序列：一个全局 `t` 驱动 `requestAnimationFrame`，逐帧算样式写 DOM/canvas，
+  所以能真暂停、真跳幕、真拖进度条。文案与数据全部来自社区页面（`/forum` `/albums` `/birthday`
+  `/boh-8-years-journey` `/anniversary-cafe`），每幕右下角标出处。
+  - 同系列：`boh-film.html`（白场九幕 67.4s，通用版）、`boh-film-ink.html`（黑场九幕 62.4s 备份）。
+  - **单文件可分发**：三张影集截图已 base64 内联进 `window.__SHOT_DATA`（文件 412KB），
+    取不到才回落 `../../src/assets/images/*.webp`。换图要同步替换那三条 data URI。
+  - 改幕时长只动 `SCENES[].dur`，`start` 自动累加；`window.__bohFilm` 暴露 `seek/pause/play` 供截图脚本用。
+
 
 ## 放什么
 

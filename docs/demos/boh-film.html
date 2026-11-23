@@ -1,0 +1,1590 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>方块之家 · 一块一块，成为我们</title>
+<meta name="description" content="方块之家宣传片 · 纯前端绘制的伪视频（白底黑字）">
+<style>
+  /* ============================================================
+     方块之家 · 伪视频（白底黑字版）
+     ------------------------------------------------------------
+     白场贯穿全片，靠**排版与动作**分幕，不靠明暗交替。
+     一个全局时间轴 t（秒）驱动逐帧渲染；硬切，不做转场。
+     空格 暂停 / ← → 跳幕 / 点击进度条 拖拽 / R 重播
+     ============================================================ */
+
+  :root{
+    --paper:#ffffff;
+    --ink:#0a0a0a;
+    --ink-2:#86868b;
+    --ink-3:#b8b8bc;
+    --hair:#e8e8ed;
+    --shell:#f2f2f4;
+  }
+
+  *{box-sizing:border-box}
+
+  html,body{
+    margin:0;height:100%;
+    background:var(--shell);
+    overflow:hidden;
+    -webkit-font-smoothing:antialiased;
+    -moz-osx-font-smoothing:grayscale;
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro SC","SF Pro Display","PingFang SC","Hiragino Sans GB","Helvetica Neue",system-ui,sans-serif;
+    color:var(--ink);
+  }
+
+  #film{
+    position:fixed;inset:0;
+    display:flex;align-items:center;justify-content:center;
+    background:var(--shell);
+    padding:0 0 78px;
+  }
+
+  #stage{
+    position:relative;
+    aspect-ratio:16/9;
+    width:min(100vw, calc((100vh - 92px) * 16 / 9));
+    background:var(--paper);
+    overflow:hidden;
+    container-type:inline-size;
+    isolation:isolate;
+  }
+
+  #cv{position:absolute;inset:0;width:100%;height:100%;display:block}
+
+  /* 纸张颗粒：极淡，只为消除大块纯白的"塑料感" */
+  #grain{
+    position:absolute;inset:-60px;
+    pointer-events:none;
+    opacity:.03;
+    will-change:transform;
+  }
+
+  /* ---------- 文字层 ---------- */
+  #type{position:absolute;inset:0;pointer-events:none}
+
+  .sc{
+    position:absolute;inset:0;
+    display:flex;flex-direction:column;
+    align-items:center;justify-content:center;
+    opacity:0;visibility:hidden;
+    color:var(--ink);
+  }
+  .sc.on{opacity:1;visibility:visible}
+
+  /* mask 揭示：外层裁切，内层位移。这是"字从地里长出来"的标准做法 */
+  .mask{overflow:hidden;display:block}
+  .mask > i{display:inline-block;font-style:normal;will-change:transform}
+
+  /* ---------- 播放外壳 ---------- */
+  #chrome{
+    position:fixed;left:0;right:0;bottom:0;
+    height:78px;padding:0 30px 18px;
+    display:flex;align-items:flex-end;gap:18px;
+    font-size:11.5px;color:#9a9aa0;letter-spacing:.06em;
+    transition:opacity .5s ease;
+    z-index:20;
+  }
+  #chrome.idle{opacity:0}
+  @media (hover:none){#chrome.idle{opacity:.55}}
+
+  .cbtn{
+    width:26px;height:26px;flex:0 0 26px;
+    border:0;padding:0;background:none;
+    color:#8e8e94;cursor:pointer;
+    display:grid;place-items:center;
+    transition:color .2s;
+  }
+  .cbtn:hover{color:#111}
+  .cbtn svg{width:13px;height:13px;display:block}
+
+  #track{position:relative;flex:1;height:26px;display:flex;align-items:center;cursor:pointer}
+  #track .bar{position:relative;width:100%;height:2px;background:#dcdce1;border-radius:2px;overflow:hidden;transition:height .18s ease}
+  #track:hover .bar{height:4px}
+  #track .fill{position:absolute;left:0;top:0;bottom:0;width:0%;background:#111;border-radius:2px}
+  #track .marks{position:absolute;inset:0;pointer-events:none}
+  #track .marks i{position:absolute;top:0;bottom:0;width:1px;background:#fff;opacity:.9}
+
+  #tc{
+    font-family:ui-monospace,"SF Mono",Menlo,monospace;
+    font-variant-numeric:tabular-nums;font-size:11.5px;
+    letter-spacing:.06em;min-width:72px;text-align:right;color:#9a9aa0;
+  }
+  #tc b{color:#3a3a3e;font-weight:400}
+
+  #mute.off #wave{display:none}
+  #mute:not(.off) #slash{display:none}
+
+  #chap{
+    position:fixed;left:30px;bottom:54px;
+    font-size:11px;letter-spacing:.24em;color:#c8c8ce;
+    z-index:20;transition:opacity .6s ease;
+  }
+  #chap.idle{opacity:0}
+
+  #again{
+    position:absolute;left:50%;top:50%;
+    transform:translate(-50%,-50%) scale(.96);
+    padding:13px 26px;border-radius:999px;
+    border:1px solid #d8d8dd;background:rgba(255,255,255,.82);
+    -webkit-backdrop-filter:blur(24px);backdrop-filter:blur(24px);
+    color:#111;font-size:13px;letter-spacing:.08em;
+    cursor:pointer;opacity:0;pointer-events:none;
+    transition:opacity .5s ease,transform .5s cubic-bezier(.16,1,.3,1);
+    z-index:30;font-family:inherit;
+  }
+  #again.on{opacity:1;pointer-events:auto;transform:translate(-50%,-50%) scale(1)}
+  #again:hover{background:#fff;border-color:#111}
+
+  #rotate{
+    position:fixed;left:0;right:0;top:14px;text-align:center;
+    font-size:11px;letter-spacing:.18em;color:#b0b0b6;
+    z-index:40;opacity:0;transition:opacity .6s ease;pointer-events:none;
+  }
+  #rotate.on{opacity:1}
+
+  @media (prefers-reduced-motion:reduce){ #grain{display:none} }
+
+  /* ============================================================
+     各幕专属
+     ============================================================ */
+
+  /* ---- 1 种子 ---- */
+  #seed-dot{
+    position:absolute;left:50%;top:50%;
+    width:5px;height:5px;
+    background:var(--ink);
+    transform:translate(-50%,-50%);
+    opacity:0;
+  }
+  #seed-hold{
+    position:absolute;left:50%;top:50%;
+    transform:translate(-50%,-50%);
+    width:min(32cqw,470px);
+    text-align:center;
+  }
+  #s-seed .q{
+    margin:0;
+    font-size:min(2.3cqw,33px);
+    font-weight:400;letter-spacing:.015em;
+    color:var(--ink-2);
+    line-height:1.6;
+    overflow:hidden;
+  }
+  #s-seed .q i{display:inline-block;font-style:normal;will-change:transform,opacity,filter}
+
+  /* ---- 2 生长 ---- */
+  #s-grow .cap{
+    position:absolute;left:0;right:0;bottom:10%;
+    text-align:center;
+    font-size:min(1.1cqw,15px);
+    letter-spacing:.26em;color:var(--ink-3);
+    text-transform:uppercase;font-weight:500;
+    margin:0;
+  }
+
+  /* ---- 3 名字 ---- */
+  #name-title{
+    font-size:min(13.2cqw,192px);
+    font-weight:600;line-height:.94;
+    letter-spacing:-.028em;
+    color:var(--ink);
+    margin:0;
+    display:flex;gap:.02em;
+  }
+  #name-title i{display:inline-block;font-style:normal;will-change:transform}
+  #name-rule{
+    height:1px;background:var(--ink);
+    width:0;margin-top:min(4.2cqw,60px);
+    opacity:0;
+  }
+  #name-sub{
+    margin-top:min(2cqw,28px);
+    font-size:min(1cqw,14px);
+    letter-spacing:.36em;
+    color:var(--ink-2);font-weight:500;
+    text-transform:uppercase;
+  }
+  #name-sub i{display:inline-block;font-style:normal;will-change:opacity,transform,filter}
+
+  /* ---- 4 年轮 ---- */
+  /* 🔴 早年轮幕是「左列(年+线+序号) / 右列(描述)」两列居中，
+     左列 230px 高、右列 38px 高，flex 居中后**描述对准的是整块左列的中心**，
+     而数字滚轮的中心比它高 40px —— 实测「2022」看起来浮在描述上方。
+     现在拆成两行：main 行只有「年 + 描述」，同轴对齐；foot 行放线+序号。 */
+  #s-year{
+    flex-direction:column;
+    align-items:flex-start;
+    gap:min(2.6cqw,38px);
+    padding:0 min(9.5cqw,136px);
+  }
+  #year-main{
+    display:flex;flex-direction:row;
+    align-items:center;
+    gap:min(5.8cqw,84px);
+    width:100%;
+  }
+  #year-foot{
+    display:flex;flex-direction:column;
+    align-items:flex-start;
+    gap:min(1.1cqw,16px);
+    width:100%;
+  }
+  #year-wheel{
+    /* 尺寸按"占满 16:9 画框 70% 宽"来定：1436px 宽的舞台上
+       29cqw 只有 416px，配上 130px 的字，静帧看就是"缩在左上角的一小坨"。
+       现在年份 12cqw（约 172px），滚轮窗口同步放大。 */
+    height:min(13.4cqw,192px);overflow:hidden;
+    position:relative;width:min(36cqw,517px);
+    flex:0 0 auto;
+  }
+  #year-col{will-change:transform}
+  #year-col div{
+    height:min(13.4cqw,192px);
+    display:flex;align-items:center;
+    font-size:min(11.6cqw,167px);
+    font-weight:600;line-height:1;
+    letter-spacing:-.045em;
+    font-variant-numeric:tabular-nums;
+    color:var(--ink);
+  }
+  #year-line{height:1px;background:var(--hair);width:100%;position:relative;overflow:hidden}
+  #year-line i{position:absolute;left:0;top:0;bottom:0;width:0;background:var(--ink);display:block}
+  #year-idx{
+    font-size:min(1cqw,14px);letter-spacing:.24em;
+    color:var(--ink-3);font-variant-numeric:tabular-nums;
+    font-family:ui-monospace,"SF Mono",Menlo,monospace;
+  }
+  #year-desc{
+    margin:0;
+    width:min(31cqw,446px);
+    font-size:min(2.1cqw,30px);
+    line-height:1.58;color:var(--ink);
+    letter-spacing:.005em;
+  }
+  #year-desc i{display:inline-block;font-style:normal;will-change:transform,opacity}
+
+  /* ---- 5 照片 ---- */
+  .shot{
+    position:absolute;overflow:hidden;background:#f2f2f4;
+    will-change:clip-path;
+  }
+  .shot img{width:100%;height:100%;object-fit:cover;display:block;will-change:transform}
+  #photo-cap{
+    position:absolute;left:0;right:0;bottom:7%;
+    text-align:center;margin:0;
+    font-size:min(1.32cqw,19px);
+    letter-spacing:.1em;color:var(--ink-2);
+  }
+  #photo-cap i{display:inline-block;font-style:normal;will-change:transform,opacity}
+
+  /* ---- 6 场 ---- */
+  /* 整块要**水平居中**：早前写死 left:13.8%，右侧留一大片白，
+     静帧看就是"内容偏到左边去了"。用 left:50% + translateX(-50%)，
+     并让竖线跟着列表一起被包进同一个居中容器。 */
+  #act-rail{
+    position:absolute;left:0;top:0;
+    width:1px;background:var(--ink);
+    height:100%;
+    transform:scaleY(0);
+    transform-origin:top center;
+    opacity:.85;
+  }
+  #act-list{
+    display:flex;flex-direction:column;
+    gap:min(4.4cqw,63px);
+    padding-left:min(3.2cqw,46px);
+  }
+  #s-act{
+    display:flex;flex-direction:row;
+    align-items:center;justify-content:center;
+  }
+  #act-box{position:relative;display:flex;flex-direction:row;align-items:center}
+  .act{display:flex;align-items:baseline;gap:min(3.2cqw,46px)}
+  .act .n{
+    font-family:ui-monospace,"SF Mono",Menlo,monospace;
+    font-size:min(1.2cqw,17px);
+    color:var(--ink-3);letter-spacing:.06em;
+    font-variant-numeric:tabular-nums;
+    min-width:2.2em;
+  }
+  .act .k{
+    /* 4.2cqw 在 1436px 舞台上只有 60px，整块 331px 宽，
+       在 16:9 画框里显得很小。放大到 6.4cqw 才有分量。 */
+    font-size:min(6.4cqw,92px);
+    font-weight:600;letter-spacing:-.025em;
+    line-height:1.12;color:var(--ink);
+    min-width:min(10.6cqw,152px);
+    overflow:hidden;
+  }
+  .act .k i{display:inline-block;font-style:normal;will-change:transform}
+  .act .v{
+    font-size:min(1.75cqw,25px);
+    color:var(--ink-2);letter-spacing:.05em;
+  }
+  .act .v i{display:inline-block;font-style:normal;will-change:opacity,transform}
+
+  /* ---- 7 问 ---- */
+  #s-ask{gap:min(3.2cqw,46px)}
+  #ask-label{
+    font-size:min(.9cqw,13px);letter-spacing:.3em;
+    color:var(--ink-3);
+    text-transform:uppercase;font-weight:600;
+  }
+  #ask-pill{
+    width:min(50cqw,720px);height:min(4.4cqw,63px);
+    border:1px solid #d4d4d9;border-radius:999px;
+    display:flex;align-items:center;
+    padding:0 min(2.3cqw,33px);
+    background:#fff;
+    will-change:transform,opacity,border-color;
+  }
+  #ask-q{
+    font-size:min(1.53cqw,22px);color:var(--ink);
+    display:flex;align-items:center;white-space:nowrap;
+  }
+  #ask-caret{
+    display:inline-block;width:2px;height:1.2em;
+    background:var(--ink);margin-left:.09em;
+    will-change:opacity;
+  }
+  #ask-ans{
+    width:min(50cqw,720px);
+    display:flex;flex-direction:column;gap:min(1.2cqw,17px);
+  }
+  #ask-ans p{
+    margin:0;font-size:min(1.53cqw,22px);
+    line-height:1.62;color:var(--ink);
+    letter-spacing:.005em;
+  }
+  /* 第一行回答早前用 --ink-2(#86868b)，在纯白上对比度只有 3.5:1，
+     缩到 22px 以下就发虚。改成 #5a5a60（约 7:1），只靠小方块+缩进区分层级。 */
+  #ask-ans p.muted{color:#5a5a60}
+  #ask-ans i{display:inline-block;font-style:normal;will-change:transform,opacity,filter}
+  #ask-ans .sq{
+    display:inline-block;width:min(.4cqw,6px);height:min(.4cqw,6px);
+    background:var(--ink);margin-right:.85em;
+    vertical-align:middle;transform:translateY(-.1em);
+  }
+
+  /* ---- 8 数 ---- */
+  #s-num{
+    flex-direction:row;
+    gap:min(5.4cqw,76px);
+    padding:0 min(9cqw,130px);
+  }
+  #num-wheel{
+    position:relative;
+    height:min(24cqw,345px);overflow:hidden;
+    width:min(24cqw,345px);
+  }
+  #num-col{will-change:transform}
+  #num-col div{
+    height:min(24cqw,345px);
+    display:flex;align-items:center;justify-content:flex-start;
+    font-size:min(22cqw,316px);
+    font-weight:600;line-height:1;
+    letter-spacing:-.06em;
+    font-variant-numeric:tabular-nums;
+    color:var(--ink);
+  }
+  #num-right{display:flex;flex-direction:column;gap:min(1.8cqw,26px)}
+  .num-row{
+    margin:0;
+    font-size:min(2.3cqw,33px);
+    color:var(--ink);letter-spacing:.01em;
+    display:flex;align-items:center;gap:.7em;
+    white-space:nowrap;
+  }
+  .num-row i{
+    display:inline-block;width:min(.85cqw,12px);height:1px;
+    background:var(--ink);font-style:normal;flex:0 0 auto;
+  }
+
+  /* ---- 9 收尾 ---- */
+  #brand-wrap{
+    position:absolute;left:0;right:0;top:62%;
+    transform:translateY(-50%);
+    display:flex;flex-direction:column;align-items:center;
+  }
+  #brand-name{
+    font-size:min(3.2cqw,46px);
+    font-weight:600;letter-spacing:.05em;
+    color:var(--ink);margin:0;
+    display:flex;
+  }
+  #brand-name i{display:inline-block;font-style:normal;will-change:transform}
+  #brand-line{
+    margin:min(1.4cqw,20px) 0 0;
+    font-size:min(1.34cqw,19px);
+    letter-spacing:.14em;color:var(--ink-2);
+  }
+  #brand-line i{display:inline-block;font-style:normal;will-change:opacity,transform,filter}
+  #brand-cta{
+    margin-top:min(3.2cqw,45px);
+    padding:min(.7cqw,10px) min(2cqw,28px);
+    border-radius:999px;background:var(--ink);color:#fff;
+    font-size:min(1cqw,14px);font-weight:500;letter-spacing:.06em;
+    will-change:transform,opacity;
+  }
+
+  /* ============================================================
+     竖屏：舞台恒 16:9 ⇒ 继续用 cqw（比例与横屏一一对应），
+     只调整需要重新分配空间的几何量。
+     ⚠️ 不能用 cqh：container-type:inline-size 下 cqh 会回退到视口高度。
+     放在样式表末尾，避免被前面的基础规则盖掉。
+     ============================================================ */
+  @media (max-width:760px){
+    #film{padding:0 0 8vh}
+    #stage{width:100vw}
+
+    #s-seed .q{font-size:3.6cqw;width:min(66cqw,470px)}
+    #seed-hold{width:min(66cqw,470px)}
+
+    #s-grow .cap{font-size:2.3cqw;bottom:7%}
+
+    #name-title{font-size:15.5cqw}
+    #name-rule{margin-top:5.5cqw}
+    #name-sub{font-size:2.1cqw;margin-top:3.4cqw;letter-spacing:.24em}
+
+    /* 竖屏年轮：整块改为纵向堆叠。
+       ⚠️ #year-wheel 的高度必须与 #year-col div 的高度**完全相等**，
+       否则滚轮的可视窗口与行高不匹配，translateY 算出的位移会让整列
+       上下溢出（实测越界 38~307px）。两者都用 1em 之外的同一变量。 */
+    #s-year{gap:3.6cqw;padding:0 9cqw}
+    #year-main{flex-direction:column;align-items:flex-start;gap:2.4cqw;width:100%}
+    #year-wheel{height:15.5cqw;width:100%}
+    #year-col div{height:15.5cqw;font-size:13.4cqw}
+    #year-desc{font-size:4cqw;line-height:1.5;width:100%}
+    #year-foot{gap:1.8cqw;width:100%}
+    #year-idx{font-size:2.2cqw}
+    #year-line{width:100%}
+
+    #photo-cap{font-size:3cqw;bottom:5%}
+
+    #act-list{gap:6cqw;padding-left:5cqw}
+    .act{gap:4cqw}
+    .act .n{font-size:2.2cqw;min-width:2em}
+    .act .k{font-size:9.6cqw;min-width:16cqw}
+    .act .v{font-size:3.2cqw}
+
+    #s-ask{gap:4.6cqw}
+    #ask-label{font-size:2.1cqw}
+    #ask-pill{width:84cqw;height:10cqw;padding:0 4.5cqw}
+    #ask-q{font-size:3.4cqw}
+    #ask-ans{width:84cqw;gap:2.6cqw}
+    #ask-ans p{font-size:3.4cqw}
+
+    /* 同上：滚轮窗口高度必须等于行高，否则整列溢出画框。 */
+    #s-num{flex-direction:column;gap:4cqw;align-items:flex-start;padding:0 9cqw}
+    #num-wheel{height:30cqw;width:100%}
+    #num-col div{height:30cqw;font-size:28cqw}
+    #num-right{gap:2.8cqw;width:100%}
+    .num-row{font-size:4.8cqw}
+
+    /* 竖屏时画框只有 219px 高，logo 底边到文字顶的绝对间距被压到几乎没有。
+       这里把文字块再往下推，并缩小 CTA 上边距，保证四段互不重叠。 */
+    #brand-wrap{top:72%}
+    #brand-name{font-size:6cqw}
+    #brand-line{font-size:3.2cqw;margin-top:2.2cqw}
+    #brand-cta{font-size:2.6cqw;padding:1.6cqw 5.2cqw;margin-top:3.4cqw}
+
+    #chrome{height:58px;padding:0 18px 10px}
+    #chap{bottom:46px;left:18px}
+    #tc{min-width:58px;font-size:10.5px}
+  }
+
+</style>
+</head>
+<body>
+
+<div id="film">
+  <div id="stage">
+    <canvas id="cv"></canvas>
+    <div id="grain"></div>
+
+    <div id="type">
+      <section class="sc" id="s-seed">
+        <div id="seed-dot"></div>
+        <div id="seed-hold"><p class="q"></p></div>
+      </section>
+
+      <section class="sc" id="s-grow">
+        <p class="cap">ONE BLOCK AT A TIME</p>
+      </section>
+
+      <section class="sc" id="s-name">
+        <h1 id="name-title"></h1>
+        <div id="name-rule"></div>
+        <div id="name-sub"></div>
+      </section>
+
+      <section class="sc" id="s-year">
+        <div id="year-main">
+          <div id="year-wheel"><div id="year-col"></div></div>
+          <div id="year-desc"></div>
+        </div>
+        <div id="year-foot">
+          <div id="year-line"><i></i></div>
+          <div id="year-idx"></div>
+        </div>
+      </section>
+
+      <section class="sc" id="s-photo">
+        <p id="photo-cap"></p>
+      </section>
+
+      <section class="sc" id="s-act">
+        <div id="act-box">
+          <div id="act-rail"></div>
+          <div id="act-list"></div>
+        </div>
+      </section>
+
+      <section class="sc" id="s-ask">
+        <div id="ask-label">博莱克</div>
+        <div id="ask-pill">
+          <span id="ask-q"><span id="ask-text"></span><span id="ask-caret"></span></span>
+        </div>
+        <div id="ask-ans">
+          <p class="muted" id="ask-a1"></p>
+          <p id="ask-a2"></p>
+        </div>
+      </section>
+
+      <section class="sc" id="s-num">
+        <div id="num-wheel"><div id="num-col"></div></div>
+        <div id="num-right"></div>
+      </section>
+
+      <section class="sc" id="s-brand">
+        <div id="brand-wrap">
+          <h2 id="brand-name"></h2>
+          <p id="brand-line"></p>
+          <span id="brand-cta">进入 →</span>
+        </div>
+      </section>
+    </div>
+
+    <button id="again" type="button">再看一遍</button>
+  </div>
+</div>
+
+<div id="rotate">横屏观看体验更好</div>
+<div id="chap"></div>
+
+<div id="chrome">
+  <button class="cbtn" id="play" type="button" aria-label="暂停">
+    <svg viewBox="0 0 12 12" aria-hidden="true"><rect x="1.5" y="1" width="3" height="10" fill="currentColor"/><rect x="7.5" y="1" width="3" height="10" fill="currentColor"/></svg>
+  </button>
+  <div id="track" role="slider" aria-label="进度" tabindex="0" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+    <div class="bar"><div class="fill"></div></div>
+    <div class="marks"></div>
+  </div>
+  <button class="cbtn" id="mute" type="button" aria-label="开启声音" title="声音">
+    <svg viewBox="0 0 14 14" aria-hidden="true">
+      <path d="M2 5.2h2L7 2.6v8.8L4 8.8H2z" fill="currentColor"/>
+      <path id="wave" d="M9.1 5.3a2.4 2.4 0 010 3.4M10.7 3.9a4.6 4.6 0 010 6.2" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/>
+      <path id="slash" d="M9.4 5.2l3 3.6M12.4 5.2l-3 3.6" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/>
+    </svg>
+  </button>
+  <div id="tc"><b>00:00</b></div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  /* ============================================================
+     0. 工具
+     ============================================================ */
+  const $ = (s, r = document) => r.querySelector(s);
+  const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+  const clamp = (v, a = 0, b = 1) => v < a ? a : v > b ? b : v;
+  const mix = (a, b, t) => a + (b - a) * t;
+
+  const easeOut = p => 1 - Math.pow(1 - p, 3);
+  const easeOutQuint = p => 1 - Math.pow(1 - p, 5);
+  const easeOutExpo = p => p === 1 ? 1 : 1 - Math.pow(2, -10 * p);
+  const easeInOut = p => p < .5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;
+
+  const seg = (local, a, b) => clamp((local - a) / (b - a));
+
+  const stage = $('#stage');
+  const cv = $('#cv');
+  const ctx = cv.getContext('2d');
+  const grain = $('#grain');
+  const againBtn = $('#again');
+  const chromebar = $('#chrome');
+  const chapEl = $('#chap');
+  const track = $('#track');
+  const fill = $('#track .fill');
+  const tcEl = $('#tc');
+  const playBtn = $('#play');
+  const rotateHint = $('#rotate');
+
+  const W = 1600, H = 900;
+  let pxScale = 1;
+  /* 窄屏（竖屏手机）下舞台只有 219px 高，canvas 逻辑坐标仍是 1600×900，
+     所以任何"画死在 canvas 上的图形"都会按比例缩小 —— 视觉上和文字层
+     不再匹配。这里给像素 logo 一个额外的缩放因子，让它在窄屏更小，
+     给下方文字腾空间。 */
+  let appleScale = 1;
+
+  function splitChars(el, text) {
+    el.innerHTML = '';
+    const out = [];
+    for (const ch of text) {
+      const i = document.createElement('i');
+      i.textContent = ch === ' ' ? '\u00a0' : ch;
+      el.appendChild(i);
+      out.push(i);
+    }
+    return out;
+  }
+
+  /* ============================================================
+     1. 纸张颗粒
+     ============================================================ */
+  (function () {
+    const n = document.createElement('canvas');
+    n.width = n.height = 128;
+    const nx = n.getContext('2d');
+    const img = nx.createImageData(128, 128);
+    const d = img.data;
+    for (let i = 0; i < d.length; i += 4) {
+      const v = 110 + Math.random() * 100;
+      d[i] = d[i + 1] = d[i + 2] = v;
+      d[i + 3] = 255;
+    }
+    nx.putImageData(img, 0, 0);
+    grain.style.backgroundImage = `url(${n.toDataURL()})`;
+    grain.style.backgroundRepeat = 'repeat';
+  })();
+
+  /* ============================================================
+     2. 场景表
+     ============================================================ */
+  const SCENES = [
+    { id: 'seed',  label: '种子', dur: 4.0 },
+    { id: 'grow',  label: '生长', dur: 6.4 },
+    { id: 'name',  label: '名字', dur: 5.8 },
+    { id: 'year',  label: '年轮', dur: 9.6 },
+    { id: 'photo', label: '我们', dur: 9.8 },
+    { id: 'act',   label: '日常', dur: 6.6 },
+    { id: 'ask',   label: '问问', dur: 9.2 },
+    { id: 'num',   label: '八年', dur: 7.2 },
+    { id: 'brand', label: '收尾', dur: 8.8 },
+  ];
+  let acc = 0;
+  for (const s of SCENES) { s.start = acc; acc += s.dur; }
+  const TOTAL = acc;
+  const wrap = id => document.getElementById('s-' + id);
+
+  /* ============================================================
+     3. 构建 DOM
+     ============================================================ */
+
+  const seedChars = splitChars(wrap('seed').querySelector('.q'), '从一块方块开始。');
+  const nameChars = splitChars($('#name-title'), '方块之家');
+  const nameSubChars = splitChars($('#name-sub'), 'BLOCK OF HOME · 2018—2026');
+
+  const YEARS = [
+    ['2018', '第一张游戏地图，方块之家创立。'],
+    ['2019', '联机侠服务器开启。'],
+    ['2020', '传统新年活动开始。'],
+    ['2021', '三周年，冬眠生存成为传统。'],
+    ['2022', '四周年庆典与方块礼盒。'],
+    ['2023', '五周年纪录片。'],
+    ['2024', '六周年纪录片。'],
+    ['2025', '七周年遇见系列。'],
+  ];
+  (function () {
+    const col = $('#year-col');
+    YEARS.forEach(([y]) => {
+      const d = document.createElement('div');
+      d.textContent = y;
+      col.appendChild(d);
+    });
+  })();
+  let yearDescChars = [];
+  let curYearIdx = -1;
+
+  const SHOTS = [
+    { src: '../../src/assets/images/classroom-group-v5.webp', box: { left: 5.5, top: 14, width: 41, height: 70 } },
+    { src: '../../src/assets/images/2022-7-4years.webp',      box: { left: 49, top: 14, width: 45.5, height: 33 } },
+    { src: '../../src/assets/images/26coffee.webp',           box: { left: 49, top: 51, width: 45.5, height: 33 } },
+  ];
+  const shotEls = [];
+  (function () {
+    const host = wrap('photo');
+    SHOTS.forEach((s) => {
+      const b = document.createElement('div');
+      b.className = 'shot';
+      b.style.left = s.box.left + '%';
+      b.style.top = s.box.top + '%';
+      b.style.width = s.box.width + '%';
+      b.style.height = s.box.height + '%';
+      b.style.clipPath = 'inset(100% 0% 0% 0%)';
+      const img = new Image();
+      img.src = s.src;
+      img.alt = '';
+      img.decoding = 'async';
+      b.appendChild(img);
+      host.appendChild(b);
+      shotEls.push(b);
+    });
+  })();
+  const photoCapChars = splitChars($('#photo-cap'), '地图会存档，人会记得。');
+
+  const ACTS = [
+    ['01', '论坛', '写下今天'],
+    ['02', '相册', '留住此刻'],
+    ['03', '周边', '带回家'],
+  ];
+  const actNodes = [];
+  (function () {
+    const list = $('#act-list');
+    ACTS.forEach(([n, k, v]) => {
+      const row = document.createElement('div');
+      row.className = 'act';
+      row.innerHTML = `<span class="n">${n}</span><span class="k"></span><span class="v"></span>`;
+      list.appendChild(row);
+      actNodes.push({
+        n: row.querySelector('.n'),
+        kChars: splitChars(row.querySelector('.k'), k),
+        vChars: splitChars(row.querySelector('.v'), v),
+      });
+    });
+  })();
+
+  const ASK_Q = '今年冬眠生存什么时候开始？';
+  const ASK_CHARS = [...ASK_Q];
+  const askA1Chars = splitChars($('#ask-a1'), '十二月。');
+
+  /* 🔴 小方块必须在 splitChars **之前**插好，而且不能落进 chars 数组。
+     早前先 splitChars 再 insertBefore 插方块 —— 方块成了元素的第一个子节点，
+     但不在数组里，于是动画只驱动文字；截图上一度出现"只有一个小黑方块、
+     后面的字全没出来"（方块本身没被赋 opacity，而文字在等自己的延迟）。
+     现在：先把方块 append 进去，再用一个独立变量持有它，单独控制。 */
+  const askA2El = $('#ask-a2');
+  const askSq = document.createElement('i');
+  askSq.className = 'sq';
+  askSq.style.opacity = '0';
+  askA2El.appendChild(askSq);
+  const askA2Chars = splitChars(askA2El, '和往年一样，等第一场雪。');
+  // splitChars 内部会 innerHTML='' 清空，所以要把方块重新插回去
+  askA2El.insertBefore(askSq, askA2El.firstChild);
+
+  (function () {
+    const col = $('#num-col');
+    for (let i = 0; i <= 8; i++) {
+      const d = document.createElement('div');
+      d.textContent = String(i).padStart(2, '0');
+      col.appendChild(d);
+    }
+    const right = $('#num-right');
+    ['八年', '一批人', '一个还在的地方'].forEach(t => {
+      const p = document.createElement('p');
+      p.className = 'num-row';
+      p.innerHTML = `<i></i><span>${t}</span>`;
+      right.appendChild(p);
+    });
+  })();
+
+  const brandChars = splitChars($('#brand-name'), '方块之家');
+  const brandLineChars = splitChars($('#brand-line'), '一块一块，成为我们。');
+  const brandCta = $('#brand-cta');
+
+  /* ============================================================
+     4. 声音（WebAudio 现场合成）
+     ============================================================ */
+  const Sound = (() => {
+    let actx = null, master = null, bed = null;
+    let muted = true;
+
+    function ensure() {
+      if (actx) return actx;
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return null;
+      actx = new AC();
+      master = actx.createGain();
+      master.gain.value = 0;
+      master.connect(actx.destination);
+      return actx;
+    }
+
+    function startBed() {
+      if (!actx || bed) return;
+      const g = actx.createGain();
+      g.gain.value = 0;
+      g.connect(master);
+      g.gain.linearRampToValueAtTime(0.05, actx.currentTime + 4);
+
+      const o = actx.createOscillator();
+      o.type = 'sine';
+      o.frequency.value = 62;
+      const og = actx.createGain();
+      og.gain.value = 0.7;
+      o.connect(og).connect(g);
+      o.start();
+
+      const len = actx.sampleRate * 4;
+      const buf = actx.createBuffer(1, len, actx.sampleRate);
+      const d = buf.getChannelData(0);
+      let b0 = 0, b1 = 0, b2 = 0;
+      for (let i = 0; i < len; i++) {
+        const w = Math.random() * 2 - 1;
+        b0 = 0.99765 * b0 + w * 0.0990460;
+        b1 = 0.96300 * b1 + w * 0.2965164;
+        b2 = 0.57000 * b2 + w * 1.0526913;
+        d[i] = (b0 + b1 + b2 + w * 0.1848) * 0.14;
+      }
+      const src = actx.createBufferSource();
+      src.buffer = buf;
+      src.loop = true;
+      const hp = actx.createBiquadFilter();
+      hp.type = 'highpass';
+      hp.frequency.value = 1800;
+      const ng = actx.createGain();
+      ng.gain.value = 0.028;
+      src.connect(hp).connect(ng).connect(g);
+      src.start();
+      bed = g;
+    }
+
+    function tap(level = 0.5) {
+      if (!actx || muted) return;
+      const now = actx.currentTime;
+      const len = Math.floor(actx.sampleRate * 0.038);
+      const buf = actx.createBuffer(1, len, actx.sampleRate);
+      const d = buf.getChannelData(0);
+      for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 9);
+      const s = actx.createBufferSource();
+      s.buffer = buf;
+      const bp = actx.createBiquadFilter();
+      bp.type = 'bandpass';
+      bp.frequency.value = 3600;
+      bp.Q.value = 1.1;
+      const g = actx.createGain();
+      g.gain.value = level * 0.07;
+      s.connect(bp).connect(g).connect(master);
+      s.start(now);
+      s.stop(now + 0.04);
+    }
+
+    function thump(level = 1) {
+      if (!actx || muted) return;
+      const now = actx.currentTime;
+      const o = actx.createOscillator();
+      o.type = 'sine';
+      o.frequency.setValueAtTime(96, now);
+      o.frequency.exponentialRampToValueAtTime(44, now + 0.3);
+      const g = actx.createGain();
+      g.gain.setValueAtTime(0, now);
+      g.gain.linearRampToValueAtTime(0.12 * level, now + 0.012);
+      g.gain.exponentialRampToValueAtTime(0.0001, now + 0.38);
+      o.connect(g).connect(master);
+      o.start(now);
+      o.stop(now + 0.4);
+    }
+
+    function setMuted(v) {
+      muted = v;
+      if (!v) {
+        if (!ensure()) return;
+        if (actx.state === 'suspended') actx.resume();
+        startBed();
+        master.gain.cancelScheduledValues(actx.currentTime);
+        master.gain.linearRampToValueAtTime(0.5, actx.currentTime + 0.6);
+      } else if (actx) {
+        master.gain.cancelScheduledValues(actx.currentTime);
+        master.gain.linearRampToValueAtTime(0, actx.currentTime + 0.15);
+      }
+    }
+
+    return {
+      get muted() { return muted; },
+      toggle() { setMuted(!muted); return muted; },
+      tap, thump,
+      cue(id) {
+        if (muted) return;
+        if (id === 'grow' || id === 'num' || id === 'brand') thump(0.85);
+        else tap(0.6);
+      },
+    };
+  })();
+
+  /* ============================================================
+     5. canvas 层：生长网格 / 像素苹果
+     ============================================================ */
+
+  const APPLE = [
+    '.....bb.....',
+    '.....b......',
+    '...rrrrr....',
+    '..rrhrrrrr..',
+    '.rrhhrrrrrr.',
+    '.rrhhrrrrrr.',
+    '.rrrrrrrrrr.',
+    '.rrrrrrrrrr.',
+    '..rrrrrrrr..',
+    '...rrrrrr...',
+    '....rrrr....',
+  ];
+  const APPLE_PAL = { r: '#e01f26', h: '#ff7a80', b: '#5c3417' };
+
+  /* 苹果格子的入场顺序：从中心向外 */
+  const APPLE_CELLS = (() => {
+    const out = [];
+    const h = APPLE.length, w = APPLE[0].length;
+    for (let r = 0; r < h; r++) {
+      for (let c = 0; c < w; c++) {
+        const ch = APPLE[r][c];
+        if (ch === '.') continue;
+        const dx = c - (w - 1) / 2, dy = r - (h - 1) / 2;
+        out.push({ r, c, ch, d: Math.hypot(dx, dy) });
+      }
+    }
+    out.sort((a, b) => a.d - b.d);
+    const maxD = out[out.length - 1].d || 1;
+    out.forEach(o => { o.t = o.d / maxD; });
+    return out;
+  })();
+
+  /* 生长：一格 → 2×2 → 3×3 → 5×5 网格线。
+     全片动作逻辑最复杂的一幕，参数都写在这里便于调。 */
+  function drawGrow(local) {
+    const cx = W / 2, cy = H / 2 - 16;
+    /* gap 必须很小：9px 时 3×3 读起来像「九块独立积木」，
+       3px 才像「一格分裂出来的网格」。 */
+    const base = 118, gap = 3, span = base * 3 + gap * 2;
+
+    const s0 = easeOutQuint(seg(local, 0.10, 0.80));   // 单格出现
+    const s1 = easeOutQuint(seg(local, 0.90, 2.05));   // → 2×2
+    const s2 = easeOutQuint(seg(local, 2.15, 3.35));   // → 3×3
+    const s3 = easeOutQuint(seg(local, 3.45, 4.95));   // → 网格线
+
+    // --- 实心格 ---
+    if (s0 > 0) {
+      const fade = 1 - s3;
+      if (fade > 0.01) {
+        let cells = [[0, 0]];
+
+        if (s1 > 0) {
+          const off = (base + gap) / 2 * s1;
+          const four = [[-1, -1], [1, -1], [-1, 1], [1, 1]];
+          cells = four.map(([x, y]) => [x * off, y * off]);
+        }
+        if (s2 > 0) {
+          const prev = cells.slice();
+          const nine = [];
+          for (let r = -1; r <= 1; r++)
+            for (let c = -1; c <= 1; c++)
+              nine.push([c * (base + gap), r * (base + gap)]);
+          cells = nine.map((pos, i) => {
+            const from = prev[i % prev.length];
+            return [mix(from[0], pos[0], s2), mix(from[1], pos[1], s2)];
+          });
+        }
+
+        // 单格尺寸：先从小弹到满，之后随网格线出现而收缩淡出
+        const grow = mix(0.16, 1, Math.max(s0, s1, s2));
+        const oneSize = base * grow * mix(1, 0.42, s3);
+        const alpha = 0.92 * fade;
+
+        ctx.fillStyle = `rgba(10,10,10,${alpha.toFixed(3)})`;
+        for (const [dx, dy] of cells) {
+          ctx.fillRect(cx + dx - oneSize / 2, cy + dy - oneSize / 2, oneSize, oneSize);
+        }
+      }
+    }
+
+    // --- 网格线 ---
+    if (s3 > 0) {
+      const n = 5;
+      const step = span / n;
+      ctx.strokeStyle = `rgba(10,10,10,${(0.24 * s3).toFixed(3)})`;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      for (let i = 0; i <= n; i++) {
+        const p = clamp((s3 - i * 0.055) / 0.5);
+        if (p <= 0) continue;
+        const x = cx - span / 2 + i * step;
+        const hh = span * easeOut(p) / 2;
+        ctx.moveTo(x, cy - hh);
+        ctx.lineTo(x, cy + hh);
+      }
+      for (let i = 0; i <= n; i++) {
+        const p = clamp((s3 - 0.16 - i * 0.055) / 0.5);
+        if (p <= 0) continue;
+        const y = cy - span / 2 + i * step;
+        const hw = span * easeOut(p) / 2;
+        ctx.moveTo(cx - hw, y);
+        ctx.lineTo(cx + hw, y);
+      }
+      ctx.stroke();
+    }
+  }
+
+  function drawApple(local, alpha) {
+    if (alpha <= 0.002) return;
+    /* 🔴 logo 必须整体落在文字块**上方**。
+       早前 oy 中心在 H*0.345，而文字块从 top:50% 开始 —— 11 行 × 34px
+       的苹果垂直占了 374px，直接压到「方块之家」四个字上（截图里字叠在红块里，
+       红色和黑字互相干扰，两边都读不清）。
+       现在中心抬到 H*0.285，并把单格收到 30px（总高 330px），
+       底边约在 H*0.46，给下方文字留出干净的留白。 */
+    const cell = mix(36, 30, easeInOut(seg(local, 0.2, 2.6))) * appleScale;
+    const h = APPLE.length, w = APPLE[0].length;
+    const ox = W / 2 - (w * cell) / 2;
+    const oy = H * 0.285 - (h * cell) / 2;
+    const gap = 2.5;
+
+    for (const o of APPLE_CELLS) {
+      const begin = 0.10 + o.t * 1.3;
+      const p = easeOutQuint(seg(local, begin, begin + 0.6));
+      if (p <= 0) continue;
+      const col = APPLE_PAL[o.ch];
+      if (!col) continue;
+      const s = cell * p;
+      const x = ox + o.c * cell + (cell - s) / 2;
+      const y = oy + o.r * cell + (cell - s) / 2;
+      ctx.globalAlpha = alpha * clamp(p);
+      ctx.fillStyle = col;
+      ctx.fillRect(x, y, Math.max(0, s - gap), Math.max(0, s - gap));
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  /* ============================================================
+     6. 每幕动效
+     ============================================================ */
+
+  /* ---- 1 种子：点 → 线 → 字 ---- */
+  function animSeed(local) {
+    const dot = $('#seed-dot');
+
+    const pd = easeOutExpo(seg(local, 0.05, 0.52));      // 点弹出
+    const pl = easeInOut(seg(local, 0.92, 1.60));        // 点拉成线
+    const plf = 1 - easeInOut(seg(local, 1.74, 2.42));   // 线淡出
+
+    dot.style.width = mix(5, 330, pl).toFixed(1) + 'px';
+    dot.style.height = mix(5, 1.2, pl).toFixed(2) + 'px';
+    dot.style.opacity = (pd * plf).toFixed(3);
+    dot.style.transform = `translate(-50%,-50%) scale(${(0.15 + 0.85 * pd).toFixed(3)})`;
+
+    // 字：从线里逐个升起
+    seedChars.forEach((ch, i) => {
+      const begin = 1.92 + i * 0.062;
+      const e = easeOutQuint(seg(local, begin, begin + 0.74));
+      ch.style.transform = `translateY(${(1 - e) * 120}%)`;
+      ch.style.opacity = e.toFixed(3);
+      ch.style.filter = `blur(${(1 - e) * 2.6}px)`;
+    });
+
+    // 末尾轻微上浮（避免长时间死屏）
+    const lift = easeInOut(seg(local, 3.5, 4.0));
+    $('#seed-hold').style.transform =
+      `translate(-50%,-50%) translateY(${(-lift * 7).toFixed(1)}px)`;
+  }
+
+  /* ---- 2 生长 ---- */
+  function animGrow(local) {
+    drawGrow(local);
+    const cap = wrap('grow').querySelector('.cap');
+    const e = easeOut(seg(local, 0.25, 1.15));
+    const out = easeInOut(seg(local, 5.55, 6.25));
+    cap.style.opacity = (e * 0.9 * (1 - out)).toFixed(3);
+    cap.style.letterSpacing = mix(0.42, 0.26, e).toFixed(3) + 'em';
+  }
+
+  /* ---- 3 名字 ---- */
+  function animName(local) {
+    nameChars.forEach((ch, i) => {
+      const begin = 0.10 + i * 0.078;
+      const e = easeOutQuint(seg(local, begin, begin + 0.80));
+      ch.style.transform = `translateY(${(1 - e) * 118}%)`;
+    });
+
+    // 字距收拢：最"贵"的一招
+    const et = easeOut(seg(local, 0.1, 2.1));
+    $('#name-title').style.letterSpacing = mix(0.28, -0.028, et).toFixed(4) + 'em';
+
+    // 细线从中心展开
+    const el = easeOutQuint(seg(local, 1.35, 2.5));
+    const rule = $('#name-rule');
+    rule.style.width = (el * 26).toFixed(2) + 'cqw';
+    rule.style.opacity = (el * 0.85).toFixed(3);
+
+    // 英文小字逐字模糊浮现
+    nameSubChars.forEach((ch, i) => {
+      const begin = 2.02 + i * 0.021;
+      const e = easeOut(seg(local, begin, begin + 0.5));
+      ch.style.opacity = e.toFixed(3);
+      ch.style.transform = `translateY(${(1 - e) * 7}px)`;
+      ch.style.filter = `blur(${(1 - e) * 2.4}px)`;
+    });
+
+    const lift = easeInOut(seg(local, 4.7, 5.5));
+    wrap('name').style.transform = `translateY(${-lift * 9}px)`;
+  }
+
+  /* ---- 4 年轮：数字滚轮 ---- */
+  function animYear(local) {
+    const n = YEARS.length;
+    const t0 = 0.55, per = 1.02;
+    const raw = (local - t0) / per;
+
+    /* 🔴 滚轮必须"大部分时间是整数行"。
+       早前 pos 直接等于 raw，于是每一行都在持续滚动 ——
+       滚轮窗口里永远露着相邻年份的半个字顶（截图上是 2022 底下一排
+       「— — — —」，其实是 2023 的上半截），观感像渲染错位。
+       现在把行内前 72% 锁成整数，最后 28% 才做一次缓动过渡。 */
+    const rawClamped = clamp(raw, 0, n - 1);
+    const idxBase = Math.floor(rawClamped);
+    const frac = rawClamped - idxBase;
+    const roll = easeInOut(clamp((frac - 0.72) / 0.28));
+    const pos = Math.min(idxBase + roll, n - 1);
+
+    const col = $('#year-col');
+    const oneH = col.firstElementChild ? col.firstElementChild.offsetHeight : 1;
+    col.style.transform = `translateY(${(-pos * oneH).toFixed(2)}px)`;
+
+    const idx = Math.min(Math.round(pos), n - 1);
+    if (idx !== curYearIdx) {
+      curYearIdx = idx;
+      yearDescChars = splitChars($('#year-desc'), YEARS[idx][1]);
+      $('#year-idx').textContent =
+        String(idx + 1).padStart(2, '0') + ' / ' + String(n).padStart(2, '0');
+    }
+
+    // 描述在本行内淡入、行末淡出
+    const phase = frac;
+    const fadeIn = easeOut(seg(phase, 0, 0.28));
+    const fadeOut = 1 - easeInOut(seg(phase, 0.84, 1));
+    yearDescChars.forEach((ch, i) => {
+      const e = clamp(fadeIn - i * 0.012);
+      ch.style.opacity = (e * fadeOut).toFixed(3);
+      ch.style.transform = `translateY(${(1 - e) * 24}px)`;
+    });
+
+    // 底部进度线
+    const prog = clamp(rawClamped / (n - 1));
+    $('#year-line').querySelector('i').style.width = (easeOut(prog) * 100).toFixed(2) + '%';
+
+    // 长时间停留时轻微上浮
+    const drift = easeInOut(seg(local, 0, 9.6));
+    wrap('year').style.transform = `translateY(${-drift * 5}px)`;
+  }
+
+  /* ---- 5 照片：clip-path 自下而上擦除 ---- */
+  function animPhoto(local) {
+    shotEls.forEach((box, i) => {
+      const begin = 0.20 + i * 0.50;
+      const e = easeOutQuint(seg(local, begin, begin + 1.2));
+      // 从下往上揭示
+      box.style.clipPath = `inset(${((1 - e) * 100).toFixed(2)}% 0% 0% 0%)`;
+      const img = box.firstElementChild;
+      const sc = mix(1.08, 1.0, easeOut(seg(local, begin, begin + 2.2)));
+      img.style.transform = `scale(${sc.toFixed(4)})`;
+    });
+
+    photoCapChars.forEach((ch, i) => {
+      const begin = 3.9 + i * 0.036;
+      const e = easeOut(seg(local, begin, begin + 0.55));
+      ch.style.opacity = e.toFixed(3);
+      ch.style.transform = `translateY(${(1 - e) * 10}px)`;
+    });
+
+    const out = easeInOut(seg(local, 9.1, 9.8));
+    wrap('photo').style.opacity = (1 - out).toFixed(3);
+  }
+
+  /* ---- 6 场：三级 stagger ---- */
+  function animAct(local) {
+    const er = easeOutQuint(seg(local, 0.15, 1.3));
+    $('#act-rail').style.transform = `scaleY(${er.toFixed(3)})`;
+
+    actNodes.forEach((a, i) => {
+      const base = 0.32 + i * 0.50;
+
+      a.n.style.opacity = easeOut(seg(local, base, base + 0.5)).toFixed(3);
+
+      a.kChars.forEach((ch, j) => {
+        const begin = base + 0.06 + j * 0.052;
+        const e = easeOutQuint(seg(local, begin, begin + 0.62));
+        ch.style.transform = `translateY(${(1 - e) * 118}%)`;
+      });
+
+      a.vChars.forEach((ch, j) => {
+        const begin = base + 0.40 + j * 0.030;
+        const e = easeOut(seg(local, begin, begin + 0.55));
+        ch.style.opacity = e.toFixed(3);
+        ch.style.transform = `translateX(${(1 - e) * 20}px)`;
+      });
+    });
+  }
+
+  /* ---- 7 问：光标打字 + 回答模糊浮现 ---- */
+  function animAsk(local) {
+    const ep = easeOutQuint(seg(local, 0.10, 0.78));
+    const pill = $('#ask-pill');
+    pill.style.opacity = ep.toFixed(3);
+    pill.style.transform = `translateY(${(1 - ep) * 22}px) scale(${mix(0.97, 1, ep).toFixed(4)})`;
+
+    $('#ask-label').style.opacity = (easeOut(seg(local, 0.05, 0.6)) * 0.95).toFixed(3);
+
+    // 打字快一点（0.145s/字），给两行回答留出同框时间
+    const t0 = 0.75, per = 0.145;
+    const typed = clamp(Math.floor((local - t0) / per) + 1, 0, ASK_CHARS.length);
+    const txt = ASK_CHARS.slice(0, typed).join('');
+    const host = $('#ask-text');
+    if (host.textContent !== txt) host.textContent = txt;
+
+    const caret = $('#ask-caret');
+    caret.style.opacity = typed < ASK_CHARS.length
+      ? '1'
+      : ((Math.floor(local * 2.1) % 2 === 0) ? '1' : '0');
+
+    // 打完字边框变实
+    pill.style.borderColor = local > 3.55 ? '#111' : '#d4d4d9';
+
+    askA1Chars.forEach((ch, i) => {
+      const begin = 3.6 + i * 0.04;
+      const e = easeOut(seg(local, begin, begin + 0.6));
+      ch.style.opacity = e.toFixed(3);
+      ch.style.transform = `translateY(${(1 - e) * 13}px)`;
+      ch.style.filter = `blur(${(1 - e) * 4}px)`;
+    });
+
+    // 回答 2：方块先亮，文字随后（提前到 4.6s，保证与回答 1 同框）
+    const sqE = easeOut(seg(local, 4.55, 4.95));
+    askSq.style.opacity = sqE.toFixed(3);
+    askA2Chars.forEach((ch, i) => {
+      const begin = 4.65 + i * 0.028;
+      const e = easeOut(seg(local, begin, begin + 0.6));
+      ch.style.opacity = e.toFixed(3);
+      ch.style.transform = `translateY(${(1 - e) * 13}px)`;
+    });
+
+    const out = easeInOut(seg(local, 8.6, 9.2));
+    wrap('ask').style.opacity = (1 - out).toFixed(3);
+  }
+
+  /* ---- 8 八年：大数字滚轮 ---- */
+  function animNum(local) {
+    const col = $('#num-col');
+    const oneH = col.firstElementChild ? col.firstElementChild.offsetHeight : 1;
+    const e = easeOutQuint(seg(local, 0.25, 3.3));
+    col.style.transform = `translateY(${(-e * 8 * oneH).toFixed(2)}px)`;
+
+    $$('#num-right .num-row').forEach((row, i) => {
+      const begin = 1.5 + i * 0.58;
+      const a = easeOutQuint(seg(local, begin, begin + 0.75));
+      row.style.opacity = a.toFixed(3);
+      row.style.transform = `translateX(${(1 - a) * 42}px)`;
+    });
+
+    const push = easeInOut(seg(local, 0, 7.2));
+    wrap('num').style.transform = `translateY(${-push * 6}px)`;
+  }
+
+  /* ---- 9 收尾 ---- */
+  function animBrand(local) {
+    drawApple(local, 1 - easeInOut(seg(local, 7.0, 8.7)));
+
+    brandChars.forEach((ch, i) => {
+      const begin = 1.9 + i * 0.07;
+      const e = easeOutQuint(seg(local, begin, begin + 0.75));
+      ch.style.transform = `translateY(${(1 - e) * 118}%)`;
+    });
+
+    brandLineChars.forEach((ch, i) => {
+      const begin = 2.85 + i * 0.032;
+      const e = easeOut(seg(local, begin, begin + 0.55));
+      ch.style.opacity = e.toFixed(3);
+      ch.style.transform = `translateY(${(1 - e) * 9}px)`;
+      ch.style.filter = `blur(${(1 - e) * 3}px)`;
+    });
+
+    const eb = easeOutQuint(seg(local, 4.05, 4.8));
+    brandCta.style.opacity = eb.toFixed(3);
+    brandCta.style.transform = `translateY(${(1 - eb) * 13}px) scale(${mix(0.96, 1, eb).toFixed(3)})`;
+
+    const out = easeInOut(seg(local, 7.1, 8.7));
+    $('#brand-wrap').style.transform = `translateY(calc(-50% - ${(out * 28).toFixed(1)}px))`;
+    $('#brand-wrap').style.opacity = (1 - out).toFixed(3);
+  }
+
+  /* ============================================================
+     7. 主渲染
+     ============================================================ */
+  function fit() {
+    const r = stage.getBoundingClientRect();
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const w = Math.max(1, Math.round(r.width * dpr));
+    const h = Math.max(1, Math.round(r.height * dpr));
+    if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+    pxScale = cv.width / W;
+    ctx.setTransform(pxScale, 0, 0, pxScale, 0, 0);
+
+    // 舞台宽度 < 640 CSS px 视为窄屏
+    appleScale = r.width < 640 ? 0.76 : 1;
+  }
+  fit();
+  window.addEventListener('resize', fit);
+
+  let t = 0, playing = true, last = performance.now(), ended = false;
+  let curIdx = -1;
+  let seeking = false;
+
+  const DRAW = {
+    seed: animSeed, grow: animGrow, name: animName, year: animYear,
+    photo: animPhoto, act: animAct, ask: animAsk, num: animNum, brand: animBrand,
+  };
+
+  function renderAt(time) {
+    let idx = SCENES.length - 1;
+    for (let i = 0; i < SCENES.length; i++) {
+      if (time < SCENES[i].start + SCENES[i].dur) { idx = i; break; }
+    }
+    const s = SCENES[idx];
+    const local = Math.max(0, time - s.start);
+
+    if (idx !== curIdx) {
+      if (curIdx >= 0) wrap(SCENES[curIdx].id).classList.remove('on');
+      wrap(s.id).classList.add('on');
+      curIdx = idx;
+      chapEl.textContent = s.label;
+      SCENES.forEach(x => {
+        const w = wrap(x.id);
+        w.style.opacity = '1';
+        w.style.transform = '';
+      });
+      if (!seeking) Sound.cue(s.id);
+    }
+
+    ctx.clearRect(0, 0, W, H);
+    DRAW[s.id](local);
+
+    const mm = String(Math.floor(time / 60)).padStart(2, '0');
+    const ss = String(Math.floor(time % 60)).padStart(2, '0');
+    tcEl.innerHTML = `<b>${mm}:${ss}</b>`;
+    fill.style.width = ((time / TOTAL) * 100).toFixed(2) + '%';
+    track.setAttribute('aria-valuenow', String(Math.round((time / TOTAL) * 100)));
+  }
+
+  /* ============================================================
+     8. 播放控制
+     ============================================================ */
+  const ICON_PAUSE = '<svg viewBox="0 0 12 12" aria-hidden="true"><rect x="1.5" y="1" width="3" height="10" fill="currentColor"/><rect x="7.5" y="1" width="3" height="10" fill="currentColor"/></svg>';
+  const ICON_PLAY = '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 1l9 5-9 5z" fill="currentColor"/></svg>';
+
+  function setPlaying(v) {
+    if (ended && v) { restart(); return; }
+    playing = v;
+    playBtn.innerHTML = v ? ICON_PAUSE : ICON_PLAY;
+    playBtn.setAttribute('aria-label', v ? '暂停' : '播放');
+    if (v) last = performance.now();
+    wake();
+  }
+
+  function restart() {
+    t = 0; ended = false; curIdx = -1; curYearIdx = -1;
+    againBtn.classList.remove('on');
+    SCENES.forEach(s => wrap(s.id).classList.remove('on'));
+    playing = true;
+    setPlaying(true);
+    renderAt(0);
+  }
+
+  function jumpTo(i) {
+    i = Math.max(0, Math.min(SCENES.length - 1, i));
+    t = SCENES[i].start + 0.001;
+    ended = false; curIdx = -1; curYearIdx = -1;
+    againBtn.classList.remove('on');
+    SCENES.forEach(s => wrap(s.id).classList.remove('on'));
+    renderAt(t);
+    if (playing) last = performance.now();
+    wake();
+  }
+
+  function currentIndex() {
+    for (let i = 0; i < SCENES.length; i++) {
+      if (t < SCENES[i].start + SCENES[i].dur) return i;
+    }
+    return SCENES.length - 1;
+  }
+
+  let gp = 0;
+  function loop(now) {
+    const dt = Math.min((now - last) / 1000, 0.06);
+    last = now;
+
+    if (playing && !ended) {
+      t += dt;
+      if (t >= TOTAL) {
+        t = TOTAL; ended = true; playing = false;
+        againBtn.classList.add('on');
+        playBtn.innerHTML = ICON_PLAY;
+      }
+      renderAt(t);
+    }
+
+    gp++;
+    if (gp % 3 === 0) {
+      grain.style.transform =
+        `translate3d(${(Math.random() * 36 - 18) | 0}px,${(Math.random() * 36 - 18) | 0}px,0)`;
+    }
+
+    requestAnimationFrame(loop);
+  }
+
+  /* ============================================================
+     9. 交互
+     ============================================================ */
+  playBtn.addEventListener('click', () => setPlaying(!playing));
+
+  const muteBtn = $('#mute');
+  muteBtn.classList.add('off');
+  function toggleSound() {
+    const nowMuted = Sound.toggle();
+    muteBtn.classList.toggle('off', nowMuted);
+    muteBtn.setAttribute('aria-label', nowMuted ? '开启声音' : '静音');
+  }
+  muteBtn.addEventListener('click', e => { e.stopPropagation(); toggleSound(); });
+
+  /* 首次点击＝用户手势，顺手开声音。
+     ⚠️ 必须吃掉紧随的 click，否则它会落到"播放/暂停"上，
+     用户点一下想开声音，片子反而停住。 */
+  let firstTouch = true, consumeClick = false;
+  stage.addEventListener('pointerdown', () => {
+    if (!firstTouch) return;
+    firstTouch = false;
+    if (Sound.muted) { toggleSound(); consumeClick = true; }
+  }, { capture: true });
+
+  stage.addEventListener('click', e => {
+    if (e.target.closest('#again')) return;
+    if (consumeClick) { consumeClick = false; return; }
+    setPlaying(!playing);
+  });
+
+  againBtn.addEventListener('click', e => { e.stopPropagation(); restart(); });
+
+  window.addEventListener('keydown', e => {
+    if (e.code === 'Space') { e.preventDefault(); setPlaying(!playing); }
+    else if (e.code === 'ArrowRight') {
+      e.preventDefault();
+      const i = currentIndex();
+      jumpTo(i < SCENES.length - 1 ? i + 1 : i);
+    } else if (e.code === 'ArrowLeft') {
+      e.preventDefault();
+      const i = currentIndex();
+      const inScene = t - SCENES[i].start;
+      jumpTo(inScene > 0.8 || i === 0 ? i : i - 1);
+    } else if (e.key === 'r' || e.key === 'R') restart();
+  });
+
+  let scrubbing = false;
+  function seekTo(e) {
+    const r = track.getBoundingClientRect();
+    t = clamp((e.clientX - r.left) / r.width) * TOTAL;
+    ended = false; curIdx = -1; curYearIdx = -1;
+    againBtn.classList.remove('on');
+    seeking = true;
+    SCENES.forEach(s => wrap(s.id).classList.remove('on'));
+    renderAt(t);
+    seeking = false;
+  }
+  track.addEventListener('pointerdown', e => {
+    scrubbing = true;
+    track.setPointerCapture(e.pointerId);
+    seekTo(e);
+  });
+  track.addEventListener('pointermove', e => { if (scrubbing) seekTo(e); });
+  track.addEventListener('pointerup', () => { scrubbing = false; last = performance.now(); });
+  track.addEventListener('pointercancel', () => { scrubbing = false; });
+
+  (function () {
+    const marks = $('#track .marks');
+    SCENES.forEach(s => {
+      const i = document.createElement('i');
+      i.style.left = ((s.start / TOTAL) * 100).toFixed(3) + '%';
+      marks.appendChild(i);
+    });
+  })();
+
+  let idleTimer = 0;
+  function wake() {
+    chromebar.classList.remove('idle');
+    chapEl.classList.remove('idle');
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(() => {
+      if (playing) { chromebar.classList.add('idle'); chapEl.classList.add('idle'); }
+    }, 2600);
+  }
+  window.addEventListener('pointermove', wake, { passive: true });
+
+  function checkOrientation() {
+    rotateHint.classList.toggle('on',
+      window.innerHeight > window.innerWidth && window.innerWidth < 760);
+  }
+  checkOrientation();
+  window.addEventListener('resize', checkOrientation, { passive: true });
+  setTimeout(() => rotateHint.classList.remove('on'), 4200);
+
+  /* ============================================================
+     10. 启动
+     ============================================================ */
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+  if (reduce.matches) {
+    chromebar.style.display = 'none';
+    chapEl.style.display = 'none';
+    wrap('name').classList.add('on');
+    nameChars.forEach(c => { c.style.transform = 'translateY(0)'; });
+    $('#name-title').style.letterSpacing = '-0.028em';
+    $('#name-rule').style.width = '26cqw';
+    $('#name-rule').style.opacity = '.85';
+    nameSubChars.forEach(c => { c.style.opacity = '1'; c.style.filter = 'none'; });
+  } else {
+    window.__bohFilm = {
+      seek(sec) {
+        t = clamp(sec, 0, TOTAL);
+        ended = false; curIdx = -1; curYearIdx = -1;
+        againBtn.classList.remove('on');
+        SCENES.forEach(s => wrap(s.id).classList.remove('on'));
+        renderAt(t);
+        return t;
+      },
+      pause() { playing = false; setPlaying(false); },
+      play() { setPlaying(true); },
+      total: TOTAL,
+      scenes: SCENES.map(s => ({ id: s.id, start: s.start, dur: s.dur })),
+    };
+
+    const imgs = shotEls.map(b => b.firstElementChild);
+    let done = 0, started = false;
+    function start() {
+      if (started) return;
+      started = true;
+      last = performance.now();
+      renderAt(0);
+      requestAnimationFrame(loop);
+      wake();
+    }
+    const kick = () => { if (++done >= imgs.length) start(); };
+    imgs.forEach(im => {
+      if (im.complete) kick();
+      else { im.addEventListener('load', kick); im.addEventListener('error', kick); }
+    });
+    setTimeout(start, 1600);
+  }
+})();
+</script>
+</body>
+</html>

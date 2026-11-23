@@ -1,0 +1,1503 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>方块之家 · 一块一块，成为我们</title>
+<meta name="description" content="方块之家 2026 宣传片 · 纯前端绘制的伪视频">
+<style>
+  /* ============================================================
+     方块之家 · 伪视频（fake film）
+     全部画面由代码逐帧绘制，无视频文件、无外部依赖。
+     一个全局时间轴 t（秒）驱动，硬切，无过渡特效。
+     空格 暂停 / ← → 跳章节 / 点击进度条 拖拽
+     ============================================================ */
+
+  :root{
+    --paper:#ffffff;
+    --ink:#1d1d1f;
+    --ink-soft:#6e6e73;
+    --ink-hair:#d2d2d7;
+    --void:#000000;
+    --void-ink:#f5f5f7;
+    --void-soft:#86868b;
+    --void-hair:#2a2a2c;
+    --red:#e01f26;
+    --shell:#0a0a0a;
+  }
+
+  *{box-sizing:border-box}
+
+  html,body{
+    margin:0;height:100%;
+    background:var(--shell);
+    -webkit-font-smoothing:antialiased;
+    -moz-osx-font-smoothing:grayscale;
+    overflow:hidden;
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro SC","SF Pro Text","PingFang SC","Hiragino Sans GB","Helvetica Neue",system-ui,sans-serif;
+    color:#eaeaea;
+  }
+
+  /* ---------- 外壳：舞台永远 16:9，居中，四周是真黑 ---------- */
+  #film{
+    position:fixed;inset:0;
+    display:flex;align-items:center;justify-content:center;
+    background:var(--shell);
+    padding:0 0 76px;
+  }
+
+  #stage{
+    position:relative;
+    aspect-ratio:16/9;
+    width:min(100vw, calc((100vh - 88px) * 16 / 9));
+    background:var(--void);
+    overflow:hidden;
+    container-type:inline-size;
+    isolation:isolate;
+    transition:none;
+  }
+
+  #cv{position:absolute;inset:0;width:100%;height:100%;display:block}
+
+  /* 镜头层：整幕共用一条极慢的推镜，避免画面「死屏」。
+     只用 transform，走 GPU，且缩放幅度控制在 1.5% 以内，不易察觉但有生命感。 */
+  #cam{position:absolute;inset:0;transform-origin:50% 50%;will-change:transform}
+
+  /* 胶片颗粒：运行时生成一张噪点图，普通混合 + 极低透明度。
+     黑场提亮、白场压暗，两边都有细微质感。 */
+  #grain{
+    position:absolute;inset:-64px;
+    pointer-events:none;
+    opacity:.055;
+    will-change:transform;
+  }
+
+  /* 暗角：非常轻，只把画面边缘往里收一点，制造镜头感 */
+  #vignette{
+    position:absolute;inset:0;pointer-events:none;
+    background:radial-gradient(120% 100% at 50% 50%, transparent 55%, rgba(0,0,0,.10) 100%);
+    mix-blend-mode:multiply;
+    opacity:1;
+  }
+
+  /* ---------- 文字层 ---------- */
+  #type{position:absolute;inset:0;pointer-events:none}
+
+  .sc{
+    position:absolute;inset:0;
+    display:flex;flex-direction:column;
+    align-items:center;justify-content:center;
+    opacity:0;visibility:hidden;
+  }
+  .sc.on{opacity:1;visibility:visible}
+
+  /* 底色场景：靠 #stage 的 data-bg 切换，用伪元素避免和文字层打架 */
+  #bg{position:absolute;inset:0;background:#000}
+
+  /* ---------- 通用文字样式 ---------- */
+  .ln{white-space:nowrap;will-change:transform,opacity}
+
+  .eyebrow{
+    font-size:max(11px, 1.05cqw);letter-spacing:.28em;text-indent:.28em;
+    text-transform:uppercase;font-weight:500;
+  }
+
+  .whisper{
+    font-size:max(13px, 1.55cqw);font-weight:400;letter-spacing:.02em;
+  }
+
+  .hero{
+    font-size:13cqw;font-weight:500;letter-spacing:-.01em;line-height:.95;
+  }
+
+  .hairline{height:1px;background:currentColor;transform-origin:center;opacity:.22}
+
+  .mono{
+    font-family:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,monospace;
+    font-variant-numeric:tabular-nums;
+    letter-spacing:.04em;
+  }
+
+  /* ---------- 各场景细节 ---------- */
+  #s-open .ln{color:var(--ink-soft)}
+  #s-open{color:#fff}
+
+  #s-rise{color:var(--void-ink)}
+  #s-rise .year{font-size:3.4cqw;font-weight:500;letter-spacing:.34em;text-indent:.34em;color:var(--void-ink)}
+
+  #s-name{color:var(--ink)}
+  #s-name .hero{color:var(--ink)}
+  #s-name .sub{margin-top:2.6cqw;font-size:max(10.5px, 1.15cqw);letter-spacing:.4em;text-indent:.4em;color:var(--ink-soft);font-weight:500}
+  #s-name .hairline{width:0;margin-top:2.2cqw}
+
+  #s-time{color:var(--void-ink)}
+  #s-time .rail{
+    position:absolute;left:0;right:0;top:50%;
+    display:flex;flex-direction:column;gap:1.15cqw;
+    transform:translateY(-50%);
+    padding:0 17cqw;
+  }
+  #s-time .row{
+    display:flex;align-items:baseline;gap:3.4cqw;
+  }
+  #s-time .y{
+    flex:0 0 auto;
+    font-family:ui-monospace,"SF Mono",Menlo,monospace;
+    font-size:max(15px, 1.9cqw);font-variant-numeric:tabular-nums;
+    letter-spacing:.02em;color:var(--void-ink);
+  }
+  #s-time .d{font-size:max(11.5px, 1.22cqw);color:var(--void-soft);letter-spacing:.01em}
+
+  #s-people{color:var(--ink)}
+  #s-people .caption{
+    position:absolute;left:0;right:0;bottom:7.5cqw;text-align:center;
+    font-size:max(11.5px, 1.3cqw);color:var(--ink-soft);letter-spacing:.06em;
+  }
+  .shot{
+    position:absolute;overflow:hidden;
+    background:#0f0f0f;
+    will-change:transform,filter;
+  }
+  .shot img{width:100%;height:100%;object-fit:cover;display:block}
+
+  #s-site{color:var(--void-ink)}
+  #s-site .list{
+    position:relative;
+    display:flex;flex-direction:column;gap:2.9cqw;
+    width:max-content;
+    padding-left:3.2cqw;
+  }
+  /* 用 flex 而不是 grid：容器宽度是 max-content，grid 的 `1fr` 在这种容器里
+     会算成一个极小值（实测 46px），把描述整段挤到标题上。flex + 固定间距稳得多。 */
+  #s-site .item{display:flex;align-items:baseline;gap:2.4cqw}
+  #s-site .k{font-size:max(22px, 3.1cqw);font-weight:500;letter-spacing:-.01em;white-space:nowrap}
+  #s-site .v{font-size:max(11.5px, 1.32cqw);color:var(--void-soft);white-space:nowrap}
+  #s-site .rule{
+    position:absolute;left:0;top:-.4cqw;bottom:-.4cqw;width:1px;
+    background:linear-gradient(180deg,transparent,rgba(255,255,255,.24) 15%,rgba(255,255,255,.24) 85%,transparent);
+    transform-origin:top center;
+  }
+
+  #s-ask{color:var(--void-ink)}
+  #s-ask .stack{display:flex;flex-direction:column;align-items:center;gap:4.4cqw;width:100%}
+  #s-ask .pill{
+    position:relative;
+    width:52cqw;height:4.9cqw;border-radius:999px;
+    border:1px solid var(--void-hair);
+    background:#0d0d0d;
+    display:flex;align-items:center;
+    padding:0 2.4cqw;
+  }
+  #s-ask .q{
+    font-size:max(13.5px, 1.62cqw);letter-spacing:.01em;color:var(--void-ink);
+    display:flex;align-items:center;
+  }
+  #s-ask .caret{
+    display:inline-block;width:1.5px;height:1.9cqw;
+    background:var(--red);margin-left:.14em;
+  }
+  #s-ask .answer{
+    font-size:max(13.5px, 1.62cqw);line-height:1.75;color:var(--void-ink);
+    width:52cqw;letter-spacing:.01em;
+    padding:0 2.4cqw;
+  }
+  #s-ask .answer em{
+    font-style:normal;color:var(--void-soft);
+  }
+  #s-ask .tag{
+    font-size:max(10px, .95cqw);letter-spacing:.22em;text-indent:.22em;
+    color:var(--red);font-weight:500;
+  }
+
+  #s-proof{color:var(--ink)}
+  #s-proof .wrap{
+    display:flex;align-items:center;justify-content:center;
+    gap:5.4cqw;
+    padding:0 8cqw;
+  }
+  #s-proof .big{
+    font-size:23cqw;font-weight:500;line-height:.78;
+    letter-spacing:-.05em;font-variant-numeric:tabular-nums;
+    color:var(--ink);
+  }
+  #s-proof .stk{display:flex;flex-direction:column;gap:1.75cqw}
+  #s-proof .row{font-size:max(15px, 1.95cqw);color:var(--ink);letter-spacing:.02em;white-space:nowrap}
+  #s-proof .row i{font-style:normal;color:var(--red);margin-right:.7em}
+
+  #s-end{color:var(--void-ink);display:block}
+  #s-end .endwrap{
+    position:absolute;left:0;right:0;top:62%;
+    display:flex;flex-direction:column;align-items:center;
+  }
+  #s-end .brand{
+    font-size:max(19px, 2.7cqw);font-weight:500;letter-spacing:.02em;color:#f5f5f7;
+  }
+  #s-end .line{
+    font-size:max(12px, 1.42cqw);color:#86868b;margin-top:1.15cqw;letter-spacing:.05em;
+  }
+  #s-end .btn{
+    margin-top:3cqw;
+    padding:.8cqw 2.4cqw;border-radius:999px;
+    background:#f5f5f7;color:#000;
+    font-size:max(12px, 1.1cqw);font-weight:500;letter-spacing:.03em;
+  }
+
+  /* ---------- 播放外壳（letterbox 区域，始终浅色） ---------- */
+  #chrome{
+    position:fixed;left:0;right:0;bottom:0;
+    height:76px;padding:0 28px 16px;
+    display:flex;align-items:flex-end;gap:20px;
+    font-size:11.5px;color:#8a8a8e;
+    letter-spacing:.06em;
+    transition:opacity .5s ease;
+    z-index:20;
+  }
+  #chrome.idle{opacity:0}
+  @media (hover:none){#chrome.idle{opacity:.5}}
+
+  #play{
+    width:26px;height:26px;flex:0 0 26px;
+    border:0;padding:0;background:none;
+    color:#c9c9ce;cursor:pointer;
+    display:grid;place-items:center;
+    transition:color .2s;
+  }
+  #play:hover{color:#fff}
+  #play svg{width:13px;height:13px;display:block}
+
+  #track{
+    position:relative;flex:1;height:26px;
+    display:flex;align-items:center;cursor:pointer;
+  }
+  #track .bar{
+    position:relative;width:100%;height:2px;
+    background:rgba(255,255,255,.12);
+    border-radius:2px;overflow:hidden;
+    transition:height .18s ease;
+  }
+  #track:hover .bar{height:4px}
+  #track .fill{
+    position:absolute;left:0;top:0;bottom:0;width:0%;
+    background:#e8e8ec;border-radius:2px;
+  }
+  #track .marks{position:absolute;inset:0;pointer-events:none}
+  #track .marks i{
+    position:absolute;top:0;bottom:0;width:1px;
+    background:rgba(10,10,10,.9);
+    opacity:.55;
+  }
+
+  #tc{
+    font-family:ui-monospace,"SF Mono",Menlo,monospace;
+    font-variant-numeric:tabular-nums;
+    font-size:11.5px;letter-spacing:.06em;
+    min-width:74px;text-align:right;
+    color:#8a8a8e;
+  }
+  #tc b{color:#c9c9ce;font-weight:400}
+
+  #mute{
+    width:26px;height:26px;flex:0 0 26px;
+    border:0;padding:0;background:none;
+    color:#8a8a8e;cursor:pointer;
+    display:grid;place-items:center;
+    transition:color .2s;
+  }
+  #mute:hover{color:#fff}
+  #mute svg{width:14px;height:14px;display:block}
+  #mute.off #wave{display:none}
+  #mute:not(.off) #slash{display:none}
+
+  #chap{
+    position:fixed;left:28px;bottom:52px;
+    font-size:11px;letter-spacing:.22em;color:#4a4a4e;
+    z-index:20;transition:opacity .6s ease;
+  }
+  #chap.idle{opacity:0}
+
+  /* 重播 */
+  #again{
+    position:absolute;left:50%;top:50%;
+    transform:translate(-50%,-50%) scale(.96);
+    padding:14px 26px;border-radius:999px;
+    border:1px solid rgba(255,255,255,.16);
+    background:rgba(255,255,255,.04);
+    -webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);
+    color:#f5f5f7;font-size:13px;letter-spacing:.08em;
+    cursor:pointer;opacity:0;pointer-events:none;
+    transition:opacity .5s ease,transform .5s cubic-bezier(.16,1,.3,1);
+    z-index:30;
+    font-family:inherit;
+  }
+  #again.on{opacity:1;pointer-events:auto;transform:translate(-50%,-50%) scale(1)}
+  #again:hover{background:rgba(255,255,255,.09)}
+
+  /* 竖屏提示 */
+  #rotate{
+    position:fixed;left:0;right:0;top:14px;
+    text-align:center;font-size:11px;letter-spacing:.18em;
+    color:#5a5a5e;z-index:40;
+    opacity:0;transition:opacity .6s ease;
+    pointer-events:none;
+  }
+  #rotate.on{opacity:1}
+
+  /* 无动画偏好：全部静止，直接给排版页 */
+  @media (prefers-reduced-motion:reduce){
+    #grain{display:none}
+  }
+  /* ===== 竖屏覆盖必须放在**最后** =====
+     早前放在样式表中段，被后面的基础规则（同优先级、源序更靠后）整块盖掉 ——
+     表现为「改了媒体查询但页面毫无变化」，且 gap 只剩默认值。 */
+  @media (max-width:760px){
+    /* 竖屏：16:9 的片子必然只占屏幕一小段，就让它居中。
+       早前顶部对齐会在下面留一大块死黑，像页面加载失败。 */
+    #film{padding:0 0 8vh}
+    #stage{width:100vw}
+
+    /* 🔴 这里**不能**用 cqh。
+       `#stage` 是 `container-type: inline-size` —— 只声明了 inline 轴，
+       cqh/cqb 不会按舞台高度解析，而是**回退到视口高度**（844px）。
+       max(16px, 5.4cqh) 于是算成 45px，整个排版全炸（实测「论坛」两个字
+       变成 45px，比标题还大）。
+       舞台恒为 16:9 ⇒ cqw 比例与横屏一一对应，保持桌面端同一套 cqw 值即可，
+       只需给极小字号设 px 下限（见上面 max(...) 那批）。
+       这里只调整那些"在手机上需要重新分配空间"的几何量。 */
+    .hero{font-size:12cqw}
+    #s-name .sub{font-size:2.5cqw;letter-spacing:.3em;text-indent:.3em;margin-top:3.4cqw}
+    #s-name .hairline{margin-top:2.6cqw}
+
+    #s-time .rail{gap:1.15cqw;padding:0 6cqw}
+    #s-time .row{gap:2.6cqw}
+    #s-time .y{flex:0 0 auto;font-size:3.9cqw;letter-spacing:0}
+    #s-time .d{font-size:2.6cqw;line-height:1.45}
+
+    #s-people .caption{font-size:2.9cqw;bottom:5.5cqw}
+
+    #s-site .list{gap:3.4cqw;padding-left:4cqw}
+    #s-site .item{gap:3.4cqw}
+    #s-site .k{font-size:6.6cqw}
+    #s-site .v{font-size:2.9cqw}
+
+    #s-ask .stack{gap:4.4cqw}
+    #s-ask .pill{width:76cqw;height:9.2cqw;padding:0 4cqw}
+    #s-ask .q,#s-ask .answer{font-size:3.3cqw}
+    #s-ask .answer{width:76cqw;padding:0 4cqw}
+    #s-ask .tag{font-size:2.2cqw}
+
+    #s-proof .big{font-size:31cqw}
+    #s-proof .stk{gap:2.4cqw}
+    #s-proof .row{font-size:3.6cqw}
+
+    /* 片尾竖向空间不够：logo 占 32.5%，文字块从 58% 起，三段加起来会出框。
+       竖屏把文字块提前到 52%，并把各项间距压紧。 */
+    #s-end .endwrap{top:44.5%}
+    #s-end .brand{font-size:4.6cqw}
+    #s-end .line{font-size:2.7cqw;margin-top:1.2cqw}
+    #s-end .btn{font-size:2.3cqw;padding:1.2cqw 4.6cqw;margin-top:2.2cqw}
+
+    #s-open .whisper{font-size:3.3cqw}
+  }
+
+</style>
+</head>
+<body>
+
+<div id="film">
+  <div id="stage" data-bg="void">
+    <div id="cam">
+      <div id="bg"></div>
+      <canvas id="cv"></canvas>
+      <div id="type">
+        <section class="sc" id="s-open"></section>
+        <section class="sc" id="s-rise"></section>
+        <section class="sc" id="s-name"></section>
+        <section class="sc" id="s-time"></section>
+        <section class="sc" id="s-people"></section>
+        <section class="sc" id="s-site"></section>
+        <section class="sc" id="s-ask"></section>
+        <section class="sc" id="s-proof"></section>
+        <section class="sc" id="s-end"></section>
+      </div>
+    </div>
+    <div id="grain"></div>
+    <div id="vignette"></div>
+    <button id="again" type="button">再看一遍</button>
+  </div>
+</div>
+
+<div id="rotate">横屏观看体验更好</div>
+<div id="chap"></div>
+
+<div id="chrome">
+  <button id="play" type="button" aria-label="暂停">
+    <svg viewBox="0 0 12 12" aria-hidden="true"><rect x="1.5" y="1" width="3" height="10" fill="currentColor"/><rect x="7.5" y="1" width="3" height="10" fill="currentColor"/></svg>
+  </button>
+  <div id="track" role="slider" aria-label="进度" tabindex="0" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+    <div class="bar"><div class="fill"></div></div>
+    <div class="marks"></div>
+  </div>
+  <button id="mute" type="button" aria-label="开启声音" title="声音">
+    <svg viewBox="0 0 14 14" aria-hidden="true">
+      <path d="M2 5.2h2L7 2.6v8.8L4 8.8H2z" fill="currentColor"/>
+      <path id="wave" d="M9.1 5.3a2.4 2.4 0 010 3.4M10.7 3.9a4.6 4.6 0 010 6.2" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/>
+      <path id="slash" d="M9.4 5.2l3 3.6M12.4 5.2l-3 3.6" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/>
+    </svg>
+  </button>
+  <div id="tc"><b>00:00</b></div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  /* ============================================================
+     0. 基础工具
+     ============================================================ */
+  const $ = (s, r = document) => r.querySelector(s);
+  const clamp = (v, a = 0, b = 1) => v < a ? a : v > b ? b : v;
+  const easeOut = p => 1 - Math.pow(1 - p, 3);
+  const easeIn = p => p * p * p;
+  const easeInOut = p => p < .5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;
+  // 把整体进度 p 里的 [a,b] 段映射成 0..1
+  const seg = (p, a, b) => clamp((p - a) / (b - a));
+  const mix = (a, b, t) => a + (b - a) * t;
+
+  const stage = $('#stage');
+  const cv = $('#cv');
+  const ctx = cv.getContext('2d', { alpha: false });
+  const typeLayer = $('#type');
+  const grain = $('#grain');
+  const bg = $('#bg');
+  const againBtn = $('#again');
+  const chromebar = $('#chrome');
+  const chapEl = $('#chap');
+  const track = $('#track');
+  const fill = $('#track .fill');
+  const tcEl = $('#tc');
+  const playBtn = $('#play');
+  const cam = $('#cam');
+  const rotateHint = $('#rotate');
+
+  const W = 1600, H = 900;   // canvas 逻辑坐标
+  let pxScale = 1;
+
+  /* ============================================================
+     1. 胶片颗粒（运行时生成，无外部资源）
+     ============================================================ */
+  (function makeGrain() {
+    const n = document.createElement('canvas');
+    n.width = n.height = 128;
+    const nx = n.getContext('2d');
+    const img = nx.createImageData(128, 128);
+    const d = img.data;
+    for (let i = 0; i < d.length; i += 4) {
+      const v = 96 + Math.random() * 64;
+      d[i] = d[i + 1] = d[i + 2] = v;
+      d[i + 3] = 255;
+    }
+    nx.putImageData(img, 0, 0);
+    grain.style.backgroundImage = `url(${n.toDataURL()})`;
+    grain.style.backgroundRepeat = 'repeat';
+  })();
+
+  /* ============================================================
+     2. 像素图形（唯一图形语言：格子）
+     ============================================================ */
+  function drawCells(rows, cell, cx, cy, alpha, palette, gap = 2) {
+    const h = rows.length, w = rows[0].length;
+    const ox = cx - w * cell / 2;
+    const oy = cy - h * cell / 2;
+    ctx.globalAlpha = alpha;
+    for (let r = 0; r < h; r++) {
+      const row = rows[r];
+      for (let c = 0; c < w; c++) {
+        const ch = row[c];
+        if (ch === '.' || ch === ' ') continue;
+        const col = palette[ch];
+        if (!col) continue;
+        ctx.fillStyle = col;
+        ctx.fillRect(ox + c * cell, oy + r * cell, cell - gap, cell - gap);
+      }
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // 像素苹果（12 列 × 11 行）
+  const APPLE = [
+    '.....bb.....',
+    '.....b......',
+    '...rrrrr....',
+    '..rrhrrrrr..',
+    '.rrhhrrrrrr.',
+    '.rrhhrrrrrr.',
+    '.rrrrrrrrrr.',
+    '.rrrrrrrrrr.',
+    '..rrrrrrrr..',
+    '...rrrrrr...',
+    '....rrrr....',
+  ];
+  // 把红调到接近品牌红，同时保留高光和暗部层次
+  const APPLE_PAL = {
+    r: '#dc1f26',
+    h: '#ff7a80',
+    b: '#5c3417',
+  };
+
+  const RED = '220,31,38';
+  const INK = '245,245,247';
+
+  /* ============================================================
+     3. 场景表：一个时间轴，硬切
+     ============================================================ */
+  const SCENES = [
+    { id: 'open',   label: '序', dur: 3.4 },
+    { id: 'rise',   label: '起', dur: 5.2 },
+    { id: 'name',   label: '名', dur: 4.6 },
+    { id: 'time',   label: '时', dur: 9.0 },
+    { id: 'people', label: '人', dur: 9.4 },
+    { id: 'site',   label: '场', dur: 7.0 },
+    { id: 'ask',    label: '问', dur: 9.0 },
+    { id: 'proof',  label: '证', dur: 6.6 },
+    { id: 'end',    label: '终', dur: 8.2 },
+  ];
+
+  let acc = 0;
+  for (const s of SCENES) { s.start = acc; acc += s.dur; }
+  const TOTAL = acc;
+
+  const wrapOf = id => document.getElementById('s-' + id);
+
+  /* ============================================================
+     4. 构建场景 DOM（一次性，之后只改样式）
+     ============================================================ */
+
+  // ---- 序 ----
+  (function () {
+    const el = wrapOf('open');
+    el.innerHTML = `<p class="ln whisper" id="open-line"></p>`;
+    // 逐字拆开，方便按字入场
+    const p = el.querySelector('#open-line');
+    [...'从一块方块开始'].forEach((ch, i) => {
+      const s = document.createElement('span');
+      s.textContent = ch;
+      s.style.display = 'inline-block';
+      s.dataset.i = i;
+      p.appendChild(s);
+    });
+  })();
+
+  // ---- 名 ----
+  (function () {
+    const el = wrapOf('name');
+    el.innerHTML = `
+      <h1 class="ln hero" id="name-word">方块之家</h1>
+      <div class="hairline" id="name-rule"></div>
+      <p class="sub" id="name-sub">BLOCK OF HOME · 2018—2026</p>
+    `;
+  })();
+
+  // ---- 时 ----
+  const TIMELINE = [
+    ['2018', '第一张游戏地图，方块之家创立。'],
+    ['2019', '联机侠服务器开启。'],
+    ['2020', '传统新年活动开始。'],
+    ['2021', '三周年，冬眠生存成为传统。'],
+    ['2022', '四周年庆典与方块礼盒。'],
+    ['2023', '五周年纪录片。'],
+    ['2024', '六周年纪录片。'],
+    ['2025', '七周年遇见系列。'],
+  ];
+  (function () {
+    const el = wrapOf('time');
+    const rail = document.createElement('div');
+    rail.className = 'rail';
+    TIMELINE.forEach(([y, d], i) => {
+      const row = document.createElement('div');
+      row.className = 'row';
+      row.dataset.i = i;
+      row.innerHTML = `<span class="y">${y}</span><span class="d">${d}</span>`;
+      rail.appendChild(row);
+    });
+    el.appendChild(rail);
+  })();
+
+  // ---- 人：照片墙（唯一放开颜色的地方） ----
+  const SHOTS = [
+    { src: '../../src/assets/images/classroom-group-v5.webp', style: { left: '6%', top: '16%', width: '44%', height: '64%' } },
+    { src: '../../src/assets/images/2022-7-4years.webp',        style: { left: '53%', top: '16%', width: '41%', height: '30%' } },
+    { src: '../../src/assets/images/26coffee.webp',             style: { left: '53%', top: '50%', width: '41%', height: '30%' } },
+  ];
+  const shotEls = [];
+  (function () {
+    const el = wrapOf('people');
+    SHOTS.forEach((s, i) => {
+      const box = document.createElement('div');
+      box.className = 'shot';
+      box.dataset.i = i;
+      Object.assign(box.style, s.style);
+      const img = new Image();
+      img.src = s.src;
+      img.alt = '';
+      img.loading = 'eager';
+      img.decoding = 'async';
+      box.appendChild(img);
+      el.appendChild(box);
+      shotEls.push(box);
+    });
+    const cap = document.createElement('p');
+    cap.className = 'caption ln';
+    cap.id = 'people-cap';
+    cap.textContent = '地图会存档，人会记得。';
+    el.appendChild(cap);
+  })();
+
+  // ---- 场 ----
+  (function () {
+    const el = wrapOf('site');
+    const list = document.createElement('div');
+    list.className = 'list';
+    const rule = document.createElement('div');
+    rule.className = 'rule';
+    rule.id = 'site-rule';
+    list.appendChild(rule);
+    const ROWS = [
+      ['论坛', '写下今天'],
+      ['相册', '留住此刻'],
+      ['周边', '带回家'],
+    ];
+    ROWS.forEach(([k, v], i) => {
+      const item = document.createElement('div');
+      item.className = 'item';
+      item.dataset.i = i;
+      item.innerHTML = `<span class="k ln">${k}</span><span class="v ln">${v}</span>`;
+      list.appendChild(item);
+    });
+    el.appendChild(list);
+  })();
+
+  // ---- 问 ----
+  (function () {
+    const el = wrapOf('ask');
+    el.innerHTML = `
+      <div class="stack">
+        <span class="tag" id="ask-tag">博莱克</span>
+        <div class="pill">
+          <span class="q" id="ask-q"><span id="ask-text"></span><span class="caret" id="ask-caret"></span></span>
+        </div>
+        <p class="answer" id="ask-a1"><em>十二月。</em></p>
+        <p class="answer" id="ask-a2" style="margin-top:-2.4cqw">和往年一样，等第一场雪。</p>
+      </div>
+    `;
+  })();
+
+  // ---- 证 ----
+  (function () {
+    const el = wrapOf('proof');
+    el.innerHTML = `
+      <div class="wrap">
+        <div class="big" id="proof-big">08</div>
+        <div class="stk">
+          <p class="row" id="proof-r1"><i>—</i>八年</p>
+          <p class="row" id="proof-r2"><i>—</i>一批人</p>
+          <p class="row" id="proof-r3"><i>—</i>一个还在的地方</p>
+        </div>
+      </div>
+    `;
+  })();
+
+  // ---- 终 ----
+  (function () {
+    const el = wrapOf('end');
+    el.innerHTML = `
+      <div class="endwrap">
+        <p class="ln brand" id="end-brand">方块之家</p>
+        <p class="ln line" id="end-line">一块一块，成为我们。</p>
+        <span class="btn" id="end-btn">进入 →</span>
+      </div>
+    `;
+  })();
+
+  /* ============================================================
+     4.5 声音：WebAudio 现场合成，零音频文件
+     ------------------------------------------------------------
+     设计纪律（照 Apple 的规矩）：音乐只是低频底噪，几乎听不见；
+     音效只在场景切换的关键节拍上响，音量极低，绝不与画面争。
+     浏览器要求用户手势后才能出声 —— 所以默认静音，
+     点右下角喇叭（或任意键）才开。
+     ============================================================ */
+  const Audio = (() => {
+    let actx = null;
+    let master = null;
+    let drone = null;
+    let enabled = false;
+    let muted = true;
+
+    function ensure() {
+      if (actx) return actx;
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return null;
+      actx = new AC();
+      master = actx.createGain();
+      master.gain.value = 0;
+      master.connect(actx.destination);
+      return actx;
+    }
+
+    // 底噪：两个略微失谐的低频正弦 + 一层滤波后的粉噪。极度轻，像房间本身的声音。
+    function startDrone() {
+      if (!actx || drone) return;
+      const g = actx.createGain();
+      g.gain.value = 0;
+      g.connect(master);
+      g.gain.linearRampToValueAtTime(0.085, actx.currentTime + 3.2);
+
+      [55, 82.4].forEach((f, i) => {
+        const o = actx.createOscillator();
+        o.type = 'sine';
+        o.frequency.value = f + (i ? 0.35 : 0);
+        const og = actx.createGain();
+        og.gain.value = i ? 0.5 : 0.9;
+        o.connect(og).connect(g);
+        o.start();
+      });
+
+      // 一层很轻的粉噪，给低频一点「空气」
+      const len = actx.sampleRate * 4;
+      const buf = actx.createBuffer(1, len, actx.sampleRate);
+      const d = buf.getChannelData(0);
+      let b0 = 0, b1 = 0, b2 = 0;
+      for (let i = 0; i < len; i++) {
+        const w = Math.random() * 2 - 1;
+        b0 = 0.99765 * b0 + w * 0.0990460;
+        b1 = 0.96300 * b1 + w * 0.2965164;
+        b2 = 0.57000 * b2 + w * 1.0526913;
+        d[i] = (b0 + b1 + b2 + w * 0.1848) * 0.16;
+      }
+      const src = actx.createBufferSource();
+      src.buffer = buf;
+      src.loop = true;
+      const lp = actx.createBiquadFilter();
+      lp.type = 'lowpass';
+      lp.frequency.value = 420;
+      const ng = actx.createGain();
+      ng.gain.value = 0.055;
+      src.connect(lp).connect(ng).connect(g);
+      src.start();
+
+      drone = g;
+    }
+
+    // 硬切那一刻的「咔」：一段极短的滤波噪声爆发，几乎没有音高，只标记节拍
+    function tick(level = 0.5, bright = 2400) {
+      if (!actx || muted) return;
+      const now = actx.currentTime;
+      const len = Math.floor(actx.sampleRate * 0.055);
+      const buf = actx.createBuffer(1, len, actx.sampleRate);
+      const d = buf.getChannelData(0);
+      for (let i = 0; i < len; i++) {
+        d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 7);
+      }
+      const src = actx.createBufferSource();
+      src.buffer = buf;
+      const bp = actx.createBiquadFilter();
+      bp.type = 'bandpass';
+      bp.frequency.value = bright;
+      bp.Q.value = 0.9;
+      const g = actx.createGain();
+      g.gain.value = level * 0.11;
+      src.connect(bp).connect(g).connect(master);
+      src.start(now);
+      src.stop(now + 0.06);
+    }
+
+    // 低频「心跳」：黑场切换时给一记很闷的推
+    function thump(level = 1) {
+      if (!actx || muted) return;
+      const now = actx.currentTime;
+      const o = actx.createOscillator();
+      o.type = 'sine';
+      o.frequency.setValueAtTime(84, now);
+      o.frequency.exponentialRampToValueAtTime(38, now + 0.34);
+      const g = actx.createGain();
+      g.gain.setValueAtTime(0, now);
+      g.gain.linearRampToValueAtTime(0.16 * level, now + 0.014);
+      g.gain.exponentialRampToValueAtTime(0.0001, now + 0.42);
+      o.connect(g).connect(master);
+      o.start(now);
+      o.stop(now + 0.45);
+    }
+
+    function setMuted(v) {
+      muted = v;
+      if (!v) {
+        if (!ensure()) return;
+        if (actx.state === 'suspended') actx.resume();
+        startDrone();
+        master.gain.cancelScheduledValues(actx.currentTime);
+        master.gain.linearRampToValueAtTime(0.5, actx.currentTime + 0.5);
+      } else if (actx) {
+        master.gain.cancelScheduledValues(actx.currentTime);
+        master.gain.linearRampToValueAtTime(0, actx.currentTime + 0.16);
+      }
+    }
+
+    return {
+      get muted() { return muted; },
+      toggle() { setMuted(!muted); return muted; },
+      tick, thump,
+      // 每幕切换时按「场景性格」给不同的节拍
+      cue(id) {
+        if (muted) return;
+        if (id === 'rise' || id === 'end' || id === 'ask') thump(0.9);
+        else tick(0.55, 2600);
+      },
+      suspend() { if (actx && actx.state === 'running') actx.suspend(); },
+      resume() { if (actx && actx.state === 'suspended') actx.resume(); },
+    };
+  })();
+
+  /* ============================================================
+     5. 每场的渲染函数
+     参数：p = 幕内线性进度 0..1，local = 幕内秒数
+     ============================================================ */
+
+  // 缓存会频繁改样式的节点
+  const N = {
+    openChars: [...wrapOf('open').querySelectorAll('#open-line span')],
+    nameWord: $('#name-word'),
+    nameRule: $('#name-rule'),
+    nameSub: $('#name-sub'),
+    timeRows: [...wrapOf('time').querySelectorAll('.row')],
+    peopleCap: $('#people-cap'),
+    siteRule: $('#site-rule'),
+    siteItems: [...wrapOf('site').querySelectorAll('.item')],
+    askText: $('#ask-text'),
+    askCaret: $('#ask-caret'),
+    askPill: wrapOf('ask').querySelector('.pill'),
+    askTag: $('#ask-tag'),
+    askA1: $('#ask-a1'),
+    askA2: $('#ask-a2'),
+    proofBig: $('#proof-big'),
+    proofRows: [$('#proof-r1'), $('#proof-r2'), $('#proof-r3')],
+    endBrand: $('#end-brand'),
+    endLine: $('#end-line'),
+    endBtn: $('#end-btn'),
+  };
+
+  const ASK_Q = '今年冬眠生存什么时候开始？';
+  const ASK_CHARS = [...ASK_Q];
+
+  /* ---------- 序：白场，一行灰字逐字浮出 ---------- */
+  function drawOpen(p, local) {
+    N.openChars.forEach((sp, i) => {
+      const q = seg(local, 0.18 + i * 0.075, 0.62 + i * 0.075);
+      const e = easeOut(q);
+      sp.style.opacity = e.toFixed(3);
+      sp.style.transform = `translateY(${(1 - e) * 16}px)`;
+      sp.style.letterSpacing = '0';
+    });
+  }
+
+  /* ---------- 起：黑场，八块从画面外飞入，围住中心那一个「家」 ----------
+     设计意图：这一幕必须由**动作**讲出「八年围成一个家」，
+     静态的 3×3 网格讲不出这个意思 —— 只有飞入轨迹能讲。
+     一块 = 一年，最后落定的是中心那一块红。 */
+  function drawRise(p, local) {
+    const cell = 150;
+    const cx = W / 2, cy = H / 2 - 46;
+    // 八块从四周飞入，方向各自朝向中心，形成"汇聚"而不是"排布"
+    /* ⚠️ 节奏表：这一幕 5.2s（3.4→8.6）。
+       早前第一块 0.30s 才起、中心红块等到 3.5s，中间有近 2 秒**整屏全黑** ——
+       联系表上一眼就看出「有两帧什么都没有」，观众也会以为卡住了。
+       现在：0.05s 首块就动，八块在 1.85s 内全部落定，2.3s 中心亮红。 */
+    /* 负的起始时间 = **硬切入动作中间**。
+       真片子很少从"什么都没有"开始切，而是切进已经在发生的事。
+       早前全部从 0s 之后起跳，切换那一帧是纯黑，观感像卡住。 */
+    const RING = [
+      { gx: -1, gy: -1, fx: -520, fy: -300, t: -0.58 },
+      { gx:  0, gy: -1, fx:    0, fy: -640, t: -0.42 },
+      { gx:  1, gy: -1, fx:  520, fy: -300, t: -0.26 },
+      { gx:  1, gy:  0, fx:  640, fy:    0, t: -0.10 },
+      { gx:  1, gy:  1, fx:  520, fy:  320, t:  0.06 },
+      { gx:  0, gy:  1, fx:    0, fy:  640, t:  0.22 },
+      { gx: -1, gy:  1, fx: -520, fy:  320, t:  0.38 },
+      { gx: -1, gy:  0, fx: -640, fy:    0, t:  0.54 },
+    ];
+
+    for (const b of RING) {
+      const q = easeOut(seg(local, b.t, b.t + 1.05));
+      if (q <= 0) continue;
+      const tx = cx + b.gx * cell;
+      const ty = cy + b.gy * cell;
+      const x = tx + b.fx * (1 - q);
+      const y = ty + b.fy * (1 - q);
+      const size = cell * mix(0.62, 0.94, q);
+      /* 飞行中是**暗灰**（26）而不是近黑（14）：
+         地板太低时，切进来那一帧全屏就是纯黑，等于没有画面。 */
+      const lv = mix(26, 231, easeOut(seg(local, b.t + 0.5, b.t + 1.2)));
+      ctx.fillStyle = `rgb(${lv|0},${lv|0},${(lv + 2) | 0})`;
+      ctx.fillRect(x - size / 2, y - size / 2, size, size);
+    }
+
+    // 中心：什么都没有 → 一格红慢慢长出来。这是全片第一个"意义"
+    const e = easeOut(seg(local, 2.15, 3.0));
+    if (e > 0) {
+      const size = cell * mix(0.94, 1.0, e);
+      const r = mix(16, 224, e) | 0;
+      const g2 = mix(16, 31, e) | 0;
+      const b2 = mix(16, 38, e) | 0;
+      ctx.fillStyle = `rgb(${r},${g2},${b2})`;
+      ctx.fillRect(cx - size / 2, cy - size / 2, size, size);
+      // 极轻的一次外扩光晕，只在这一拍出现，之后立刻停
+      if (e < 1) {
+        ctx.globalAlpha = (1 - e) * 0.16;
+        ctx.fillStyle = '#e01f26';
+        const gr = size * (1 + (1 - e) * 0.5);
+        ctx.fillRect(cx - gr / 2, cy - gr / 2, gr, gr);
+        ctx.globalAlpha = 1;
+      }
+    }
+  }
+
+  // 「起」的字层：2018
+  (function () {
+    const el = wrapOf('rise');
+    el.innerHTML = `<span class="ln year" id="rise-year" style="position:absolute;top:76%">2018</span>`;
+  })();
+  function drawRiseType(p, local) {
+    const y = $('#rise-year');
+    const q = seg(local, 2.5, 3.3);
+    const e = easeOut(q);
+    y.style.opacity = (e * 0.9).toFixed(3);
+    y.style.transform = `translateY(${(1 - e) * 14}px)`;
+    y.style.top = '76%';
+  }
+
+  /* ---------- 名：白场，字距收拢 + 细线展开 ---------- */
+  function drawName(p, local) {
+    const e1 = easeOut(seg(local, 0.12, 0.9));
+    N.nameWord.style.opacity = clamp(seg(local, 0.05, 0.5)).toFixed(3);
+    N.nameWord.style.letterSpacing = mix(0.12, -0.012, e1).toFixed(4) + 'em';
+    N.nameWord.style.transform = `translateY(${(1 - e1) * 18}px)`;
+
+    const e2 = easeOut(seg(local, 1.15, 1.95));
+    N.nameRule.style.width = (e2 * 26).toFixed(2) + 'cqw';
+    N.nameRule.style.opacity = (0.16 * e2).toFixed(3);
+
+    const e3 = easeOut(seg(local, 1.5, 2.4));
+    N.nameSub.style.opacity = e3.toFixed(3);
+    N.nameSub.style.transform = `translateY(${(1 - e3) * 10}px)`;
+  }
+
+  /* ---------- 时：黑场，年份阶梯自动推进 ---------- */
+  function drawTime(p, local) {
+    const n = TIMELINE.length;
+    /* 八行像字幕依次点亮**并保持**。
+       早前做成「一道亮点扫过、其余压暗」，静帧看就是"整屏都看不清"——
+       观众散场时记不住任何一年。现在最后一帧必须是完整可读的八年。 */
+    const head = local * (n / 6.6);
+    N.timeRows.forEach((row, i) => {
+      const lit = easeOut(seg(head, i - 0.15, i + 0.72));   // 点亮后不回退
+      row.style.opacity = mix(0.34, 1, lit).toFixed(3);
+      row.style.transform = `translateX(${(1 - lit) * 14}px)`;
+      const y = row.firstChild;
+      // 年份：照亮瞬间点一下品牌红，然后落回白 —— 只有刚被读到的这一行是红的
+      const hot = clamp(1 - Math.abs(head - i - 0.55) * 2.4) * lit;
+      y.style.color = hot > 0.04
+        ? `rgb(${mix(245, 224, hot) | 0},${mix(245, 31, hot) | 0},${mix(247, 38, hot) | 0})`
+        : '#f5f5f7';
+      const d = row.lastChild;
+      d.style.color = hot > 0.04
+        ? `rgb(${mix(134, 245, hot) | 0},${mix(134, 245, hot) | 0},${mix(139, 247, hot) | 0})`
+        : '#86868b';
+    });
+  }
+
+  /* ---------- 人：白场，灰度转彩色 ---------- */
+  function drawPeople(p, local) {
+    shotEls.forEach((box, i) => {
+      const delay = 0.25 + i * 0.85;
+      const g = 1 - easeInOut(seg(local, delay, delay + 1.15));
+      box.style.filter = `grayscale(${g.toFixed(3)}) contrast(${(1 + 0.06 * g).toFixed(3)})`;
+      const e = easeOut(seg(local, delay - 0.1, delay + 1.0));
+      box.style.opacity = e.toFixed(3);
+      // 微推镜：整段缓慢 scale down，制造镜头感
+      const push = 1.045 - 0.045 * easeInOut(clamp(local / 9.4));
+      box.style.transform = `scale(${(push).toFixed(4)}) translateY(${(1 - e) * 14}px)`;
+    });
+    const e = easeOut(seg(local, 3.6, 4.6));
+    N.peopleCap.style.opacity = (e * 0.95).toFixed(3);
+    N.peopleCap.style.transform = `translateY(${(1 - e) * 12}px)`;
+  }
+
+  /* ---------- 场：黑场，三行依次打入 + 发丝线生长 ---------- */
+  function drawSite(p, local) {
+    const eRule = easeOut(seg(local, 0.15, 1.35));
+    N.siteRule.style.transform = `scaleY(${eRule.toFixed(3)})`;
+    N.siteRule.style.opacity = (eRule * 0.95).toFixed(3);
+
+    N.siteItems.forEach((item, i) => {
+      const delay = 0.5 + i * 0.72;
+      const e = easeOut(seg(local, delay, delay + 0.7));
+      item.style.opacity = e.toFixed(3);
+      item.style.transform = `translateY(${(1 - e) * 20}px)`;
+      const ks = item.querySelector('.k');
+      ks.style.letterSpacing = mix(0.07, -0.01, e).toFixed(4) + 'em';
+    });
+  }
+
+  /* ---------- 问：黑场，输入胶囊自己打字（OpenAI 的致敬点） ---------- */
+  function drawAsk(p, local) {
+    // 打字：0.35s 起，每字 0.135s，总共约 4.8s 打完 14 字 —— 太快，放慢
+    const startT = 0.55, per = 0.2;
+    const typed = clamp(Math.floor((local - startT) / per) + 1, 0, ASK_CHARS.length);
+    const text = ASK_CHARS.slice(0, typed).join('');
+    if (N.askText.textContent !== text) N.askText.textContent = text;
+
+    // 光标：时间驱动闪烁（暂停时也停，与时间轴一致）
+    const blink = (Math.floor(local * 2.2) % 2 === 0);
+    N.askCaret.style.opacity = typed < ASK_CHARS.length ? '1' : (blink ? '1' : '0');
+
+    // 胶囊与标签入场
+    const ePill = easeOut(seg(local, 0.05, 0.7));
+    N.askPill.style.opacity = ePill.toFixed(3);
+    N.askPill.style.transform = `translateY(${(1 - ePill) * 14}px) scale(${mix(0.985, 1, ePill).toFixed(4)})`;
+    N.askTag.style.opacity = (easeOut(seg(local, 0.0, 0.5)) * 0.9).toFixed(3);
+
+    // 回答：打完字之后才出现，比问题更慢
+    const e1 = easeOut(seg(local, 4.4, 5.4));
+    N.askA1.style.opacity = e1.toFixed(3);
+    N.askA1.style.transform = `translateY(${(1 - e1) * 12}px)`;
+    const e2 = easeOut(seg(local, 5.2, 6.3));
+    N.askA2.style.opacity = e2.toFixed(3);
+    N.askA2.style.transform = `translateY(${(1 - e2) * 12}px)`;
+  }
+
+  /* ---------- 证：白场，一个大数字 + 三行陈述 ---------- */
+  function drawProof(p, local) {
+    const e0 = easeOut(seg(local, 0.15, 1.0));
+    N.proofBig.style.opacity = e0.toFixed(3);
+    N.proofBig.style.transform = `translateY(${(1 - e0) * 40}px)`;
+    N.proofBig.style.letterSpacing = mix(-0.02, -0.05, e0).toFixed(4) + 'em';
+
+    N.proofRows.forEach((row, i) => {
+      const d = 0.55 + i * 0.5;
+      const e = easeOut(seg(local, d, d + 0.85));
+      row.style.opacity = e.toFixed(3);
+      row.style.transform = `translateX(${(1 - e) * 26}px)`;
+    });
+  }
+
+  /* ---------- 终：黑场，logo + 一句话 ---------- */
+  function drawEnd(p, local) {
+    const e0 = easeOut(seg(local, 1.5, 2.5));
+    N.endBrand.style.opacity = e0.toFixed(3);
+    N.endBrand.style.transform = `translateY(${(1 - e0) * 14}px)`;
+    N.endBrand.style.letterSpacing = mix(0.14, 0.02, e0).toFixed(4) + 'em';
+
+    const e1 = easeOut(seg(local, 2.0, 3.0));
+    N.endLine.style.opacity = (e1 * 0.9).toFixed(3);
+    N.endLine.style.transform = `translateY(${(1 - e1) * 12}px)`;
+
+    const e2 = easeOut(seg(local, 2.9, 3.8));
+    N.endBtn.style.opacity = e2.toFixed(3);
+    N.endBtn.style.transform = `translateY(${(1 - e2) * 10}px)`;
+
+    /* 片尾淡出到黑。
+       早前只把文字压到 58% 亮度就结束 —— 观众看到的是"画面突然停住"，
+       而真正的片子是**画面自己走完**。现在让文字和 logo 一起沉下去，
+       最后 1.2s 完全黑屏，留白收尾。 */
+    const fo = easeInOut(seg(local, 6.0, 8.05));
+    $('#type').style.opacity = (1 - fo).toFixed(3);
+    endLogoAlpha = 1 - fo;
+    $('#vignette').style.opacity = (1 + fo * 0.8).toFixed(3);
+  }
+
+  /* ============================================================
+     6. 主渲染
+     ============================================================ */
+
+  // canvas 尺寸跟随舞台（DPR 上限 2）
+  function fit() {
+    const r = stage.getBoundingClientRect();
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const w = Math.max(1, Math.round(r.width * dpr));
+    const h = Math.max(1, Math.round(r.height * dpr));
+    if (cv.width !== w || cv.height !== h) {
+      cv.width = w;
+      cv.height = h;
+    }
+    pxScale = cv.width / W;
+    ctx.setTransform(pxScale, 0, 0, pxScale, 0, 0);
+    ctx.imageSmoothingEnabled = true;
+  }
+  fit();
+  window.addEventListener('resize', fit);
+
+  const BG_OF = {
+    open: 'paper', name: 'paper', people: 'paper', proof: 'paper',
+    rise: 'void', time: 'void', site: 'void', ask: 'void', end: 'void',
+  };
+
+  /* 每幕的镜头曲线：返回缩放系数。幅度极小（<1.6%），只为消除死屏。
+     open/name/proof 用极慢推入，rise/end 用缓慢拉远（收），time/ask 静止。 */
+  const CAM = {
+    open: lp => 1 + 0.010 * easeInOut(lp),
+    rise: lp => 1.022 - 0.018 * easeInOut(lp),
+    name: lp => 1 + 0.014 * easeOut(lp),
+    people: lp => 1.030 - 0.028 * easeInOut(lp),
+    site: lp => 1 + 0.009 * easeInOut(lp),
+    ask: lp => 1 + 0.006 * easeInOut(lp),
+    proof: lp => 1.016 - 0.014 * easeInOut(lp),
+    end: lp => 1.020 - 0.020 * easeInOut(lp),
+  };
+
+  let curIdx = -1;
+  let isPaper = false;
+  let seeking = false;   // 拖动进度条时不发声音（否则一路狂响）
+  let endLogoAlpha = 1;  // 片尾 logo 跟随淡出
+
+  function setBackground(paper) {
+    if (paper === isPaper) return;
+    isPaper = paper;
+    bg.style.background = paper ? '#ffffff' : '#000000';
+    $('#vignette').style.background = paper
+      ? 'radial-gradient(120% 100% at 50% 50%, transparent 58%, rgba(0,0,0,.055) 100%)'
+      : 'radial-gradient(120% 100% at 50% 50%, transparent 52%, rgba(0,0,0,.35) 100%)';
+    $('#type').style.opacity = '1';
+    $('#vignette').style.opacity = '1';
+  }
+
+  function renderAt(t) {
+    // 定位当前幕
+    let idx = SCENES.length - 1;
+    for (let i = 0; i < SCENES.length; i++) {
+      if (t < SCENES[i].start + SCENES[i].dur) { idx = i; break; }
+    }
+    const s = SCENES[idx];
+    const local = Math.max(0, t - s.start);
+    const p = clamp(local / s.dur);
+
+    setBackground(BG_OF[s.id] === 'paper');
+
+    if (idx !== curIdx) {
+      // 切换场景：只切可见性，不做过渡（硬切）
+      if (curIdx >= 0) wrapOf(SCENES[curIdx].id).classList.remove('on');
+      wrapOf(s.id).classList.add('on');
+      curIdx = idx;
+      chapEl.textContent = s.label;
+      $('#vignette').style.opacity = '1';
+      cam.style.transform = 'scale(1)';
+      // 硬切的同时给一记节拍 —— 音画同步，这是"像视频"的关键
+      if (!seeking) Audio.cue(s.id);
+    }
+
+    // canvas 每帧重绘
+    endLogoAlpha = 1;
+    ctx.fillStyle = isPaper ? '#ffffff' : '#000000';
+    ctx.fillRect(0, 0, W, H);
+
+    switch (s.id) {
+      case 'open':   drawOpen(p, local); break;
+      case 'rise':   drawRise(p, local); drawRiseType(p, local); break;
+      case 'name':   drawName(p, local); break;
+      case 'time':   drawTime(p, local); break;
+      case 'people': drawPeople(p, local); break;
+      case 'site':   drawSite(p, local); break;
+      case 'ask':    drawAsk(p, local); break;
+      case 'proof':  drawProof(p, local); break;
+      case 'end':    drawEnd(p, local); break;
+    }
+
+    // 「终」之后把 logo 画在 canvas 上（不用 DOM，保持图形统一）
+    if (s.id === 'end') {
+      const eIn = easeOut(seg(local, 0.15, 1.6));
+      const cell = mix(54, 42, easeInOut(seg(local, 0.15, 2.4)));
+      drawCells(APPLE, cell, W / 2, H * 0.325, eIn * endLogoAlpha, APPLE_PAL, 3);
+    }
+
+    // 时间码 / 进度
+    const mm = String(Math.floor(t / 60)).padStart(2, '0');
+    const ss = String(Math.floor(t % 60)).padStart(2, '0');
+    tcEl.innerHTML = `<b>${mm}:${ss}</b>`;
+    fill.style.width = ((t / TOTAL) * 100).toFixed(2) + '%';
+    track.setAttribute('aria-valuenow', String(Math.round((t / TOTAL) * 100)));
+  }
+
+  /* ============================================================
+     7. 播放控制
+     ============================================================ */
+  let t = 0;
+  let playing = true;
+  let last = performance.now();
+  let ended = false;
+  function setPlaying(v) {
+    if (ended && v) restart();
+    playing = v;
+    playBtn.innerHTML = v
+      ? '<svg viewBox="0 0 12 12" aria-hidden="true"><rect x="1.5" y="1" width="3" height="10" fill="currentColor"/><rect x="7.5" y="1" width="3" height="10" fill="currentColor"/></svg>'
+      : '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 1l9 5-9 5z" fill="currentColor"/></svg>';
+    playBtn.setAttribute('aria-label', v ? '暂停' : '播放');
+    if (v) last = performance.now();
+    wake();
+  }
+
+  function restart() {
+    t = 0;
+    ended = false;
+    curIdx = -1;
+    againBtn.classList.remove('on');
+    $('#type').style.opacity = '1';
+    // 清掉所有场景的 on，让 renderAt 重新加
+    SCENES.forEach(s => wrapOf(s.id).classList.remove('on'));
+    playing = true;
+    setPlaying(true);
+    renderAt(0);
+  }
+
+  function jumpTo(idx) {
+    idx = Math.max(0, Math.min(SCENES.length - 1, idx));
+    t = SCENES[idx].start + 0.001;
+    ended = false;
+    $('#type').style.opacity = '1';
+    againBtn.classList.remove('on');
+    curIdx = -1;
+    SCENES.forEach(s => wrapOf(s.id).classList.remove('on'));
+    renderAt(t);
+    if (playing) last = performance.now();
+    wake();
+  }
+
+  function currentIndex() {
+    for (let i = 0; i < SCENES.length; i++) {
+      if (t < SCENES[i].start + SCENES[i].dur) return i;
+    }
+    return SCENES.length - 1;
+  }
+
+  let grainPhase = 0;
+
+  function loop(now) {
+    const dt = Math.min((now - last) / 1000, 0.06);
+    last = now;
+
+    if (playing && !ended) {
+      t += dt;
+      if (t >= TOTAL) {
+        t = TOTAL;
+        ended = true;
+        playing = false;
+        againBtn.classList.add('on');
+        playBtn.innerHTML = '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 1l9 5-9 5z" fill="currentColor"/></svg>';
+      }
+      renderAt(t);
+    }
+
+    // 颗粒每 3 帧抖一次位置，制造胶片涌动
+    grainPhase++;
+    if (grainPhase % 3 === 0) {
+      const x = (Math.random() * 40 - 20) | 0;
+      const y = (Math.random() * 40 - 20) | 0;
+      grain.style.transform = `translate3d(${x}px,${y}px,0)`;
+    }
+
+    // 镜头呼吸：每幕一条独立的慢推，切换幕时归位
+    if (playing && !ended && curIdx >= 0) {
+      const s = SCENES[curIdx];
+      const lp = clamp((t - s.start) / s.dur);
+      if (CAM[s.id]) {
+        const z = CAM[s.id](lp);
+        cam.style.transform = `scale(${z.toFixed(5)})`;
+      }
+    }
+
+    requestAnimationFrame(loop);
+  }
+
+  /* ============================================================
+     8. 交互
+     ============================================================ */
+  playBtn.addEventListener('click', () => setPlaying(!playing));
+
+  // 声音：默认静音（浏览器要求手势）；点喇叭开
+  const muteBtn = $('#mute');
+  muteBtn.classList.add('off');
+  muteBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const nowMuted = Audio.toggle();
+    muteBtn.classList.toggle('off', nowMuted);
+    muteBtn.setAttribute('aria-label', nowMuted ? '开启声音' : '静音');
+  });
+
+  /* 第一次点击舞台＝用户手势，顺手把声音打开（Apple 片子不会静音播放）。
+     ⚠️ 这一步不能同时触发"暂停"：舞台的 click 是播放/暂停开关，
+     早前两者叠在同一个手势上 —— 用户点一下想开声音，结果片子停住了
+     （实测时间码卡在 00:00 不动，看起来像"播放坏了"）。
+     现在用 consumeFirstGesture 吃掉紧随其后的那一次 click。 */
+  let firstTouch = true;
+  let consumeFirstGesture = false;
+  stage.addEventListener('pointerdown', () => {
+    if (!firstTouch) return;
+    firstTouch = false;
+    if (Audio.muted) {
+      const nowMuted = Audio.toggle();
+      muteBtn.classList.toggle('off', nowMuted);
+      muteBtn.setAttribute('aria-label', nowMuted ? '开启声音' : '静音');
+      consumeFirstGesture = true;   // 这次手势只用来开声音
+    }
+  }, { capture: true });
+
+  stage.addEventListener('click', (e) => {
+    if (e.target.closest('#again')) return;
+    if (consumeFirstGesture) { consumeFirstGesture = false; return; }
+    setPlaying(!playing);
+  });
+
+  againBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    restart();
+  });
+
+  window.addEventListener('keydown', (e) => {
+    if (e.code === 'Space') {
+      e.preventDefault();
+      setPlaying(!playing);
+    } else if (e.code === 'ArrowRight') {
+      /* 章节跳转语义，和电影播放器一致：→ 永远去下一幕开头。
+         早前写成"剩不到 1.2s 才跳下一幕，否则跳本幕开头"——
+         观众按 → 看到画面从头重播，感受就是「按键坏了」。 */
+      e.preventDefault();
+      const i = currentIndex();
+      if (i < SCENES.length - 1) jumpTo(i + 1);
+      else jumpTo(i);   // 最后一幕里再按 →，重播本幕
+    } else if (e.code === 'ArrowLeft') {
+      e.preventDefault();
+      const i = currentIndex();
+      const local = t - SCENES[i].start;
+      // 已在幕内走了 0.8s 以上 → 先回本幕开头（像播放器）；否则去上一幕
+      if (local > 0.8 || i === 0) jumpTo(i);
+      else jumpTo(i - 1);
+    } else if (e.key === 'r' || e.key === 'R') {
+      restart();
+    }
+  });
+
+  // 拖动 / 点击进度条
+  let scrubbing = false;
+  function seekFromEvent(e) {
+    const r = track.getBoundingClientRect();
+    const ratio = clamp((e.clientX - r.left) / r.width);
+    t = ratio * TOTAL;
+    ended = false;
+    againBtn.classList.remove('on');
+    $('#type').style.opacity = '1';
+    curIdx = -1;
+    seeking = true;
+    SCENES.forEach(s => wrapOf(s.id).classList.remove('on'));
+    renderAt(t);
+    seeking = false;
+  }
+  track.addEventListener('pointerdown', (e) => {
+    scrubbing = true;
+    track.setPointerCapture(e.pointerId);
+    seekFromEvent(e);
+  });
+  track.addEventListener('pointermove', (e) => { if (scrubbing) seekFromEvent(e); });
+  track.addEventListener('pointerup', () => { scrubbing = false; last = performance.now(); });
+  track.addEventListener('pointercancel', () => { scrubbing = false; });
+
+  // 章节刻度
+  (function () {
+    const marks = $('#track .marks');
+    SCENES.forEach(s => {
+      const i = document.createElement('i');
+      i.style.left = ((s.start / TOTAL) * 100).toFixed(3) + '%';
+      marks.appendChild(i);
+    });
+  })();
+
+  // 外壳自动隐藏
+  let idleTimer = 0;
+  function wake() {
+    chromebar.classList.remove('idle');
+    chapEl.classList.remove('idle');
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(() => {
+      if (playing) {
+        chromebar.classList.add('idle');
+        chapEl.classList.add('idle');
+      }
+    }, 2600);
+  }
+  window.addEventListener('pointermove', wake, { passive: true });
+
+  // 竖屏提示
+  function checkOrientation() {
+    const portrait = window.innerHeight > window.innerWidth && window.innerWidth < 760;
+    rotateHint.classList.toggle('on', portrait);
+  }
+  checkOrientation();
+  window.addEventListener('resize', checkOrientation, { passive: true });
+  setTimeout(() => rotateHint.classList.remove('on'), 4200);
+
+  /* ============================================================
+     9. 减少动效偏好：直接给静态排版
+     ============================================================ */
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)');
+  if (reduce.matches) {
+    // 停在「名」这一幕的完成态，并隐藏播放外壳
+    document.body.classList.add('static');
+    setBackground(true);
+    wrapOf('name').classList.add('on');
+    N.nameWord.style.opacity = '1';
+    N.nameWord.style.letterSpacing = '-0.012em';
+    N.nameRule.style.width = '26cqw';
+    N.nameRule.style.opacity = '.16';
+    N.nameSub.style.opacity = '1';
+    chromebar.style.display = 'none';
+    chapEl.style.display = 'none';
+    document.querySelector('#vignette').style.opacity = '0';
+  } else {
+    // 图片预加载完成后开播（避免照片墙空帧）
+    const imgs = shotEls.map(b => b.querySelector('img'));
+    let done = 0;
+    const kick = () => { if (++done >= imgs.length) start(); };
+    imgs.forEach(im => {
+      if (im.complete) kick();
+      else { im.addEventListener('load', kick); im.addEventListener('error', kick); }
+    });
+    setTimeout(start, 1800); // 兜底
+  }
+
+  /* 调试/截图钩子：可按时间码精确定格，便于逐帧视觉验收 */
+  window.__bohFilm = {
+    seek(sec) {
+      t = clamp(sec, 0, TOTAL);
+      ended = false;
+      againBtn.classList.remove('on');
+      $('#type').style.opacity = '1';
+      curIdx = -1;
+      SCENES.forEach(s => wrapOf(s.id).classList.remove('on'));
+      renderAt(t);
+      return t;
+    },
+    pause() { playing = false; setPlaying(false); },
+    play() { setPlaying(true); },
+    total: TOTAL,
+    scenes: SCENES.map(s => ({ id: s.id, start: s.start, dur: s.dur })),
+  };
+
+  let started = false;
+  function start() {
+    if (started || reduce.matches) return;
+    started = true;
+    last = performance.now();
+    renderAt(0);
+    requestAnimationFrame(loop);
+    wake();
+  }
+})();
+</script>
+</body>
+</html>
