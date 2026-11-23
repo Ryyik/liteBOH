@@ -183,6 +183,54 @@ describe('BohModal · 浮层安全件守卫', () => {
     expect(src).not.toMatch(/blur\(\d+px\)/);
     expect(src).not.toMatch(/\b\d+ms\b/);
   });
+
+  it('层级只读 --boh-z-modal（组件里不写第二份数字）', () => {
+    const src = modalSrc();
+    expect(src).toContain('z-index: var(--boh-z-modal)');
+    expect(src).not.toMatch(/z-index:\s*[0-9]{3,}/);
+    const tokens = stripComments(read('src/styles/common/tokens.css'));
+    const decl = tokens.match(/--boh-z-modal:\s*(\d+)/)?.[1];
+    // 落在「详情层(2147482400)之上、图片查看器(2147483000)之下」这一格
+    expect(Number(decl)).toBeGreaterThan(2147482400);
+    expect(Number(decl)).toBeLessThan(2147483000);
+  });
+
+  it('定制只开 maxWidth / #head / flush 三个口子', () => {
+    const src = modalSrc();
+    expect(src).toContain('maxWidth');
+    expect(src).toContain('--boh-modal-max-w');
+    expect(src).toContain('$slots.head');
+    expect(src).toContain('boh-modal__body--flush');
+  });
+});
+
+/* 首批试点（plans/045 阶段 2）：抽奖选择器从手写 Teleport+遮罩 迁到 BohModal。
+   这条守卫锁的是「接线」：以后有人重写这块，不能悄悄长出第二套浮层壳。 */
+describe('BohModal · 试点宿主接线（HeroConsole 抽奖选择器）', () => {
+  const hostSrc = () => squeezeSource(stripComments(read('src/views/HeroConsole/index.vue')));
+  const hostCss = () => stripComments(read('src/views/HeroConsole/style.scoped.css'));
+
+  it('壳走 BohModal（自带 Teleport/遮罩/滚锁/焦点陷阱）', () => {
+    const src = hostSrc();
+    expect(src).toContain('BohModal');
+    expect(src).toContain('v-model="lotteryPickerVisible"');
+    expect(src).toContain('max-width="520px"');
+    expect(src).toContain('flush');
+  });
+
+  it('旧壳类名与暗色补丁不再回来', () => {
+    const html = hostSrc();
+    expect(html).not.toContain('lottery-picker-overlay');
+    expect(html).not.toContain('lottery-picker-modal');
+    const css = hostCss();
+    for (const legacy of [
+      '.lottery-picker-overlay',
+      '.lottery-picker-modal',
+      '.lottery-picker-header',
+    ]) {
+      expect(css).not.toContain(legacy);
+    }
+  });
 });
 
 describe('BohToastHost · 渲染层守卫', () => {

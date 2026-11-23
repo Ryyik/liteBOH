@@ -1269,69 +1269,51 @@
       />
 
       <!-- 抽奖活动选择弹窗 -->
-      <Teleport to="body">
-        <Transition name="fade">
-          <div
-            v-if="lotteryPickerVisible"
-            class="lottery-picker-overlay"
-            @click.self="lotteryPickerVisible = false"
-          >
-            <div class="lottery-picker-modal glass-container-heavy">
-              <header class="lottery-picker-header">
-                <h3>选择抽奖活动</h3>
-                <button class="close-btn" @click="lotteryPickerVisible = false">
-                  <X :size="20" />
-                </button>
-              </header>
-              <div class="lottery-picker-search">
-                <Search :size="16" />
-                <input
-                  v-model.trim="lotteryPickerKeyword"
-                  type="search"
-                  placeholder="搜索抽奖标题或奖品"
-                />
-              </div>
-              <div class="lottery-picker-list">
-                <div v-if="lotteryPickerLoading" class="lottery-picker-loading">加载中...</div>
-                <div v-else-if="!filteredLotteries.length" class="lottery-picker-empty">
-                  没有匹配的抽奖活动
-                </div>
-                <button
-                  v-for="lottery in filteredLotteries"
-                  :key="lottery.id"
-                  type="button"
-                  class="lottery-picker-item"
-                  @click="selectLottery(lottery)"
-                >
-                  <span class="lottery-picker-thumb">
-                    <img
-                      v-if="lottery.cover_image_url"
-                      :src="lottery.cover_image_url"
-                      :alt="lottery.title"
-                      loading="lazy"
-                    />
-                    <span v-else class="lottery-picker-thumb-placeholder">🎲</span>
-                  </span>
-                  <span class="lottery-picker-info">
-                    <strong>{{ lottery.title || '未命名抽奖' }}</strong>
-                    <small>奖品：{{ lottery.prize_title || '未设置' }}</small>
-                    <small v-if="lottery.status === 'open'" class="lottery-status open"
-                      >报名中</small
-                    >
-                    <small v-else-if="lottery.status === 'drawn'" class="lottery-status drawn"
-                      >已开奖</small
-                    >
-                    <small v-else-if="lottery.status === 'closed'" class="lottery-status closed"
-                      >已关闭</small
-                    >
-                    <small v-else class="lottery-status draft">草稿</small>
-                  </span>
-                </button>
-              </div>
-            </div>
+      <BohModal v-model="lotteryPickerVisible" title="选择抽奖活动" max-width="520px" flush>
+        <div class="lottery-picker-search">
+          <Search :size="16" />
+          <input
+            v-model.trim="lotteryPickerKeyword"
+            type="search"
+            placeholder="搜索抽奖标题或奖品"
+          />
+        </div>
+        <div class="lottery-picker-list">
+          <div v-if="lotteryPickerLoading" class="lottery-picker-loading">加载中...</div>
+          <div v-else-if="!filteredLotteries.length" class="lottery-picker-empty">
+            没有匹配的抽奖活动
           </div>
-        </Transition>
-      </Teleport>
+          <button
+            v-for="lottery in filteredLotteries"
+            :key="lottery.id"
+            type="button"
+            class="lottery-picker-item"
+            @click="selectLottery(lottery)"
+          >
+            <span class="lottery-picker-thumb">
+              <img
+                v-if="lottery.cover_image_url"
+                :src="lottery.cover_image_url"
+                :alt="lottery.title"
+                loading="lazy"
+              />
+              <span v-else class="lottery-picker-thumb-placeholder">🎲</span>
+            </span>
+            <span class="lottery-picker-info">
+              <strong>{{ lottery.title || '未命名抽奖' }}</strong>
+              <small>奖品：{{ lottery.prize_title || '未设置' }}</small>
+              <small v-if="lottery.status === 'open'" class="lottery-status open">报名中</small>
+              <small v-else-if="lottery.status === 'drawn'" class="lottery-status drawn"
+                >已开奖</small
+              >
+              <small v-else-if="lottery.status === 'closed'" class="lottery-status closed"
+                >已关闭</small
+              >
+              <small v-else class="lottery-status draft">草稿</small>
+            </span>
+          </button>
+        </div>
+      </BohModal>
     </div>
   </AdminConsoleShell>
 </template>
@@ -1357,6 +1339,7 @@ import {
   Gift,
 } from 'lucide-vue-next';
 import AvatarCropModal from '@/components/AvatarCropModal.vue';
+import BohModal from '@/components/ui/BohModal.vue';
 import DynamicHomeHero from '@/views/Home/components/DynamicHomeHero.vue';
 // 首屏街景缺省回落图：与 StreetSceneHero 的降级链同一张品牌图
 import brandHeroFallback from '@/assets/images/main1-1280.webp?url';

@@ -15,6 +15,17 @@ import './motion.css';
  *   · v-model 开关 + 出入场动画（motion.css 的 boh-fade / boh-pop）；
  *   · 窄屏（≤560px）自动变底部 Sheet：对齐到底、grab 条出现——同一组件两种形态。
  *
+ * 定制口子（只开这三个，别再往里加）：
+ *   · maxWidth —— 弹层最大宽度（默认 420px；窄屏仍占满）；
+ *   · #head —— 整块自定义头部（kicker + 标题 + 图标关闭钮这类形态）；
+ *     用了它就不渲染默认 title/关闭钮，关闭按钮要自己给；
+ *   · flush —— 去掉 body 内衬（内容自带 padding 的通栏布局：搜索栏 + 列表）。
+ *
+ * 层级：overlay 的 z-index 读 `--boh-z-modal`（tokens.css，2147482600）——
+ * 全站 z-index 是一张乱账（导航 9999、灵动岛 10001、商城弹层/详情 2147482400、
+ * 主编辑工具栏 2147482501、图片查看器 2147483000、登录 2147483500），
+ * 弹窗必须落在「详情层之上、查看器之下」这一格，不要在组件里写死数字。
+ *
  * ⚠️ v-dialog-focus 指令必须挂在 overlay 上（keydown 从后代冒泡到它才接得住），
  *    且指令生命周期跟 v-if 走 —— 所以 overlay 的显隐用 v-if 而不是 css 隐藏。
  *
@@ -36,6 +47,10 @@ const props = defineProps({
   closeOnBackdrop: { type: Boolean, default: true },
   /** 是否渲染右上角关闭按钮 */
   showClose: { type: Boolean, default: true },
+  /** 弹层最大宽度（CSS 长度）；空串用默认 420px。窄屏仍占满 */
+  maxWidth: { type: String, default: '' },
+  /** 去掉 body 内衬——内容自带 padding 的通栏布局用 */
+  flush: { type: Boolean, default: false },
 });
 
 const emit = defineEmits(['update:modelValue', 'close']);
@@ -73,9 +88,13 @@ function onBackdropClick(event) {
             role="dialog"
             aria-modal="true"
             :aria-label="title || '对话框'"
+            :style="maxWidth ? { '--boh-modal-max-w': maxWidth } : null"
           >
             <div class="boh-modal__grab" aria-hidden="true"></div>
-            <header v-if="title || showClose" class="boh-modal__head">
+            <header v-if="$slots.head" class="boh-modal__head boh-modal__head--slot">
+              <slot name="head" />
+            </header>
+            <header v-else-if="title || showClose" class="boh-modal__head">
               <h4 class="boh-modal__title">{{ title }}</h4>
               <button
                 v-if="showClose"
@@ -87,7 +106,7 @@ function onBackdropClick(event) {
                 ×
               </button>
             </header>
-            <div class="boh-modal__body">
+            <div class="boh-modal__body" :class="{ 'boh-modal__body--flush': flush }">
               <slot />
             </div>
             <footer v-if="$slots.footer" class="boh-modal__foot">
@@ -104,7 +123,7 @@ function onBackdropClick(event) {
 .boh-modal__overlay {
   position: fixed;
   inset: 0;
-  z-index: 100;
+  z-index: var(--boh-z-modal);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -114,7 +133,7 @@ function onBackdropClick(event) {
 }
 
 .boh-modal__dialog {
-  width: min(420px, calc(100vw - 48px));
+  width: min(var(--boh-modal-max-w, 420px), calc(100vw - 48px));
   max-height: min(78vh, 720px);
   display: flex;
   flex-direction: column;
@@ -138,6 +157,11 @@ function onBackdropClick(event) {
   justify-content: space-between;
   gap: 12px;
   padding: 22px 24px 0;
+}
+
+/* #head 槽自带内衬：宿主头部的 kicker/标题/关闭钮有自己的 padding 节奏 */
+.boh-modal__head--slot {
+  padding: 0;
 }
 
 .boh-modal__title {
@@ -175,6 +199,11 @@ function onBackdropClick(event) {
   font-size: 13px;
   line-height: 1.7;
   color: var(--liquid-text-secondary);
+}
+
+/* 通栏内容自带 padding（搜索栏 + 列表这类）时用 flush，滚动仍由本层接管 */
+.boh-modal__body--flush {
+  padding: 0;
 }
 
 .boh-modal__foot {

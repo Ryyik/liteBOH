@@ -802,51 +802,16 @@
 }
 
 /* ===== 抽奖选择弹窗 ===== */
-.lottery-picker-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(14, 17, 21, 0.45);
-  z-index: 11060;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-}
-
-.lottery-picker-modal {
-  width: 100%;
-  max-width: 520px;
-  max-height: 80vh;
-  max-height: 80dvh;
-  border-radius: 20px;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  margin: 0;
-}
-
-.lottery-picker-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px 20px;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
-}
-
-.lottery-picker-header h3 {
-  margin: 0;
-  font-size: 17px;
-  font-weight: 700;
-  color: #1d1d1f;
-}
-
+/* 抽奖选择器内容（2026-11-23 plans/045 阶段 2：外壳已迁 BohModal——
+   Teleport / 遮罩 / 滚锁 / Esc / 玻璃材质 / 头部关闭钮都在组件里；
+   这里只剩内容排版，颜色一律读 --liquid-* 跟随弹层材质）。 */
 .lottery-picker-search {
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 10px 20px;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
-  color: #86868b;
+  border-bottom: 1px solid var(--liquid-border);
+  color: var(--liquid-text-secondary);
 }
 
 .lottery-picker-search input {
@@ -859,9 +824,6 @@
 }
 
 .lottery-picker-list {
-  flex: 1;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
   padding: 8px;
 }
 
@@ -869,7 +831,7 @@
 .lottery-picker-empty {
   text-align: center;
   padding: 40px 20px;
-  color: #86868b;
+  color: var(--liquid-text-secondary);
   font-size: 14px;
 }
 
@@ -888,7 +850,7 @@
 }
 
 .lottery-picker-item:hover {
-  background: rgba(0, 0, 0, 0.04);
+  background: var(--liquid-bg);
 }
 
 .lottery-picker-thumb {
@@ -897,7 +859,7 @@
   border-radius: 10px;
   overflow: hidden;
   flex-shrink: 0;
-  background: #f5f5f7;
+  background: var(--liquid-bg-nested);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -924,7 +886,7 @@
 .lottery-picker-info strong {
   font-size: 14px;
   font-weight: 600;
-  color: #1d1d1f;
+  color: var(--liquid-text-primary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -932,7 +894,7 @@
 
 .lottery-picker-info small {
   font-size: 12px;
-  color: #86868b;
+  color: var(--liquid-text-secondary);
 }
 
 .lottery-status {
@@ -959,33 +921,6 @@
 .lottery-status.draft {
   background: rgba(251, 188, 5, 0.15);
   color: #fbbc05;
-}
-
-@media (prefers-color-scheme: dark) {
-  .lottery-picker-modal {
-    background: #1d1d1f;
-  }
-  .lottery-picker-header h3 {
-    color: #eff1f4;
-  }
-  .lottery-picker-header {
-    border-bottom-color: rgba(255, 255, 255, 0.08);
-  }
-  .lottery-picker-search {
-    border-bottom-color: rgba(255, 255, 255, 0.08);
-  }
-  .lottery-picker-item:hover {
-    background: rgba(255, 255, 255, 0.06);
-  }
-  .lottery-picker-info strong {
-    color: #eff1f4;
-  }
-  .lottery-picker-info small {
-    color: #949494;
-  }
-  .lottery-picker-thumb {
-    background: #2c2c2e;
-  }
 }
 
 /* 浮层进场（2026-11-04 硬切审计 P2-6）：
