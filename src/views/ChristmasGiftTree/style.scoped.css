@@ -1,0 +1,633 @@
+/*
+ * 圣诞交换礼物页（像素风）
+ *
+ * 这是固定夜景的沉浸页（路由挂了 hideNavbar / hideFooter），颜色与圆角都自成一 套。
+ * 像素风的三条硬规则，这里全部遵守：
+ *   ① 圆角一律 0（需要"圆"就用像素方块拼）；
+ *   ② 阴影一律无模糊 —— 要么 1px 硬描边，要么 offset 的实心投影；
+ *   ③ 渐变只允许"硬色带"，不允许平滑过渡。
+ * 半透明毛玻璃（backdrop-filter）同理去掉：模糊的边缘和像素风冲突。
+ */
+
+.xmas-page {
+  --xmas-ink: #eef2ff;
+  --xmas-muted: #9aa8c7;
+  --xmas-gold: #f0b83c;
+  --xmas-gold-deep: #c07f34;
+  --xmas-navy: #0b1428;
+  --xmas-panel: #101a33;
+
+  position: relative;
+  isolation: isolate;
+  min-height: 100vh;
+  min-height: 100dvh;
+  overflow-x: hidden;
+  /* 夜空：六段硬色带，不做平滑渐变 */
+  background: linear-gradient(
+    180deg,
+    #070c1d 0 14%,
+    #0a122a 14% 28%,
+    #0d1834 28% 42%,
+    #101d3d 42% 56%,
+    #132446 56% 72%,
+    #172b50 72% 100%
+  );
+  color: var(--xmas-ink);
+  font-family:
+    var(--font-sans, -apple-system), BlinkMacSystemFont, 'PingFang SC', 'Segoe UI', sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── 背景星点与雪：方形像素，不是圆点 ───────────────────── */
+
+.xmas-stars,
+.xmas-snow {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.xmas-stars span {
+  position: absolute;
+  border-radius: 0;
+  background: #dfe8ff;
+  animation: xmas-star-twinkle 3.6s steps(3, end) infinite;
+}
+
+.xmas-snow span {
+  position: absolute;
+  top: 0;
+  border-radius: 0;
+  background: #eaf1ff;
+  opacity: 0;
+  animation-name: xmas-snow-fall;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+@keyframes xmas-star-twinkle {
+  0%,
+  100% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes xmas-snow-fall {
+  0% {
+    transform: translate3d(0, -12vh, 0);
+    opacity: 0;
+  }
+  12% {
+    opacity: var(--flake-opacity, 0.6);
+  }
+  100% {
+    transform: translate3d(var(--drift, 0), 108vh, 0);
+    opacity: 0.25;
+  }
+}
+
+/* ── 顶栏 ──────────────────────────────────────────────── */
+
+.xmas-top {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: calc(14px + env(safe-area-inset-top)) 16px 0;
+}
+
+.xmas-back {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border-radius: 0;
+  border: 2px solid #33456d;
+  background: var(--xmas-panel);
+  box-shadow: 3px 3px 0 rgba(5, 9, 22, 0.9);
+  color: var(--xmas-ink);
+  cursor: pointer;
+}
+
+.xmas-back:active {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0 rgba(5, 9, 22, 0.9);
+}
+
+.xmas-brand {
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  color: #7c8cb0;
+  text-transform: uppercase;
+}
+
+/* 管理入口：推到最右，克制一点 —— 它是运维按钮，不该抢树的注意力 */
+.xmas-admin-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: auto;
+  padding: 5px 10px;
+  border-radius: 0;
+  border: 2px solid #33456d;
+  background: var(--xmas-panel);
+  box-shadow: 3px 3px 0 rgba(5, 9, 22, 0.9);
+  color: var(--xmas-muted);
+  font-family: inherit;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+}
+
+.xmas-admin-trigger:hover {
+  border-color: var(--xmas-gold);
+  color: var(--xmas-gold);
+}
+
+.xmas-admin-trigger:active {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0 rgba(5, 9, 22, 0.9);
+}
+
+/* ── 主布局 ────────────────────────────────────────────── */
+
+.xmas-shell {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 48px 18px calc(24px + env(safe-area-inset-bottom));
+}
+
+.xmas-stage {
+  width: 100%;
+  max-width: 430px;
+  margin: 0 auto;
+}
+
+.xmas-panel {
+  width: 100%;
+  max-width: 460px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.xmas-kicker {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  margin: 0 0 12px;
+  font-size: 10.5px;
+  letter-spacing: 0.3em;
+  color: var(--xmas-gold);
+  text-transform: uppercase;
+}
+
+/* 两侧的小方块：英文小字放两侧没有"界"，会飘在标题上面 */
+.xmas-kicker span {
+  display: block;
+  width: 6px;
+  height: 6px;
+  background: var(--xmas-gold);
+  flex: none;
+}
+
+/*
+ * 标题：不要四向 1px 描边。中文字形笔画密，描边会让相邻笔画粘在一起，
+ * 23px 下看起来就是"糊"的。只留一道 2px 实心投影，边缘反而是干净的。
+ */
+.xmas-heading {
+  margin: 0 0 12px;
+  font-size: 23px;
+  line-height: 1.42;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  text-shadow: 2px 2px 0 rgba(4, 8, 20, 0.8);
+}
+
+/* 第二行做成金色色块：整句标题一样重，读者抓不住重点 */
+.xmas-heading-em {
+  display: inline-block;
+  margin-top: 6px;
+  padding: 3px 10px 5px;
+  background: var(--xmas-gold);
+  color: #2a1a04;
+  text-shadow: none;
+  box-shadow: 4px 4px 0 rgba(70, 40, 2, 0.55);
+}
+
+.xmas-lede {
+  margin: 0 0 18px;
+  font-size: 13px;
+  line-height: 1.8;
+  color: var(--xmas-muted);
+}
+
+/* ── 倒计时 ────────────────────────────────────────────── */
+
+.xmas-clock {
+  position: relative;
+  margin: 0 0 16px;
+  padding: 13px 16px 12px 18px;
+  border-radius: 0;
+  border: 2px solid #2c3d61;
+  /* 左边一道金条：把「什么时候」从正文里拎出来，像票据的边 */
+  border-left: 4px solid var(--xmas-gold);
+  background: var(--xmas-panel);
+  box-shadow: 4px 4px 0 rgba(5, 9, 22, 0.85);
+  /* 限宽：横屏右栏有 446px，一行字铺满整条会显得很空 */
+  max-width: 380px;
+}
+
+/* ── 揭晓结果 ──────────────────────────────────────────── */
+
+.xmas-result {
+  margin: 0 0 16px;
+  padding: 12px 16px;
+  max-width: 380px;
+  border: 2px solid var(--xmas-gold-deep);
+  background: #17233f;
+  box-shadow: 4px 4px 0 rgba(5, 9, 22, 0.85);
+}
+
+.result-label {
+  margin: 0 0 6px;
+  font-size: 10.5px;
+  letter-spacing: 0.16em;
+  color: var(--xmas-muted);
+}
+
+.result-name {
+  margin: 0 0 8px;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--xmas-gold);
+  text-shadow: 2px 2px 0 rgba(60, 34, 4, 0.55);
+}
+
+.result-name--muted {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--xmas-muted);
+  text-shadow: none;
+}
+
+.result-link {
+  display: inline-block;
+  padding: 5px 12px;
+  border-radius: 0;
+  border: 2px solid #3b4f78;
+  background: #101a33;
+  color: #cfe0ff;
+  font-size: 11.5px;
+  text-decoration: none;
+}
+
+.result-link:hover {
+  border-color: var(--xmas-gold);
+  color: var(--xmas-gold);
+}
+
+.result-hint {
+  margin: 8px 0 0;
+  font-size: 11px;
+  line-height: 1.7;
+  color: var(--xmas-muted);
+}
+
+.clock-label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  margin: 0 0 6px;
+  font-size: 10.5px;
+  letter-spacing: 0.18em;
+  color: var(--xmas-muted);
+}
+
+.clock-label::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  background: var(--xmas-gold);
+  flex: none;
+}
+
+.clock-value {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 8px;
+  margin: 0 0 6px;
+}
+
+.clock-value strong {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--xmas-gold);
+  font-variant-numeric: tabular-nums;
+  text-shadow: 2px 2px 0 rgba(60, 34, 4, 0.6);
+}
+
+.clock-value span {
+  font-size: 11px;
+  color: var(--xmas-muted);
+}
+
+/* 倒计时与上面的日期之间用像素虚线隔开，不用细实线（细线在暗底上发虚） */
+.clock-left {
+  margin: 0;
+  padding-top: 11px;
+  font-size: 11px;
+  color: #6f7fa3;
+  background-image: repeating-linear-gradient(
+    90deg,
+    #35486e 0 5px,
+    transparent 5px 10px
+  );
+  background-size: 100% 2px;
+  background-position: 0 0;
+  background-repeat: no-repeat;
+}
+
+.clock-left em {
+  font-style: normal;
+  color: #ffd873;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.06em;
+}
+
+/* ── 主按钮：直角 + 双层硬阴影（像素 UI 的立体感全靠这个） ── */
+
+.xmas-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 52px;
+  padding: 0 20px;
+  border-radius: 0;
+  border: 3px solid var(--xmas-gold);
+  background: var(--xmas-gold-deep);
+  color: #fff8e6;
+  font-size: 15.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  text-shadow: 2px 2px 0 rgba(48, 26, 2, 0.6);
+  box-shadow:
+    inset 3px 3px 0 rgba(255, 236, 180, 0.35),
+    inset -3px -3px 0 rgba(60, 32, 2, 0.45),
+    5px 5px 0 #060b18;
+  transition: none;
+}
+
+.xmas-cta:hover {
+  border-color: #ffd873;
+}
+
+.xmas-cta:active {
+  transform: translate(3px, 3px);
+  box-shadow:
+    inset 3px 3px 0 rgba(255, 236, 180, 0.25),
+    inset -3px -3px 0 rgba(60, 32, 2, 0.45),
+    2px 2px 0 #060b18;
+}
+
+/* 按钮里的像素礼盒：和树同一套画法（12×12 格），不是图标字体 */
+.cta-icon {
+  flex: none;
+  margin-right: 9px;
+  shape-rendering: crispEdges;
+  filter: drop-shadow(2px 2px 0 rgba(48, 26, 2, 0.5));
+}
+
+.xmas-cta.is-joined {
+  border-color: #3c4f78;
+  background: #16213d;
+  color: #c9d8ff;
+  text-shadow: none;
+  box-shadow:
+    inset 2px 2px 0 rgba(255, 255, 255, 0.08),
+    inset -2px -2px 0 rgba(0, 0, 0, 0.35),
+    5px 5px 0 #060b18;
+}
+
+.xmas-cta.is-disabled {
+  border-color: #2a3550;
+  background: #131c33;
+  color: #61708f;
+  cursor: not-allowed;
+  box-shadow: 3px 3px 0 #060b18;
+}
+
+.cta-dot {
+  width: 8px;
+  height: 8px;
+  margin-right: 8px;
+  border-radius: 0;
+  background: #6ee7a8;
+}
+
+.xmas-count {
+  margin: 14px 0 10px;
+  font-size: 12px;
+  color: var(--xmas-muted);
+}
+
+.xmas-count strong {
+  color: var(--xmas-gold);
+  font-weight: 700;
+}
+
+/* 树占用率：一排像素格。「8 / 20」看不出还剩多少，格子一眼就知道 */
+.xmas-meter {
+  display: flex;
+  gap: 3px;
+  width: 100%;
+  max-width: 210px;
+  margin: 0 auto;
+}
+
+.meter-cell {
+  flex: 1;
+  height: 7px;
+  /* 空格子也要看得见：太暗时整条进度会读成"只有亮的那几格" */
+  background: #1b2a4a;
+  border: 1px solid #33456d;
+}
+
+.meter-cell.is-on {
+  background: var(--xmas-gold);
+  border-color: #ffd873;
+  box-shadow: 0 0 0 1px rgba(240, 184, 60, 0.25);
+}
+
+.xmas-note {
+  margin: 11px 0 0;
+  font-size: 11px;
+  /* 太暗的小字在手机夜景上等于没写，这一行是"规则"，要看得见 */
+  color: #6f7fa3;
+}
+
+/* ── 桌面：树在左、说明成一块像素面板在右 ───────────────── */
+
+@media (min-width: 900px) {
+  .xmas-shell {
+    grid-template-columns: minmax(0, 1fr) 400px;
+    gap: 44px;
+    align-items: center;
+    padding: 32px;
+    min-height: 100vh;
+    min-height: 100dvh;
+    box-sizing: border-box;
+  }
+
+  .xmas-stage {
+    max-width: 520px;
+  }
+
+  .xmas-panel {
+    max-width: none;
+    margin: 0;
+    padding: 28px 26px;
+    border-radius: 0;
+    border: 2px solid #2c3d61;
+    background: rgba(16, 26, 51, 0.92);
+    box-shadow:
+      inset 0 0 0 2px #0a1224,
+      8px 8px 0 rgba(4, 8, 20, 0.75);
+    text-align: left;
+  }
+
+  .xmas-heading {
+    font-size: 30px;
+    line-height: 1.4;
+  }
+
+  .xmas-lede {
+    font-size: 13.5px;
+  }
+
+  .clock-value {
+    justify-content: flex-start;
+  }
+
+  /* 桌面是左对齐的面板：居中排列的小装饰（小方块、金条标题）都要改成左起 */
+  .xmas-kicker,
+  .clock-label {
+    justify-content: flex-start;
+  }
+
+  .xmas-meter {
+    margin: 0;
+  }
+
+  .xmas-count,
+  .xmas-note {
+    text-align: left;
+  }
+
+  .xmas-cta {
+    height: 54px;
+    font-size: 16px;
+  }
+}
+
+/* 矮屏横屏（如 844×390）：单列会挤爆，改成两栏并砍掉导语。
+   这条**不能**挂在 min-width:900 下面 —— 手机横屏普遍只有 844 宽。 */
+@media (orientation: landscape) and (max-height: 560px) {
+  .xmas-shell {
+    grid-template-columns: 320px minmax(0, 1fr);
+    gap: 30px;
+    align-items: center;
+    min-height: 100vh;
+    min-height: 100dvh;
+    box-sizing: border-box;
+    padding: 30px 24px 14px;
+  }
+
+  .xmas-stage {
+    max-width: 280px;
+  }
+
+  .xmas-panel {
+    max-width: none;
+    margin: 0;
+    text-align: left;
+  }
+
+  .xmas-heading {
+    font-size: 20px;
+    margin-bottom: 8px;
+  }
+
+  .xmas-lede {
+    display: none;
+  }
+
+  .xmas-clock {
+    margin-bottom: 10px;
+    padding: 9px 13px;
+  }
+
+  .clock-value {
+    justify-content: flex-start;
+  }
+
+  .xmas-kicker,
+  .clock-label {
+    justify-content: flex-start;
+  }
+
+  .xmas-meter {
+    margin: 0;
+  }
+
+  .clock-value strong {
+    font-size: 16px;
+  }
+
+  .xmas-cta {
+    height: 44px;
+    font-size: 14px;
+  }
+
+  .xmas-count,
+  .xmas-note {
+    text-align: left;
+  }
+}
+
+/* ── 动态降级 ──────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .xmas-stars span,
+  .xmas-snow span {
+    animation: none;
+  }
+
+  .xmas-stars span {
+    opacity: 0.7;
+  }
+
+  .xmas-snow span {
+    opacity: 0.35;
+  }
+}

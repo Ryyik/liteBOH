@@ -8,6 +8,7 @@ describe('home hero baseline', () => {
       'mascot-new',
       'agent-preview',
       'birthday',
+      'christmas-xmas',
       'anniversary-8',
       'cloud-cafe',
       'fuzhou',

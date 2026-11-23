@@ -1,0 +1,290 @@
+/*
+ * 页面内管理面板（像素风）。
+ * 与说明卡同一套材质规则：圆角 0、无毛玻璃、阴影是实心偏移块。
+ * 面板比说明卡宽一些（480px）—— 名单是两列表格式内容，440 会把昵称挤断。
+ */
+
+.dock-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 250;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(4, 8, 20, 0.86);
+}
+
+.dock-card {
+  position: relative;
+  width: min(460px, 100%);
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  padding: 18px 18px 20px;
+  border: 2px solid #33456d;
+  background: #101a33;
+  box-shadow:
+    inset 0 0 0 2px #0a1224,
+    8px 8px 0 rgba(4, 8, 20, 0.85);
+  color: #eef2ff;
+}
+
+.dock-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.dock-title {
+  margin: 0 0 4px;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-shadow: 2px 2px 0 rgba(4, 8, 20, 0.7);
+}
+
+.dock-sub {
+  margin: 0;
+  font-size: 11px;
+  color: #7f8eb0;
+}
+
+.dock-close {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  flex: none;
+  padding: 0;
+  border: 2px solid #33456d;
+  background: #16213d;
+  color: #9aa8c7;
+  cursor: pointer;
+}
+
+.dock-close:hover {
+  border-color: #f0b83c;
+  color: #ffd873;
+}
+
+.dock-notice {
+  margin: 0 0 12px;
+  padding: 7px 10px;
+  border-left: 3px solid #f0b83c;
+  background: #17233f;
+  font-size: 11.5px;
+  color: #ffe6ad;
+}
+
+.dock-empty {
+  margin: 0;
+  padding: 6px 0 2px;
+  font-size: 12px;
+  color: #9aa8c7;
+}
+
+.dock-empty code {
+  padding: 1px 5px;
+  background: #0a1224;
+  color: #ffe6ad;
+  font-size: 11px;
+}
+
+.dock-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.dock-chip {
+  padding: 3px 8px;
+  border: 1px solid #33456d;
+  background: #16213d;
+  font-size: 10.5px;
+  color: #b9c6de;
+}
+
+.dock-chip.is-gold {
+  border-color: #7c5514;
+  color: #f0b83c;
+}
+
+.dock-chip.is-off {
+  border-color: #6b3a3a;
+  color: #ff9c9c;
+}
+
+.dock-block {
+  margin-bottom: 14px;
+  padding-bottom: 14px;
+  border-bottom: 1px dashed #2a3a5c;
+}
+
+.dock-block:last-child {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.dock-block-title {
+  margin: 0 0 8px;
+  font-size: 10.5px;
+  letter-spacing: 0.16em;
+  color: #7f8eb0;
+}
+
+.dock-toggles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.dock-toggle,
+.dock-btn {
+  padding: 7px 12px;
+  border: 2px solid #3b4f78;
+  background: #16213d;
+  color: #cfe0ff;
+  font-family: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+
+.dock-toggle:hover:not(:disabled),
+.dock-btn:hover:not(:disabled) {
+  border-color: #f0b83c;
+  color: #ffd873;
+}
+
+.dock-btn--danger {
+  border-color: #6b3a3a;
+  color: #ff9c9c;
+}
+
+.dock-toggle:disabled,
+.dock-btn:disabled,
+.dock-remove:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
+.dock-hint {
+  margin: 8px 0 0;
+  font-size: 10.5px;
+  line-height: 1.7;
+  color: #7f8eb0;
+}
+
+.dock-times summary {
+  font-size: 10.5px;
+  letter-spacing: 0.16em;
+  color: #7f8eb0;
+  cursor: pointer;
+  margin-bottom: 10px;
+}
+
+.dock-field {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.dock-field span {
+  font-size: 10.5px;
+  color: #9aa8c7;
+}
+
+.dock-field input {
+  height: 30px;
+  padding: 0 8px;
+  border: 2px solid #2a3a5c;
+  background: #0a1224;
+  color: #eef2ff;
+  font-family: inherit;
+  font-size: 11.5px;
+  color-scheme: dark;
+}
+
+.dock-list {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dock-person {
+  display: grid;
+  grid-template-columns: 34px 22px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 0;
+  border-bottom: 1px solid #1c2842;
+  font-size: 12px;
+}
+
+.dock-person:last-child {
+  border-bottom: 0;
+}
+
+.dock-slot {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10.5px;
+  color: #7f8eb0;
+}
+
+.dock-avatar {
+  width: 22px;
+  height: 22px;
+  object-fit: cover;
+  background: #1c2842;
+}
+
+.dock-avatar--empty {
+  display: block;
+  background:
+    linear-gradient(135deg, #26365a 0%, #16213d 100%);
+}
+
+.dock-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dock-remove {
+  padding: 3px 8px;
+  border: 1px solid #6b3a3a;
+  background: transparent;
+  color: #ff9c9c;
+  font-family: inherit;
+  font-size: 10.5px;
+  cursor: pointer;
+}
+
+.dock-remove:hover:not(:disabled) {
+  background: #33191b;
+}
+
+/* 与说明卡共用同一套进出场：上浮 12px + 淡入，不做缩放 */
+.xmas-sheet-enter-active,
+.xmas-sheet-leave-active {
+  transition: opacity 0.18s ease;
+}
+
+.xmas-sheet-enter-active .dock-card,
+.xmas-sheet-leave-active .dock-card {
+  transition: transform 0.18s ease;
+}
+
+.xmas-sheet-enter-from,
+.xmas-sheet-leave-to {
+  opacity: 0;
+}
+
+.xmas-sheet-enter-from .dock-card,
+.xmas-sheet-leave-to .dock-card {
+  transform: translateY(12px);
+}

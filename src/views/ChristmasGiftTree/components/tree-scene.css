@@ -1,0 +1,286 @@
+/*
+ * 像素风树场景。
+ *
+ * 一条硬规则：**这一层不出现任何模糊**。圆角、柔和阴影、渐变光晕全部去掉，
+ * 需要"发光"就用低透明度的大方块，需要"边框"就用 2px 实线描边。
+ * v-html 注入的 SVG 不带 scoped 属性，所以内部类选择器一律走 :deep。
+ */
+
+.tree-scene {
+  position: relative;
+  width: 100%;
+  /* 与 tree-pixels 的 100×120 画布同比例：比例一变，挂饰整层错位 */
+  aspect-ratio: 100 / 120;
+  isolation: isolate;
+}
+
+.tree-pixels {
+  position: absolute;
+  inset: 0;
+  /* 画面本身不接收点击：树下方就是挂饰层，别让一个不可交互的 SVG 挡在上面 */
+  pointer-events: none;
+}
+
+.tree-pixels :deep(svg) {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+/* ── 场景内动画：全部用 steps，像素是"跳"的不是"渐" ── */
+
+.tree-pixels :deep(.px-tw) {
+  animation: xmas-px-twinkle 3.6s steps(3, end) infinite;
+}
+
+.tree-pixels :deep(.px-lamp) {
+  animation: xmas-px-lamp 3.2s steps(2, end) infinite;
+}
+
+.tree-pixels :deep(.px-lamp-core) {
+  animation: xmas-px-lamp-core 3.2s steps(2, end) infinite;
+}
+
+.tree-pixels :deep(.px-star-core) {
+  animation: xmas-px-star 2.4s steps(2, end) infinite;
+}
+
+@keyframes xmas-px-twinkle {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes xmas-px-lamp {
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes xmas-px-lamp-core {
+  0%,
+  100% {
+    opacity: 0.75;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes xmas-px-star {
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* ── 头像挂饰：方形挂牌 + 双层硬描边 ────────────────────── */
+
+.tree-hangers {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.hanger {
+  position: absolute;
+  /* 坐标是挂点中心，所以要往回挪半个身位；再叠一个静态倾角，避免整排正对镜头 */
+  transform: translate(-50%, -50%) rotate(var(--tilt, 0deg));
+  aspect-ratio: 1;
+  padding: 0;
+  border: 0;
+  margin: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  pointer-events: auto;
+  container-type: size;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.hanger:focus-visible {
+  outline: 2px solid #ffd873;
+  outline-offset: 4px;
+}
+
+/* 挂绳与摆动挂在同一层：转轴在绳子的顶端，球是绕着挂点荡 */
+.hanger-pivot {
+  position: absolute;
+  inset: 0;
+  display: block;
+  transform-origin: 50% -40%;
+  animation: xmas-px-swing 5.2s ease-in-out infinite;
+  animation-delay: var(--swing-delay, 0s);
+}
+
+/* 挂绳：2px 实线，不用渐变 —— 像素画里没有渐变。
+   长度要给够：绳子太短时牌子看起来是"浮"在树面上，不是挂着的。 */
+.hanger-thread {
+  position: absolute;
+  left: 50%;
+  bottom: 100%;
+  width: 2px;
+  height: 52%;
+  transform: translateX(-50%);
+  background: #f0b83c;
+}
+
+/* 绳顶的系结点：没有它，绳子就是一根凭空断在树冠上的线 */
+.hanger-thread::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: -4px;
+  width: 6px;
+  height: 4px;
+  transform: translateX(-50%);
+  background: #f0b83c;
+  box-shadow: 0 0 0 2px #241606;
+}
+
+/* 绳与牌之间的挂环：方形金属环（内空），不是实心小块 ——
+   实心块看起来像"牌子上粘了个疙瘩"，环才有"穿过去挂住"的意思。 */
+.hanger-thread::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -9px;
+  width: 9px;
+  height: 9px;
+  transform: translateX(-50%);
+  background: transparent;
+  border: 2px solid #f0b83c;
+  box-shadow: 0 0 0 2px #241606;
+}
+
+.hanger-ball {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  /* 直角 + 双层描边：像素 UI 的经典画法，也是"没有模糊"的硬性要求 */
+  border-radius: 0;
+  border: 2px solid #f0b83c;
+  outline: 2px solid #241606;
+  outline-offset: 0;
+  background: #c07f34;
+  /* 头像四周留一圈底色当"卡纸"：脸直接贴着金框会像贴纸，留一点就成相框 */
+  padding: 2px;
+  box-sizing: border-box;
+  /* 硬投影（不模糊）：牌子要压在树面上，不是浮在画面前 */
+  box-shadow: 3px 3px 0 rgba(4, 12, 24, 0.55);
+}
+
+.hanger-ball img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.hanger-initial {
+  font-size: 44cqw;
+  font-weight: 700;
+  line-height: 1;
+  color: #fff6dd;
+  text-shadow: 2px 2px 0 rgba(60, 32, 4, 0.55);
+}
+
+/* 头像框是叠在头像上的 PNG（透明边），不参与裁剪 */
+.hanger-frame {
+  position: absolute;
+  inset: -14%;
+  width: 128%;
+  height: 128%;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+.hanger:hover .hanger-ball,
+.hanger.is-active .hanger-ball {
+  border-color: #ffe08a;
+  background: #d08c3a;
+}
+
+/* 名字：直角气泡，无圆角、无模糊 */
+.hanger-name {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translate(-50%, -3px);
+  padding: 2px 7px;
+  border-radius: 0;
+  background: #101a33;
+  border: 2px solid #f0b83c;
+  color: #fff6dd;
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s steps(2, end);
+}
+
+.hanger:hover .hanger-name,
+.hanger.is-active .hanger-name {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+@keyframes xmas-px-swing {
+  0%,
+  100% {
+    transform: rotate(-2deg);
+  }
+  50% {
+    transform: rotate(2deg);
+  }
+}
+
+/* ── 动态降级 ──────────────────────────────────────────── */
+
+.tree-scene.is-still .hanger-pivot,
+.tree-scene.is-still :deep(.px-tw),
+.tree-scene.is-still :deep(.px-lamp),
+.tree-scene.is-still :deep(.px-lamp-core),
+.tree-scene.is-still :deep(.px-star-core) {
+  animation: none;
+}
+
+.tree-scene.is-still :deep(.px-lamp) {
+  opacity: 0.85;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hanger-pivot,
+  .tree-pixels :deep(.px-tw),
+  .tree-pixels :deep(.px-lamp),
+  .tree-pixels :deep(.px-lamp-core),
+  .tree-pixels :deep(.px-star-core) {
+    animation: none;
+  }
+
+  .tree-pixels :deep(.px-lamp) {
+    opacity: 0.85;
+  }
+}
+
+/* 容器查询不支持的浏览器：首字母回落到固定字号，不至于撑破牌面 */
+@supports not (container-type: size) {
+  .hanger-initial {
+    font-size: 16px;
+  }
+}

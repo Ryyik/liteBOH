@@ -97,6 +97,16 @@ export const adminRoutes: RouteRecordRaw[] = [
     meta: { requiresAdmin: true, hideNavbar: true },
   },
   {
+    // 圣诞交换礼物（2026-11-23）：活动参数 / 名单 / 配对结果。
+    // 数据在 xmas_exchange_* 三表，写操作全部走 SECURITY DEFINER 函数（见迁移
+    // 2026112302）。本页不直连表写，避免绕开「揭晓前不得泄露配对」的口径。
+    // hidePet：全局挂件会飘到表单上（390 宽时正好压住页头），管理台不需要它。
+    path: '/admin/xmas-console',
+    name: 'XmasConsole',
+    component: () => import('../../views/XmasConsole/index.vue'),
+    meta: { requiresAdmin: true, hideNavbar: true, hidePet: true },
+  },
+  {
     path: '/admin/avatar-console',
     name: 'AvatarConsole',
     component: () => import('../../views/AvatarConsole/index.vue'),
