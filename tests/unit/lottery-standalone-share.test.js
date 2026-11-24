@@ -34,12 +34,19 @@ describe('独立详情页路由', () => {
     expect(route.meta?.bodyClass).toBe('page-shop');
   });
 
-  it('独立页复用同一个 LotteryDetailSheet（视觉零分叉），并走 standalone 模式', () => {
+  it('独立页复用同一个 LotteryDetailSheet（视觉零分叉）', () => {
     const source = page();
     expect(source).toContain("from './LotteryDetailSheet.vue'");
-    /* 模板在 <script> 之外：这条要看整份文件，用 flattenSource 抹平属性换行 */
+    /* 模板在 <script> 之外：这条要看整份文件，用 flattenSource 抹平属性换行。
+       2026-11-24：`standalone` 口径已取消 —— 列表改成 router.push 跳独立页之后，
+       弹层形态再没有宿主，组件被收窄成「只有独立页这一种身份」，
+       `standalone` prop 与 Teleport/遮罩/滚锁/形变一并删掉。
+       所以判据从「显式传 standalone」改成「没有双身份开关可传」。 */
+    const sheet = read('src/views/Shop/LotteryDetailSheet.vue');
+    expect(flattenSource(sheet)).not.toMatch(/<Teleport/);
+    expect(script('src/views/Shop/LotteryDetailSheet.vue')).not.toContain('standalone');
     expect(flattenSource(read('src/views/Shop/LotteryDetailPage.vue'))).toMatch(
-      /<LotteryDetailSheet[^>]*standalone/,
+      /<LotteryDetailSheet[^>]*:lottery=/,
     );
   });
 });

@@ -1,149 +1,141 @@
 <template>
-  <!-- `standalone`（2026-11-20）：本组件同时被「周边页里的弹层」和「独立详情页
-       （/lottery/:id）」复用。独立页没有 body 级 Teleport 的必要（它自己就是一个
-       路由页），关掉 Teleport 原地渲染；视觉与弹层完全一致 —— 竖屏全屏、横屏分栏，
-       只是没有来源卡片可形变（originKey 为空，进场走自身 keyframe）。 -->
-  <Teleport to="body" :disabled="standalone">
-    <div
-      class="detail-root shop-sheet-tokens"
-      :class="[isLandscape ? 'is-landscape' : 'is-portrait', { 'is-standalone': standalone }]"
-    >
-      <div class="detail-scrim" @click="requestClose"></div>
-      <article
-        ref="surfaceRef"
-        class="detail-surface"
-        role="dialog"
-        aria-modal="true"
-        tabindex="-1"
-        :aria-label="lottery.title"
-      >
-        <div class="surface-media" :class="{ plain: !coverUrl || coverBroken }" style="--i: 0">
-          <img
-            v-if="coverUrl && !coverBroken"
-            :src="coverUrl"
-            :alt="lottery.title"
-            @error="markFailed(`lottery-detail-${lottery.id}`)"
-          />
-          <span v-else class="media-mark">{{ initialOf(lottery.title) }}</span>
-          <span class="media-status" :class="{ open: isOpen }">{{ statusText }}</span>
-        </div>
+  <!-- 抽奖详情：**只有「独立详情页」一种身份**（`/lottery/:id`，2026-11-20 用户口径
+       「我想要独立页」）。2026-11-24 清掉残留的弹层形态 —— 列表早改 `router.push`
+       跳本页，弹层那套（Teleport / 遮罩 / 滚锁 / 来源卡片形变）已无任何宿主，
+       留着只会让「这段代码到底跑不跑」变成需要读三个文件才能回答的问题。
 
-        <button type="button" class="surface-close" aria-label="关闭" @click="requestClose">
-          <ChevronLeft v-if="!isLandscape" :size="22" :stroke-width="1.8" aria-hidden="true" />
-          <X v-else :size="20" :stroke-width="1.8" aria-hidden="true" />
-        </button>
+       形态：竖屏全屏（封面在滚动流内、报名按钮贴底）、横屏左右分栏。
+       它是**路由页**，不叠在别的页面上，所以没有遮罩、不锁 body 滚动。 -->
+  <div class="detail-root shop-sheet-tokens" :class="isLandscape ? 'is-landscape' : 'is-portrait'">
+    <article ref="surfaceRef" class="detail-surface" tabindex="-1" :aria-label="lottery.title">
+      <div class="surface-media" :class="{ plain: !coverUrl || coverBroken }" style="--i: 0">
+        <img
+          v-if="coverUrl && !coverBroken"
+          :src="coverUrl"
+          :alt="lottery.title"
+          @error="markFailed(`lottery-detail-${lottery.id}`)"
+        />
+        <span v-else class="media-mark">{{ initialOf(lottery.title) }}</span>
+        <span class="media-status" :class="{ open: isOpen }">{{ statusText }}</span>
+      </div>
 
-        <div class="surface-body">
-          <div ref="scrollRef" class="surface-scroll">
-            <p class="surface-kicker" style="--i: 1">抽奖活动</p>
-            <h2 class="surface-title" style="--i: 1">{{ lottery.title }}</h2>
+      <button type="button" class="surface-close" aria-label="返回抽奖列表" @click="requestClose">
+        <ChevronLeft v-if="!isLandscape" :size="22" :stroke-width="1.8" aria-hidden="true" />
+        <X v-else :size="20" :stroke-width="1.8" aria-hidden="true" />
+      </button>
 
-            <div v-if="lottery.prize_title" class="prize-block" style="--i: 2">
-              <p class="block-label">奖品</p>
-              <p class="prize-title">{{ lottery.prize_title }}</p>
-              <p v-if="lottery.prize_description" class="prize-desc">
-                {{ lottery.prize_description }}
-              </p>
-            </div>
+      <div class="surface-body">
+        <div ref="scrollRef" class="surface-scroll">
+          <p class="surface-kicker" style="--i: 1">抽奖活动</p>
+          <h2 class="surface-title" style="--i: 1">{{ lottery.title }}</h2>
 
-            <div class="info-list">
-              <p
-                v-for="(row, index) in infoRows"
-                :key="row.label"
-                class="info-row"
-                :style="{ '--i': index + 3 }"
-              >
-                <span>{{ row.label }}</span>
-                <strong>{{ row.value }}</strong>
-              </p>
-            </div>
-
-            <p v-if="lottery.description" class="surface-desc" style="--i: 4">
-              {{ lottery.description }}
-            </p>
-
-            <div v-if="winners.length" class="winner-block" style="--i: 5">
-              <p class="block-label">中奖名单</p>
-              <p v-for="winner in winners" :key="winner.key" class="winner-row">
-                <span>#{{ winner.position }}</span>
-                <strong>{{ winner.name }}</strong>
-              </p>
-            </div>
-
-            <p class="surface-note" style="--i: 6">
-              报名即视为参与本次活动；开奖后由管理员通过站内通知联系中奖者确认发放方式。
+          <div v-if="lottery.prize_title" class="prize-block" style="--i: 2">
+            <p class="block-label">奖品</p>
+            <p class="prize-title">{{ lottery.prize_title }}</p>
+            <p v-if="lottery.prize_description" class="prize-desc">
+              {{ lottery.prize_description }}
             </p>
           </div>
 
-          <div class="surface-footer">
-            <!-- 分享（2026-11-09）：与报名按钮同一行，次要操作在左。
-                 抽奖页面迁到周边「抽奖」分区后丢了老版的分享入口，这里补回来。 -->
-            <button
-              type="button"
-              class="share-btn"
-              :class="{ 'is-copied': shareState === 'copied' }"
-              :aria-label="shareState === 'copied' ? '链接已复制' : '分享这个抽奖'"
-              @click="shareLottery"
+          <div class="info-list">
+            <p
+              v-for="(row, index) in infoRows"
+              :key="row.label"
+              class="info-row"
+              :style="{ '--i': index + 3 }"
             >
-              <template v-if="shareState === 'copied'">
-                <Check :size="18" :stroke-width="2.2" aria-hidden="true" />
-                <span>已复制</span>
-              </template>
-              <template v-else>
-                <Share2 :size="18" :stroke-width="1.9" aria-hidden="true" />
-                <span>分享</span>
-              </template>
-            </button>
-            <button type="button" class="join-btn" :disabled="joinDisabled" @click="requestJoin">
-              {{ joinLabel }}
-            </button>
+              <span>{{ row.label }}</span>
+              <strong>{{ row.value }}</strong>
+            </p>
           </div>
+
+          <p v-if="lottery.description" class="surface-desc" style="--i: 4">
+            {{ lottery.description }}
+          </p>
+
+          <div v-if="winners.length" class="winner-block" style="--i: 5">
+            <p class="block-label">中奖名单</p>
+            <p v-for="winner in winners" :key="winner.key" class="winner-row">
+              <span>#{{ winner.position }}</span>
+              <strong>{{ winner.name }}</strong>
+            </p>
+          </div>
+
+          <p class="surface-note" style="--i: 6">
+            报名即视为参与本次活动；开奖后由管理员通过站内通知联系中奖者确认发放方式。
+          </p>
         </div>
-      </article>
-    </div>
-  </Teleport>
+
+        <div class="surface-footer">
+          <!-- 分享（2026-11-09）：与报名按钮同一行，次要操作在左。
+               抽奖页面迁到周边「抽奖」分区后丢了老版的分享入口，这里补回来。 -->
+          <button
+            type="button"
+            class="share-btn"
+            :class="{ 'is-copied': shareState === 'copied' }"
+            :aria-label="shareState === 'copied' ? '链接已复制' : '分享这个抽奖'"
+            @click="shareLottery"
+          >
+            <template v-if="shareState === 'copied'">
+              <Check :size="18" :stroke-width="2.2" aria-hidden="true" />
+              <span>已复制</span>
+            </template>
+            <template v-else>
+              <Share2 :size="18" :stroke-width="1.9" aria-hidden="true" />
+              <span>分享</span>
+            </template>
+          </button>
+          <button type="button" class="join-btn" :disabled="joinDisabled" @click="requestJoin">
+            {{ joinLabel }}
+          </button>
+        </div>
+      </div>
+    </article>
+  </div>
 </template>
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { Check, ChevronLeft, Share2, X } from 'lucide-vue-next';
-import {
-  animateMorph,
-  canMorph,
-  insetFromRect,
-  insetOpen,
-  peekOrigin,
-} from '@/utils/motion-origin.js';
-import { motionEase, motionMs } from '@/utils/motion.js';
 import { resolveDbDetailImage } from '@/utils/db-image-url.js';
 import { useImageFailure } from '@/composables/useImageFailure.js';
-import { acquireBodyScrollLock } from '@/composables/useBodyScrollLock.js';
 import { buildSharePayload } from '@/composables/useShareTarget.js';
 
-/* 抽奖详情：窗口逻辑与 ProductDetailSheet **完全一致**（2026-11-01 用户口径
-   「抽奖卡片支持点进去看详情，窗口逻辑与商品要求一样」）：
-     · 横屏 = 左右分栏（左封面 / 右信息），radius 20，居中在左栏右侧的右区
+/* 抽奖详情：**独立详情页**（`/lottery/:id`，2026-11-20 用户口径「我想要独立页」）。
+     · 横屏 = 左右分栏（左封面 / 右信息），radius 28，整个视口居中
      · 竖屏 = 全屏详情页，**封面在滚动流内**（2026-11-02 用户口径「滚动的时候
        封面也可以滚上去」），报名按钮 sticky 贴底；内容块按 --motion-stagger 逐个入场
-     · 进出场 = 与论坛详情同款的「窗口 clip-path 从被点中的卡片推开 / 收回」
-   两份文件刻意不抽象成一个通用弹层：内容结构差别太大（规格 / 库存 vs 奖品 / 名单），
-   抽出来的公共部分只剩 clip-path 这几行，已经在 utils/motion-origin.js 里了。
    ⚠️ 竖屏滚动策略与商品详情（封面固定）**有意分歧**：要同步过去时把 ProductDetailSheet
    的竖屏 CSS 与这里的对齐，别只改一份。
-   ⚠️ 根元素必须带 `shop-sheet-tokens`（2026-11-09 补）：本组件 Teleport 到 body，
-   已经不在 .store-page 里，而 --boh-* 在 /shop 这条链上只由 store-tokens.css 提供
-   （dark-mode.css 是按路由懒加载的）⇒ 没有这个类时暗色主题下整片回落到浅色 fallback，
-   详情刷成一张白纸。CheckoutSheet 同样原因带着它。 */
+
+   ── 2026-11-24：清掉残留的弹层形态 ─────────────────────────────
+   本组件曾经同时是「周边页里的弹层」和「独立详情页」两种身份，靠 `standalone` 分流。
+   但列表 2026-11-20 就改成 `router.push` 跳独立页了，弹层形态**再没有任何宿主**：
+   `Teleport`、遮罩（`.detail-scrim`）、`acquireBodyScrollLock`、来源卡片形变
+   （`morphWindow` / `playOpen` / `requestClose` 里的 clip-path）在 `standalone` 下
+   全部走降级分支 —— 也就是说那几百行是**任何路径都跑不到**的死代码。
+   更糟的是它没有守卫：形变失效不会有任何测试变红（弹窗照常打开、内容全对，
+   只是没有动画），所以「读代码才知道它死了」这件事本身就是缺陷。
+   现在只保留独立页需要的部分：路由页不叠在别的页面上 ⇒ 无遮罩、不锁滚动。
+
+   ── 关于 `shop-sheet-tokens`（2026-11-24 实测纠正）──────────────
+   类还留着（列表/购物袋那条链上它是必需的），但**在本页它目前是空转**，
+   原因是这条路由不加载那份 CSS：`store-tokens.css` 只由 `Shop/index.vue` 与
+   `BagPage.vue` 引入，`/lottery/:id` 走的是 `LotteryDetailPage.vue`，压根没有它。
+   实测：根元素带这个类时 `--boh-bg-primary` 读到的仍是全局 `#0a0a0f`，
+   而不是商城域的 `#1c1c1e` —— 说明 `.shop-sheet-tokens` 那条规则从未命中。
+   所以本页的暗色其实是**全局 `dark-mode.css`**（`:root[data-theme='dark']`）
+   在兜底，它自带 `--boh-page-bg: #16120e`、`--boh-bg-primary: #0a0a0f`，
+   暗色下不会刷成白纸。历史那条「没有它整片回落到浅色」的记录在**弹层时代**成立
+   （那时 Teleport 到 body、离开了 .store-page，且路由链带着那份 CSS）。
+   ⚠️ 别据此删掉这个类：将来若给本页补上商城域 token（比如让详情与列表卡片
+   配色严格一致），它就是挂载点。`probe-lottery-detail-page.mjs` 的 D 组只锁
+   「暗色下是深底 + 浅字」，不锁类名 —— 判实现不如判契约。 */
 
 const props = defineProps({
   lottery: { type: Object, required: true },
-  /* 来源卡片 key（`shop-lottery:<id>`）：点击时由列表 captureOrigin 采集，用于形变 */
-  originKey: { type: String, default: '' },
   joining: { type: Boolean, default: false },
-  /* 独立页模式（/lottery/:id）：不 Teleport、不形变、不需要页面滚动锁（页面自己就是
-     一屏），关闭键改为「返回上一页」语义由宿主决定（宿主监听 close 自行 router.back）。 */
-  standalone: { type: Boolean, default: false },
 });
 
 const emit = defineEmits(['close', 'join', 'notify']);
@@ -153,12 +145,8 @@ const router = useRouter();
 const surfaceRef = ref(null);
 const scrollRef = ref(null);
 const isLandscape = ref(false);
-const closing = ref(false);
 let mql = null;
 let onOrientationChange = null;
-let opened = false;
-/** 页面滚动锁的释放函数（挂载时取、卸载时还，见 onMounted 注释） */
-let releaseScrollLock = null;
 
 /* 详情大图：Cloudinary 原址 → 自建 CDN，本地文件名 → 打包产物。
    `c_limit,w_1600` 只压不拉，小图不会被放大糊掉。 */
@@ -328,70 +316,26 @@ const shareLottery = async () => {
   else emit('notify', '复制失败，请手动复制地址栏链接');
 };
 
-const surfaceRadius = () => {
-  const el = surfaceRef.value;
-  if (!el) return 0;
-  return Number.parseFloat(getComputedStyle(el).borderTopLeftRadius) || 0;
-};
-
-const morphWindow = () => {
-  const el = surfaceRef.value;
-  /* 独立页没有「来源卡片」：不做形变，进场交给 CSS keyframe（与弹层降级路径同观感） */
-  if (props.standalone) return null;
-  if (!el || !canMorph() || !props.originKey) return null;
-  const source = peekOrigin(props.originKey);
-  if (!source) return null;
-  const box = el.getBoundingClientRect();
-  if (!box.width || !box.height) return null;
-  return insetFromRect(
-    source,
-    { left: box.left, top: box.top, width: box.width, height: box.height },
-    { radius: source.radius || 16 },
-  );
-};
-
-/* 进场：与论坛详情同一套「窗口 clip-path 展开」——内容始终是终态尺寸，
-   变的只是从被点中的那一格推开的裁剪窗口。 */
-const playOpen = async () => {
-  if (opened) return;
-  opened = true;
-  await nextTick();
-  /* 滚动聚焦：与商品详情同一套（内容区归零 + 焦点进面板 + overscroll 兜住），
-     两份详情的手感必须一致，别只修一个。
-     ⚠️ 竖屏的滚动容器是整个 surface（封面要一起滚上去），横屏仍是内容区。 */
-  const scroller = isLandscape.value ? scrollRef.value : surfaceRef.value;
-  scroller?.scrollTo?.({ top: 0, behavior: 'auto' });
-  surfaceRef.value?.focus?.({ preventScroll: true });
-  const win = morphWindow();
-  const el = surfaceRef.value;
-  if (!win || !el) return;
-  el.style.clipPath = win.value;
-  await animateMorph(el, [{ clipPath: win.value }, { clipPath: insetOpen(surfaceRadius()) }], {
-    duration: motionMs('--motion-morph-in-near', 480),
-    easing: motionEase('--ease-morph'),
-  });
-  el.style.clipPath = '';
-};
-
-/* 退场：窗口收回那一格，保留终态到节点被移除（否则 cancel 的瞬间会弹回全屏）。 */
-const requestClose = async () => {
-  if (closing.value) return;
-  closing.value = true;
-  const el = surfaceRef.value;
-  const win = morphWindow();
-  if (el && win) {
-    el.style.clipPath = insetOpen(surfaceRadius());
-    await animateMorph(el, [{ clipPath: insetOpen(surfaceRadius()) }, { clipPath: win.value }], {
-      duration: motionMs('--motion-morph-out', 360),
-      easing: motionEase('--ease-morph-out'),
-      keepFinal: true,
-    });
-  }
+/* 关闭 = 返回抽奖列表（独立页语义）。父级 `LotteryDetailPage` 监听 close 后 router.push，
+   本组件只负责 emit —— 路由归属留在页面层，子组件不猜用户从哪来。 */
+const requestClose = () => {
   emit('close');
 };
 
 const onKeydown = (event) => {
-  if (event.key === 'Escape') void requestClose();
+  if (event.key !== 'Escape') return;
+  requestClose();
+};
+
+/* 打开时的滚动聚焦（与商品详情同一套口径）：
+   ① 竖屏的滚动容器是整个 surface（封面要一起滚上去），横屏是内容区 —— 两者都要归零；
+   ② 焦点进面板：键盘 / 读屏的滚动指令落在详情里，而不是停在背后列表的原位置。
+   ⚠️ 独立页是路由页，**不锁 body 滚动**：它自己就是一屏，锁住反而让 iOS 回弹/滚动异常。 */
+const onOpen = async () => {
+  await nextTick();
+  const scroller = isLandscape.value ? scrollRef.value : surfaceRef.value;
+  scroller?.scrollTo?.({ top: 0, behavior: 'auto' });
+  surfaceRef.value?.focus?.({ preventScroll: true });
 };
 
 onMounted(() => {
@@ -402,19 +346,10 @@ onMounted(() => {
   };
   mql.addEventListener('change', onOrientationChange);
   document.addEventListener('keydown', onKeydown);
-  /* 本层是盖在 /shop 长文档流上的整页层，不锁页面时滚轮会滚到背后的抽奖列表
-     （2026-11-10 商品详情同一类报障）。只在 selectedLottery 存在时挂载 ⇒ 挂载即上锁。
-     ⚠️ 独立页（standalone）不锁：它自己就是一屏路由页，锁住反而让 iOS 回弹/滚动异常，
-     而且没有「背后的列表」会被穿透。 */
-  if (!props.standalone) {
-    releaseScrollLock = acquireBodyScrollLock('shop-lottery-detail');
-  }
-  void playOpen();
+  void onOpen();
 });
 
 onBeforeUnmount(() => {
-  releaseScrollLock?.();
-  releaseScrollLock = null;
   document.removeEventListener('keydown', onKeydown);
   if (shareResetTimer) {
     clearTimeout(shareResetTimer);
@@ -429,22 +364,17 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+/* 路由页，不是叠在别人上面的浮层：`fixed` 铺满视口即可，不需要遮罩那一层
+   （2026-11-24 清弹层形态时一并删掉 —— 没有「背后的列表」要被压暗）。
+   ⚠️ 底色必须自己铺：横屏面板有 1120×880 上限，四周要露出页面色。
+   原来这活是遮罩层干的，删掉遮罩后漏掉它会让背后的东西透出来
+   （独立页上恰好是 `.lottery-detail-page` 的同色底，看起来没事 —— 但那是巧合）。 */
 .detail-root {
   position: fixed;
   inset: 0;
-  /* 与论坛详情弹窗同一档：盖过全局导航、底栏（2147482200）与右栏，让位图片查看器 */
-  z-index: 2147482400;
+  z-index: 2147482400; /* 与论坛详情弹窗同一档：盖过导航 / 底栏 / 右栏，让位图片查看器 */
   color: var(--boh-text-primary, #1d1d1f);
-}
-
-.detail-scrim {
-  position: absolute;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.42);
-}
-
-.is-portrait .detail-scrim {
-  background: transparent;
+  background: var(--boh-page-bg, var(--boh-bg-primary, #fff));
 }
 
 .detail-surface {
@@ -453,7 +383,7 @@ onBeforeUnmount(() => {
   background: var(--boh-bg-primary, #fff);
 }
 
-/* 面板靠 playOpen 里的 focus() 接住键盘/读屏的滚动指令，不需要可见焦点环 */
+/* 面板靠 onOpen 里的 focus() 接住键盘/读屏的滚动指令，不需要可见焦点环 */
 .detail-surface:focus {
   outline: none;
 }
@@ -496,22 +426,9 @@ onBeforeUnmount(() => {
 }
 
 /* ── 横屏：与论坛详情（PostDetailModal）同一套弹窗语言 ——
-   满屏遮罩 + 背景模糊（blur(6px)）+ 面板在**整个视口**居中，
-   尺寸取论坛同款上限。横竖两份详情（商品 / 抽奖）刻意保持完全一致。 */
-.is-landscape .detail-scrim {
-  background: rgba(15, 23, 42, 0.32);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-}
-
-/* 独立页没有「背后的列表 / 页面」可压暗：横屏保留遮罩会变成一整片灰底铺在空白上，
-   看起来像没加载完。这里把遮罩清成页面底色，分栏面板本身不变（尺寸 / 圆角 / 阴影都同源）。 */
-.is-standalone .detail-scrim {
-  background: var(--boh-page-bg, var(--boh-bg-primary, #fff));
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-}
-
+   面板在**整个视口**居中、圆角 + 大阴影，尺寸取论坛同款上限。
+   横竖两份详情（商品 / 抽奖）刻意保持完全一致。
+   四周露出的底色由上面 `.detail-root` 那条给（原来是遮罩层干的活）。 */
 .is-landscape .detail-surface {
   top: 50%;
   left: 50%;

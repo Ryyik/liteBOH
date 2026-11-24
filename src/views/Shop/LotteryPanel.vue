@@ -51,7 +51,6 @@ import { computed, onActivated, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { getCommunityLotteries } from '@/utils/api/lottery-api.js';
-import { captureOrigin } from '@/utils/motion-origin.js';
 import { logger } from '@/utils/logger.js';
 import LotteryCard from './LotteryCard.vue';
 import { useInlineEditor } from '@/composables/useInlineEditor.js';
@@ -108,13 +107,12 @@ const load = async ({ silent = false, force = false } = {}) => {
 /* 卡片 → 独立详情页（2026-11-20 用户口径「我想要独立页」）：
    以前点卡片是在本页叠一个弹层，地址栏拿不到链接、刷新即丢。现在改成真实路由
    `/lottery/:id` —— 可分享 / 可刷新 / 可前进后退。
-   ⚠️ 仍是「从哪一格推开」的手感来源：点击时把卡片矩形采集成 origin（key 里带 id，
-   防止点到 A 卡却从 B 卡位置展开），详情页若将来接跨路由形变可直接复用；
-   当前详情页按自身入场播（没有跨路由 shared-element 通道）。 */
-const openDetail = (item, event) => {
+   ⚠️ 2026-11-24 起**不再采集 origin 矩形**：详情页是独立路由，没有「从这一格推开」
+   的跨路由形变（App.vue 没有路由级过渡），采了也没人消费 —— 而
+   `utils/motion-origin.js` 的 Map 会持有触发元素引用直到 30 分钟 TTL 或 40 条上限淘汰，
+   属于纯泄漏。将来真做跨路由 shared-element 时再采。 */
+const openDetail = (item) => {
   if (!item?.id) return;
-  const card = event?.currentTarget;
-  if (card) captureOrigin(`shop-lottery:${item.id}`, card, { radius: 16 });
   router.push({ name: 'LotteryDetail', params: { id: String(item.id) } });
 };
 

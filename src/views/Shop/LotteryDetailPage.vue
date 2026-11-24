@@ -7,11 +7,11 @@
  * 这种依赖列表加载后自动展开的深链（同页内二次点击时 KeepAlive 不重挂 ⇒ 静默失效）。
  *
  * 本页给出真实路由 `/lottery/:id`：可直接分享 / 刷新 / 前进后退。
- * ⚠️ **视觉必须与弹层完全一致**（用户口径「独立页，但视觉效果不变」）：
- *   直接复用 `LotteryDetailSheet` 的 `standalone` 模式，样式零分叉 ——
- *   竖屏全屏、横屏分栏，按钮/字号/间距全部同源。
+ * ⚠️ 视觉全部由 `LotteryDetailSheet` 承担（本页只是数据 / 路由的承载层，不复制样式）。
+ *   2026-11-24 起那个组件**只剩独立页这一种身份** —— 它原来还有个弹层形态，
+ *   但列表早改 `router.push` 跳这里，弹层再没有宿主，已连同形变 / 遮罩 / 滚锁一并清掉。
  *
- * 数据：复用 `getCommunityLotteries()` 取整份列表后按 id 命中（返回体字段与弹层一致：
+ * 数据：复用 `getCommunityLotteries()` 取整份列表后按 id 命中（返回体字段与列表一致：
  * entry_count / current_user_entry_id / winners / pity_* 都在）。不新增后端接口。
  * 找不到（已删 / 已归档 / 非社区可见）⇒ 空态，不假装存在。
  */
@@ -162,7 +162,6 @@ watch(
 
     <LotteryDetailSheet
       v-else
-      standalone
       :lottery="lottery"
       :joining="joining"
       @close="goBack"

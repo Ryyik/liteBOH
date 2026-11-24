@@ -83,7 +83,8 @@ Kit 原则：**动画长在组件里，tokens 是唯一参数**。
    - 🔄 **C 类实际只有 3 份**（`ShopAccountPanel` 用 `mode="page"` 挂在 `ShopAccountPage` 里、本身就是页面，普查时误算进浮层，已划掉）。三份卡在**同一个缺口**：壳只有「单列卡 + 淡入缩放」，而它们要「任意几何 + 形变进出场」⇒ 已拆成两步（方案 `plans/047`）。
      - ✅ **第一步已完成（2026-11-24）：壳补第五个口子 `morph` + 抽 `useBohMorphSurface`**。形变是 `clip-path` 从被点卡片矩形推开/收回（WAAPI），**不能被壳的 CSS transition 压掉** —— 这是全站 5 个文件共用、且**失效时没有任何测试会红**的地方，所以先补守卫（`probe-boh-morph-surface.mjs` 15 条 + 四条反证）再迁宿主。
      - ✅ **商品详情 `ProductDetailSheet` 已迁**（首个形变宿主，净删 77 行）。
-     - ⏳ 结算 `CheckoutSheet`（1726 行，下单关键路径，改动要极小）、抽奖详情 `LotteryDetailSheet`（有 `standalone` 独立页身份，放最后）。
+     - ✅ **抽奖详情 `LotteryDetailSheet` 处理完毕（2026-11-24）—— 但不是迁壳**：普查发现它**已经不是浮层**了（列表 2026-11-20 起就 `router.push` 跳独立页，`standalone` 恒真 ⇒ Teleport/遮罩/滚锁/WAAPI 形变全是死代码），所以做的是**删掉无宿主的那半**（净删 76 行），而不是往 `BohModal` 里塞一个路由页。顺带修掉 `LotteryPanel` 里「采了 origin 不消费」的引用泄漏。新增 `probe-lottery-detail-page.mjs`（25 条，这个页面此前零布局守卫），五条反证全命中 —— 详见 `plans/047` §9。
+     - ⏸ **结算 `CheckoutSheet` 暂缓**：实测推翻「它最规矩」的原判断 —— Esc 分级语义会被壳吞掉（选地址时按 Esc 会被踢出整个下单流程）、横屏高度被壳写死少 46px 裁掉底栏、竖屏「右推进」会变成淡入缩放。需要先给壳补 `maxHeight` 口子 + Esc 让位机制再迁，详见 `plans/047` §8。
 2. 试点收割：Shop 9 份弹层 + HeroConsole 的 lottery-picker；随后 PostComposer 3 套 overlay、Profile/DataManagement 各手写 Modal。
    - PostComposer 的「更多」菜单已普查：280px 宽 / 28px 圆角 / **3 列图标网格**（不是列表），迁 BohDropdown 会静默改视觉比例，需先给壳加「网格面板」档或确认降级 —— **别当普通菜单直接换**。
    - 管理台 `UserPicker` 已普查：结果是**内联**搜索（结果在文档流里），不是浮层 ⇒ **不在 BohDropdown 收编范围**，此项从清单里划掉。

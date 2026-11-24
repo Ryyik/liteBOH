@@ -131,9 +131,10 @@
       "glob": "src/views/Shop/**",
       "run": [
         "node scripts/probes/probe-large-screen-layout.mjs",
-        "node scripts/probes/probe-shop-detail-scroll.mjs"
+        "node scripts/probes/probe-shop-detail-scroll.mjs",
+        "node scripts/probes/probe-lottery-detail-page.mjs"
       ],
-      "why": "商城大屏布局（--page-content-max 限宽/auto-fill 增列/面板居中）+ 详情打开时的滚动归属"
+      "why": "商城大屏布局（--page-content-max 限宽/auto-fill 增列/面板居中）+ 详情打开时的滚动归属 + 抽奖独立页形态（竖屏/横屏/暗色/关闭语义）"
     },
     {
       "glob": "src/views/user-center/Cloud+/**",

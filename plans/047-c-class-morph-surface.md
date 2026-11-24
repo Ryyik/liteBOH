@@ -157,13 +157,15 @@ useBohMorphSurface({
 
 | 序 | 宿主 | 理由 |
 | --- | --- | --- |
-| 1 | 商品详情 `ProductDetailSheet` | 最小（594 行）；**已有** `probe-shop-detail-scroll.mjs`（10 条）可复用做滚动归属兜底 |
-| 2 | 结算 `CheckoutSheet` | 最规矩（纯 CSS 媒体查询、滚锁明确交父级），但 1726 行、下单关键路径 ⇒ 改动要极小、只换外壳不动业务 |
-| 3 | 抽奖详情 `LotteryDetailSheet` | 有 `standalone`（独立页）与弹层两种身份，放最后单独处理 |
+| 1 | 商品详情 `ProductDetailSheet` | ✅ 已迁（2026-11-24） |
+| 2 | 结算 `CheckoutSheet` | ⏸️ **暂缓 —— 实测后发现「最规矩」这个判断是错的**（见 §8） |
+| 3 | 抽奖详情 `LotteryDetailSheet` | ✅ 2026-11-24 处理：**不是迁壳，是删掉已无宿主的弹层形态**（见 §9） |
+
 
 ## 6. 落地记录（2026-11-24 · 第一步完成）
 
-**第一步「给壳补能力」已完成，未迁第二、三份**（结算 / 抽奖详情仍待做，顺序见 §5）。
+**第一步「给壳补能力」已完成**；第二份（结算）暂缓见 §8，第三份（抽奖详情）
+改为清理死代码见 §9。
 
 交付物：
 
@@ -202,3 +204,78 @@ useBohMorphSurface({
 - **不动 `morph-layer.js`**（路由级克隆收缩）：那是「详情整页 → 列表」的返程，
   与浮层形变是两条路，混在一起会把 `page-snapshot` 的垫层逻辑拖进来。
 - **不给壳加双列/封面区口子**（见 §3.3）。
+- **不把 `LotteryDetailSheet` 迁进 BohModal**：它是路由页，不是浮层。
+  `BohModal` 自带 Teleport/遮罩/滚锁/焦点陷阱，这些对路由页全是负担
+  （与 `ShopAccountPanel` 的 `mode="page"` 同类）—— 见 §9。
+
+## 8. 结算为什么暂缓（2026-11-24 实测，推翻原判断）
+
+原计划写「结算最规矩：纯 CSS 媒体查询、滚锁明确交父级」。实测后有三个缺口，
+每一个都会**静默改变用户可见行为**：
+
+1. **Esc 分级语义会被壳吞掉（真实回归）**。迁前实测：打开地址选择层 → Esc →
+   **只关选择层、结算仍在** → 再 Esc → 关结算。
+   壳的焦点陷阱挂在 overlay 上，Esc 直接 `stopPropagation()` + `requestClose()`，
+   而结算的 `requestClose` 是「先关选择层、再 emit close」**串联**的
+   ⇒ 一次 Esc 会把两层一起关掉（用户在选地址时按 Esc 会被踢出整个下单流程）。
+2. **横屏高度被壳写死**。现在横屏是 `height: min(620px, 100vh − 40px)`，
+   844×390 下实测 350px；壳的 dialog 写死 `max-height: min(78vh, 720px)` = **304px**
+   ⇒ 少 46px，底部结算条被 `overflow: hidden` 裁掉。壳现有五个口子表达不了这个高度
+   （`morph` 能放开几何，但结算没有来源卡片，用不上）。
+3. **竖屏动效从「右推进」变成「淡入缩放」**。现在是
+   `.ck-enter-from .ck-sheet { transform: translateX(100%) }`（iOS 下一页手感），
+   壳默认 `boh-pop` 是 opacity + `translateY(10px) scale(0.97)`。
+   B 类 5 份迁完都吃这个默认值，但结算是第一个单测里明确钉住 `translateX(100%)` 的。
+
+另外 `probe-shop-checkout.mjs` 的 45 条里有大量断言挂在 `.ck-sheet / .ck-body /
+.ck-foot / .ck-scrim` 上，迁壳后这批选择器要整体重写 —— 那段时间这道门禁是「改写期无牙」。
+
+⇒ 结论：结算需要**先给壳补能力**（至少 `maxHeight` 口子 + Esc 让位机制），
+再迁。一次性硬迁等于在下单关键路径上同时改三件静默行为。
+
+## 9. 抽奖详情：不是迁壳，是清理死代码（2026-11-24）
+
+动手前的普查推翻了这个宿主的**存在前提**：它已经不是一个浮层了。
+
+- 全仓 `<LotteryDetailSheet` 只出现在 `LotteryDetailPage.vue`，且**不带任何开关**；
+- `LotteryPanel.vue` 自 2026-11-20 起就是 `router.push({ name: 'LotteryDetail' })`；
+- 于是 `standalone` 恒为真 ⇒ `morphWindow()` 第一行 `if (props.standalone) return null`
+  恒成立 ⇒ **整套 WAAPI 形变、遮罩、`acquireBodyScrollLock`、`Teleport` 全是死代码**。
+
+也就是说「双身份是它最麻烦的地方」这个判断，实际状态是**双身份已经退化成一个**。
+这里该做的不是迁壳（`BohModal` 明确不适用于路由页 —— 与 `ShopAccountPanel` 的
+`mode="page"` 同类），而是把跑不到的那半删掉。
+
+**顺带修掉一个真实泄漏**：`LotteryPanel.openDetail` 一直在
+`captureOrigin('shop-lottery:<id>', card)`，但详情页从不 `peekOrigin`
+⇒ `motion-origin.js` 的 Map 会持有**已卸载卡片**的 DOM 引用，直到 30 分钟 TTL
+或 40 条上限淘汰。采了不消费，等于每条抽奖卡点开就漏一个引用。
+
+**交付**：`LotteryDetailSheet` 净删 76 行（组件只剩独立页一种身份）、
+`LotteryPanel` 去掉采集、`LotteryDetailPage` 去掉 `standalone` 传参。
+新增 `probe-lottery-detail-page.mjs`（25 条）—— 这个页面此前**一条布局守卫都没有**。
+
+**四条反证全部命中**（缺一条这道门禁就没牙）：
+
+| 改动 | 变红的断言 |
+| --- | --- |
+| 删掉根元素的 `background` | **B2 + C3 同红**（根元素变 `rgba(0,0,0,0)`，横屏四周透出背后内容） |
+| 竖屏 `overflow-y` 改 `hidden` | B3 红（封面不再随滚动离开） |
+| 面板底写死 `#fff`（模拟暗色不吃 token） | D4 红（`surface=rgb(255,255,255)`） |
+| 横屏右栏撑高到 2000px | **C5 + C6 同红**（底栏被裁到 2024 vs 面板 776） |
+| 关闭落点改回 `/shop`（不带 tab） | E2 红 |
+
+**两条「假绿」教训（都记进了探针注释）**：
+
+1. **竖屏 `overflow-y: visible` 不会让 B3 变红**。因为 `.detail-surface` 基础规则里
+   还有 `overflow: hidden`，而 `overflow-x: hidden` + `overflow-y: visible` 会被
+   CSS 规范化成 `auto` ⇒ 改动看似"破坏滚动"，实际行为没变。必须改成 `hidden` 才是真破坏。
+2. **判 `classList.contains('shop-sheet-tokens')` 是假牙**。这条路由
+   （`LotteryDetailPage.vue`）**根本不加载 `store-tokens.css`**（只有 `Shop/index.vue`
+   与 `BagPage.vue` 引入），带不带那个类，`--boh-bg-primary` 读到的都是全局
+   `#0a0a0f`（不是商城域的 `#1c1c1e`）。所以本页暗色其实由全局 `dark-mode.css` 兜底。
+   历史那条「没有它整片回落成白纸」的记录只在**弹层时代**成立。
+   ⇒ 判据改成「暗色下面板本身是深底」，而不是判类名。
+
+单测：`boh-ui-kit` 不动；`lottery-detail-scroll.test.js` 5→11（新增 6 条「不许回潮」）、
+`lottery-standalone-share.test.js` 那条 `standalone` 断言改为锁「没有双身份开关」。
