@@ -133,3 +133,43 @@ describe('BOH AI 整页横屏左栏（2026-10-03，防「切到 AI 左栏就没�
     }
   });
 });
+
+/**
+ * 横屏登录岛的同轴成对关系（2026-11-24 用户报障「登录岛又歪了」）。
+ *
+ * 上半岛（`.unified-nav-surface`）在各宿主段里被 `left: rail/2` 推到内容区中心，
+ * 下半岛（`.boh-login-modal-container`）必须补同一个 left。两处写在文件的不同段落、
+ * 没有任何编译/运行期耦合 —— 漏一处只表现为**该页**的登录岛裂开，不报错。
+ * 周边页（body.page-shop）就是漏了这一次：1440 档上半岛 x=516 / 下半岛 x=396。
+ *
+ * 探针 probe-login-island-width 已覆盖 home 与 shop，但它不进 CI；
+ * 这里锁源码层的不变量：**导航偏移的宿主集合 == 登录卡片补偿的宿主集合**。
+ */
+describe('横屏登录岛：导航右移与登录卡片补偿必须成对（2026-11-24）', () => {
+  const sheet = read(RAIL_CSS);
+  const hosts = (re) => [...sheet.matchAll(re)].map((m) => m[1]).sort();
+
+  const navHosts = hosts(
+    /body\.page-([a-z]+)\s+\.unified-nav-surface\s*\{[^}]*left:\s*calc\(\s*var\(--userspace-rail-w/g,
+  );
+  const boxHosts = hosts(/body\.page-([a-z]+)\s+\.boh-login-modal-container/g);
+
+  it('识别到至少 5 个左栏宿主（userspace / home / aichat / shop / bohcloudplus）', () => {
+    expect(navHosts).toEqual(
+      expect.arrayContaining(['userspace', 'home', 'aichat', 'shop', 'bohcloudplus']),
+    );
+    expect(navHosts.length).toBeGreaterThanOrEqual(5);
+  });
+
+  it('每个把导航推到内容区中心的宿主，都有登录卡片补偿', () => {
+    expect(boxHosts, `导航偏移宿主 ${navHosts} 与补偿宿主 ${boxHosts} 不一致`).toEqual(navHosts);
+  });
+
+  it('补偿值同式（rail/2），不写第二份字面量', () => {
+    const block = sheet.slice(
+      sheet.indexOf('body.page-userspace .boh-login-modal-container'),
+      sheet.indexOf('body.page-userspace .boh-login-modal-container') + 600,
+    );
+    expect(block).toMatch(/left:\s*calc\(\s*var\(--userspace-rail-w[^)]*\)\s*\/\s*2\s*\)/);
+  });
+});

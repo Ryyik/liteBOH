@@ -54,11 +54,18 @@
      上面几条把导航胶囊推到「内容区中心」，但登录卡片仍由 overlay 的
      flex 居中（基线是整页）⇒ 两半相差 rail/2（1440 宽栏实测 120px），
      岛形断裂成「偏右的胶囊 + 居中的面板」。
-     这里给卡片补同一个 left。三个宿主与导航偏移规则一一对应；
-     没有左栏的页面不命中，卡片维持整页居中。 */
+     这里给卡片补同一个 left，清单必须与「给 `.unified-nav-surface` 写
+     left: rail/2」的宿主**一一对应**：现有 5 处在下面各宿主段里
+     （userspace / home / bohcloudplus / aichat / shop）。
+     ⚠️ 2026-11-24 用户报障「登录岛又歪了」即漏了 shop 与图库（bohcloudplus）
+     这两个宿主：周边页（含 /lottery/:id、/shop/account 等复用 bodyClass 的落点）
+     上半岛右移 120，下半岛原地 = 两张岛错开。新增左栏宿主时**两处都要加**，
+     否则只有该页的登录岛会裂开。没有左栏的页面不命中，卡片维持整页居中。 */
   body.page-userspace .boh-login-modal-container,
   body.page-home .boh-login-modal-container,
-  body.page-aichat .boh-login-modal-container {
+  body.page-aichat .boh-login-modal-container,
+  body.page-shop .boh-login-modal-container,
+  body.page-bohcloudplus .boh-login-modal-container {
     left: calc(var(--userspace-rail-w, 88px) / 2);
   }
 

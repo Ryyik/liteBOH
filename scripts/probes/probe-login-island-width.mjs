@@ -14,6 +14,14 @@
  *   { left: rail/2 }` 推到内容区中心，而登录卡片仍由 overlay 的 flex 在整页居中
  *   ⇒ 1440 宽栏相差 120px、1024 窄栏相差 44px，岛形断裂。修法见 landscape-rail.css。
  *   ⚠️ 本探针此前只打印 ❌ 不退出非 0（无牙）⇒ 已改为 PASS/FAIL 计数 + exitCode。
+ *
+ * 2026-11-24 补充：
+ *   · 同一条病在**周边页**复发（`body.page-shop` 有左栏、导航右移，但登录卡片的
+ *     补偿清单只列了 userspace / home / aichat）⇒ 用户报障「登录岛又歪了」。
+ *     现在每个视口额外跑一遍 /shop，断言 W10/W11（同宽 + 同左边界）。
+ *     新增任何「给 .unified-nav-surface 写 left: rail/2」的宿主，都要两处一起加。
+ *   · 首页的开场闸门未解锁时导航不挂载（`#nav-login-btn` 等不到）⇒ 探针会直接死在
+ *     第一步。这里改走键盘路径解锁后再点「登录」。
  */
 import { chromium } from 'playwright';
 import { mkdirSync } from 'fs';
@@ -55,6 +63,16 @@ const launchOptions = {
   args: ['--no-proxy-server', '--proxy-server=direct://', '--proxy-bypass-list=*'],
 };
 
+/* 首页的开场闸门没解锁时导航整条不挂载（`#nav-login-btn` 等不到，探针曾因此
+   一直红在第一步）。走键盘路径解锁一次，等落定（pullMs 1900 + 余量）。 */
+const unlockHomeGate = async (page) => {
+  await page.waitForTimeout(800);
+  await page.evaluate(() => {
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+  });
+  await page.waitForTimeout(2600);
+};
+
 const browser = await chromium.launch(launchOptions);
 const errors = [];
 try {
@@ -63,6 +81,7 @@ try {
     const page = await ctx.newPage();
     page.on('pageerror', (e) => errors.push(`${vp.label}: ${String(e.message).slice(0, 120)}`));
     await page.goto(`${BASE}/`, { waitUntil: 'domcontentloaded' });
+    await unlockHomeGate(page);
     await page.waitForSelector('#nav-login-btn', { timeout: 15000 });
     await page.waitForTimeout(1200);
 
@@ -188,6 +207,44 @@ try {
         `submit=${form.submitH}px`,
       );
     }
+
+    /* 宿主页 /shop（body.page-shop）：左栏把导航按内容区居中（left: rail/2），
+       登录卡片必须补同一个 left —— 2026-11-24 用户报障「登录岛又歪了」的落点
+       （修前实测 1440 档上半岛 x=516 / 下半岛 x=396，相差 120；1024 档 44）。
+       /lottery/:id、/shop/account、admin 商城页复用同一 bodyClass，一并覆盖。 */
+    const shopCtx = await browser.newContext({ viewport: { width: vp.width, height: vp.height } });
+    const shopPage = await shopCtx.newPage();
+    shopPage.on('pageerror', (e) =>
+      errors.push(`${vp.label} shop: ${String(e.message).slice(0, 120)}`),
+    );
+    await shopPage.goto(`${BASE}/#/shop`, { waitUntil: 'domcontentloaded' });
+    await shopPage.waitForSelector('#nav-login-btn', { timeout: 15000 });
+    await shopPage.waitForTimeout(1200);
+    await shopPage.click('#nav-login-btn');
+    await shopPage.waitForSelector('.boh-login-modal-container', { timeout: 10000 });
+    await shopPage.waitForTimeout(1200);
+    const shopData = await shopPage.evaluate(() => {
+      const r = (el) => {
+        const b = el.getBoundingClientRect();
+        return { x: Math.round(b.x), w: Math.round(b.width) };
+      };
+      return {
+        nav: r(document.querySelector('#unified-nav-container .unified-nav-surface')),
+        box: r(document.querySelector('.boh-login-modal-container')),
+      };
+    });
+    await shopPage.screenshot({ path: `${OUT}/${vp.label}-shop.png` });
+    check(
+      'W10 shop 上下两半同宽',
+      shopData.box.w === shopData.nav.w,
+      `dw=${shopData.box.w - shopData.nav.w}px`,
+    );
+    check(
+      'W11 shop 左边界对齐（同一条中心轴）',
+      shopData.box.x === shopData.nav.x,
+      `dx=${shopData.box.x - shopData.nav.x}px`,
+    );
+    await shopCtx.close();
     await ctx.close();
   }
 
@@ -196,6 +253,7 @@ try {
   await darkCtx.addInitScript(() => localStorage.setItem('boh-theme', 'dark'));
   const darkPage = await darkCtx.newPage();
   await darkPage.goto(`${BASE}/`, { waitUntil: 'domcontentloaded' });
+  await unlockHomeGate(darkPage);
   await darkPage.waitForSelector('#nav-login-btn', { timeout: 15000 });
   await darkPage.waitForTimeout(1200);
   await darkPage.screenshot({ path: `${OUT}/1440x816-dark-nav-normal.png` });
