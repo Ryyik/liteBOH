@@ -33,8 +33,84 @@
  * （UserSpaceSideRail）、首页底栏（Home/index.vue）、购物袋页（Shop/BagPage.vue）
  * —— 改这里各处同步生效。
  */
-import { Images, LayoutGrid, MessageCircle, ShoppingBag, User } from 'lucide-vue-next';
-import type { Component } from 'vue';
+import { defineComponent, h } from 'vue';
+import type { Component, VNode } from 'vue';
+
+const createIcon = (name: string, draw: () => VNode[]): Component =>
+  defineComponent({
+    name,
+    inheritAttrs: false,
+    props: {
+      size: {
+        type: [Number, String],
+        default: 18,
+      },
+      strokeWidth: {
+        type: [Number, String],
+        default: 1.9,
+      },
+    },
+    setup(props, { attrs }) {
+      return () =>
+        h(
+          'svg',
+          {
+            ...attrs,
+            xmlns: 'http://www.w3.org/2000/svg',
+            width: props.size,
+            height: props.size,
+            viewBox: '0 0 24 24',
+            fill: 'none',
+            stroke: 'currentColor',
+            'stroke-width': props.strokeWidth,
+            'stroke-linecap': 'round',
+            'stroke-linejoin': 'round',
+            'aria-hidden': 'true',
+          },
+          draw(),
+        );
+    },
+  });
+
+const BottomNavContentIcon = createIcon('BottomNavContentIcon', () => [
+  h('path', { d: 'm3.5 10 8.5-7 8.5 7' }),
+  h('path', { d: 'M5.5 9v11h13V9', class: 'bottom-nav-icon-soft' }),
+  h('path', { d: 'M9.5 20v-6h5v6' }),
+]);
+
+const BottomNavMessagesIcon = createIcon('BottomNavMessagesIcon', () => [
+  h('path', {
+    d: 'M5 4h14a3 3 0 0 1 3 3v8a3 3 0 0 1-3 3h-7l-5 3v-3H5a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3Z',
+    class: 'bottom-nav-icon-soft',
+  }),
+  h('circle', { cx: 8, cy: 11.5, r: 1.1, fill: 'currentColor', stroke: 'none' }),
+  h('circle', { cx: 12, cy: 11.5, r: 1.1, fill: 'currentColor', stroke: 'none' }),
+  h('circle', { cx: 16, cy: 11.5, r: 1.1, fill: 'currentColor', stroke: 'none' }),
+]);
+
+const BottomNavShopIcon = createIcon('BottomNavShopIcon', () => [
+  h('path', { d: 'M5 8h14l1 12H4L5 8Z', class: 'bottom-nav-icon-soft' }),
+  h('path', { d: 'M9 9V6a3 3 0 0 1 6 0v3' }),
+]);
+
+const BottomNavGalleryIcon = createIcon('BottomNavGalleryIcon', () => [
+  h('rect', { x: 7, y: 2.5, width: 14.5, height: 14.5, rx: 3 }),
+  h('rect', {
+    x: 2.5,
+    y: 7,
+    width: 14.5,
+    height: 14.5,
+    rx: 3,
+    class: 'bottom-nav-icon-soft',
+  }),
+  h('circle', { cx: 7.5, cy: 11.5, r: 1.2, fill: 'currentColor', stroke: 'none' }),
+  h('path', { d: 'm3.5 18.5 4.5-4.5 3.5 3.5 2.5-2.5 3 3.5' }),
+]);
+
+const BottomNavUserIcon = createIcon('BottomNavUserIcon', () => [
+  h('circle', { cx: 12, cy: 8, r: 4, class: 'bottom-nav-icon-soft' }),
+  h('path', { d: 'M4.5 21v-2a7.5 7.5 0 0 1 15 0v2' }),
+]);
 
 export interface BottomNavItem {
   id: string;
@@ -52,20 +128,26 @@ export interface BottomNavItem {
 }
 
 export const BOTTOM_NAV_ITEMS: BottomNavItem[] = [
-  { id: 'community', label: '内容', icon: LayoutGrid, route: '/' },
+  { id: 'community', label: '内容', icon: BottomNavContentIcon, route: '/' },
   {
     id: 'messages',
     label: '消息',
-    icon: MessageCircle,
+    icon: BottomNavMessagesIcon,
     route: '/user-space?tab=messages',
     badge: 'messages',
   },
   /* 2026-11-01 用户口径：「周边页面的顺序与图库的位置互换」⇒ 周边回到第三席、
      图库第四席。与旧版三席位置（内容 / 消息 / 图库 / 周边 / 我）的差异只在 3、4 位，
      消费方全部读这份配置，无需改任何宿主。 */
-  { id: 'shop', label: '周边', icon: ShoppingBag, route: '/shop', fullPage: true },
-  { id: 'cloud', label: '图库', icon: Images, route: '/user-space/note', fullPage: true },
-  { id: 'posts', label: '我', icon: User, route: '/user-space?tab=posts' },
+  { id: 'shop', label: '周边', icon: BottomNavShopIcon, route: '/shop', fullPage: true },
+  {
+    id: 'cloud',
+    label: '图库',
+    icon: BottomNavGalleryIcon,
+    route: '/user-space/note',
+    fullPage: true,
+  },
+  { id: 'posts', label: '我', icon: BottomNavUserIcon, route: '/user-space?tab=posts' },
 ];
 
 /**

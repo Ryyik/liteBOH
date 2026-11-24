@@ -24,6 +24,7 @@
         :key="item.id"
         class="nav-item"
         :class="{ active: currentTab === item.id || (item.id === 'ai' && aiOverlayOpen) }"
+        :aria-label="item.label"
         type="button"
         @pointerenter="$emit('preload-tab', item.id)"
         @focus="$emit('preload-tab', item.id)"
