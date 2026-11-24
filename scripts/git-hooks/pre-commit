@@ -47,5 +47,12 @@ fi
 # ── 秒级门禁（各 ~10ms）：这两类错误最适合在「提交」这一刻拦下 ──────────
 # 它们也在 verify / verify:fast 里；放在钩子里是因为「根目录新增沙盒」和
 # 「CI 脚本里写了会静默失败的 grep」最常发生在提交前的最后一步。
-node scripts/check-root-clean.mjs || exit 1
+#
+# ⚠️ check-root-clean 这里必须带 `--staged`（2026-11-24 改）：
+#   全量模式扫 `readdirSync(ROOT)`，**不知道文件是谁的** —— 共享工作区里并行
+#   会话扔在根目录的未跟踪沙盒会把别人的提交拦下。被拦后唯一的出路是
+#   `git commit --no-verify`，而**那条命令会连上面的 lint-staged 一起跳过**，
+#   正好撞上 AGENTS.md §5 的「验证的树 ≠ 提交的树」。
+#   `--staged` 只看本次提交暂存进来的根目录文件；全量扫描仍由 verify / CI 负责。
+node scripts/check-root-clean.mjs --staged || exit 1
 node scripts/check-shell-grep.mjs || exit 1
