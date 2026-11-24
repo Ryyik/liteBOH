@@ -135,51 +135,55 @@
             </div>
           </template>
           <template v-else>
-            <div class="x-filter-dropdown-wrap">
-              <button
-                type="button"
-                class="x-filter-chip filter-trigger"
-                @click="filterDropdownOpen = !filterDropdownOpen"
-              >
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
+            <BohDropdown v-model="filterDropdownOpen" label="按类型筛选通知" min-width="196px">
+              <template #trigger="{ open, toggle }">
+                <button
+                  type="button"
+                  class="x-filter-chip filter-trigger"
+                  aria-haspopup="menu"
+                  :aria-expanded="open"
+                  @click="toggle"
                 >
-                  <line x1="4" y1="6" x2="20" y2="6"></line>
-                  <line x1="8" y1="12" x2="16" y2="12"></line>
-                  <line x1="11" y1="18" x2="13" y2="18"></line>
-                </svg>
-                {{ filterSummaryText }}
-              </button>
-              <Transition name="x-pop">
-                <div v-if="filterDropdownOpen" class="x-filter-dropdown" @click.stop>
-                  <div class="x-filter-section">
-                    <button
-                      v-for="tab in typeFilterTabs"
-                      :key="tab.id"
-                      type="button"
-                      class="x-filter-option"
-                      :class="{ active: currentTab === tab.id }"
-                      @click="
-                        setNotificationTab(tab.id);
-                        filterDropdownOpen = false;
-                      "
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <line x1="4" y1="6" x2="20" y2="6"></line>
+                    <line x1="8" y1="12" x2="16" y2="12"></line>
+                    <line x1="11" y1="18" x2="13" y2="18"></line>
+                  </svg>
+                  {{ filterSummaryText }}
+                </button>
+              </template>
+              <template #default="{ close }">
+                <div class="x-filter-section">
+                  <button
+                    v-for="tab in typeFilterTabs"
+                    :key="tab.id"
+                    type="button"
+                    role="menuitemradio"
+                    :aria-checked="currentTab === tab.id"
+                    class="x-filter-option"
+                    :class="{ active: currentTab === tab.id }"
+                    @click="
+                      setNotificationTab(tab.id);
+                      close();
+                    "
+                  >
+                    <span>{{ tab.label }}</span>
+                    <span
+                      v-if="tab.id !== 'archived' && typeUnreadCounts[tab.id]"
+                      class="x-filter-count"
+                      >{{ typeUnreadCounts[tab.id] }}</span
                     >
-                      <span>{{ tab.label }}</span>
-                      <span
-                        v-if="tab.id !== 'archived' && typeUnreadCounts[tab.id]"
-                        class="x-filter-count"
-                        >{{ typeUnreadCounts[tab.id] }}</span
-                      >
-                    </button>
-                  </div>
+                  </button>
                 </div>
-              </Transition>
-            </div>
+              </template>
+            </BohDropdown>
             <button v-if="currentTab !== 'archived'" class="x-select-btn" @click="toggleSelectMode">
               选择
             </button>
@@ -243,51 +247,55 @@
               </button>
             </template>
             <template v-else>
-              <div class="x-filter-dropdown-wrap">
-                <button
-                  type="button"
-                  class="x-filter-chip filter-trigger"
-                  @click="filterDropdownOpen = !filterDropdownOpen"
-                >
-                  <svg
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
+              <BohDropdown v-model="filterDropdownOpen" label="按类型筛选通知" min-width="196px">
+                <template #trigger="{ open, toggle }">
+                  <button
+                    type="button"
+                    class="x-filter-chip filter-trigger"
+                    aria-haspopup="menu"
+                    :aria-expanded="open"
+                    @click="toggle"
                   >
-                    <line x1="4" y1="6" x2="20" y2="6"></line>
-                    <line x1="8" y1="12" x2="16" y2="12"></line>
-                    <line x1="11" y1="18" x2="13" y2="18"></line>
-                  </svg>
-                  {{ filterSummaryText }}
-                </button>
-                <Transition name="x-pop">
-                  <div v-if="filterDropdownOpen" class="x-filter-dropdown" @click.stop>
-                    <div class="x-filter-section">
-                      <button
-                        v-for="tab in typeFilterTabs"
-                        :key="tab.id"
-                        type="button"
-                        class="x-filter-option"
-                        :class="{ active: currentTab === tab.id }"
-                        @click="
-                          setNotificationTab(tab.id);
-                          filterDropdownOpen = false;
-                        "
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                    >
+                      <line x1="4" y1="6" x2="20" y2="6"></line>
+                      <line x1="8" y1="12" x2="16" y2="12"></line>
+                      <line x1="11" y1="18" x2="13" y2="18"></line>
+                    </svg>
+                    {{ filterSummaryText }}
+                  </button>
+                </template>
+                <template #default="{ close }">
+                  <div class="x-filter-section">
+                    <button
+                      v-for="tab in typeFilterTabs"
+                      :key="tab.id"
+                      type="button"
+                      role="menuitemradio"
+                      :aria-checked="currentTab === tab.id"
+                      class="x-filter-option"
+                      :class="{ active: currentTab === tab.id }"
+                      @click="
+                        setNotificationTab(tab.id);
+                        close();
+                      "
+                    >
+                      <span>{{ tab.label }}</span>
+                      <span
+                        v-if="tab.id !== 'archived' && typeUnreadCounts[tab.id]"
+                        class="x-filter-count"
+                        >{{ typeUnreadCounts[tab.id] }}</span
                       >
-                        <span>{{ tab.label }}</span>
-                        <span
-                          v-if="tab.id !== 'archived' && typeUnreadCounts[tab.id]"
-                          class="x-filter-count"
-                          >{{ typeUnreadCounts[tab.id] }}</span
-                        >
-                      </button>
-                    </div>
+                    </button>
                   </div>
-                </Transition>
-              </div>
+                </template>
+              </BohDropdown>
               <!-- 「只看未读」外置(2026-11-21):高频操作从下拉两跳变一跳,并取代
                    选择模式内的「全部|未读」分段成为未读筛选的唯一真源 -->
               <button
@@ -1085,6 +1093,7 @@ import {
 } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import EmptyState from '@/components/ui/EmptyState.vue';
+import BohDropdown from '@/components/ui/BohDropdown.vue';
 import { useAuthStore } from '@/stores/auth';
 import { storeToRefs } from 'pinia';
 import { ensureNotificationStore } from '@/stores/notification-loader';
@@ -2847,11 +2856,14 @@ const isAllFilteredSelected = computed(() => {
   return current.length > 0 && current.every((m) => selectedMessageIds.value.has(m.id));
 });
 
+/* 外点关闭：只处理还留在本文件里的两处手写下拉。
+   `filterDropdownOpen` 已迁 BohDropdown（2026-11-24，plans/045 组件 13），
+   外点/Esc 由组件内置 —— 这里**不能再写它**，否则会和组件抢着关、还会把
+   「点面板内部」误判成外点（旧实现靠包一层包裹元素 + closest() 才行）。 */
 const closeSelectFilterDropdown = (e) => {
-  const wrap = e.target.closest('.x-filter-dropdown-wrap, .x-select-actions-dropdown');
+  const wrap = e.target.closest('.x-select-actions-dropdown');
   if (!wrap) {
     selectFilterOpen.value = false;
-    filterDropdownOpen.value = false;
     actionsDropdownOpen.value = false;
   }
 };

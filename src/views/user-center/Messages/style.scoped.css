@@ -1640,10 +1640,6 @@
 
 /* ─── 筛选下拉 ───────────────────────────────────────────────────────────── */
 
-.x-filter-dropdown-wrap {
-  position: relative;
-}
-
 .x-filter-chip.filter-trigger {
   display: inline-flex;
   align-items: center;
@@ -1673,26 +1669,10 @@
   line-height: 1;
 }
 
-.x-filter-dropdown {
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 0;
-  z-index: 300;
-  width: max-content;
-  min-width: 168px;
-  max-width: calc(100vw - 24px);
-  /* 在 sticky 页头（堆叠上下文）内：backdrop-filter 必被裁空（§21.11）⇒ 实底浮层 */
-  background: var(--liquid-bg-strong);
-  border: 1px solid var(--liquid-border);
-  border-radius: 16px;
-  box-shadow: var(--liquid-shadow-overlay), var(--liquid-highlight);
-  padding: 6px;
-  /* 进出场过渡改由 <Transition name="x-pop"> 承担（2026-11-04 硬切审计）：
-     原先的 filter-dropdown-in 单向动画只覆盖进场、出场仍瞬切，已删。 */
-}
-
 /* 下拉/菜单显隐过渡（2026-11-04 硬切审计 P0-5）：
-   x-select-actions-menu（原先双向硬切）与两处 x-filter-dropdown（原先只有进场）共用。 */
+   原为 x-select-actions-menu 与两处 x-filter-dropdown 共用。两处 x-filter-dropdown
+   已于 2026-11-24 迁 BohDropdown（plans/045 组件 13），过渡改由 motion.css 的
+   boh-pop 预设承担；这里只剩 x-select-actions-menu（尚未迁移）在用。 */
 .x-pop-enter-active,
 .x-pop-leave-active {
   transition:
@@ -2399,11 +2379,6 @@
     gap: 6px;
   }
 
-  .x-filter-dropdown {
-    width: min(220px, calc(100vw - 24px));
-    max-width: calc(100vw - 24px);
-  }
-
   .x-list {
     padding: 0;
     gap: 0;
@@ -2966,11 +2941,6 @@
 
 [data-theme='dark'] .x-select-count {
   color: var(--liquid-text-tertiary);
-}
-
-[data-theme='dark'] .x-filter-dropdown {
-  background: var(--liquid-bg-strong, rgba(28, 30, 38, 0.92));
-  border-color: rgba(255, 255, 255, 0.12);
 }
 
 [data-theme='dark'] .x-filter-option {

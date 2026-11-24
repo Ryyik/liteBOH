@@ -440,6 +440,62 @@ describe('BohModal · portraitPage 变体的几何契约', () => {
   });
 });
 
+/* BohDropdown（组件 13）：首个真实宿主是 Messages 的筛选下拉。
+   几何本身由 boh-dropdown-position.test.js 做行为测试，这里只锁"组件契约"——
+   哪些能力必须内置、哪些刻意不做（下拉不是模态）。 */
+describe('BohDropdown · 组件契约', () => {
+  const src = () => squeezeSource(stripComments(read('src/components/ui/BohDropdown.vue')));
+
+  it('内置外点关闭 + Esc 关闭，且都只在打开时挂监听', () => {
+    const code = src();
+    expect(code).toContain('pointerdown');
+    expect(code).toContain('Escape');
+    expect(code).toContain('startListeners');
+    expect(code).toContain('stopListeners');
+  });
+
+  it('刻意不做焦点陷阱 / 不锁滚动（下拉不是模态，Tab 要能正常走出去）', () => {
+    const code = src();
+    expect(code).not.toContain('useBodyScrollLock');
+    expect(code).not.toContain('v-dialog-focus');
+  });
+
+  it('焦点归还走 after-leave 且聚焦包裹层内真实可聚焦元素', () => {
+    const code = src();
+    /* 🔴 这条抓过两个坑：① 归还写在 emit 之后 → 面板已移除、判定恒 false；
+       ② 直接 focus 包裹层 <span> → span 不可聚焦、focus 静默无效。
+       所以三样必须在：after-leave 钩子、pendingFocusReturn 标记、querySelector 找真实控件。 */
+    expect(code).toContain('after-leave');
+    expect(code).toContain('pendingFocusReturn');
+    expect(code).toContain('querySelector(');
+    expect(code).toContain('button');
+  });
+
+  it('指示器可露出：面板不裁切，滚动在内层', () => {
+    const code = src();
+    expect(code).toContain('boh-dropdown__scroll');
+    expect(code).toContain('overflow: visible');
+  });
+
+  it('定位交给纯函数，不在这里写死几何', () => {
+    const code = src();
+    expect(code).toContain('computeDropdownPosition');
+    expect(code).not.toMatch(/window\.innerWidth\s*[-+]/);
+  });
+
+  it('层级读 --boh-z-modal（不在组件里写死数字）', () => {
+    expect(src()).toContain('z-index: var(--boh-z-modal)');
+  });
+
+  it('出入场走 motion 预设，不自己写毫秒', () => {
+    const code = src();
+    expect(code).toContain("'./motion.css'");
+    expect(code).toContain('name="boh-pop"');
+    // 组件内不得出现裸毫秒时长（transition 一律读 token）
+    expect(code).not.toMatch(/transition:[^;]*\d+ms/);
+  });
+});
+
 describe('BohToastHost · 渲染层守卫', () => {
   it('消费单例 bohtoast + aria-live + TransitionGroup 预设', () => {
     const src = hostSrc();
