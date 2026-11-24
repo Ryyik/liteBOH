@@ -1135,6 +1135,22 @@
     --global-nav-status-bottom-gap: 7px;
   }
 
+  /* 未登录「登录」= **与已登录态账户胶囊同型**（58×32 / r20 / 12px，见下方
+     .nav-user-info 的 4px 12px + 32px 头像）。vendor 的两条规则在这里互相打架：
+       · ≤699 的 `min-height: 40px`（触屏高度，是按 46×26 量的）
+       · ≤480 的 `padding: 4px 8px / font-size: 10px`（旧微字号）
+     叠加后实测 40×40 + radius 20 = 正圆；只补宽度又变成「40 高 + 10px 小字」的
+     空胶囊（2026-11-24 用户两轮报障）。这里按同排兄弟控件归一：高度 32（与
+     账户胶囊、头像一致）、字号 12（与 .nav-username 一致）、宽度 58（与账户
+     胶囊一致）。mini 内容仍是 26+58+38=122（390 档内容盒 146，390/600 都够）。 */
+  :global(#unified-nav-container .nav-login-btn) {
+    min-width: 58px;
+    height: 32px;
+    min-height: 32px;
+    padding: 4px 12px;
+    font-size: 12px;
+  }
+
   :global(#unified-nav-container .unified-nav-surface) {
     --global-nav-rest-height: 50px;
     --global-nav-status-top: 57px;

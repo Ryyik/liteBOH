@@ -555,6 +555,41 @@ const gateNewContext = async (options = {}) => {
   await context.close();
 }
 
+/* ---------- P. 竖屏 390 未登录：mini 的「登录」必须与账户胶囊同型 ----------
+   vendor ≤699 的 `min-height: 40px`（触屏高度）与 ≤480 的 `padding: 4px 8px /
+   font-size: 10px` 叠加后宽度也收敛到 40 ⇒ 40×40 + radius 20 = 正圆；只补宽度
+   又变成「40 高 + 10px 小字」的空胶囊（2026-11-24 用户两轮报障，口径「都改成
+   药丸型」「这貌似不对吧」）。现按同排兄弟控件归一：58×32 / 12px，与已登录态的
+   账户胶囊（.nav-user-info 实测 58×32）一致。见 style.scoped.css 的 portrait ≤699 块。
+   反证：删掉那条 `.nav-login-btn` 覆盖 → 回到 40×40 正圆（vendor 的 40 触屏高度
+   + ≤480 的 10px 字号 / 8px 内边距），P 组立刻红。 */
+{
+  const context = await gateNewContext({ viewport: { width: 390, height: 844 } });
+  const page = await context.newPage();
+  page.on('pageerror', (e) => report.pageErrors.push('P: ' + String(e).slice(0, 160)));
+  await page.goto(`${BASE}/#/`, { waitUntil: 'domcontentloaded' });
+  // 刻意不 injectAuth：未登录才有「登录」按钮
+  await page.waitForSelector('#nav-login-btn', { state: 'visible', timeout: 20000 });
+  await page.waitForTimeout(1200);
+  report.results.P_login_pill = await page.evaluate(() => {
+    const b = document.querySelector('#nav-login-btn');
+    const s = document.querySelector('#unified-nav-container .unified-nav-surface');
+    const cont = s.querySelector('.nav-container');
+    const r = b.getBoundingClientRect();
+    const cs = getComputedStyle(b);
+    return {
+      w: +r.width.toFixed(1),
+      h: +r.height.toFixed(1),
+      radius: parseFloat(cs.borderTopLeftRadius),
+      fontSize: cs.fontSize,
+      surfaceW: +s.getBoundingClientRect().width.toFixed(1),
+      overflow: cont.scrollWidth > Math.round(s.getBoundingClientRect().width) - 2,
+    };
+  });
+  await page.screenshot({ path: `${OUT}/nav-mini-P-portrait-login.png` });
+  await context.close();
+}
+
 /* ---------- M. 桌面 mini 态：头像 / logo 也是直接动作目标（2026-11-20） ----------
    登录按钮之外，logo 与头像在 180→720 的展开中间样会横向移动（约 270px）。
    用户瞄着它们移过去、70ms 后岛撑开，点击就会落空。
@@ -677,6 +712,7 @@ const IH = report.results.I_hover;
 const IS = report.results.I_submenu;
 const J = report.results.J_hitzone;
 const L = report.results.L_login;
+const P = report.results.P_login_pill;
 const M = report.results.M_direct_targets;
 const N = report.results.N_status_hybrid;
 
@@ -761,6 +797,12 @@ report.checks = {
      判据双向 ±2px，写死「高 2px」会被亚像素舍入打成假红。 */
   L_login_island_seam:
     !!L && !!L.opened.card && Math.abs(L.opened.card.top - (L.opened.bottom - 2)) <= 2,
+  /* P：竖屏未登录的「登录」= 与已登录态账户胶囊同型 —— 58×32（±2）、12px、
+     圆角吃满半高（药丸而非正圆），mini 胶囊内容不许溢出。 */
+  P_login_is_pill: !!P && P.w - P.h >= 8 && P.radius >= P.h / 2 - 1,
+  P_login_matches_account:
+    !!P && Math.abs(P.h - 32) <= 2 && P.w >= 54 && P.w <= 62 && P.fontSize === '12px',
+  P_mini_no_overflow: !!P && !P.overflow,
   /* M：头像 / logo 与登录同属「直接动作目标」—— hover 停留不许把胶囊撑开，
      否则目标会在点击前横向移走。判据与 L1 同一口径（宽度没有明显变大）。 */
   M_avatar_hover_no_expand: !!M && M.onAvatarW < M.baseW + 40,
