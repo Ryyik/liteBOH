@@ -279,3 +279,85 @@ useBohMorphSurface({
 
 单测：`boh-ui-kit` 不动；`lottery-detail-scroll.test.js` 5→11（新增 6 条「不许回潮」）、
 `lottery-standalone-share.test.js` 那条 `standalone` 断言改为锁「没有双身份开关」。
+
+## 10. 结算迁壳（2026-11-24 · C 类第二份真正落地）
+
+§8 记的三个缺口全部解决，做法与 §8 的初步判断**不同**（两个更省、一个更准）。
+
+### 缺口 1：Esc 分级 —— 改宿主，不改壳
+
+§8 当时想的是「给壳加 Esc 让位机制」。实测后不用：壳的语义（一个弹层一次 Esc）是对的，
+破例反而会让「壳到底关几层」变成要看宿主实现的问题。
+
+真因是**监听阶段**：壳的陷阱挂在 overlay 上、冒泡阶段。实测（`about:blank` 复现）：
+- overlay 冒泡 `stopPropagation()` **能挡住** document 的**冒泡**监听；
+- document 的**捕获**监听在 overlay 之前触发，**抢得到**。
+
+所以结算自己把 `document.addEventListener('keydown', onKeydown)` 改成第三参 `true`：
+有地址选择层时自己收掉并 `stopPropagation()`，没有时**什么都不做**、让壳正常关。
+一次 Esc 只关选择层、第二次才关结算 —— 与迁前基线逐帧一致（横竖屏都实测过）。
+
+### 缺口 2：横屏高度 —— 只加 `maxHeight` 口子（与 `maxWidth` 对称）
+
+壳的 `max-height: min(78vh,720px)` 是写死在 dialog 上的单一真源，宿主在外面盖不掉
+（裁的是 dialog）。加第六个口子 `--boh-modal-max-h`，结算传 `min(620px, 100vh-40px)`。
+9 个既有宿主不传参 ⇒ 行为零变化。窄屏那条 `86vh` 也必须走变量，否则 560px 宽的
+**横屏**会走进 `max-width:560px` 媒体查询把口子静默盖掉。
+
+⚠️ **§8 写的「少 46px 会把底栏裁掉」是错的。** 实测撤掉口子后（dialog 304px）：
+底栏**没有**被裁（`.ck-body` 有 `flex: 1; min-height: 0`，会自己让位压小），
+真实后果是**内容区从 231px 压到 185px、需要多滚 46px**。
+所以守卫不能写「底栏可见」（那样永远绿），要写「高度真的用上宿主声明的值」
+（E4）+「内容区没被压到极限」（E5）。
+
+### 缺口 3：竖屏动效 —— 接受壳默认
+
+`translateX(100%)`（iOS 下一页）随外层 `<Transition name="ck">` 一起删掉。
+理由：B 类 5 份 + C 类商品详情共 6 份都吃 `boh-pop`，为结算做第一个例外，
+「壳的动效口径」就有了先例。而「确认礼物」这一屏上，一致性 > iOS 手感。
+
+### 过程中撞到的两个壳缺陷（不修就会静默错）
+
+1. **`flush` 没把高度让给它唯一的子元素**。`.boh-modal__body--flush` 原来只有
+   `padding: 0`，没有 `flex: 1; min-height: 0` ⇒ 子元素 `height: 100%` 的包含块退化成
+   auto ⇒ 内容多高就多高。实测横屏 `.ck-sheet` 量到 **455px 而 dialog 只有 350px**，
+   底栏整条被推到 `overflow: hidden` 外。已补（只作用于 flush，默认形态不变）。
+2. **`portraitPage` 竖屏仍画半透明遮罩**。整页背后没有可压暗的页面，那层灰只让整页发暗。
+   原 CheckoutSheet 有 `@media (orientation: portrait) { .scrim { display: none } }`，
+   壳没有对等物。已在 `overlay--page` 的竖屏块里补 `background: transparent`
+   （不用 `display: none`：overlay 还要接点击与焦点陷阱）。
+   ⚠️ 这条同时影响商品详情与 `AdminOrderSheet`（都开了 portraitPage），
+   已用 `probe-shop-detail-scroll`（15）与 `probe-shop-order-detail` /
+   `probe-shop-admin-orders` 复核，均全绿。
+
+### 另一个坑：壳的默认页头会重复
+
+结算自己有 `.ck-head`（返回钮 + 标题 + 件数），而壳在 `title` 非空时又渲染一条
+52px 的 `.boh-modal__head` ⇒ dialog 350px 被吃掉 52px。正解是用壳已有的 `#head` 槽
+（`.boh-modal__head--slot { padding: 0 }`），**零新增口子**。与 `morph` 分支的
+`!morph` 是同一个思路：宿主自带视觉体时，壳不许再插一条。
+
+### 交付物
+
+| 文件 | 改动 |
+| --- | --- |
+| `src/components/ui/BohModal.vue` | +第六个口子 `maxHeight`；flush 补 `flex:1/min-height:0`；竖屏整页 overlay 去灰 |
+| `src/views/Shop/CheckoutSheet.vue` | 换外壳（删 Teleport/scrim/z-index/自有 Transition/自有滚锁）；页头走 `#head` 槽；Esc 改捕获阶段 |
+| `scripts/probes/probe-shop-checkout.mjs` | 40 → 43（A3 拆 A3/A3b、新增 E4/E5）；`geometry()` 改量壳的 dialog |
+| `tests/unit/shop-checkout-sheet.test.js` | 形态断言从「宿主自绘」改成「壳契约」；4 条迁壳后失效的改口径 |
+| `tests/unit/boh-ui-kit.test.js` | +1 条 `maxHeight` 对称性守卫（66 → 67） |
+
+### 反证（三条全命中）
+
+| 改动 | 结果 |
+| --- | --- |
+| Esc 改回冒泡阶段 | 一次 Esc 把两层一起关（`sheet:false`）—— 正是迁壳会引入的回归 |
+| 撤掉 `maxHeight` 口子 | E4 `h=304 期望≈350` + E5 `body=185px` 同红 |
+| 移除 `#head` 槽 | A4（页头）红 |
+
+### 单测里两条「切片假绿」
+
+写「不许出现 X」的负断言时连撞两次：
+1. `stripComments` 只剥 JS 注释，**不剥 `<!-- -->`**（plans/045 第六家族同款）；
+2. 改用 `indexOf('</template>')` 切模板后，又切在**内层** `<template #head>` 上 ⇒ 量到半截
+   （半截会让负断言全部假绿）。正解：从 `<template>` 切到 `<script`/`<style` 最早出现处。

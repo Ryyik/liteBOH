@@ -198,7 +198,7 @@ describe('BohModal · 浮层安全件守卫', () => {
     expect(Number(decl)).toBeLessThan(2147483000);
   });
 
-  it('定制只开 maxWidth / #head / flush / portraitPage / morph 五个口子', () => {
+  it('定制只开 maxWidth / maxHeight / #head / flush / portraitPage / morph 六个口子', () => {
     const src = modalSrc();
     expect(src).toContain('maxWidth');
     expect(src).toContain('--boh-modal-max-w');
@@ -224,6 +224,24 @@ describe('BohModal · 浮层安全件守卫', () => {
     // 形变要作用在壳的 dialog 上 ⇒ 壳必须把该元素暴露出去
     expect(src).toContain('dialogRef');
     expect(src).toContain('defineExpose');
+  });
+
+  /* maxHeight 是第六个口子（2026-11-24 C 类第三份「结算」时开，plans/047 §8）。
+     为什么必须开而不是让宿主自己覆盖：壳的 `max-height: min(78vh, 720px)` 是
+     写死在 dialog 上的**单一真源**，宿主在外面写 `.ck-sheet { height: ... }`
+     盖不掉它（裁的是 dialog）。结算横屏要 min(620px, 100vh-40px)：844×390 下
+     350px，而壳默认 78vh 只有 304px ⇒ 底栏被 overflow:hidden 裁掉 46px。
+     与 maxWidth 对称：都是「宿主告诉壳这块几何该多大」，不是宿主自己画外框。 */
+  it('maxHeight 与 maxWidth 对称：同一个 CSS 变量通道，窄屏媒体查询也要让位', () => {
+    const src = modalSrc();
+    expect(src).toContain('maxHeight');
+    expect(src).toContain('--boh-modal-max-h');
+    /* 默认值必须还在（不传参的宿主行为零变化） */
+    expect(src).toContain('var(--boh-modal-max-h, min(78vh, 720px))');
+    /* 窄屏贴底形态那条 86vh 也必须走变量 —— 否则 560px 宽的**横屏**
+       （如 560×400）会走进 max-width 媒体查询把 maxHeight 静默盖掉。
+       ⚠️ modalSrc() 走 squeezeSource：换行变单空格，所以这里不带 `\{`。 */
+    expect(src).toContain('var(--boh-modal-max-h, 86vh)');
   });
 });
 

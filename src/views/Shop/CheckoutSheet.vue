@@ -1,338 +1,350 @@
 <template>
-  <!-- 确认订单（2026-11-03）
+  <!-- 确认订单（2026-11-03；2026-11-24 迁壳）
        用户口径：「下单流程不像主流购物平台，就这样优化」。
        这一层替代了原来的「确认收货信息」表单弹窗：原来点结算只弹一张 420px 的地址表单，
        用户看不到自己买了什么、总共付多少、提交后会发生什么。
 
-       形态与 ProductDetailSheet 对齐：竖屏全屏（手机上就是"下一页"），横屏 / 宽屏居中弹窗。
-       两者都用同一个 z-index 档位（2147482400）—— 低于它会被全局导航里的灵动岛压住。
+       外壳走 BohModal（plans/045 C 类第三份 / plans/047 §8）：遮罩、滚锁、焦点陷阱、
+       层级全部交给壳。三个宿主特有形态靠壳的口子表达：
+         · portrait-page —— 竖屏整页（手机上是"下一页"），横屏回到居中弹窗
+         · max-width="880px" —— 横屏面板宽度（原来是 min(880, 100vw-64)）
+         · max-height —— 原来 min(620px, 100vh-40px)；**必须显式给**，壳默认
+           min(78vh,720px) 在 844×390 下只有 304px，会把底部结算条裁掉 46px
+         · flush —— 内衬由 .ck-head/.ck-body/.ck-foot 自己管
 
-       ⚠️ 形态用 CSS 媒体查询而不是 JS 监听 orientation：弹窗打开期间旋转设备，
-         只有样式能即时跟上，JS 监听会慢一帧且要自己清理。
-       ⚠️ 不在此组件里改 document.body.style.overflow（父层拥有那把锁）：
-         提交成功时父层要「关结算 → 开成功弹窗」同时完成，子组件在卸载时再写一次
-         overflow 会把父层刚上的锁冲掉。 -->
-  <Teleport to="body">
-    <Transition name="ck">
-      <div v-if="visible" class="ck-root shop-sheet-tokens">
-        <div class="ck-scrim" @click="requestClose"></div>
+       ⚠️ 不再自己写 Teleport / scrim / z-index / 滚锁：滚锁由壳的 useBodyScrollLock
+          引用计数接管（原来是父层上的锁，子组件卸载时会把它冲掉，见旧注释）。
+       ⚠️ Esc 改用 **document 捕获阶段**：地址选择层是结算内部的第二层，
+          必须先于壳的焦点陷阱拿到 Esc（详见 onKeydown 注释）。 -->
+  <BohModal
+    :model-value="visible"
+    portrait-page
+    max-width="880px"
+    :max-height="shellMaxHeight"
+    flush
+    :close-on-backdrop="false"
+    :show-close="false"
+    title="确认礼物"
+    @close="requestClose"
+  >
+    <!-- ⚠️ 面板头部走壳的 `#head` 槽，**不能**让壳再渲染默认标题栏：
+         结算自己有 .ck-head（返回钮 + 标题 + 件数），壳默认那条（52px）会多出一截，
+         实测横屏 dialog 350px 被它吃掉 52px、body 只剩 296px，底部结算条被裁。
+         壳的 `#head` 是专为这种形态准备的（`.boh-modal__head--slot { padding: 0 }`），
+         用它就不渲染默认头 —— 零新增口子。 -->
+    <template #head>
+      <header class="ck-head">
+        <button type="button" class="ck-back" aria-label="返回购物袋" @click="requestClose">
+          <ChevronLeft :size="22" :stroke-width="1.9" aria-hidden="true" />
+        </button>
+        <h2 id="ck-title" class="ck-title">确认礼物</h2>
+        <span class="ck-count">共 {{ summary.totalQty }} 件</span>
+      </header>
+    </template>
 
-        <section
-          class="ck-sheet"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="ck-title"
-          tabindex="-1"
-        >
-          <header class="ck-head">
-            <button type="button" class="ck-back" aria-label="返回购物袋" @click="requestClose">
-              <ChevronLeft :size="22" :stroke-width="1.9" aria-hidden="true" />
-            </button>
-            <h2 id="ck-title" class="ck-title">确认礼物</h2>
-            <span class="ck-count">共 {{ summary.totalQty }} 件</span>
-          </header>
-
-          <div ref="bodyRef" class="ck-body">
-            <!-- 收货地址：一张卡 + 更换。地址簿维护仍在「地址」分区，这里只做选择 -->
-            <!-- 竖屏是单栏（地址 + 商品 + 金额顺序堆叠），横屏拆成左右两栏：
+    <!-- 面板本体：head 已交给壳的 #head 槽，这里只剩「可滚的内容区 + 固定底栏」。
+         高度由壳的 body（flush 下有 flex:1 + min-height:0）分配下来，
+         所以 ck-sheet 用 flex:1 而不是 height:100%（后者在 flex 父项里会退化成 auto）。 -->
+    <section class="ck-sheet">
+      <div ref="bodyRef" class="ck-body">
+        <!-- 收货地址：一张卡 + 更换。地址簿维护仍在「地址」分区，这里只做选择 -->
+        <!-- 竖屏是单栏（地址 + 商品 + 金额顺序堆叠），横屏拆成左右两栏：
                  左边「要核对的东西」、右边「金额与说明」。用两个 .ck-col 包住，
                  切换方向只改容器，不在模板里写两套。 -->
-            <div class="ck-col">
-              <section class="ck-block ck-addr-block" aria-label="收货地址">
-                <button v-if="selected" type="button" class="ck-addr" @click="openPicker('list')">
-                  <span class="ck-addr-pin" aria-hidden="true">
-                    <MapPin :size="15" :stroke-width="1.9" />
-                  </span>
-                  <span class="ck-addr-copy">
-                    <span class="ck-addr-head">
-                      <strong>{{ selected.recipient || '未填写收件人' }}</strong>
-                      <span class="ck-addr-phone">{{ maskPhone(selected.phone) }}</span>
-                    </span>
-                    <span class="ck-addr-detail">{{ addressText(selected) }}</span>
-                  </span>
-                  <span class="ck-addr-change">更换</span>
-                </button>
+        <div class="ck-col">
+          <section class="ck-block ck-addr-block" aria-label="收货地址">
+            <button v-if="selected" type="button" class="ck-addr" @click="openPicker('list')">
+              <span class="ck-addr-pin" aria-hidden="true">
+                <MapPin :size="15" :stroke-width="1.9" />
+              </span>
+              <span class="ck-addr-copy">
+                <span class="ck-addr-head">
+                  <strong>{{ selected.recipient || '未填写收件人' }}</strong>
+                  <span class="ck-addr-phone">{{ maskPhone(selected.phone) }}</span>
+                </span>
+                <span class="ck-addr-detail">{{ addressText(selected) }}</span>
+              </span>
+              <span class="ck-addr-change">更换</span>
+            </button>
 
-                <button v-else type="button" class="ck-addr is-empty" @click="openPicker('form')">
-                  <span class="ck-addr-pin" aria-hidden="true">
-                    <MapPin :size="15" :stroke-width="1.9" />
-                  </span>
-                  <span class="ck-addr-copy">
-                    <strong>添加收货地址</strong>
-                    <span class="ck-addr-detail">用于实物寄送，下次自动带出</span>
-                  </span>
-                  <span class="ck-addr-change">去填写</span>
-                </button>
-              </section>
+            <button v-else type="button" class="ck-addr is-empty" @click="openPicker('form')">
+              <span class="ck-addr-pin" aria-hidden="true">
+                <MapPin :size="15" :stroke-width="1.9" />
+              </span>
+              <span class="ck-addr-copy">
+                <strong>添加收货地址</strong>
+                <span class="ck-addr-detail">用于实物寄送，下次自动带出</span>
+              </span>
+              <span class="ck-addr-change">去填写</span>
+            </button>
+          </section>
 
-              <!-- 商品清单：主流确认页的第一诉求就是"我现在到底在买什么"。
+          <!-- 商品清单：主流确认页的第一诉求就是"我现在到底在买什么"。
                  用 TransitionGroup：移除失效商品时整行淡出、其余行 FLIP 归位，
                  而不是"删完瞬间塌一下"。 -->
-              <section class="ck-block ck-items-block" aria-label="商品清单">
-                <TransitionGroup tag="ul" name="ck-line" class="ck-items">
-                  <li v-for="line in summary.lines" :key="line.key" class="ck-item">
-                    <span class="ck-item-thumb">
-                      <img
-                        v-if="lineImage(line) && !isImageFailed(`ck-${line.key}`)"
-                        :src="lineImage(line)"
-                        alt=""
-                        loading="lazy"
-                        @error="markImageFailed(`ck-${line.key}`)"
-                      />
-                      <Package v-else :size="18" :stroke-width="1.6" aria-hidden="true" />
-                    </span>
-                    <span class="ck-item-main">
-                      <span class="ck-item-title">{{ line.title }}</span>
-                      <span class="ck-item-sub">
-                        {{ line.specLabel }}
-                        <em v-if="lineIssueLabel(line)" class="ck-item-issue">
-                          {{ lineIssueLabel(line) }}
-                        </em>
-                      </span>
-                      <span v-if="line.quantity > 1" class="ck-item-price">
-                        {{ line.priceText
-                        }}<span class="ck-item-times"> × {{ line.quantity }}</span>
-                      </span>
-                    </span>
-                    <span class="ck-item-subtotal">{{ line.subtotalText }}</span>
-                  </li>
-                </TransitionGroup>
-              </section>
-            </div>
+          <section class="ck-block ck-items-block" aria-label="商品清单">
+            <TransitionGroup tag="ul" name="ck-line" class="ck-items">
+              <li v-for="line in summary.lines" :key="line.key" class="ck-item">
+                <span class="ck-item-thumb">
+                  <img
+                    v-if="lineImage(line) && !isImageFailed(`ck-${line.key}`)"
+                    :src="lineImage(line)"
+                    alt=""
+                    loading="lazy"
+                    @error="markImageFailed(`ck-${line.key}`)"
+                  />
+                  <Package v-else :size="18" :stroke-width="1.6" aria-hidden="true" />
+                </span>
+                <span class="ck-item-main">
+                  <span class="ck-item-title">{{ line.title }}</span>
+                  <span class="ck-item-sub">
+                    {{ line.specLabel }}
+                    <em v-if="lineIssueLabel(line)" class="ck-item-issue">
+                      {{ lineIssueLabel(line) }}
+                    </em>
+                  </span>
+                  <span v-if="line.quantity > 1" class="ck-item-price">
+                    {{ line.priceText }}<span class="ck-item-times"> × {{ line.quantity }}</span>
+                  </span>
+                </span>
+                <span class="ck-item-subtotal">{{ line.subtotalText }}</span>
+              </li>
+            </TransitionGroup>
+          </section>
+        </div>
 
-            <div class="ck-col">
-              <!-- 金额明细：一次把"付多少"说死。运费口径 2026-11-04：
+        <div class="ck-col">
+          <!-- 金额明细：一次把"付多少"说死。运费口径 2026-11-04：
                    「大部分地区包邮」—— 不写死成 0，因为少数地区的费用在人工环节确认。 -->
-              <section class="ck-block ck-amount" aria-label="金额明细">
-                <div v-if="summary.totalPoints" class="ck-row">
-                  <span>商品积分</span><strong>{{ summary.totalPoints }} 积分</strong>
-                </div>
-                <div v-if="summary.totalCents" class="ck-row">
-                  <span>现金</span><strong>{{ rmbText(summary.totalCents) }}</strong>
-                </div>
-                <div class="ck-row">
-                  <span>运费</span><strong class="is-free">大部分地区包邮</strong>
-                </div>
-                <div class="ck-row is-total">
-                  <span>应付</span><strong>{{ summary.totalText }}</strong>
-                </div>
-                <p
-                  v-if="summary.totalPoints"
-                  class="ck-balance"
-                  :class="{ 'is-short': summary.insufficientPoints }"
-                >
-                  当前余额 {{ pointsBalanceShown }} 积分，本单后剩
-                  {{ Math.max(0, summary.remainingPoints) }}
-                </p>
-              </section>
+          <section class="ck-block ck-amount" aria-label="金额明细">
+            <div v-if="summary.totalPoints" class="ck-row">
+              <span>商品积分</span><strong>{{ summary.totalPoints }} 积分</strong>
+            </div>
+            <div v-if="summary.totalCents" class="ck-row">
+              <span>现金</span><strong>{{ rmbText(summary.totalCents) }}</strong>
+            </div>
+            <div class="ck-row">
+              <span>运费</span><strong class="is-free">大部分地区包邮</strong>
+            </div>
+            <div class="ck-row is-total">
+              <span>应付</span><strong>{{ summary.totalText }}</strong>
+            </div>
+            <p
+              v-if="summary.totalPoints"
+              class="ck-balance"
+              :class="{ 'is-short': summary.insufficientPoints }"
+            >
+              当前余额 {{ pointsBalanceShown }} 积分，本单后剩
+              {{ Math.max(0, summary.remainingPoints) }}
+            </p>
+          </section>
 
-              <!-- 运费口径 2026-11-04：大部分地区不收邮费、积分之外的支付人工对接。
+          <!-- 运费口径 2026-11-04：大部分地区不收邮费、积分之外的支付人工对接。
                    一句话说清「提交后会发生什么」，不再复述金额区已有内容。 -->
-              <p class="ck-note">BOH 大部分地区不收寄送邮费；积分之外的支付，管理员会与你联系。</p>
+          <p class="ck-note">BOH 大部分地区不收寄送邮费；积分之外的支付，管理员会与你联系。</p>
 
-              <!-- 订单备注（2026-11-04）：尺码、收货时间这类要求以前只能事后私聊，
+          <!-- 订单备注（2026-11-04）：尺码、收货时间这类要求以前只能事后私聊，
                    商家备货时看不到、退款换货时也说不清当初要求过什么。
                    限 200 字（DB 侧同约束），随订单落库，不进用户资料。 -->
-              <section class="ck-block ck-remark" aria-label="礼物备注">
-                <label class="ck-remark-head" for="ck-remark-input">
-                  礼物备注
-                  <span class="ck-remark-opt">选填 · 最多 200 字</span>
-                </label>
-                <input
-                  id="ck-remark-input"
-                  v-model="remark"
-                  class="ck-remark-input"
-                  type="text"
-                  maxlength="200"
-                  autocomplete="off"
-                  placeholder="尺码 / 时间 / 其他要求"
-                />
-              </section>
-            </div>
-          </div>
-
-          <footer class="ck-foot">
-            <div v-if="summary.issues.length" class="ck-issues" role="status">
-              <p
-                v-for="issue in summary.issues"
-                :key="issue.code"
-                class="ck-issue"
-                :class="`is-${issue.level}`"
-              >
-                {{ issue.message }}
-              </p>
-              <button
-                v-if="summary.removableKeys.length"
-                type="button"
-                class="ck-issue-fix"
-                @click="$emit('remove-invalid', summary.removableKeys)"
-              >
-                移除 {{ summary.removableKeys.length }} 件失效商品
-              </button>
-            </div>
-
-            <div class="ck-foot-row">
-              <div class="ck-total">
-                <span>合计</span>
-                <strong>{{ summary.totalText }}</strong>
-              </div>
-              <button
-                type="button"
-                class="ck-submit"
-                :disabled="!summary.canSubmit || submitting"
-                @click="handleSubmit"
-              >
-                <span v-if="submitting" class="ck-spinner" aria-hidden="true"></span>
-                {{ submitting ? '提交中…' : '提交礼物' }}
-              </button>
-            </div>
-          </footer>
-        </section>
-
-        <!-- 地址选择 / 新增：叠在结算页之上的第二层，不跳走、不丢当前订单。
-             整层走 Transition（遮罩淡入 + 面板上滑），列表与表单之间再来一层
-             out-in 的短过渡 —— 两处都不许硬切。 -->
-        <Transition name="ck-layer">
-          <div v-if="pickerOpen" class="ck-picker-root">
-            <div class="ck-picker-scrim" @click="closePicker"></div>
-            <section class="ck-picker" role="dialog" aria-modal="true" aria-label="选择收货地址">
-              <header class="ck-picker-head">
-                <h3>{{ pickerMode === 'form' ? '新增收货地址' : '选择收货地址' }}</h3>
-                <button type="button" class="ck-icon-btn" aria-label="关闭" @click="closePicker">
-                  <X :size="16" :stroke-width="2" aria-hidden="true" />
-                </button>
-              </header>
-
-              <Transition name="ck-step" mode="out-in">
-                <div v-if="pickerMode === 'list'" key="list" class="ck-picker-body">
-                  <p v-if="addressLoading" class="ck-picker-hint">正在读取地址…</p>
-                  <template v-else>
-                    <button
-                      v-for="addr in addresses"
-                      :key="addr.id"
-                      type="button"
-                      class="ck-pick-row"
-                      :class="{ 'is-active': selected && selected.id === addr.id }"
-                      @click="chooseAddress(addr)"
-                    >
-                      <span class="ck-pick-radio" aria-hidden="true">
-                        <Check
-                          v-if="selected && selected.id === addr.id"
-                          :size="12"
-                          :stroke-width="3"
-                        />
-                      </span>
-                      <span class="ck-pick-copy">
-                        <span class="ck-pick-head">
-                          <strong>{{ addr.recipient || '未填写' }}</strong>
-                          <span>{{ maskPhone(addr.phone) }}</span>
-                          <em v-if="addr.is_default" class="ck-pick-badge">默认</em>
-                        </span>
-                        <span class="ck-pick-detail">{{ addressText(addr) }}</span>
-                      </span>
-                    </button>
-                    <p v-if="!addresses.length" class="ck-picker-hint">
-                      地址簿是空的，先添加一个。
-                    </p>
-                  </template>
-                  <button type="button" class="ck-pick-add" @click="startCreate">
-                    <Plus :size="15" :stroke-width="2" aria-hidden="true" />
-                    新增收货地址
-                  </button>
-                  <button
-                    v-if="addresses.length"
-                    type="button"
-                    class="ck-pick-manage"
-                    @click="$emit('manage-addresses')"
-                  >
-                    在地址簿里编辑 / 删除
-                  </button>
-                </div>
-
-                <div v-else key="form" class="ck-picker-body">
-                  <div class="ck-form-grid">
-                    <label class="ck-field">
-                      <span>收件人</span>
-                      <input v-model.trim="form.recipient" type="text" placeholder="收件人姓名" />
-                    </label>
-                    <label class="ck-field">
-                      <span>电话</span>
-                      <input
-                        v-model.trim="form.phone"
-                        type="tel"
-                        inputmode="tel"
-                        placeholder="手机号"
-                      />
-                    </label>
-                  </div>
-
-                  <div class="ck-field">
-                    <span>收货地址</span>
-                    <div class="ck-paste">
-                      <input
-                        ref="pasteInputRef"
-                        v-model="form.pasteText"
-                        type="text"
-                        :placeholder="awaitingPaste ? '粘贴到这里' : '粘贴整段地址自动拆分'"
-                        @paste="handleAddressPaste"
-                        @input="handleAddressTyping"
-                      />
-                      <button
-                        type="button"
-                        class="ck-paste-btn"
-                        :class="{ 'is-awaiting': awaitingPaste }"
-                        :disabled="recognizing"
-                        @click="readClipboardAddress"
-                      >
-                        <ClipboardPaste :size="14" :stroke-width="1.8" aria-hidden="true" />
-                        {{ recognizing ? '识别中' : awaitingPaste ? '等待粘贴' : '识别' }}
-                      </button>
-                    </div>
-                    <div class="ck-addr-grid">
-                      <div class="ck-select">
-                        <select v-model="form.province" aria-label="省份">
-                          <option value="">省份</option>
-                          <option v-for="province in PROVINCES" :key="province" :value="province">
-                            {{ province }}
-                          </option>
-                        </select>
-                      </div>
-                      <input
-                        v-model.trim="form.city"
-                        type="text"
-                        placeholder="城市"
-                        aria-label="城市"
-                      />
-                    </div>
-                    <textarea
-                      v-model.trim="form.detail"
-                      rows="2"
-                      placeholder="区县 / 街道 / 门牌号"
-                      aria-label="详细地址"
-                    ></textarea>
-                  </div>
-
-                  <p v-if="formError" class="ck-form-error" role="alert">{{ formError }}</p>
-
-                  <div class="ck-form-actions">
-                    <button type="button" class="ck-btn-ghost" @click="closePicker">取消</button>
-                    <button
-                      type="button"
-                      class="ck-btn-primary"
-                      :disabled="saving"
-                      @click="saveNewAddress"
-                    >
-                      {{ saving ? '保存中…' : '保存并使用' }}
-                    </button>
-                  </div>
-                </div>
-              </Transition>
-            </section>
-          </div>
-        </Transition>
+          <section class="ck-block ck-remark" aria-label="礼物备注">
+            <label class="ck-remark-head" for="ck-remark-input">
+              礼物备注
+              <span class="ck-remark-opt">选填 · 最多 200 字</span>
+            </label>
+            <input
+              id="ck-remark-input"
+              v-model="remark"
+              class="ck-remark-input"
+              type="text"
+              maxlength="200"
+              autocomplete="off"
+              placeholder="尺码 / 时间 / 其他要求"
+            />
+          </section>
+        </div>
       </div>
-    </Transition>
-  </Teleport>
+
+      <footer class="ck-foot">
+        <div v-if="summary.issues.length" class="ck-issues" role="status">
+          <p
+            v-for="issue in summary.issues"
+            :key="issue.code"
+            class="ck-issue"
+            :class="`is-${issue.level}`"
+          >
+            {{ issue.message }}
+          </p>
+          <button
+            v-if="summary.removableKeys.length"
+            type="button"
+            class="ck-issue-fix"
+            @click="$emit('remove-invalid', summary.removableKeys)"
+          >
+            移除 {{ summary.removableKeys.length }} 件失效商品
+          </button>
+        </div>
+
+        <div class="ck-foot-row">
+          <div class="ck-total">
+            <span>合计</span>
+            <strong>{{ summary.totalText }}</strong>
+          </div>
+          <button
+            type="button"
+            class="ck-submit"
+            :disabled="!summary.canSubmit || submitting"
+            @click="handleSubmit"
+          >
+            <span v-if="submitting" class="ck-spinner" aria-hidden="true"></span>
+            {{ submitting ? '提交中…' : '提交礼物' }}
+          </button>
+        </div>
+      </footer>
+
+      <!-- 地址选择 / 新增：叠在结算页之上的第二层，不跳走、不丢当前订单。
+               整层走 Transition（遮罩淡入 + 面板上滑），列表与表单之间再来一层
+               out-in 的短过渡 —— 两处都不许硬切。
+               ⚠️ 它在 .ck-sheet 内部：.ck-picker-root 是 absolute inset:0，
+                  包含块就是 .ck-sheet（已显式 position: relative）——
+                  放到壳的 dialog 下会铺满整个视口而不是面板。 -->
+      <Transition name="ck-layer">
+        <div v-if="pickerOpen" class="ck-picker-root">
+          <div class="ck-picker-scrim" @click="closePicker"></div>
+          <section class="ck-picker" role="dialog" aria-modal="true" aria-label="选择收货地址">
+            <header class="ck-picker-head">
+              <h3>{{ pickerMode === 'form' ? '新增收货地址' : '选择收货地址' }}</h3>
+              <button type="button" class="ck-icon-btn" aria-label="关闭" @click="closePicker">
+                <X :size="16" :stroke-width="2" aria-hidden="true" />
+              </button>
+            </header>
+
+            <Transition name="ck-step" mode="out-in">
+              <div v-if="pickerMode === 'list'" key="list" class="ck-picker-body">
+                <p v-if="addressLoading" class="ck-picker-hint">正在读取地址…</p>
+                <template v-else>
+                  <button
+                    v-for="addr in addresses"
+                    :key="addr.id"
+                    type="button"
+                    class="ck-pick-row"
+                    :class="{ 'is-active': selected && selected.id === addr.id }"
+                    @click="chooseAddress(addr)"
+                  >
+                    <span class="ck-pick-radio" aria-hidden="true">
+                      <Check
+                        v-if="selected && selected.id === addr.id"
+                        :size="12"
+                        :stroke-width="3"
+                      />
+                    </span>
+                    <span class="ck-pick-copy">
+                      <span class="ck-pick-head">
+                        <strong>{{ addr.recipient || '未填写' }}</strong>
+                        <span>{{ maskPhone(addr.phone) }}</span>
+                        <em v-if="addr.is_default" class="ck-pick-badge">默认</em>
+                      </span>
+                      <span class="ck-pick-detail">{{ addressText(addr) }}</span>
+                    </span>
+                  </button>
+                  <p v-if="!addresses.length" class="ck-picker-hint">地址簿是空的，先添加一个。</p>
+                </template>
+                <button type="button" class="ck-pick-add" @click="startCreate">
+                  <Plus :size="15" :stroke-width="2" aria-hidden="true" />
+                  新增收货地址
+                </button>
+                <button
+                  v-if="addresses.length"
+                  type="button"
+                  class="ck-pick-manage"
+                  @click="$emit('manage-addresses')"
+                >
+                  在地址簿里编辑 / 删除
+                </button>
+              </div>
+
+              <div v-else key="form" class="ck-picker-body">
+                <div class="ck-form-grid">
+                  <label class="ck-field">
+                    <span>收件人</span>
+                    <input v-model.trim="form.recipient" type="text" placeholder="收件人姓名" />
+                  </label>
+                  <label class="ck-field">
+                    <span>电话</span>
+                    <input
+                      v-model.trim="form.phone"
+                      type="tel"
+                      inputmode="tel"
+                      placeholder="手机号"
+                    />
+                  </label>
+                </div>
+
+                <div class="ck-field">
+                  <span>收货地址</span>
+                  <div class="ck-paste">
+                    <input
+                      ref="pasteInputRef"
+                      v-model="form.pasteText"
+                      type="text"
+                      :placeholder="awaitingPaste ? '粘贴到这里' : '粘贴整段地址自动拆分'"
+                      @paste="handleAddressPaste"
+                      @input="handleAddressTyping"
+                    />
+                    <button
+                      type="button"
+                      class="ck-paste-btn"
+                      :class="{ 'is-awaiting': awaitingPaste }"
+                      :disabled="recognizing"
+                      @click="readClipboardAddress"
+                    >
+                      <ClipboardPaste :size="14" :stroke-width="1.8" aria-hidden="true" />
+                      {{ recognizing ? '识别中' : awaitingPaste ? '等待粘贴' : '识别' }}
+                    </button>
+                  </div>
+                  <div class="ck-addr-grid">
+                    <div class="ck-select">
+                      <select v-model="form.province" aria-label="省份">
+                        <option value="">省份</option>
+                        <option v-for="province in PROVINCES" :key="province" :value="province">
+                          {{ province }}
+                        </option>
+                      </select>
+                    </div>
+                    <input
+                      v-model.trim="form.city"
+                      type="text"
+                      placeholder="城市"
+                      aria-label="城市"
+                    />
+                  </div>
+                  <textarea
+                    v-model.trim="form.detail"
+                    rows="2"
+                    placeholder="区县 / 街道 / 门牌号"
+                    aria-label="详细地址"
+                  ></textarea>
+                </div>
+
+                <p v-if="formError" class="ck-form-error" role="alert">{{ formError }}</p>
+
+                <div class="ck-form-actions">
+                  <button type="button" class="ck-btn-ghost" @click="closePicker">取消</button>
+                  <button
+                    type="button"
+                    class="ck-btn-primary"
+                    :disabled="saving"
+                    @click="saveNewAddress"
+                  >
+                    {{ saving ? '保存中…' : '保存并使用' }}
+                  </button>
+                </div>
+              </div>
+            </Transition>
+          </section>
+        </div>
+      </Transition>
+    </section>
+  </BohModal>
 </template>
 
 <script setup>
@@ -349,7 +361,15 @@ import {
   parseAddress,
 } from '@/utils/address-parse.js';
 import { logger } from '@/utils/logger.js';
+import BohModal from '@/components/ui/BohModal.vue';
 import { buildCheckoutSummary, lineIssueLabel } from './checkout-summary.js';
+
+/**
+ * 交给壳的最大高度。横屏原来是 `min(620px, 100vh - 40px)`：
+ * 844×390 下 = 350px，而壳默认 `min(78vh, 720px)` 只有 304px ⇒ 底栏被裁 46px。
+ * 竖屏走 portraitPage（壳内部 `max-height: none` + `height: 100%`），这个值不参与。
+ */
+const shellMaxHeight = 'min(620px, calc(100vh - 40px))';
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
@@ -649,19 +669,29 @@ const handleSubmit = () => {
   });
 };
 
+/**
+ * 关闭请求。两条来源，都只 emit 一次（父层 `closeCheckout` 幂等，此处不做去重 ——
+ * 它们是**不同的用户操作**，不会同时发生）：
+ *   · 宿主自己的返回钮 → 本函数；
+ *   · 壳的 Esc / 遮罩 → 壳 emit `close` → `@close="requestClose"`。
+ * 两条都必须走到 emit：壳把 `modelValue` 当受控值，`update:modelValue` 没有回写通道
+ * （`:model-value="visible"` 是单向的），所以「只关壳」不会让父层关掉结算。
+ */
 const requestClose = () => {
   if (props.submitting) return;
   closePicker();
   emit('close');
 };
 
-const onKeydown = (event) => {
-  if (event.key !== 'Escape' || !props.visible) return;
-  if (pickerOpen.value) {
-    closePicker();
-    return;
+/** 滚到顶部（壳的 body 是滚动容器，宿主不再自己滚 —— 见模板注释）。 */
+const scrollBodyToTop = () => {
+  const body = bodyRef.value;
+  if (!body) return;
+  let el = body.parentElement;
+  while (el && !(el.classList?.contains('boh-modal__body') || el === document.body)) {
+    el = el.parentElement;
   }
-  requestClose();
+  if (el && el !== document.body) el.scrollTop = 0;
 };
 
 watch(
@@ -676,8 +706,9 @@ watch(
     // 一条地址都没有（也没有历史回落）⇒ 直接把新增表单摆出来，别让用户先点一次「去填写」
     if (!selected.value) openPicker('form');
     /* 键盘/读屏的滚动指令要落在弹层里：结算页是覆盖全屏的一层，
-       焦点留在背后页面上会让阅读顺序错位（与商品详情 playOpen 同一处理）。 */
-    void nextTick(() => bodyRef.value?.parentElement?.focus?.({ preventScroll: true }));
+       焦点留在背后页面上会让阅读顺序错位。焦点入弹层已由壳的 v-dialog-focus 接管，
+       这里只负责把滚动位置归零（换一次下单不该继承上一次的滚动位置）。 */
+    void nextTick(scrollBodyToTop);
   },
 );
 
@@ -690,53 +721,68 @@ watch(
   },
 );
 
-if (typeof document !== 'undefined') document.addEventListener('keydown', onKeydown);
+/**
+ * Esc 分级：**必须挂在 document 的捕获阶段**（2026-11-24 迁壳时改，plans/047 §8）。
+ *
+ * 迁前行为（实测基线）：开地址选择层 → Esc → **只关选择层、结算仍在** → 再 Esc → 关结算。
+ * 迁壳后这条语义会被壳的焦点陷阱吃掉：陷阱挂在 overlay 上、冒泡阶段，
+ * 收到 Esc 就 `stopPropagation()` 并调用**壳自己的 requestClose**（直接 emit close）
+ * ⇒ 结算这个监听器根本轮不到，一次 Esc 把两层一起关掉（用户在选地址时被踢出下单流程）。
+ *
+ * 实测（about:blank 里复现两种阶段）：
+ *   · overlay 冒泡 `stopPropagation()` **能挡住** document 的**冒泡**监听；
+ *   · document 的**捕获**监听在 overlay 之前触发，抢得到。
+ * 所以本层挂捕获：有内层（地址选择）时自己收掉并阻止继续传播；没有内层时
+ * **什么都不做**，把 Esc 完整让给壳 —— 壳的「一个弹层一次 Esc」语义不动，
+ * 不需要为结算给壳开口子。
+ */
+const onKeydown = (event) => {
+  if (event.key !== 'Escape' || !props.visible) return;
+  if (!pickerOpen.value) return;
+  /* 内层吃掉这一次：停在这里，壳的陷阱收不到 ⇒ 只关选择层 */
+  event.stopPropagation();
+  closePicker();
+};
+
+document.addEventListener('keydown', onKeydown, true);
 onBeforeUnmount(() => {
-  document.removeEventListener('keydown', onKeydown);
+  document.removeEventListener('keydown', onKeydown, true);
   stopPasteWatch();
 });
 </script>
 
 <style scoped>
-.ck-root {
-  position: fixed;
-  inset: 0;
-  /* 与商品详情 / 抽奖详情 / 支付成功同档：压过全局导航（9999）与左栏 */
-  z-index: 2147482400;
-  color: var(--boh-text-primary, #1d1d1f);
-}
+/* ── 外框交给壳（BohModal）：定位 / 遮罩 / z-index / 圆角 / 阴影 / 滚锁全在壳里。
+      本文件只剩「面板内部怎么排」—— head(固定) + body(撑满并自己滚) + foot(固定)。
+      ⚠️ 竖屏整页与横屏居中弹窗的差异由壳的 portraitPage 表达（断点走 orientation，
+         与原先的媒体查询口径一致），所以这里不再写 @media (orientation: portrait)
+         去重定义 .ck-sheet 的 inset / radius —— 那是第二份真源。 */
 
-.ck-scrim {
-  position: absolute;
-  inset: 0;
-  background: rgba(15, 23, 42, 0.32);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-}
-
-/* 竖屏是**一整页**，不是盖在购物袋上的弹窗：遮罩根本不参与（留着它会在
-   进出场的那 30ms 里闪一层灰）。只有横屏弹窗形态才需要遮罩。 */
-@media (orientation: portrait) {
-  .ck-scrim {
-    display: none;
-  }
-}
-
-/* ── 竖屏：整页（手机上是"下一页"，不是弹窗） ── */
 .ck-sheet {
-  position: absolute;
-  inset: 0;
+  /* 地址选择层（.ck-picker-root）是 absolute inset:0 —— 它的包含块必须是这里。
+     不加 relative 时它会一路上溯到壳的 dialog（甚至视口），铺满整页而不是面板。 */
+  position: relative;
   display: flex;
   flex-direction: column;
+  /* 壳的 body（flush）给了 flex:1 + min-height:0 ⇒ 用 flex:1 接住分配下来的高度。
+     ⚠️ 不能写 height:100%：它的包含块是 flex 分配出来的高度，百分比会退化成 auto
+        （实测横屏 sheet 长到 455px 而 dialog 只有 350px，底栏被裁出视口）。 */
+  flex: 1;
+  min-height: 0;
+  width: 100%;
   background: var(--boh-bg-secondary, #f5f5f7);
+  overflow: hidden;
 }
 
-.ck-sheet:focus {
-  outline: none;
-}
+/* 横屏：壳的 dialog 里再排成「左栏 / 右栏」两列，见文件下方媒体查询 */
 
 .ck-head {
   flex: none;
+  /* 壳的 `.boh-modal__head` 是 `display:flex; justify-content:space-between` 的容器，
+     子项默认按**内容宽**排（实测只有 188px / 390px）—— 白底与底边分隔线就只铺到
+     「共 N 件」后面，右边留一条灰带（截图肉眼可见，几何断言全绿）。
+     `width: 100%` 让它撑满壳给的那条 390px。 */
+  width: 100%;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -1591,20 +1637,11 @@ onBeforeUnmount(() => {
 
 /* ── 横屏 / 宽屏：与论坛详情、商品详情同一套居中弹窗语言 ──
    内容改成两栏：左「地址 + 商品」（要核对的东西），右「金额 + 说明」。
-   横屏高度只有 300~400px，单栏会把商品清单挤成"露出半行"的样子。 */
+   横屏高度只有 300~400px，单栏会把商品清单挤成"露出半行"的样子。
+   ⚠️ 面板本身的 width / height / 定位 / 圆角 / 阴影全部由壳承担
+      （`max-width="880px"` + `max-height` 口子 + portraitPage 的横屏回退），
+      这里只负责「内部怎么分栏」—— 别再写第二份 .ck-sheet 几何。 */
 @media (orientation: landscape) {
-  .ck-sheet {
-    inset: auto;
-    top: 50%;
-    left: 50%;
-    width: min(880px, calc(100vw - 64px));
-    height: min(620px, calc(100vh - 40px));
-    transform: translate(-50%, -50%);
-    border-radius: var(--liquid-radius-lg, 24px);
-    overflow: hidden;
-    box-shadow: 0 24px 80px rgba(15, 23, 42, 0.28);
-  }
-
   /* 内容拆成左右两栏：左「地址 + 商品」（要核对的东西），右「金额 + 说明」。
      横屏高度只有 300~400px，单栏会把商品清单挤成"露出半行"的样子。
      用 flex 而不是 grid：两栏各自按内容排，谁也不去抢对方的高度。 */
@@ -1668,45 +1705,14 @@ onBeforeUnmount(() => {
 }
 
 /* ── 进出场 ──
-   竖屏：整页**从右推进来**（iOS 的"下一页"手感），不是底部上浮的抽屉；
-   横屏：居中弹窗淡入 + 轻推 10px。减少动态时压到瞬时。 */
-.ck-enter-active,
-.ck-leave-active {
-  transition: opacity 180ms ease;
-}
-
-.ck-enter-from,
-.ck-leave-to {
-  opacity: 0;
-}
-
-.ck-enter-active .ck-sheet,
-.ck-leave-active .ck-sheet {
-  transition: transform 300ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1));
-}
-
-.ck-enter-from .ck-sheet,
-.ck-leave-to .ck-sheet {
-  transform: translateX(100%);
-}
-
-@media (orientation: landscape) {
-  .ck-enter-from .ck-sheet,
-  .ck-leave-to .ck-sheet {
-    transform: translate(-50%, calc(-50% + 10px));
-  }
-
-  .ck-layer-enter-from .ck-picker,
-  .ck-layer-leave-to .ck-picker {
-    transform: translate(-50%, calc(-50% + 12px));
-  }
-}
+   2026-11-24 迁壳后，**面板本身的进场交给壳**（竖屏 portraitPage / 横屏居中弹窗，
+   壳统一用 boh-fade + boh-pop）—— 原来那套 `.ck-enter-from .ck-sheet {
+   transform: translateX(100%) }`（竖屏从右推进）随着外层 `<Transition name="ck">`
+   一起删掉了：Transition 已经被 BohModal 取代，这些类名不会再被任何元素匹配，
+   留着就是「看起来在描述动效、实际一行都不跑」的死代码。
+   下面留下的 ck-layer / ck-step / ck-line 都是**面板内部**的过渡，仍然有效。 */
 
 @media (prefers-reduced-motion: reduce) {
-  .ck-enter-active,
-  .ck-leave-active,
-  .ck-enter-active .ck-sheet,
-  .ck-leave-active .ck-sheet,
   .ck-layer-enter-active,
   .ck-layer-leave-active,
   .ck-layer-enter-active .ck-picker,

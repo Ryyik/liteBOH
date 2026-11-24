@@ -15,23 +15,61 @@ import { resolve } from 'node:path';
  */
 const read = (p) => readFileSync(resolve(process.cwd(), p), 'utf8');
 const compact = (s) => s.replace(/\s+/g, '');
+/**
+ * 只取 **`<template>` 段**并剥掉 HTML 注释后再 compact。
+ * 为什么不用 `tests/helpers/source.js` 的 `stripComments`：它只剥 JS 的 `/* *\/`
+ * 与 `//`，**不剥 `<!-- -->`，也不管 `<style>` 里的 CSS 注释**（plans/045 第六家族
+ * 记过同一个坑）。本文件有几条「不许出现 X」的负断言，而 X 恰恰会被写在注释里
+ * 解释「为什么删掉它」—— 模板注释和 style 注释都可能命中，所以两头都剥掉。
+ */
+const templateOnly = (vueSource) => {
+  /* ⚠️ 两个坑叠在一起：
+     ① 不能用 `indexOf('</template>')` 切 —— 模板内部有 `<template #head>` 这类
+        **内层** template（结算把页头交给壳的 #head 槽），会切在第一个内层的收尾上，
+        量到半截，负断言全部假绿；
+     ② 也不能用 `lastIndexOf('</template>')` —— 那样会把 `<script>` 与 `<style>`
+        一起圈进来，而它们里面正好写着「原来 .ck-enter-from 已删除」的注释，
+        负断言会自己撞自己。
+     正解：从 `<template>` 切到 `<script` / `<style` 的**最早出现处**为止。 */
+  const start = vueSource.indexOf('<template>');
+  const stops = ['<script', '<style'].map((t) => vueSource.indexOf(t)).filter((i) => i > start);
+  const stop = stops.length ? Math.min(...stops) : vueSource.length;
+  const tpl = start >= 0 ? vueSource.slice(start, stop) : '';
+  return compact(tpl.replace(/<!--[\s\S]*?-->/g, ''));
+};
 
 describe('确认礼物页（CheckoutSheet）形态契约', () => {
   const sheet = compact(read('src/views/Shop/CheckoutSheet.vue'));
 
-  it('竖屏是整页：root 与 sheet 都铺满视口，不留圆角/阴影的卡片感', () => {
-    expect(sheet).toContain('.ck-root{position:fixed;inset:0');
-    expect(sheet).toMatch(/\.ck-sheet\{position:absolute;inset:0/);
+  /* 2026-11-24 迁壳（plans/045 C 类第三份 / plans/047 §8）：外框（整页/居中/遮罩/
+     圆角/阴影/z-index/滚锁）全部归 BohModal，宿主只剩内部排版。
+     判据从「宿主自己写 position:fixed + inset:0」改成**契约级**：
+     宿主必须走壳、必须声明 portrait-page（竖屏整页）、必须给 max-width（横屏宽度）、
+     必须给 max-height（横屏高度，壳默认 78vh 会裁掉底栏 46px）。
+     迁移前那三条 `.ck-root{position:fixed` / `.ck-scrim` / `translate(-50%,-50%)`
+     已全部失效 —— 留着它们只会让「谁负责形态」这个问题有两个答案。 */
+  it('竖屏整页由壳的 portraitPage 承接（宿主不再自绘固定层）', () => {
+    const tpl = templateOnly(read('src/views/Shop/CheckoutSheet.vue'));
+    expect(tpl).toContain('<BohModal');
+    expect(tpl).toContain('portrait-page');
+    /* 负断言看模板：'ck-root' 这串字在 style 注释里出现过（说明已删） */
+    expect(tpl).not.toContain('ck-root');
   });
 
-  it('竖屏不渲染遮罩（遮罩只在横屏弹窗形态出现）', () => {
-    expect(sheet).toMatch(/@media\(orientation:portrait\)\{\.ck-scrim\{display:none/);
+  it('横屏几何两个口子都给：max-width（宽）+ max-height（高）', () => {
+    /* max-height 是必须的：壳默认 min(78vh,720px)，844×390 下只有 304px，
+       而结算需要 350px（min(620, 100vh-40)），少 46px 会把底部结算条裁掉。 */
+    const tpl = templateOnly(read('src/views/Shop/CheckoutSheet.vue'));
+    expect(tpl).toContain('max-width="880px"');
+    expect(tpl).toContain(':max-height="shellMaxHeight"');
+    expect(sheet).toMatch(/shellMaxHeight='min\(620px,calc\(100vh-40px\)\)'/);
   });
 
-  it('横屏才切成居中弹窗（transform 居中 + 圆角）', () => {
-    expect(sheet).toMatch(
-      /@media\(orientation:landscape\)\{[\s\S]*?\.ck-sheet\{[\s\S]*?translate\(-50%,-50%\)/,
-    );
+  it('遮罩归壳：宿主不再自带 scrim（竖屏整页本来就不该有）', () => {
+    const tpl = templateOnly(read('src/views/Shop/CheckoutSheet.vue'));
+    expect(tpl).not.toContain('ck-scrim');
+    /* 壳默认 closeOnBackdrop=true；结算是关键路径，误点遮罩会丢掉当前订单 */
+    expect(tpl).toContain(':close-on-backdrop="false"');
   });
 
   it('有显式返回按钮：竖屏没有遮罩可点，只剩手势就太隐晦', () => {
@@ -165,14 +203,25 @@ describe('交互动效契约：不许硬切', () => {
   const bag = compact(read('src/views/Shop/BagPanel.vue'));
   const order = compact(read('src/views/Shop/OrderDetailSheet.vue'));
 
-  it('确认礼物整页有进出场（竖屏从右推进来）', () => {
-    expect(sheet).toContain('<Transitionname="ck">');
-    expect(sheet).toMatch(/\.ck-enter-from\.ck-sheet,[^{]*\{transform:translateX\(100%\)/);
-  });
-
-  it('地址选择层与「列表 ⇄ 表单」切换都有过渡', () => {
-    expect(sheet).toContain('<Transitionname="ck-layer">');
-    expect(sheet).toContain('<Transitionname="ck-step"mode="out-in">');
+  /* 2026-11-24 迁壳：整页进出场归壳（竖屏 portraitPage / 横屏居中弹窗，壳统一
+     boh-fade + boh-pop）。原来这条锁的是宿主自己的 `<Transition name="ck">` +
+     `.ck-enter-from .ck-sheet{transform:translateX(100%)}`（竖屏从右推进）——
+     迁壳后那两个类名不会再被任何元素匹配，断言留着就是「锁一段不跑的代码」。
+     与上面「订单详情走 BohModal」那条同一口径：判据改成
+     「宿主走壳 + 壳的 motion 预设真的覆盖了进出场」。 */
+  it('确认礼物走 BohModal 的进出场预设（宿主不再自带 .ck- 进出场）', () => {
+    /* 负断言只看模板段：那段「原来 .ck-enter-from 已删除」的说明写在 style 注释里，
+       连 style 一起扫会自己撞自己（见 templateOnly 注释）。 */
+    const tpl = templateOnly(read('src/views/Shop/CheckoutSheet.vue'));
+    expect(tpl).toContain('<BohModal');
+    expect(tpl).not.toContain('<Transitionname="ck">');
+    expect(tpl).not.toContain('<Teleport');
+    /* 面板内部的三层过渡仍然必须存在（它们没被壳接管） */
+    expect(tpl).toContain('<Transitionname="ck-layer">');
+    expect(tpl).toContain('<Transitionname="ck-step"mode="out-in">');
+    const modal = read('src/components/ui/BohModal.vue');
+    expect(modal).toContain('name="boh-fade"');
+    expect(modal).toContain("morph ? 'boh-morph' : 'boh-pop'");
   });
 
   it('移除失效商品时商品行淡出 + 其余行归位（TransitionGroup）', () => {

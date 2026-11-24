@@ -51,19 +51,41 @@ const bootShop = async (page, { points = 9999, openCheckout = true } = {}) => {
   );
 };
 
+/**
+ * 几何快照。
+ *
+ * ⚠️ 2026-11-24 迁壳后**量的是壳的 dialog，不是 `.ck-sheet`**（原版量后者）。
+ * 原因：`.ck-sheet` 现在只是 dialog 里的「body 段」——面板头部（返回钮 + 标题 +
+ * 件数）通过壳的 `#head` 槽渲染在它**上面**，所以 `.ck-sheet` 的 y 不再是 0、
+ * 高度也不等于视口高（实测 390×844 下量到 {y:61, h:783}）。拿它判「整页铺满」
+ * 会得到一个永远红的假断言 —— 而真实形态（dialog 390×844、零圆角）是对的。
+ * 判「整页语义」只能看 dialog：它才是那块可见体。
+ */
 const geometry = (page) =>
   page.evaluate(() => {
+    const dialog = document.querySelector('.boh-modal__dialog');
     const sheet = document.querySelector('.ck-sheet');
-    if (!sheet) return null;
-    const box = sheet.getBoundingClientRect();
-    const style = getComputedStyle(sheet);
-    const scrim = document.querySelector('.ck-scrim');
+    if (!dialog) return null;
+    const box = dialog.getBoundingClientRect();
+    const style = getComputedStyle(dialog);
+    /* 遮罩：迁壳后是壳的 overlay（玻璃 scrim），`.ck-scrim` 已经不存在。
+       竖屏整页时 overlay 仍在（壳的容器），但它铺的是页面底色而不是半透明遮罩 ——
+       判「有没有视觉遮罩」看它的 background 是否透明即可。 */
+    const overlay = document.querySelector('.boh-modal__overlay');
+    const overlayStyle = overlay ? getComputedStyle(overlay) : null;
     return {
       viewport: { w: window.innerWidth, h: window.innerHeight },
       sheet: { x: box.x, y: box.y, w: Math.round(box.width), h: Math.round(box.height) },
+      body: sheet
+        ? {
+            y: Math.round(sheet.getBoundingClientRect().y),
+            h: Math.round(sheet.getBoundingClientRect().height),
+          }
+        : null,
       radius: style.borderTopLeftRadius,
       shadow: style.boxShadow,
-      scrimDisplay: scrim ? getComputedStyle(scrim).display : 'missing',
+      overlayBg: overlayStyle ? overlayStyle.backgroundColor : 'missing',
+      hasOwnScrim: Boolean(document.querySelector('.ck-scrim')),
     };
   });
 
@@ -103,7 +125,7 @@ const browser = await chromium.launch({
   const geo = await geometry(page);
   check(
     'A1 竖屏铺满视口（不是一张浮在上面的卡片）',
-    geo.sheet.w === 390 && geo.sheet.h === 844,
+    geo.sheet.w === 390 && geo.sheet.h === 844 && geo.sheet.x === 0 && geo.sheet.y === 0,
     JSON.stringify(geo.sheet),
   );
   check(
@@ -111,8 +133,34 @@ const browser = await chromium.launch({
     geo.radius === '0px' && geo.shadow === 'none',
     `${geo.radius} / ${geo.shadow}`,
   );
-  check('A3 竖屏不渲染遮罩', geo.scrimDisplay === 'none', geo.scrimDisplay);
+  /* 2026-11-24 迁壳：`.ck-scrim` 已删除（遮罩归壳）。原来的判据「scrim 的
+     display === 'none'」变成无意义的 missing。真正的语义是「竖屏整页不像
+     浮层那样压暗背后」—— 现在背后没有页面（整页铺满），壳也不画灰色遮罩底。
+     所以判两件事：宿主不再自带 scrim（防回潮），且壳的 overlay 没有画出深底。 */
+  check('A3 竖屏不渲染自带遮罩', geo.hasOwnScrim === false, `hasOwnScrim=${geo.hasOwnScrim}`);
+  check(
+    'A3b 竖屏 overlay 不压暗（整页语义，不是浮层）',
+    geo.overlayBg === 'rgba(0, 0, 0, 0)' || geo.overlayBg === 'transparent',
+    geo.overlayBg,
+  );
   check('A4 页头是「确认订单」+ 件数', await page.isVisible('.ck-title'));
+
+  /* ⚠️ 2026-11-24 迁壳时补：**页头必须撑满**，否则只有左边一块有底色。
+     壳的 `.boh-modal__head` 是 `display:flex; justify-content:space-between` 的容器，
+     `.ck-head` 作为子项默认按**内容宽**排（实测 188px / 390px）⇒ 白底与底边分隔线
+     只铺到「共 N 件」后面，右边留一条灰带。**几何断言全绿、只有截图看得出来**
+     （和 G5b 那条「卡面下沿留白」同一类）。判据：两个宽度必须一致。 */
+  const headWidth = await page.evaluate(() => {
+    const shell = document.querySelector('.boh-modal__head');
+    const own = document.querySelector('.ck-head');
+    if (!shell || !own) return null;
+    return { shell: shell.getBoundingClientRect().width, own: own.getBoundingClientRect().width };
+  });
+  check(
+    'A4b 页头撑满（.ck-head 与壳的 #head 槽等宽，不留灰带）',
+    headWidth !== null && Math.abs(headWidth.shell - headWidth.own) <= 1,
+    headWidth ? `shell=${headWidth.shell.toFixed(1)} own=${headWidth.own.toFixed(1)}` : '页头缺失',
+  );
 
   const ready = await submitState(page);
   check('A5 地址齐全 + 积分充足时可提交', ready.disabled === false, JSON.stringify(ready));
@@ -239,7 +287,47 @@ const browser = await chromium.launch({
   const centered = Math.abs(geo.sheet.x + geo.sheet.w / 2 - 422) <= 1;
   check('E1 横屏居中', centered, JSON.stringify(geo.sheet));
   check('E2 横屏不溢出视口', geo.sheet.w < 844 && geo.sheet.h < 390, JSON.stringify(geo.sheet));
-  check('E3 横屏有遮罩（弹窗语义）', geo.scrimDisplay !== 'none', geo.scrimDisplay);
+  /* 横屏是**弹窗**语义（背后有页面要压暗）——遮罩归壳，判 overlay 真的画了半透明底。
+     与 A3b 正相反：竖屏整页那边必须是 transparent。 */
+  check(
+    'E3 横屏有遮罩（弹窗语义）',
+    geo.overlayBg !== 'rgba(0, 0, 0, 0)' && geo.overlayBg !== 'transparent',
+    geo.overlayBg,
+  );
+
+  /* ⚠️ 2026-11-24 迁壳时补的两条（反证出来的）：
+     横屏 dialog 的高度必须等于宿主经 `maxHeight` 口子声明的
+     `min(620px, 100vh - 40px)`（844×390 下 = 350）。
+     撤掉那个口子后壳回落到默认 `min(78vh,720px)` = 304px ——
+     **底栏不会被裁**（`.ck-body` 有 flex:1 + min-height:0，会自己让位），
+     但内容区被压到 185px、需要滚 153px 才看得全两件商品。
+     所以判据不能写「底栏可见」（那样永远绿），要判「高度真的用上了宿主声明的值」。
+     这条是「口子有没有被真的接上」的守卫 —— 壳侧的单测只能证明变量存在，
+     证明不了它被宿主传了值、也没被别的规则盖掉。 */
+  const expectedH = Math.min(620, 390 - 40);
+  check(
+    'E4 横屏高度用上 maxHeight 口子（不是壳默认 78vh）',
+    Math.abs(geo.sheet.h - expectedH) <= 2,
+    `h=${geo.sheet.h} 期望≈${expectedH}（壳默认 78vh=${Math.round(390 * 0.78)}）`,
+  );
+  const bodyBox = await page.evaluate(() => {
+    const body = document.querySelector('.ck-body');
+    return {
+      clientH: body.clientHeight,
+      scrollH: body.scrollHeight,
+      footInside: (() => {
+        const dlg = document.querySelector('.boh-modal__dialog').getBoundingClientRect();
+        return (
+          document.querySelector('.ck-foot').getBoundingClientRect().bottom <= dlg.bottom + 0.5
+        );
+      })(),
+    };
+  });
+  check(
+    'E5 横屏内容区没被压到极限（两件商品至少放得下一屏的三分之二）',
+    bodyBox.clientH >= 200 && bodyBox.footInside === true,
+    `body=${bodyBox.clientH}px（需滚 ${bodyBox.scrollH - bodyBox.clientH}px），footInside=${bodyBox.footInside}`,
+  );
   await ctx.close();
 }
 

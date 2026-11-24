@@ -61,6 +61,13 @@ const props = defineProps({
   showClose: { type: Boolean, default: true },
   /** 弹层最大宽度（CSS 长度）；空串用默认 420px。窄屏仍占满 */
   maxWidth: { type: String, default: '' },
+  /**
+   * 弹层最大高度（CSS 长度）；空串用默认 `min(78vh, 720px)`。
+   * 与 maxWidth 配对 —— 需要「比默认 78vh 更高」的宿主才传（结算横屏要
+   * `min(620px, 100vh - 40px)`：844×390 下 350px，而默认 78vh 只有 304px，
+   * 会把底部结算条裁掉 46px）。竖屏整页形态由 portraitPage 接管，本项不生效。
+   */
+  maxHeight: { type: String, default: '' },
   /** 去掉 body 内衬——内容自带 padding 的通栏布局用 */
   flush: { type: Boolean, default: false },
   /** 竖屏整页形态（不贴底）；断点走 orientation，横屏仍居中弹窗 */
@@ -84,6 +91,14 @@ useBodyScrollLock(isOpen, 'boh-modal');
 /** 面板元素：`morph` 宿主要靠它跑形变（useBohMorphSurface 的 surfaceRef）。 */
 const dialogRef = ref(null);
 defineExpose({ dialogRef });
+
+/** 两个几何口子都走 CSS 变量（不写内联 width/height，免得分叉默认值）。 */
+const dialogStyle = computed(() => {
+  const style = {};
+  if (props.maxWidth) style['--boh-modal-max-w'] = props.maxWidth;
+  if (props.maxHeight) style['--boh-modal-max-h'] = props.maxHeight;
+  return Object.keys(style).length ? style : null;
+});
 
 function requestClose() {
   emit('update:modelValue', false);
@@ -117,7 +132,7 @@ function onBackdropClick(event) {
             role="dialog"
             aria-modal="true"
             :aria-label="title || '对话框'"
-            :style="maxWidth ? { '--boh-modal-max-w': maxWidth } : null"
+            :style="dialogStyle"
           >
             <div class="boh-modal__grab" aria-hidden="true"></div>
             <header v-if="$slots.head" class="boh-modal__head boh-modal__head--slot">
@@ -165,7 +180,8 @@ function onBackdropClick(event) {
 
 .boh-modal__dialog {
   width: min(var(--boh-modal-max-w, 420px), calc(100vw - 48px));
-  max-height: min(78vh, 720px);
+  /* 默认 min(78vh, 720px)；宿主可通过 maxHeight 口子抬高（见 prop 注释）。 */
+  max-height: var(--boh-modal-max-h, min(78vh, 720px));
   display: flex;
   flex-direction: column;
   background: var(--liquid-bg-strong);
@@ -235,6 +251,18 @@ function onBackdropClick(event) {
 /* 通栏内容自带 padding（搜索栏 + 列表这类）时用 flush，滚动仍由本层接管 */
 .boh-modal__body--flush {
   padding: 0;
+  /* flush 的语义是「内衬和滚动都由宿主的那个唯一子元素自己管」——
+     那就必须把**高度**也交给它，否则它是拿不到确定高度的：
+       体没有 `flex`/`min-height:0` ⇒ 高度 = 内容高度（min-height:auto 压不下去）
+       ⇒ 子元素 `height:100%` 的包含块退化成 auto ⇒ 子元素照样按内容长高，
+          overflow:hidden 的 dialog 把多出来的部分裁掉。
+     实测（2026-11-24 结算迁壳）：844×390 横屏下 .ck-sheet 量到 455px，
+      而 dialog 只有 350px ⇒ 底部结算条整条被裁到视口外。
+     ⚠️ 这三行只作用于 flush；默认形态（标题 + 正文 + footer）完全不变。 */
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
 }
 
 .boh-modal__foot {
@@ -252,7 +280,10 @@ function onBackdropClick(event) {
   .boh-modal__dialog {
     width: 100%;
     border-radius: var(--liquid-radius-lg) var(--liquid-radius-lg) 0 0;
-    max-height: 86vh;
+    /* 窄屏贴底形态默认 86vh；但宿主显式给了 maxHeight 时以宿主为准 ——
+       否则 560px 宽的**横屏**（如 560×400）会走进这条媒体查询，
+       把 maxHeight 口子静默盖掉。 */
+    max-height: var(--boh-modal-max-h, 86vh);
   }
   .boh-modal__grab {
     display: block;
@@ -275,6 +306,14 @@ function onBackdropClick(event) {
 @media (orientation: portrait) {
   .boh-modal__overlay--page {
     align-items: stretch;
+    /* 整页形态背后**没有可压暗的页面**（它自己就是一屏），保留半透明遮罩只会
+       把整页糊成一层灰 —— 与原 CheckoutSheet / OrderDetailSheet 的
+       `@media (orientation: portrait) { .scrim { display: none } }` 同一语义。
+       用 transparent 而不是 display:none：overlay 还要接点击（closeOnBackdrop）
+       与焦点陷阱，不能整个消失。 */
+    background: transparent;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
   }
   .boh-modal__dialog--page {
     width: 100%;
