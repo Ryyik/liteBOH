@@ -444,12 +444,21 @@ const run = async () => {
   });
   await pageL.waitForTimeout(300);
   const afterScroll = await pageL.evaluate(modalLayoutMetrics);
+  /* A8 底部操作栏必须**贴住信息列底边**（2026-11-24 用户报障「评论区操作按钮应该贴底部」）。
+     ⚠️ 旧期望是 `gap 10~26px`，那是媒体满出血改造**之前**的旧口径（当时信息列有 16px 内衬）；
+     改造后内衬归零，实测 gap=1，这条断言从此长红 —— 红得久了就被当成「环境问题」忽略，
+     于是真正丢失的「贴底」契约没人守。这次按现状把口径改对，并把它变成会真红的那一条：
+       · 贴底：panel↔bar 底边距 ≤ 2px（只允许面板 1px 边框）；
+       · 恒定：滚动前后该值不变（滚动不许把按钮顶走）。
+     ⚠️ 它守的是**结果**而不是实现。贴底有两条独立通道（.pd-info-scroll 的 flex:1 吃满剩余，
+     或 actionbar 自身的 margin-top:auto）；只守前者的话，一旦将来有人换掉 scroll 的 flex，
+     按钮浮空而这条仍是绿的。所以这里量的是 bar 与 panel 的实际几何差。 */
   check(
-    'A8 评论区滚动后底部操作栏固定不动（panel↔actionbar 底边距恒定）',
+    'A8 评论区滚动后，底部操作栏仍贴住面板底边（且位置恒定）',
     Math.abs(afterScroll.actionbarBottomGap - beforeScroll.actionbarBottomGap) <= 2 &&
-      afterScroll.actionbarBottomGap >= 10 &&
-      afterScroll.actionbarBottomGap <= 26,
-    `gap before=${beforeScroll.actionbarBottomGap} after=${afterScroll.actionbarBottomGap}`,
+      afterScroll.actionbarBottomGap <= 2 &&
+      afterScroll.actionbarBottomGap >= 0,
+    `gap before=${beforeScroll.actionbarBottomGap} after=${afterScroll.actionbarBottomGap}（要求 ≤2）`,
   );
 
   // ---- J2 弹窗滚动条隐藏 / J3 作者行固定条 ----

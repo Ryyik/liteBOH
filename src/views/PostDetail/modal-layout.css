@@ -497,7 +497,18 @@
   gap: 10px;
 }
 
+/* 弹窗内嵌形态：**必须**贴住信息列底边（用户 2026-11-24 报障「评论区操作按钮应该贴底部」）。
+   它是 .pd-modal-info（纵向 flex）的最后一项，能否贴底本来**只**依赖前面的
+   .pd-info-scroll 有 flex:1 把剩余空间吃掉 —— 缺少自身兜底。一旦信息列高度不是由
+   flex 分配（网格行高退化成 auto、内容不足、或将来有人给 info-scroll 换掉 flex），
+   scroll 不再占满，操作栏就浮在半空、下方露出白底，而滚动与贴底断言都还是绿的
+   （实测把 .pd-modal-body 的 grid-template-rows 改成 auto 即复现：操作栏下方多出近百像素）。
+   两条属性各管一件事，都要留：
+     · flex: none  —— 防止被 flex 收缩（内容多时不许压缩按钮行）；
+     · margin-top: auto —— 真正把它推到容器底，**不再依赖** scroll 是否吃掉剩余空间。 */
 .post-detail-page--modal .pd-actionbar {
+  flex: none;
+  margin-top: auto;
   padding-top: 12px;
   border-top: 1px solid var(--liquid-border-hairline, rgba(15, 23, 42, 0.06));
 }
