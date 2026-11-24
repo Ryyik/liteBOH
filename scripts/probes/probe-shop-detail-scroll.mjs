@@ -208,26 +208,43 @@ async function wheelAt(page, x, y, dy = 400) {
   await context.close();
 }
 
-// ── C 组：其它分区不能「误上锁」（挂载了但没打开的弹层不许锁住页面）──
+// ── C 组：切换分区不能「误上锁」（挂载了但没打开的弹层不许锁住页面）──
 {
   const { page, context } = await openShop(1440, 900, 'tabs');
-  /* 抽奖 / 订单两个分区各自挂着 LotteryPanel / OrderPanel（内含常驻挂载的详情层），
-     它们的滚动锁必须跟着「有没有真的打开详情」走。锁在挂载时误上，表现为
-     「切到抽奖后整页滚不动」—— 比原来的穿透更难排查，所以单独钉一条。 */
-  for (const [tab, label] of [
-    ['lottery', '抽奖'],
-    ['order', '订单'],
-  ]) {
+  /* ⚠️ 2026-11-24 重写（原版是**永久红且红的原因不对**的假门禁）。
+     原版写死 `[['lottery','抽奖'], ['order','订单']]` 两个分区，但「订单」自
+     2026-11 起已经不是分区 tab —— 它变成了管理员头像菜单里的 `<AdminOrderSheet>`
+     （见 `Shop/index.vue` 的 `adminOrdersOpen`）。于是
+     `find(b => b.textContent.includes('订单'))` 恒为 `undefined`，`?.click()`
+     **静默不点**：页面停在抽奖分区、而且上一轮已经滚到分区底部 ⇒ 再滚当然不动
+     ⇒ 断言必然红。它红的原因和「误上锁」毫无关系，纯粹是选择器失配。
+     修法不是把「订单」改成「购物袋」（下次分区再变还会静默失配），而是
+     **遍历实际存在的分区**：新增/删除分区都不用改探针，而「挂载即上锁」照样抓得到。 */
+  const labels = await page.evaluate(() =>
+    [...document.querySelectorAll('.store-tabs button')].map((b) => b.textContent.trim()),
+  );
+  check(
+    'C0 分区按钮取到了（取不到会让下面几条全部假绿）',
+    labels.length >= 3,
+    labels.join(' / '),
+  );
+
+  for (const label of labels) {
+    if (label === '产品') continue; // 默认分区，A 组已覆盖
     await page.evaluate((t) => {
-      const btn = [...document.querySelectorAll('.store-tabs button')].find((b) =>
-        b.textContent.includes(t === 'lottery' ? '抽奖' : '订单'),
+      const btn = [...document.querySelectorAll('.store-tabs button')].find(
+        (b) => b.textContent.trim() === t,
       );
       btn?.click();
-    }, tab);
-    await page.waitForTimeout(1500);
+    }, label);
+    await page.waitForTimeout(1200);
+    /* 先滚回顶部再测：上一轮可能已停在分区底部，「到底了滚不动」会被误判成「被上锁」
+       （这正是原版 C2 的错误之一，只是当时被选择器失配盖住了）。 */
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.waitForTimeout(250);
     const before = await scrollState(page);
-    /* 「订单」分区未登录时是空态，页面可能比视口还短 ⇒ 滚不动是正常的，
-       不能据此判红。真正的判据是「没有把根元素锁住」。 */
+    /* 内容可能比视口还短（空态）⇒ 滚不动是正常的，不能据此判红。
+       真正的判据始终是「没有把根元素锁住」。 */
     const scrollable = await page.evaluate(
       () => document.documentElement.scrollHeight - window.innerHeight > 40,
     );
@@ -236,13 +253,21 @@ async function wheelAt(page, x, y, dy = 400) {
     await page.waitForTimeout(450);
     const after = await scrollState(page);
     check(
-      `C${tab === 'lottery' ? 1 : 2} 切到「${label}」分区：页面没有被误上锁`,
-      before.rootOverflowY !== 'hidden' && (!scrollable || after.pageY !== before.pageY),
+      `C·${label} 切到「${label}」分区：页面没有被误上锁`,
+      before.rootOverflowY !== 'hidden' && (!scrollable || after.pageY > before.pageY),
       `pageY ${before.pageY} → ${after.pageY}，html overflow-y=${before.rootOverflowY}，${
         scrollable ? '可滚' : '内容不足一屏（跳过滚动判据）'
       }`,
     );
   }
+
+  /* 订单入口的迁移守卫：单独钉一条，免得将来有人照旧文档去「切到订单分区」时
+     又踩同一个「选择器失配 → 静默不点 → 断言恒红」的坑。 */
+  check(
+    'C·订单 已不是分区 tab（入口在管理员头像菜单 → AdminOrderSheet）',
+    !labels.includes('订单'),
+    labels.join(' / '),
+  );
   await context.close();
 }
 

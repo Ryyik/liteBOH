@@ -33,7 +33,7 @@
 | 活动页封面图 / 活动页报名区与月份轨道 | `probe-activities-images.mjs` / `probe-campaign-ui.mjs` | 7 / 35 |
 | 方块积分卡自定义卡面裂图 | `probe-points-card-image.mjs` | 7 |
 | 订阅权益 / 配额 | `probe-subscription-benefits.mjs` | 40 |
-| **商城商品详情的滚动归属**（详情打开期间背后列表必须一动不动；竖屏详情内容区自己能滚；关闭后页面恢复可滚；上锁不引起横向位移；抽奖/订单分区不误上锁） | `probe-shop-detail-scroll.mjs` | 11 |
+| **商城商品详情的滚动归属**（详情打开期间背后列表必须一动不动；竖屏详情内容区自己能滚；关闭后页面恢复可滚；上锁不引起横向位移；**遍历实际分区**逐个确认没有误上锁 + 钉住「订单已不是分区 tab」） | `probe-shop-detail-scroll.mjs` | 15 |
 | **BohModal 试点宿主**（HeroConsole「从抽奖活动选择」：层级=2147482600 / 520 宽 / flush / 搜索过滤 / 滚锁在 html / Esc 关闭释放 / 竖屏退化成贴底 Sheet + grab 条 / 暗色浅字） | `probe-hero-lottery-picker.mjs` | 19 |
 | **商城规格面板**（BohModal 第二家族：560 宽 / #head 保住 kicker+关闭钮 / 既有规格回填 / 新增一行 / 重复值校验上屏且不关面板 / 取消释放滚锁 / 竖屏 Sheet / 暗色输入可读；入口 `/admin/shop-editor` → 卡片「规格 N」） | `probe-shop-specs-sheet.mjs` | 20 |
 | **商城商品设置面板**（BohModal 第三家族：600 宽 / 积分价·库存·支付方式回填 / 切支付方式后积分价被换出 / 0 价校验上屏且不关面板 / 取消释放滚锁 / 竖屏 Sheet / 暗色输入可读；入口 `/admin/shop-editor` → 卡片定价入口） | `probe-shop-product-edit-sheet.mjs` | 20 |
@@ -256,7 +256,7 @@ F5 后不得掉回整页详情：A 横屏刷新仍是弹窗 / B 仍是同一帖 
 
 | 文件 | npm script | 说明 |
 | --- | --- | --- |
-| `probe-shop-detail-scroll.mjs` | — | 探针：商品详情的「滚动归属」（2026-11-10 用户报障「商城详情的滚动还是在滚动商品列表页」）。真因是页面滚动发生在 `html` 上（`html{overflow-y:auto!important}` + `body{overflow-y:visible!important}`），而代码只锁 `body` 的 inline 样式 ⇒ 等于没锁。A 组（横屏）钉：打开即锁根元素 / 封面·遮罩·内容三处滚轮都不带动背后列表 / 上锁不横向位移 / 关闭后恢复可滚；B 组（竖屏）钉内容区自己能滚且页面不动；C 组钉抽奖·订单分区没有误上锁。**反证**：撤掉 `useBodyScrollLock` 里锁 `documentElement` 那几行 → A1–A3 立刻红（2026-11-10 实测） |
+| `probe-shop-detail-scroll.mjs` | — | 探针：商品详情的「滚动归属」（2026-11-10 用户报障「商城详情的滚动还是在滚动商品列表页」）。真因是页面滚动发生在 `html` 上（`html{overflow-y:auto!important}` + `body{overflow-y:visible!important}`），而代码只锁 `body` 的 inline 样式 ⇒ 等于没锁。A 组（横屏）钉：打开即锁根元素 / 封面·遮罩·内容三处滚轮都不带动背后列表 / 上锁不横向位移 / 关闭后恢复可滚；B 组（竖屏）钉内容区自己能滚且页面不动；C 组遍历实际存在的分区，逐个确认没有误上锁（并单独钉住「订单已不是分区 tab」）。**反证**：撤掉 `useBodyScrollLock` 里锁 `documentElement` 那几行 → A1–A3 立刻红（2026-11-10 实测）；在 `Shop/index.vue` 里挂载即 `acquireBodyScrollLock()` → A6 与 C 组四条同红（2026-11-24 实测）。⚠️ **2026-11-24 修过一次假门禁**：C 组原来写死「抽奖 / 订单」两个分区名，但「订单」早已不是分区 tab（改成管理员头像菜单 → `AdminOrderSheet`）⇒ `find(...)` 恒 `undefined`、`?.click()` 静默不点 ⇒ 断言**永久红且红的原因与「误上锁」毫无关系**。现在改为遍历实际分区按钮，并加 `C0`（取不到分区会让下面几条全假绿）+ 每轮先 `scrollTo(0,0)`（否则「已到底滚不动」会被误判成「被锁」） |
 
 ### BohModal / BohDropdown 浮层体系（8）
 
