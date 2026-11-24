@@ -73,6 +73,38 @@
 > （走 `--stdin --stdin-filename`，**不碰你的工作区**），直接告诉你「新增了哪一条、在哪个文件哪一行、
 > 离上限还剩几格」。别再造手工 set diff。
 
+### A-1 `check:root-clean` 的双模式：全量 vs `--staged`（2026-11-24）
+
+这道门禁的输入是 `readdirSync(ROOT)`，**它不知道文件是谁的**。而 pre-commit 跑在
+共享工作区里 ⇒ **并行会话往根目录扔的未跟踪沙盒会把别人的提交拦下**。
+
+拦下后的唯一出路是 `git commit --no-verify`，而**那条命令会连 lint-staged 一起跳过**
+（prettier / eslint --fix 都不跑）—— 正好撞上「验证的树 ≠ 提交的树」。
+2026-11-24 实测：当天是侥幸（第一次被拦时 lint-staged 已改写并暂存过），
+**先带 `--no-verify` 就真出事了**。
+
+⇒ 拆成两种模式，判定逻辑只有一份（同一个 `isHtmlSandbox` / `isScratch` / 同一个基线）：
+
+| 调用点 | 模式 | 输入 |
+| --- | --- | --- |
+| `verify` / `verify:fast` / `check:gates-self-test` / CI | 全量（无参数） | `readdirSync(ROOT)`，**行为一字不变** |
+| pre-commit | `--staged` | `git diff --cached --diff-filter=ACMR`，只判本次暂存的根目录文件 |
+
+⚠️ **`--staged` 的边界**：它看**暂存区**，不是「本次 commit 精确包含的路径」（git 不向
+前置钩子提供后者）。所以**别人 `git add` 了却没提交时本模式仍会红**——那时提示会点名
+文件，让人能判断是不是自己弄的。代价远小于原行为（原来根目录**有**未跟踪沙盒就红）。
+
+⚠️ **两个配套事实**（这也是同一天踩到的）：
+1. `git add` 过的文件会**留在暂存区**，lint-staged 会把它算进「本次要格式化的文件」
+   并**连带提交** —— 即使 `git commit -- <路径>` 限定了提交路径。提交后必看
+   `git show --stat HEAD`，误入按 § 上面的修法撤回。
+2. `--no-verify` 是「整条提交前链都不跑」，**不是「只放过某一道门禁」**。
+   门禁连坐时优先修门禁本身。
+
+自测：`check:gates-self-test` 的 fixture（`__gates_probe-demo.html`）是**未跟踪文件**，
+只能被全量模式看到 ⇒ 它验证的是全量模式，`--staged` 不影响这条自证（2026-11-24 实测
+`check:root-clean ✅ 会红（exit 1）`）。
+
 ---
 
 ## B. 「改动 → 必跑门禁」的速查表在哪
