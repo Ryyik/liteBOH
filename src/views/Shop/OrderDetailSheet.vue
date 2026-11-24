@@ -5,164 +5,172 @@
 
        形态：竖屏铺满（手机上就是"下一页"），横屏 / 宽屏居中弹窗（高度不超 80vh）。
        状态用竖向时间线表达进度，而不是只丢一个「待处理」标签 —— 主流电商看的是
-       「到哪一步了、下一步是什么」。 -->
-  <Teleport to="body">
-    <!-- 进出场（2026-11-03 用户口径「打开关闭任何操作都要有动画，不要硬切」）：
-         进场原本就有 od-slide-up；补的是**遮罩淡入**与**离场**——
-         v-if 直接摘节点会让整层瞬间消失，看起来像页面闪了一下。 -->
-    <Transition name="od">
-      <div v-if="order" class="od-overlay shop-sheet-tokens" @click.self="$emit('close')">
-        <section class="od-sheet" role="dialog" aria-modal="true" aria-label="礼物详情">
-          <header class="od-head">
-            <button type="button" class="od-back" aria-label="返回" @click="$emit('close')">
-              <ChevronLeft :size="20" :stroke-width="2" aria-hidden="true" />
-            </button>
-            <span class="od-head-title">礼物详情</span>
-            <!-- 占位：让标题在视觉上居中，不依赖 flex 的 space-between 凑 -->
-            <span class="od-head-spacer" aria-hidden="true" />
-          </header>
+       「到哪一步了、下一步是什么」。
 
-          <div class="od-body">
-            <div class="od-status" :class="{ muted: isCancelled }">
-              <div class="od-status-copy">
-                <strong>{{ statusLabel }}</strong>
-                <small>{{ statusHint }}</small>
-              </div>
-              <component
-                :is="isCancelled ? Ban : Truck"
-                :size="22"
-                :stroke-width="1.8"
-                aria-hidden="true"
-              />
-            </div>
+       外壳走 BohModal（2026-11-24，plans/045 阶段 2 第六家族 / B 类最后一份）：
+       遮罩 / 滚锁 / 焦点陷阱 / Esc / 进出场全部交给壳；竖屏整页靠 `portrait-page`
+       （上一批给壳加的第四个口子），横屏回 560 宽居中弹窗。
+       这里只剩下内容：头部、正文、底部动作区三块。
+       ⚠️ 别在注释里逐字复述被删掉的旧类名与旧 API —— 单测用「全文不含某字面量」
+       做防回潮守卫，注释里出现同样会命中（假红）。 -->
+  <BohModal v-model="modalOpen" title="礼物详情" max-width="560px" portrait-page flush>
+    <!-- ⚠️ `shop-sheet-tokens` 必须挂在**两个槽的内容容器**上（#head 与默认槽是
+         兄弟节点，token 只能各自继承）。store-tokens.css 给商城域重定义了
+         --boh-bg-secondary（暗色 #0c0c0e）/ --boh-page-bg 等，「类名由组件根元素
+         自带」—— 本组件挂到 body 上、**不在 .store-page 里**，不挂这个类就拿不到
+         那份 token（卡片回落全站暗色、比页面底更暗，层次整个反了）。
+         壳接管了根元素，所以这层类要挂在内容容器上。 -->
+    <template #head>
+      <header class="od-head shop-sheet-tokens">
+        <button type="button" class="od-back" aria-label="返回" @click="requestClose">
+          <ChevronLeft :size="20" :stroke-width="2" aria-hidden="true" />
+        </button>
+        <span class="od-head-title">礼物详情</span>
+        <!-- 占位：让标题在视觉上居中，不依赖 flex 的 space-between 凑 -->
+        <span class="od-head-spacer" aria-hidden="true" />
+      </header>
+    </template>
 
-            <ol class="od-steps" :class="{ 'is-cancelled': isCancelled }">
-              <li
-                v-for="(step, index) in steps"
-                :key="step.key"
-                class="od-step"
-                :class="{ done: index <= currentIndex, current: index === currentIndex }"
-              >
-                <span class="od-dot" aria-hidden="true" />
-                <div class="od-step-copy">
-                  <strong>{{ step.label }}</strong>
-                  <small>{{ step.hint }}</small>
-                </div>
-                <time v-if="step.time" class="od-step-time">{{ step.time }}</time>
-              </li>
-            </ol>
-
-            <div class="od-section">
-              <h3 class="od-section-title">商品</h3>
-              <ul class="od-items">
-                <li v-for="(item, index) in items" :key="`${item.title}-${index}`" class="od-item">
-                  <span class="od-thumb">
-                    <img
-                      v-if="item.imageUrl && !isItemImageFailed(index)"
-                      :src="item.imageUrl"
-                      alt=""
-                      loading="lazy"
-                      @error="markItemImageFailed(index)"
-                    />
-                    <ShoppingBag v-else :size="20" :stroke-width="1.7" aria-hidden="true" />
-                  </span>
-                  <span class="od-item-copy">
-                    <strong>{{ item.title }}</strong>
-                    <small>{{ item.specLabel }}</small>
-                  </span>
-                  <span class="od-item-qty">×{{ item.quantity }}</span>
-                </li>
-              </ul>
-            </div>
-
-            <dl class="od-meta">
-              <div>
-                <dt>编号</dt>
-                <dd>{{ order.orderNo || '—' }}</dd>
-              </div>
-              <div>
-                <dt>领取时间</dt>
-                <dd>{{ formatDateTime(order.createdAt) || '—' }}</dd>
-              </div>
-              <div>
-                <dt>费用</dt>
-                <dd>{{ order.priceText || '—' }}</dd>
-              </div>
-              <div>
-                <!-- 运费口径 2026-11-04「大部分地区不收邮费」：订单详情是核对总价的地方，
-                     这里缺一行会让人怀疑"是不是还有笔邮费没算" -->
-                <dt>运费</dt>
-                <dd>大部分地区包邮</dd>
-              </div>
-              <div v-if="order.updatedAt">
-                <dt>最近更新</dt>
-                <dd>{{ formatDateTime(order.updatedAt) }}</dd>
-              </div>
-            </dl>
-
-            <!-- 收货信息（2026-11-04 起读**下单快照**）：
-                 2026-11-03 那版只能读当前资料并注明「下单时的地址未单独留档」——
-                 用户改了默认地址，这张单就永久说不清寄给谁了。快照列上线后优先用它；
-                 历史订单没有快照，仍然回落资料，并把"当前"两个字写出来。 -->
-            <div v-if="shipping" class="od-section">
-              <h3 class="od-section-title">收货信息</h3>
-              <div class="od-shipping">
-                <p class="od-shipping-head">
-                  <strong>{{ shipping.recipient || '未填写' }}</strong>
-                  <span>{{ shipping.phone || '' }}</span>
-                </p>
-                <p class="od-shipping-addr">{{ shipping.address || '未填写' }}</p>
-                <small v-if="shipping.isSnapshot">下单时留档，改地址不影响此单</small>
-                <small v-else>按当前资料显示 · 此单未留下单时地址</small>
-              </div>
-            </div>
-
-            <!-- 买家备注：只在当时真写了才出现，空备注不占版面 -->
-            <div v-if="order.remark" class="od-section">
-              <h3 class="od-section-title">礼物备注</h3>
-              <p class="od-remark">{{ order.remark }}</p>
-            </div>
-
-            <!-- 现金待收：线上下单、线下收款，不写清会让人以为"提交完就没事了" -->
-            <p v-if="cashDue" class="od-note is-due">
-              现金 {{ cashDueText }} 由管理员联系收取，收款后寄出。
-            </p>
-
-            <p v-if="!canCancel" class="od-note">{{ cancelHint }}</p>
-          </div>
-
-          <!-- 底部动作区（2026-11-10）：管理员多一档「推进进度」。
-               之前商城页里**没有任何推进入口**，只能去「数据管理 → 商城订单」改一行
-               status —— 现金单尤其别扭：钱是线下收的，收完就该能立刻落库。
-               通知（站内信 + 进度邮件）由数据库触发器发，这里不重复发。 -->
-          <footer v-if="canCancel || adminNextStatus" class="od-foot">
-            <button
-              v-if="adminNextStatus"
-              type="button"
-              class="od-advance"
-              :disabled="advancing"
-              @click="handleAdvance"
-            >
-              {{ advancing ? '处理中…' : adminAdvanceLabel }}
-            </button>
-            <small v-if="adminNextStatus && cashDue" class="od-advance-hint">
-              现金 {{ cashDueText }} 收到后再推进；用户会同时收到站内信与邮件
-            </small>
-            <button
-              v-if="canCancel"
-              type="button"
-              class="od-cancel"
-              :class="{ armed }"
-              :disabled="cancelling"
-              @click="handleCancel"
-            >
-              {{ cancelling ? '处理中…' : armed ? '确认取消' : cancelLabel }}
-            </button>
-          </footer>
-        </section>
+    <div class="od-body shop-sheet-tokens">
+      <div class="od-status" :class="{ muted: isCancelled }">
+        <div class="od-status-copy">
+          <strong>{{ statusLabel }}</strong>
+          <small>{{ statusHint }}</small>
+        </div>
+        <component
+          :is="isCancelled ? Ban : Truck"
+          :size="22"
+          :stroke-width="1.8"
+          aria-hidden="true"
+        />
       </div>
-    </Transition>
-  </Teleport>
+
+      <ol class="od-steps" :class="{ 'is-cancelled': isCancelled }">
+        <li
+          v-for="(step, index) in steps"
+          :key="step.key"
+          class="od-step"
+          :class="{ done: index <= currentIndex, current: index === currentIndex }"
+        >
+          <span class="od-dot" aria-hidden="true" />
+          <div class="od-step-copy">
+            <strong>{{ step.label }}</strong>
+            <small>{{ step.hint }}</small>
+          </div>
+          <time v-if="step.time" class="od-step-time">{{ step.time }}</time>
+        </li>
+      </ol>
+
+      <div class="od-section">
+        <h3 class="od-section-title">商品</h3>
+        <ul class="od-items">
+          <li v-for="(item, index) in items" :key="`${item.title}-${index}`" class="od-item">
+            <span class="od-thumb">
+              <img
+                v-if="item.imageUrl && !isItemImageFailed(index)"
+                :src="item.imageUrl"
+                alt=""
+                loading="lazy"
+                @error="markItemImageFailed(index)"
+              />
+              <ShoppingBag v-else :size="20" :stroke-width="1.7" aria-hidden="true" />
+            </span>
+            <span class="od-item-copy">
+              <strong>{{ item.title }}</strong>
+              <small>{{ item.specLabel }}</small>
+            </span>
+            <span class="od-item-qty">×{{ item.quantity }}</span>
+          </li>
+        </ul>
+      </div>
+
+      <dl class="od-meta">
+        <div>
+          <dt>编号</dt>
+          <dd>{{ order?.orderNo || '—' }}</dd>
+        </div>
+        <div>
+          <dt>领取时间</dt>
+          <dd>{{ formatDateTime(order?.createdAt) || '—' }}</dd>
+        </div>
+        <div>
+          <dt>费用</dt>
+          <dd>{{ order?.priceText || '—' }}</dd>
+        </div>
+        <div>
+          <!-- 运费口径 2026-11-04「大部分地区不收邮费」：订单详情是核对总价的地方，
+               这里缺一行会让人怀疑"是不是还有笔邮费没算" -->
+          <dt>运费</dt>
+          <dd>大部分地区包邮</dd>
+        </div>
+        <div v-if="order?.updatedAt">
+          <dt>最近更新</dt>
+          <dd>{{ formatDateTime(order.updatedAt) }}</dd>
+        </div>
+      </dl>
+
+      <!-- 收货信息（2026-11-04 起读**下单快照**）：
+           2026-11-03 那版只能读当前资料并注明「下单时的地址未单独留档」——
+           用户改了默认地址，这张单就永久说不清寄给谁了。快照列上线后优先用它；
+           历史订单没有快照，仍然回落资料，并把"当前"两个字写出来。 -->
+      <div v-if="shipping" class="od-section">
+        <h3 class="od-section-title">收货信息</h3>
+        <div class="od-shipping">
+          <p class="od-shipping-head">
+            <strong>{{ shipping.recipient || '未填写' }}</strong>
+            <span>{{ shipping.phone || '' }}</span>
+          </p>
+          <p class="od-shipping-addr">{{ shipping.address || '未填写' }}</p>
+          <small v-if="shipping.isSnapshot">下单时留档，改地址不影响此单</small>
+          <small v-else>按当前资料显示 · 此单未留下单时地址</small>
+        </div>
+      </div>
+
+      <!-- 买家备注：只在当时真写了才出现，空备注不占版面 -->
+      <div v-if="order?.remark" class="od-section">
+        <h3 class="od-section-title">礼物备注</h3>
+        <p class="od-remark">{{ order.remark }}</p>
+      </div>
+
+      <!-- 现金待收：线上下单、线下收款，不写清会让人以为"提交完就没事了" -->
+      <p v-if="cashDue" class="od-note is-due">
+        现金 {{ cashDueText }} 由管理员联系收取，收款后寄出。
+      </p>
+
+      <p v-if="!canCancel" class="od-note">{{ cancelHint }}</p>
+    </div>
+
+    <!-- 底部动作区（2026-11-10）：管理员多一档「推进进度」。
+         之前商城页里**没有任何推进入口**，只能去「数据管理 → 商城订单」改一行
+         status —— 现金单尤其别扭：钱是线下收的，收完就该能立刻落库。
+         通知（站内信 + 进度邮件）由数据库触发器发，这里不重复发。 -->
+    <template v-if="canCancel || adminNextStatus" #footer>
+      <footer class="od-foot shop-sheet-tokens">
+        <button
+          v-if="adminNextStatus"
+          type="button"
+          class="od-advance"
+          :disabled="advancing"
+          @click="handleAdvance"
+        >
+          {{ advancing ? '处理中…' : adminAdvanceLabel }}
+        </button>
+        <small v-if="adminNextStatus && cashDue" class="od-advance-hint">
+          现金 {{ cashDueText }} 收到后再推进；用户会同时收到站内信与邮件
+        </small>
+        <button
+          v-if="canCancel"
+          type="button"
+          class="od-cancel"
+          :class="{ armed }"
+          :disabled="cancelling"
+          @click="handleCancel"
+        >
+          {{ cancelling ? '处理中…' : armed ? '确认取消' : cancelLabel }}
+        </button>
+      </footer>
+    </template>
+  </BohModal>
 </template>
 
 <script setup>
@@ -180,7 +188,7 @@ import { sendShopOrderCancelledEmail } from '@/utils/email-service.js';
 import { logger } from '@/utils/logger.js';
 import { resolveDbCardImage } from '@/utils/db-image-url.js';
 import { useImageFailure } from '@/composables/useImageFailure.js';
-import { useBodyScrollLock } from '@/composables/useBodyScrollLock.js';
+import BohModal from '@/components/ui/BohModal.vue';
 
 const props = defineProps({
   order: { type: Object, default: null },
@@ -188,10 +196,21 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'notify', 'changed']);
 
-/* 订单详情是盖在 /shop 长文档流上的整页层：不锁页面，滚轮会一路滚到背后的订单列表
-   （2026-11-10 商品详情同一类报障）。本组件常驻挂载、靠 `order` 判空显示，
-   所以用声明式锁（随 prop 自动开关），不能用「挂载即上锁」。 */
-useBodyScrollLock(() => Boolean(props.order), 'shop-order-detail');
+/* 外壳走 BohModal（2026-11-24，plans/045 阶段 2 第六家族）：挂载位置、遮罩、
+   滚锁、焦点陷阱、Esc、进出场全部交给壳。原来这里的声明式滚动锁（随 order
+   开关）与 window 级 Esc 监听都删了 —— 壳已内置同一份真源，双层锁只会多一份
+   引用计数；两处 Esc 监听还会互相抢。 */
+const requestClose = () => emit('close');
+
+/* BohModal 的 v-model 是「关得比开得快」的：Esc / 遮罩 / 关闭钮都只发 false。
+   本组件是常驻挂载 + 靠 order 判空显示的（父级 OrderPanel 里没有任何 v-if），
+   所以打开态由 order 推导，写 false 时转成 close 事件交给父级清空。 */
+const modalOpen = computed({
+  get: () => Boolean(props.order),
+  set: (next) => {
+    if (!next) requestClose();
+  },
+});
 
 /* 状态词与进度条真源 —— 和数据库 status / gift_status 的取值一一对应。
    顺序即进度顺序；cancelled 不在流程里，单独走「已取消」分支。 */
@@ -483,139 +502,40 @@ const formatDateTime = (value) => {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 };
 
-/* 打开期间锁滚动 + Esc 关闭：详情是覆盖层，背后列表不该跟着滚。
-   滚动锁已交给上面的 useBodyScrollLock（声明式，随 order 开关）；
-   这里只管键盘 —— 别再往这里写 body.style.overflow。 */
-const onKeydown = (event) => {
-  if (event.key === 'Escape') emit('close');
-};
-
+/* 切换订单时重置「确认取消」的两段式状态。
+   Esc 与滚锁已交给 BohModal（壳的焦点陷阱负责 Esc 且带 stopPropagation，
+   不误关外层；滚锁是引用计数，叠层安全）—— 别再往这里写 window keydown
+   或 body.style.overflow，两套 Esc 会互相抢、两层锁会多一份计数。 */
 watch(
   () => props.order,
-  (value) => {
+  () => {
     disarm();
     cancelling.value = false;
-    if (value) window.addEventListener('keydown', onKeydown);
-    else window.removeEventListener('keydown', onKeydown);
   },
 );
 
-onBeforeUnmount(() => {
-  disarm();
-  window.removeEventListener('keydown', onKeydown);
-});
+onBeforeUnmount(disarm);
 </script>
 
 <style scoped>
-.od-overlay {
-  position: fixed;
-  z-index: 2147482400;
-  inset: 0;
-  display: flex;
-  align-items: stretch;
-  justify-content: center;
-  color: var(--boh-text-primary, #1d1d1f);
-  background: color-mix(in srgb, var(--boh-page-bg, #fff) 82%, transparent);
-  backdrop-filter: var(--liquid-filter);
-  -webkit-backdrop-filter: var(--liquid-filter);
-}
+/* 遮罩 / 面板底色 / 圆角 / 阴影 / 进出场 / 层级 / 竖屏整页 / 横屏居中
+   全部由 BohModal 承担（portrait-page + max-width="560px"）。这里只留内容。
+   ⚠️ 壳的 overlay 是它自己的根元素，宿主 scoped 样式够不着 —— 在这里写遮罩类
+   既无效又会被防回潮守卫当成旧外壳回来了。 */
 
-/* 竖屏：铺满整屏（等于翻到下一页），顶部留安全区 */
-.od-sheet {
-  display: flex;
-  width: 100%;
-  height: 100%;
-  flex-direction: column;
-  background: var(--boh-page-bg, #fff);
-  animation: od-slide-up 240ms cubic-bezier(0.32, 0.72, 0, 1);
-}
+/* 头部：壳的 #head 槽内衬是 0（head--slot），节奏由这里定。
+   竖屏整页时顶部要留安全区（刘海/状态栏），横屏居中弹窗里则不需要 ——
+   用 env() 在弹窗里也是 0，一条规则两档都对。
 
-/* 遮罩淡入（面板自己走 od-slide-up）；离场单独写一套 —— 进场若也交给
-   <Transition> 会和下面那条 keyframes 打架，所以这里只接管 leave。 */
-.od-overlay {
-  animation: od-fade-in 200ms ease;
-}
-
-@keyframes od-fade-in {
-  from {
-    opacity: 0;
-  }
-}
-
-.od-leave-active {
-  transition: opacity 200ms ease;
-}
-
-.od-leave-to {
-  opacity: 0;
-}
-
-.od-leave-active .od-sheet {
-  transition:
-    transform 220ms cubic-bezier(0.32, 0.72, 0, 1),
-    opacity 200ms ease;
-}
-
-.od-leave-to .od-sheet {
-  transform: translateY(4%);
-  opacity: 0;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .od-overlay,
-  .od-sheet {
-    animation-duration: 1ms;
-  }
-
-  .od-leave-active,
-  .od-leave-active .od-sheet {
-    transition-duration: 1ms;
-  }
-}
-
-@keyframes od-slide-up {
-  from {
-    transform: translateY(3%);
-    opacity: 0.6;
-  }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
-}
-
-/* 横屏 / 宽屏：居中弹窗，四边留白，不再铺满 */
-@media (orientation: landscape) {
-  .od-overlay {
-    align-items: center;
-    padding: 20px;
-  }
-  .od-sheet {
-    width: min(560px, 100%);
-    height: auto;
-    max-height: calc(100vh - 40px);
-    border: 1px solid var(--boh-border-primary, rgba(0, 0, 0, 0.08));
-    border-radius: 22px;
-    box-shadow: 0 28px 80px rgba(23, 39, 58, 0.22);
-    overflow: hidden;
-    animation: od-pop 200ms ease-out;
-  }
-
-  @keyframes od-pop {
-    from {
-      transform: scale(0.97);
-      opacity: 0;
-    }
-    to {
-      transform: scale(1);
-      opacity: 1;
-    }
-  }
-}
-
+   🔴 `width: 100%` 不能省：#head 槽外层是 flex **行**容器（壳里那条
+   space-between 是给「标题 + 关闭钮」两个子元素准备的），本 header 作为它的
+   唯一子项时宽度是**按内容收缩**的（flex item 的默认 cross-axis 行为），
+   于是标题贴到返回按钮右边、底部分隔线只画到一半 —— 只有截图才看得出来
+   （探针量的是元素存在与文字内容，量不到「是否撑满」）。 */
 .od-head {
   display: flex;
   flex: none;
+  width: 100%;
   align-items: center;
   gap: 8px;
   padding: calc(10px + env(safe-area-inset-top)) 14px 10px;
@@ -652,11 +572,11 @@ onBeforeUnmount(() => {
   width: 34px;
 }
 
+/* 内容区：滚动与「吃掉剩余高度」由壳的 body 负责（flush 档 + portrait-page
+   给 body 补了 flex:1/min-height:0），这里只给内衬。别再写 overflow-y:auto ——
+   双层滚动容器会让竖屏整页滑动时先滚内层、滚到底才带动外层，手感是断的。 */
 .od-body {
-  flex: 1;
-  min-height: 0;
   padding: 16px 16px 20px;
-  overflow-y: auto;
 }
 
 .od-status {
@@ -960,9 +880,12 @@ onBeforeUnmount(() => {
   word-break: break-word;
 }
 
+/* 底部动作区：壳的 #footer 槽自带 14/24/22 内衬与右对齐，所以这里只补
+   width:100%（默认不是块级铺满）与底部安全区 —— 别再写左右 padding，
+   会和壳叠成 40px，按钮区被挤窄一圈。 */
 .od-foot {
-  flex: none;
-  padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+  width: 100%;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
   border-top: 1px solid var(--boh-divider, rgba(0, 0, 0, 0.06));
   /* 管理员同时有「推进进度」与「取消订单」两档时竖排，不并排挤成两个半宽按钮 */
   display: flex;

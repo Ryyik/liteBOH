@@ -121,8 +121,13 @@ describe('详情弹层：取消能力与数据库一致', () => {
     expect(panel).toContain('OrderDetailSheet');
   });
 
-  it('竖屏全屏 / 横屏弹窗：靠 orientation 媒体查询切换形态', () => {
-    expect(detail).toContain('@media (orientation: landscape)');
-    expect(detail).toContain('height: 100%');
+  /* 形态由 BohModal 的 portraitPage 承担（2026-11-24 迁壳，plans/045 阶段 2）。
+     原来这条断言宿主自己写 `@media (orientation: landscape)` —— 那正是被壳收走的东西；
+     改锁「宿主声明 portrait-page + 壳里确实有 orientation 断点」，
+     两处任一被悄悄改掉都会红。 */
+  it('竖屏全屏 / 横屏弹窗：宿主声明 portrait-page，断点真在壳里', () => {
+    expect(detail).toContain('portrait-page');
+    const modal = read('src/components/ui/BohModal.vue');
+    expect(modal).toContain('@media (orientation: portrait)');
   });
 });

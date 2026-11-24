@@ -416,6 +416,67 @@ describe('BohModal · 商城支付成功接线（ShopPaymentSuccessModal）', ()
   });
 });
 
+/* 第六家族（Shop 订单详情）：B 类最后一份，也是第二个 portraitPage 宿主。
+   它和第一家族（AdminOrderSheet）是"同一形态、不同内容"的两端：
+   前者管理台表格、后者用户看的进度时间线，迁完这两份摸清了整族的边界。 */
+describe('BohModal · 商城订单详情接线（OrderDetailSheet）', () => {
+  const src = () => squeezeSource(stripComments(read('src/views/Shop/OrderDetailSheet.vue')));
+
+  it('壳走 BohModal，头部走 #head 槽、动作区走 #footer 槽', () => {
+    const code = src();
+    expect(code).toContain('BohModal');
+    expect(code).toContain('v-model="modalOpen"');
+    expect(code).toContain('max-width="560px"');
+    expect(code).toContain('portrait-page');
+    expect(code).toContain('template #head');
+    expect(code).toContain('template v-if="canCancel || adminNextStatus" #footer');
+  });
+
+  /* 三个槽（head / 默认 / footer）都是**兄弟节点**，token 只能各自继承。
+     只挂一处的话另外两处会回落成全站暗色 —— 卡片比页面底更暗、层次反向。
+     不能数裸词（注释里也写了类名），只认 class 属性的实际挂载。 */
+  it('头部 / 正文 / 动作区各自挂 shop-sheet-tokens（兄弟节点不继承）', () => {
+    const code = src();
+    expect(code).toContain('class="od-head shop-sheet-tokens"');
+    expect(code).toContain('class="od-body shop-sheet-tokens"');
+    expect(code).toContain('class="od-foot shop-sheet-tokens"');
+  });
+
+  it('关闭统一走 requestClose，Esc/滚锁交给壳', () => {
+    const code = src();
+    expect(code).toContain('const modalOpen = computed');
+    expect(code).toContain('requestClose');
+    // 壳的焦点陷阱负责 Esc（且带 stopPropagation，不误关外层）
+    expect(code).not.toContain("addEventListener('keydown'");
+    // 滚锁是壳内置的同一份真源；再 import 一次就是双层引用计数
+    expect(code).not.toContain('useBodyScrollLock');
+  });
+
+  /* 内容区自己再写 overflow-y:auto 会变成双层滚动：竖屏整页滑动时先滚内层、
+     滚到底才带动外层（手感是断的）。滚动必须只归壳的 body。 */
+  it('内容区不自己滚（滚动只归壳的 body）', () => {
+    const code = src();
+    const bodyBlock = code.slice(code.indexOf('.od-body {'), code.indexOf('.od-status {'));
+    expect(bodyBlock).toContain('padding');
+    expect(bodyBlock).not.toContain('overflow-y');
+  });
+
+  it('旧手写外壳（Teleport/遮罩/面板/过渡名/keyframes）不再回来', () => {
+    const code = src();
+    for (const legacy of [
+      'Teleport',
+      'od-overlay',
+      'od-sheet',
+      'od-slide-up',
+      'od-fade-in',
+      'od-leave-active',
+      'name="od"',
+    ]) {
+      expect(code).not.toContain(legacy);
+    }
+  });
+});
+
 describe('BohModal · portraitPage 变体的几何契约', () => {
   it('断点走 orientation（与 Shop 九份弹层既有口径一致，不是宽度）', () => {
     const css = stripComments(read('src/components/ui/BohModal.vue'));

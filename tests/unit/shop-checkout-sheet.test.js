@@ -185,9 +185,16 @@ describe('交互动效契约：不许硬切', () => {
     expect(bag).toMatch(/\.bag-foot-enter-from,[^{]*\{opacity:0/);
   });
 
-  it('订单详情补了离场（进场原本就有 od-slide-up）', () => {
-    expect(order).toContain('<Transitionname="od">');
-    expect(order).toMatch(/\.od-leave-to\.od-sheet\{transform:translateY\(4%\)/);
+  /* 订单详情的进出场 2026-11-24 起归 BohModal（plans/045 阶段 2 第六家族）：
+     原来这条锁的是宿主自己的 `od-slide-up` 进场 + `od-leave-to` 离场。
+     迁壳后宿主不再持有过渡（写了也是死代码），判据改成
+     「宿主走壳 + 壳的 motion 预设真的覆盖了进出场」。 */
+  it('订单详情走 BohModal 的进出场预设（宿主不再自带过渡）', () => {
+    expect(order).toContain('BohModal');
+    expect(order).not.toContain('name="od"');
+    const modal = read('src/components/ui/BohModal.vue');
+    expect(modal).toContain('name="boh-fade"');
+    expect(modal).toContain('name="boh-pop"');
   });
 
   it('每处过渡都尊重 prefers-reduced-motion', () => {
@@ -195,8 +202,9 @@ describe('交互动效契约：不许硬切', () => {
       /@media\(prefers-reduced-motion:reduce\)\{[\s\S]*?transition-duration:1ms/,
     );
     expect(bag).toMatch(/@media\(prefers-reduced-motion:reduce\)\{[\s\S]*?transition-duration:1ms/);
-    expect(order).toMatch(
-      /@media\(prefers-reduced-motion:reduce\)\{[\s\S]*?transition-duration:1ms/,
-    );
+    /* 订单详情的过渡搬进壳之后，降级判据要落到壳的 motion.css 上 ——
+       不能因为「宿主里没有了」就把这条删掉，那等于把无障碍要求一起丢了。 */
+    const motion = read('src/components/ui/motion.css');
+    expect(motion).toMatch(/@media\s*\(prefers-reduced-motion:\s*reduce\)/);
   });
 });
