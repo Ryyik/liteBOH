@@ -178,7 +178,10 @@ describe('BohModal · 浮层安全件守卫', () => {
   it('动画走 motion.css 预设，遮罩材质读 --liquid-filter（不裸写 blur）', () => {
     const src = modalSrc();
     expect(src).toContain('name="boh-fade"');
-    expect(src).toContain('name="boh-pop"');
+    /* 面板预设 2026-11-24 起是**动态的**：默认 boh-pop，`morph` 宿主换成 boh-morph
+       （见下面「第五个口子」那条）。所以这里断言「两种都在、且默认仍是 boh-pop」，
+       而不是钉死一个静态字面量。 */
+    expect(src).toContain(":name=\"morph ? 'boh-morph' : 'boh-pop'\"");
     expect(src).toMatch(/backdrop-filter:\s*var\(--liquid-filter/);
     expect(src).not.toMatch(/blur\(\d+px\)/);
     expect(src).not.toMatch(/\b\d+ms\b/);
@@ -195,7 +198,7 @@ describe('BohModal · 浮层安全件守卫', () => {
     expect(Number(decl)).toBeLessThan(2147483000);
   });
 
-  it('定制只开 maxWidth / #head / flush / portraitPage 四个口子', () => {
+  it('定制只开 maxWidth / #head / flush / portraitPage / morph 五个口子', () => {
     const src = modalSrc();
     expect(src).toContain('maxWidth');
     expect(src).toContain('--boh-modal-max-w');
@@ -207,6 +210,20 @@ describe('BohModal · 浮层安全件守卫', () => {
        —— 形态是几何问题，只能由壳给变体。开这一个口子，后面三个同形态宿主不用各写一套。 */
     expect(src).toContain('portraitPage');
     expect(src).toContain('boh-modal__dialog--page');
+
+    /* morph 是第五个口子（2026-11-24 C 类第一份时开的，plans/047）：
+       C 类宿主（商品详情 / 抽奖详情）的进出场是**从被点卡片推开的形变**，不是淡入缩放。
+       两者不能共存于同一个元素 —— CSS transitions 在级联里压过 animations，
+       壳的 boh-pop 会把 WAAPI 形变整段吃掉（论坛详情 2026-10-31 实测）。
+       所以壳必须能「让出面板的动画通道」，这是壳自己的职责，不该让每个宿主
+       各自去写 transition-property: width 那种补丁。
+       ⚠️ 这条口子只能解决「谁动面板」。几何（双列 / 封面区）仍然归宿主，
+          见 plans/047 §3.3 —— 别把它扩成一堆只服务一份的几何口子。 */
+    expect(src).toContain('morph');
+    expect(src).toContain('boh-morph');
+    // 形变要作用在壳的 dialog 上 ⇒ 壳必须把该元素暴露出去
+    expect(src).toContain('dialogRef');
+    expect(src).toContain('defineExpose');
   });
 });
 
@@ -474,6 +491,64 @@ describe('BohModal · 商城订单详情接线（OrderDetailSheet）', () => {
     ]) {
       expect(code).not.toContain(legacy);
     }
+  });
+});
+
+describe('BohModal · morph 第五个口子（形变进出场，plans/047）', () => {
+  const src = () => squeezeSource(stripComments(read('src/components/ui/BohModal.vue')));
+  const motion = () => stripComments(read('src/components/ui/motion.css'));
+
+  /* morph 为真时壳**不能**再挂自己的进场预设：boh-pop 的 transition 里带
+     transform，CSS transitions 在层叠里排最后一档、压过 WAAPI —— 形变会整段
+     失效且没有任何报错（只看到淡入）。所以过渡名必须二选一。 */
+  it('morph 不挂 boh-pop（否则 CSS 过渡压掉形变）', () => {
+    const code = src();
+    expect(code).toContain("morph ? 'boh-morph' : 'boh-pop'");
+  });
+
+  /* morph 需要一条「只声明时长、不动 clip-path/opacity」的预设：
+     Vue 靠它算离场时长（否则节点下一帧就摘掉、形变跑不到一半），
+     但不能真的去动形变的通道。 */
+  it('morph 走独立预设 boh-morph（只声明时长，不动 opacity/transform）', () => {
+    const css = motion();
+    const from = css.indexOf('.boh-morph-enter-active');
+    const to = css.indexOf('.boh-slide-up-enter-active');
+    expect(from).toBeGreaterThan(0);
+    const block = css.slice(from, to > from ? to : undefined);
+    /* ⚠️ 不许写死毫秒：motion 预设层一律读 token，缺 token 应视为错误
+       （本文件头部第 ① 条纪律，单测逐个扫 `\d+ms`）。 */
+    expect(block).not.toMatch(/\b\d+ms\b/);
+    expect(block).toContain('var(--motion-morph');
+    // 不许把形变自己的通道抢回来
+    expect(block).not.toContain('opacity');
+    expect(block).not.toContain('transform');
+  });
+
+  /* morph 下 dialog 只是定位容器。一旦它还画着玻璃底/边框/圆角/阴影，
+     就会与宿主面板叠成双层外壳，形变缩回时两块一起缩。 */
+  it('morph 模式把 dialog 的装饰全部摘掉', () => {
+    const code = src();
+    expect(code).toContain("'boh-modal__dialog--morph': morph");
+    const block = code.slice(
+      code.indexOf('.boh-modal__dialog--morph {'),
+      code.indexOf('.boh-modal__dialog--morph.boh-modal__dialog--page'),
+    );
+    expect(block.length).toBeGreaterThan(0);
+    for (const decl of ['background: none', 'border: 0', 'border-radius: 0', 'box-shadow: none']) {
+      expect(block).toContain(decl);
+    }
+  });
+
+  /* morph 下壳不许渲染自己的 header：即使 title 为空，showClose 默认 true 也会
+     渲染出一个 52px 的空头把面板撑高（实测 dialog 904 vs 面板 852）。 */
+  it('morph 模式不渲染默认 header', () => {
+    const code = src();
+    expect(code).toMatch(/v-else-if="!morph && \(title \|\| showClose\)"/);
+  });
+
+  it('壳把 dialog 元素 expose 给宿主（形变要作用在它上面）', () => {
+    const code = src();
+    expect(code).toMatch(/defineExpose\(\{\s*dialogRef\s*\}\)/);
   });
 });
 

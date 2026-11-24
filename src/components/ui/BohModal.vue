@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { useBodyScrollLock } from '@/composables/useBodyScrollLock.js';
 import { createDialogFocusTrapDirective } from '@/views/DataManagement/composables/useDialogFocusTrap.js';
 import './motion.css';
@@ -15,7 +15,7 @@ import './motion.css';
  *   · v-model 开关 + 出入场动画（motion.css 的 boh-fade / boh-pop）；
  *   · 窄屏（≤560px）自动变底部 Sheet：对齐到底、grab 条出现——同一组件两种形态。
  *
- * 定制口子（只开这四个，别再往里加）：
+ * 定制口子（只开这五个，别再往里加）：
  *   · maxWidth —— 弹层最大宽度（默认 420px；窄屏仍占满）；
  *   · #head —— 整块自定义头部（kicker + 标题 + 图标关闭钮这类形态）；
  *     用了它就不渲染默认 title/关闭钮，关闭按钮要自己给；
@@ -25,6 +25,13 @@ import './motion.css';
  *     零圆角零边框、无 grab 条；横屏仍回到居中弹窗（maxWidth 生效）。
  *     与默认窄屏贴底 Sheet 的区别是**心智**而非像素：贴底是「浮一层」，
  *     整页是「翻到下一页」，用户能看到导航语义差异，所以由宿主显式选择。
+ *   · morph —— 宿主自己跑**形变**进场/退场（从被点的那张卡片推开、收回）。
+ *     见 composables/useBohMorphSurface.js。默认 false。
+ *     ⚠️ 为真时 dialog **不挂 `boh-pop`**，只留遮罩的 `boh-fade` —— 这不是省事，
+ *     是必须：`boh-pop` 是 CSS transition，而形变是 WAAPI，CSS Cascade 里
+ *     transitions 在最后一档、**会压过 animations**（论坛详情 2026-10-31 实测：
+ *     面板宽度全程不动、只剩淡入，且没有任何报错）。transition 与 WAAPI 不能在
+ *     同一个元素上抢 transform / opacity，所以由壳让出这条通道。
  *
  * 层级：overlay 的 z-index 读 `--boh-z-modal`（tokens.css，2147482600）——
  * 全站 z-index 是一张乱账（导航 9999、灵动岛 10001、商城弹层/详情 2147482400、
@@ -58,6 +65,11 @@ const props = defineProps({
   flush: { type: Boolean, default: false },
   /** 竖屏整页形态（不贴底）；断点走 orientation，横屏仍居中弹窗 */
   portraitPage: { type: Boolean, default: false },
+  /**
+   * 宿主自己跑形变进出场：为真时 dialog 不挂 `boh-pop`（见文件头说明）。
+   * 宿主需自己引用 useBohMorphSurface 并对 dialog 元素跑形变。
+   */
+  morph: { type: Boolean, default: false },
 });
 
 const emit = defineEmits(['update:modelValue', 'close']);
@@ -68,6 +80,10 @@ const vDialogFocus = createDialogFocusTrapDirective();
 const isOpen = computed(() => props.modelValue);
 
 useBodyScrollLock(isOpen, 'boh-modal');
+
+/** 面板元素：`morph` 宿主要靠它跑形变（useBohMorphSurface 的 surfaceRef）。 */
+const dialogRef = ref(null);
+defineExpose({ dialogRef });
 
 function requestClose() {
   emit('update:modelValue', false);
@@ -90,10 +106,14 @@ function onBackdropClick(event) {
         :class="{ 'boh-modal__overlay--page': portraitPage }"
         @click="onBackdropClick"
       >
-        <Transition name="boh-pop" appear>
+        <Transition :name="morph ? 'boh-morph' : 'boh-pop'" appear>
           <div
+            ref="dialogRef"
             class="boh-modal__dialog"
-            :class="{ 'boh-modal__dialog--page': portraitPage }"
+            :class="{
+              'boh-modal__dialog--page': portraitPage,
+              'boh-modal__dialog--morph': morph,
+            }"
             role="dialog"
             aria-modal="true"
             :aria-label="title || '对话框'"
@@ -103,7 +123,9 @@ function onBackdropClick(event) {
             <header v-if="$slots.head" class="boh-modal__head boh-modal__head--slot">
               <slot name="head" />
             </header>
-            <header v-else-if="title || showClose" class="boh-modal__head">
+            <!-- morph 宿主自带头部（形变体就是它自己，壳不能再插一条 52px 的标题栏：
+                 那会让可见体多出一截、形变窗口与卡片对不上）。 -->
+            <header v-else-if="!morph && (title || showClose)" class="boh-modal__head">
               <h4 class="boh-modal__title">{{ title }}</h4>
               <button
                 v-if="showClose"
@@ -278,5 +300,34 @@ function onBackdropClick(event) {
     flex: 1;
     min-height: 0;
   }
+}
+
+/* 形变宿主（`morph`）：dialog 退化成**纯定位容器**，视觉体完全交给宿主。
+   为什么必须这样：形变是宿主自己的 `.detail-surface` 从被点卡片推开，
+   如果 dialog 还画着自己的玻璃底 + 边框 + 阴影，会看到**两层外壳**同时展开
+   （外层是 1120 宽的完整面板，内层才是那个从卡片长出来的窗口）。
+   所以这里把它剥干净：无底色、无边框、无阴影、无圆角、不裁切、不限制尺寸。
+   宿主的元素将成为唯一可见体，clip-path 与圆角都在它身上，视觉才是一条。
+   ⚠️ `overflow: visible` 也不能省 —— dialog 默认 hidden 会把形变窗口以外的
+      宿主角落裁掉，退场时窗口缩到卡片的一瞬间会「啪」地切一刀。 */
+.boh-modal__dialog--morph {
+  width: auto;
+  height: auto;
+  max-height: none;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  overflow: visible;
+}
+/* morph 与 portraitPage 同时开时，morph 赢：整页那套 `width/height: 100%` 是给
+   「壳自己当可见体」准备的，而 morph 下可见体是宿主元素，壳必须让位。
+   用属性选择器提一级特异性，不靠源序 —— 这两块都是单类选择器，谁写在后面谁赢，
+   太容易被后面的编辑破坏。 */
+.boh-modal__dialog--morph.boh-modal__dialog--page {
+  width: auto;
+  height: auto;
 }
 </style>

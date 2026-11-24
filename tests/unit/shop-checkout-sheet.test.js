@@ -194,7 +194,10 @@ describe('交互动效契约：不许硬切', () => {
     expect(order).not.toContain('name="od"');
     const modal = read('src/components/ui/BohModal.vue');
     expect(modal).toContain('name="boh-fade"');
-    expect(modal).toContain('name="boh-pop"');
+    /* 面板预设是二选一：默认 boh-pop（淡入缩放），形变宿主用 boh-morph
+       （只声明时长、不动 transform/opacity，否则会压掉 WAAPI 形变）。
+       判据从「字面写死 boh-pop」改成「默认分支仍是 boh-pop」—— 契约没变。 */
+    expect(modal).toContain("morph ? 'boh-morph' : 'boh-pop'");
   });
 
   it('每处过渡都尊重 prefers-reduced-motion', () => {

@@ -235,9 +235,11 @@ defineExpose({ reposition, close: () => requestClose('exposed') });
           :class="{ 'boh-dropdown__panel--sheet': pos.narrow }"
           :style="
             pos.narrow
-              ? // 窄屏上拉：垂直位置交给 CSS（bottom 贴边），
-                // 这里再算 top 只会和实际高度打架（面板高度随内容变，量一次不准）
-                { left: `${pos.left}px`, minWidth: minWidth || undefined }
+              ? // 窄屏上拉：**不写任何内联定位**。贴底靠 CSS 的 bottom，左右靠
+                // CSS 的 left/right —— 一旦这里还写内联 left/top，CSS 就得靠
+                // !important 才压得住，而 !important 在本仓是棘轮禁止项
+                // （check:important-budget 基线 0）。高度随内容变，量一次也不准。
+                { minWidth: minWidth || undefined }
               : { top: `${pos.top}px`, left: `${pos.left}px`, minWidth: minWidth || undefined }
           "
           role="menu"
@@ -363,10 +365,10 @@ defineExpose({ reposition, close: () => requestClose('exposed') });
    ⚠️ 用 bottom 而不是 JS 算 top —— 面板高度由内容决定，JS 量到的尺寸和最终渲染
    会差几个像素，贴底判断（vh-bottom）就会漂。 */
 .boh-dropdown__panel--sheet {
-  left: 12px !important;
+  left: 12px;
   right: 12px;
   bottom: 12px;
-  top: auto !important;
+  top: auto;
   max-width: none;
   max-height: min(70vh, 520px);
   border-radius: var(--liquid-radius-lg, 18px);

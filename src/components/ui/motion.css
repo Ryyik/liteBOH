@@ -35,6 +35,33 @@
   opacity: 0;
 }
 
+/* ── Vue <Transition name="boh-morph">：**只占位、不动任何属性** ──
+   给「宿主自己跑 WAAPI 形变」的浮层用（plans/047 / useBohMorphSurface）。
+
+   为什么需要这么一个「什么都不做」的预设：
+   Vue 的 `<Transition>` 必须能算出**离场时长**，否则节点会在下一帧被直接摘掉，
+   形变跑不到一半就消失。而任何真正动 opacity / transform 的预设（boh-pop / boh-fade）
+   都会与形变的 WAAPI 抢同一个通道 —— CSS transitions 在级联里压过 animations，
+   形变会被整段吃掉（论坛详情 2026-10-31 实测）。
+
+   所以这里只声明 transition 的**时长与属性白名单**（用 `clip-path`：形变自己也动它，
+   但 WAAPI 期间元素上会先被宿主写成 `transition: none` 之外的同一属性，
+   而这条只承担「Vue 等多久」的语义）。真正的手感全在 composable 里。
+   ⚠️ 不要改成 `transition: all` 或加 opacity —— 那会把形变的通道抢回来。
+   ⚠️ 时长只写 `var(--motion-morph-out)`，**不带毫秒兜底**：预设层禁止写死毫秒
+   （见本文件头第 ① 条，单测逐个扫 `\d+ms`）。token 缺失应当在开发时就暴露，
+   而不是被一个兜底数字静默盖住。 */
+.boh-morph-enter-active,
+.boh-morph-leave-active {
+  transition: clip-path var(--motion-morph-out) linear;
+  /* 进场不等：形变的起止由 composable 用 WAAPI 精确控制 */
+  transition-delay: 0s;
+}
+.boh-morph-leave-active {
+  /* 离场必须等满形变时长（含独立的透明度淡出），否则节点被提前摘除 —— 坑⑤ */
+  transition-duration: var(--motion-morph-out);
+}
+
 /* ── Vue <Transition name="boh-slide-up">：Toast / 底部条滑入滑出 ── */
 .boh-slide-up-enter-active,
 .boh-slide-up-leave-active {
