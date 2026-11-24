@@ -360,6 +360,10 @@ export const SAVE_STRATEGIES = {
       throw new Error('能力类型无效');
     if (!['active', 'disabled'].includes(normalizedStatus))
       throw new Error('状态必须是 active 或 disabled');
+    /* 这份白名单是 **DB CHECK 约束的镜像**（超集），不是「可售档位」清单 ——
+       所以 2026-11-24 Plus 并入 Pro 后**仍保留 plus**：库里历史行若带
+       `min_tier='plus'`，编辑别的字段时不该因为一个未被改动的值而保存失败。
+       面向运营的档位下拉在 fields.js 的 BOLEK_MODEL_MIN_TIER_OPTIONS（那里已去 plus）。 */
     const allowedMinTiers = new Set([
       'guest',
       'free',

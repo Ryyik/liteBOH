@@ -766,10 +766,10 @@
                       暂时读不到用量数据，稍后再试
                     </div>
                     <template v-else>
-                      <!-- 2026-10-08 口径第二版：尺子**唯一**（Plus = 100%），而且用量卡抬头
-                           已经直接印「今日剩余 625%」⇒ 这里不再重复档位百分比。
-                           曾经那句「Max · Plus 的 625%」是为了向用户解释「为什么显示 100%」，
-                           现在没有第二把尺子需要解释了。 -->
+                      <!-- 2026-10-08 口径第二版：尺子**唯一**（Pro = 100%，plans/046 起；
+                           旧基准是 Plus），而且用量卡抬头已经直接印「今日剩余 250%」
+                           ⇒ 这里不再重复档位百分比。曾经那句「Max · Plus 的 625%」
+                           是为了向用户解释「为什么显示 100%」，现在没有第二把尺子需要解释了。 -->
                       <div class="ai-settings-usage-plan">
                         <div>
                           <span>当前方案</span>
@@ -800,8 +800,9 @@
                           <span>今日剩余</span>
                           <strong>{{ quotaRemainingLabel }}</strong>
                         </div>
-                        <!-- 2026-10-08 口径第二版：主指标 = **剩余**，尺子 = 「Plus = 100%」
-                             ⇒ Max 没消耗就是 剩余 625%。已用与附加包降级成副行。
+                        <!-- 2026-10-08 口径第二版：主指标 = **剩余**，尺子 = 「Pro = 100%」
+                             （plans/046 起；旧基准是 Plus）⇒ Max 没消耗就是 剩余 250%。
+                             已用与附加包降级成副行。
                              ⚠️ 这里**不许**再出现任何 Token 绝对数（用户点名去掉）。 -->
                         <div class="ai-settings-quota-values">
                           <span>已用 {{ quotaUsedLabel }}</span>
@@ -833,7 +834,9 @@
                           <span>{{
                             quotaIsUnlimited ? '当前订阅不限用量' : '每日 0:00 重置'
                           }}</span>
-                          <span v-if="!quotaIsUnlimited">Plus = 100%</span>
+                          <!-- 2026-11-24（plans/046）：尺子基准档 Plus → Pro（Plus 已并入 Pro）。
+                               这行是**用户可见**的换算说明，写错会让 Pro 用户看不懂自己为什么是 100%。 -->
+                          <span v-if="!quotaIsUnlimited">Pro = 100%</span>
                         </div>
                       </button>
 
@@ -1409,8 +1412,9 @@ const tierLabel = computed(() => TIER_LABELS[quota.value?.tier] || quota.value?.
    ⚠️ 2026-10-08 用户口径「不再展示你还有多少 token」—— 这里**不许**再出现
    `formatTokenCount(quotaUsed)` 这类 Token 绝对值的调用；只有积分余额继续显示绝对值
    （积分是余额，不是日额度，没有百分比的分母，见 pointsMode 那一段）。
-   尺子是**唯一的**：Plus = 100% ⇒ Max 625% / Ultra 1250%，附加包在同一把尺子上相加；
-   主指标是**剩余**（Max 刚过 0 点、没消耗 ⇒ 剩余 625%）。 */
+   尺子是**唯一的**：Pro = 100% ⇒ Max 250% / Ultra 500%（plans/046 起；旧基准是 Plus
+   ⇒ 旧值 625%/1250%），附加包在同一把尺子上相加；
+   主指标是**剩余**（Max 刚过 0 点、没消耗 ⇒ 剩余 250%）。 */
 const quotaDisplay = computed(() => resolveAiQuotaDisplay(quota.value || {}));
 const quotaIsUnlimited = computed(() => quotaDisplay.value.isUnlimited);
 const quotaRemainingLabel = computed(() => quotaDisplay.value.remainingLabel);

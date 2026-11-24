@@ -204,10 +204,8 @@
   color: #0d0d12;
 }
 
-.user-space-page[data-theme="dark"] .tier-badge.tier-plus {
-  background: rgba(106, 143, 201, 0.15);
-  color: #8ab4f8;
-}
+/* 2026-11-24（plans/046）：`.tier-badge.tier-plus` 规则随 Plus 并入 Pro 删除
+   （模板侧 `tier-${tierCode}` 已不可能产出 plus —— fetchUserTier 走归一表折成 pro）。 */
 .user-space-page[data-theme="dark"] .tier-badge.tier-pro {
   background: rgba(142, 154, 175, 0.15);
   color: #b0bcc9;

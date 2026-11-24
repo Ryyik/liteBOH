@@ -12,69 +12,75 @@ import { squeezeSource } from '../helpers/source.js';
 //     若有附加包，则可以显示 150%，以此类推。」
 //   →「还是显示用户当日剩余百分比额度比较好，Max 就显示剩余 625%。」
 //
-// **只有一把尺子**：最低付费档 Plus = 100% ⇒ Pro 250% / Max 625% / Ultra 1250%，
-// 附加包在同一把尺子上相加。所以 Max 刚过 0 点、没消耗必然是「剩余 625%」。
+// **只有一把尺子**：最低付费档 Pro = 100% ⇒ Max 250% / Ultra 500%，
+// 附加包在同一把尺子上相加。所以 Max 刚过 0 点、没消耗必然是「剩余 250%」。
+//
+// ⚠️ 2026-11-24（plans/046）：基准档从 `plus` 换成 `pro`（Plus 并入 Pro）⇒
+//    所有百分比缩到原来的 40%（625→250、1250→500、13→5）。绝对 token 数一个没动。
+//    本文件的数字全部按新尺子重算 —— 这不是"放宽断言"，是分母真的换了。
 //
 // ⚠️ 第一版把分母设成「自己档位的基础额度」（恒 100%），Max 用户看到「剩余 100%」、
 //    连问两次「我是 Max，为什么显示 100%」⇒ 本文件的核心就是锁住「不许再有第二把尺子」。
 //
 // 这条口径有三个极易写错、且**看截图看不出来**的点，本文件逐个锁：
 //   ① 尺子选错看不出来：同一个 Max 账号，「以自己额度为 100%」得 100%、
-//      「Plus = 100%」得 625% —— 两个都是「合理的百分比」，只有断言能分辨。
-//   ② 分母错了看不出来：已用百分比必须相对**档位基础额度**（625 × 55/250 万 = 138%），
-//      相对「基础 + 包」算会得到另一个同样合理的 125%。
-//   ③ 剩余是 625% 这种三位数，直接当进度条 width 会让条长到容器外 6 倍 ⇒
+//      「Pro = 100%」得 250% —— 两个都是「合理的百分比」，只有断言能分辨。
+//   ② 分母错了看不出来：已用百分比必须相对**档位基础额度**（250 × 55/250 万 = 55%），
+//      相对「基础 + 包」算会得到另一个同样合理的 50%。
+//   ③ 剩余是 250% 这种三位数，直接当进度条 width 会让条长到容器外 2.5 倍 ⇒
 //      必须走归一后的 meterPercent（已用 ÷ 总额）。
 // ─────────────────────────────────────────────────────────────────────────────
 
 const read = (rel) => readFileSync(resolve(import.meta.dirname, '../..', rel), 'utf8');
 
-const MAX_BASE = 2500000; // Max 档日额度（= Plus 的 625%）
-const PACK_LITE = 250000; // Coding Lite 加成（= Plus 的 62.5%）
+const MAX_BASE = 2500000; // Max 档日额度（= Pro 的 250%）
+const PACK_LITE = 250000; // Coding Lite 加成（= Pro 的 25%）
 
-describe('resolveTierQuotaPercent：Plus = 100% 这把尺子的数值真源', () => {
-  it('四档的百分比与订阅页对比表同一份（100/250/625/1250）', () => {
+describe('resolveTierQuotaPercent：Pro = 100% 这把尺子的数值真源', () => {
+  it('四档的百分比与订阅页对比表同一份（5/100/250/500）', () => {
+    // 2026-11-24（plans/046）：分母从 plus(400000) 换成 pro(1000000)
+    expect(resolveTierQuotaPercent('pro')).toBe(100);
+    expect(resolveTierQuotaPercent('max')).toBe(250);
+    expect(resolveTierQuotaPercent('ultra')).toBe(500);
+    // 历史 plus 折到 pro ⇒ 拿到 100%（不是已下架的 100% 旧值 —— 它就是 pro 的值）
     expect(resolveTierQuotaPercent('plus')).toBe(100);
-    expect(resolveTierQuotaPercent('pro')).toBe(250);
-    expect(resolveTierQuotaPercent('max')).toBe(625);
-    expect(resolveTierQuotaPercent('ultra')).toBe(1250);
   });
 
   it('guest / 空值 / 未知档 ⇒ null（没有 token 额度或没有订阅，不许硬套一把尺子）', () => {
     // 2026-10-20（plans/030 §3.3）：free 额度 0 → 50000，它**不再是 null** ——
-    // 注册用户现在真有每日额度，50000/400000 = 12.5% → Math.round 后 13。
+    // 注册用户现在真有每日额度。2026-11-24 分母换成 Pro 的 1000000 ⇒ 50000/1000000 = 5%。
     // guest 仍然 null：游客没有额度行以外的任何东西（且只走 0.0x 的 GLM4）。
-    expect(resolveTierQuotaPercent('free')).toBe(13);
+    expect(resolveTierQuotaPercent('free')).toBe(5);
     expect(resolveTierQuotaPercent('guest')).toBeNull();
     expect(resolveTierQuotaPercent('')).toBeNull();
     expect(resolveTierQuotaPercent(undefined)).toBeNull();
     expect(resolveTierQuotaPercent('enterprise-unknown')).toBeNull();
   });
 
-  it('别名与大小写走同一个归一（MAX / Max 都是 625）', () => {
-    expect(resolveTierQuotaPercent('MAX')).toBe(625);
-    expect(resolveTierQuotaPercent(' Max ')).toBe(625);
+  it('别名与大小写走同一个归一（MAX / Max 都是 250）', () => {
+    expect(resolveTierQuotaPercent('MAX')).toBe(250);
+    expect(resolveTierQuotaPercent(' Max ')).toBe(250);
   });
 });
 
 describe('resolveAiQuotaDisplay：档位百分比 × 用量占比，主指标是剩余', () => {
-  it('Max 无消耗 ⇒ 剩余 625%（用户点名的那个数）', () => {
+  it('Max 无消耗 ⇒ 剩余 250%（Pro = 100% 尺子上的 Max 值）', () => {
     const d = resolveAiQuotaDisplay({
       tier: 'max',
       usedTokens: 0,
       baseTokenLimit: MAX_BASE,
       tokenLimit: MAX_BASE,
     });
-    expect(d.tierPercent).toBe(625);
-    expect(d.remainingLabel).toBe('625%');
+    expect(d.tierPercent).toBe(250);
+    expect(d.remainingLabel).toBe('250%');
     expect(d.usedLabel).toBe('0%');
-    expect(d.totalLabel).toBe('625%');
+    expect(d.totalLabel).toBe('250%');
     expect(d.meterText).toBe('0%');
     expect(d.hasPack).toBe(false);
     expect(d.degraded).toBe(false);
   });
 
-  it('Max 带附加包且已用 55 万：已用 138% / 总额 688% / 剩余 550% / 条宽 20%', () => {
+  it('Max 带附加包且已用 55 万：已用 55% / 总额 275% / 剩余 220% / 条宽 20%', () => {
     const d = resolveAiQuotaDisplay({
       tier: 'max',
       usedTokens: 550000,
@@ -82,13 +88,13 @@ describe('resolveAiQuotaDisplay：档位百分比 × 用量占比，主指标是
       bonusTokens: PACK_LITE,
       tokenLimit: MAX_BASE + PACK_LITE,
     });
-    // 已用相对**基础额度**：625 × (55/250) = 137.5 → 138%（相对总量算会是 125%）
-    expect(d.usedLabel).toBe('138%');
-    // 总额在同尺相加：625 + 62.5 = 687.5 → 688%
-    expect(d.totalLabel).toBe('688%');
-    expect(d.remainingLabel).toBe('550%');
-    expect(d.packPercent).toBeCloseTo(62.5, 5);
-    // 剩余 550% 若被当成 width 会撑破容器 ⇒ 条宽必须是 137.5/687.5 = 20%
+    // 已用相对**基础额度**：250 × (55/250) = 55%（相对总量算会是 50%）
+    expect(d.usedLabel).toBe('55%');
+    // 总额在同尺相加：250 + 25 = 275%
+    expect(d.totalLabel).toBe('275%');
+    expect(d.remainingLabel).toBe('220%');
+    expect(d.packPercent).toBeCloseTo(25, 5);
+    // 剩余 220% 若被当成 width 会撑破容器 ⇒ 条宽必须是 55/275 = 20%
     expect(d.meterText).toBe('20%');
     expect(d.meterPercent).toBeCloseTo(20, 5);
     expect(d.hasPack).toBe(true);
@@ -101,16 +107,16 @@ describe('resolveAiQuotaDisplay：档位百分比 × 用量占比，主指标是
       baseTokenLimit: 1000000,
       tokenLimit: 1000000,
     });
-    // 250 × 1.5 = 375% > 总额 250% —— 不许被 Math.min(100) 压平
-    expect(over.usedLabel).toBe('375%');
-    expect(over.totalLabel).toBe('250%');
+    // 100 × 1.5 = 150% > 总额 100% —— 不许被 Math.min(100) 压平
+    expect(over.usedLabel).toBe('150%');
+    expect(over.totalLabel).toBe('100%');
     expect(over.remainingPercent).toBe(0);
     expect(over.remainingLabel).toBe('0%');
     expect(over.meterPercent).toBe(100);
   });
 
   it('老 EF 不返回基础额度 ⇒ 降级：总量当分母、包归零、尺子退回 100%', () => {
-    const d = resolveAiQuotaDisplay({ tier: 'plus', usedTokens: 88000, tokenLimit: 100000 });
+    const d = resolveAiQuotaDisplay({ tier: 'pro', usedTokens: 88000, tokenLimit: 100000 });
     expect(d.degraded).toBe(true);
     expect(d.hasPack).toBe(false);
     expect(d.usedLabel).toBe('88%');
@@ -118,7 +124,7 @@ describe('resolveAiQuotaDisplay：档位百分比 × 用量占比，主指标是
     expect(d.remainingLabel).toBe('12%');
   });
 
-  it('档位未知（guest 等）⇒ 降级成「相对自己额度」的 100% 尺子，不猜 Plus 基准', () => {
+  it('档位未知（guest 等）⇒ 降级成「相对自己额度」的 100% 尺子，不猜 Pro 基准', () => {
     const d = resolveAiQuotaDisplay({
       tier: 'guest',
       usedTokens: 3000,
@@ -169,7 +175,7 @@ describe('resolveAiQuotaDisplay：档位百分比 × 用量占比，主指标是
   it('百分比文案分档：<1% 两位小数、<10% 一位小数、其余整数', () => {
     const mk = (used) =>
       resolveAiQuotaDisplay({
-        tier: 'plus',
+        tier: 'pro',
         usedTokens: used,
         baseTokenLimit: 1000000,
         tokenLimit: 1000000,
@@ -187,9 +193,9 @@ describe('resolveAiQuotaDisplay：档位百分比 × 用量占比，主指标是
       bonusTokens: PACK_LITE,
       tokenLimit: MAX_BASE + PACK_LITE,
     });
-    expect(d.packLabel).toBe('+63%');
-    expect(d.titleLabel).toContain('+63%');
-    expect(d.detailLabel).not.toContain('63%');
+    expect(d.packLabel).toBe('+25%');
+    expect(d.titleLabel).toContain('+25%');
+    expect(d.detailLabel).not.toContain('25%');
     expect(d.detailLabel).toContain('含附加包');
   });
 });
@@ -221,7 +227,7 @@ describe('百分比口径的源码守卫：三个页面都不再自算 Token 数
     expect(src).toContain('今日剩余');
     expect(src).toContain('usage.quotaRemainingText');
     expect(src).toContain('width: usage.quotaMeterText');
-    // 剩余是 625% 这种三位数，绝不能直接当宽度
+    // 剩余是 250% 这种三位数，绝不能直接当宽度
     expect(src).not.toContain('width: usage.quotaRemainingText');
   });
 

@@ -160,11 +160,10 @@ report.usageByTier14d = await sql(`
     from public.ai_quota_log log
     left join (
       select s.user_id,
-             (array['ultra','max','pro','plus','free'])[1 + greatest(
-                case when exists (select 1 from public.user_subscriptions x where x.user_id = s.user_id and lower(trim(x.plan_code)) in ('ultra','boh-ultra') and x.status in ('active','trial') and x.expires_at > now()) then 1 else 0 end * 16
-              + case when exists (select 1 from public.user_subscriptions x where x.user_id = s.user_id and lower(trim(x.plan_code)) in ('max','boh-max') and x.status in ('active','trial') and x.expires_at > now()) then 1 else 0 end * 8
-              + case when exists (select 1 from public.user_subscriptions x where x.user_id = s.user_id and lower(trim(x.plan_code)) in ('pro','boh-pro') and x.status in ('active','trial') and x.expires_at > now()) then 1 else 0 end * 4
-              + case when exists (select 1 from public.user_subscriptions x where x.user_id = s.user_id and lower(trim(x.plan_code)) in ('plus','boh-ai-plus','boh-plus') and x.status in ('active','trial') and x.expires_at > now()) then 1 else 0 end * 2, 1)] as tier
+             (array['ultra','max','pro','free'])[1 + greatest(
+                case when exists (select 1 from public.user_subscriptions x where x.user_id = s.user_id and lower(trim(x.plan_code)) in ('ultra','boh-ultra') and x.status in ('active','trial') and x.expires_at > now()) then 1 else 0 end * 8
+              + case when exists (select 1 from public.user_subscriptions x where x.user_id = s.user_id and lower(trim(x.plan_code)) in ('max','boh-max') and x.status in ('active','trial') and x.expires_at > now()) then 1 else 0 end * 4
+              + case when exists (select 1 from public.user_subscriptions x where x.user_id = s.user_id and lower(trim(x.plan_code)) in ('pro','boh-pro','plus','boh-ai-plus','boh-plus') and x.status in ('active','trial') and x.expires_at > now()) then 1 else 0 end * 2, 1)] as tier
         from (select distinct user_id from public.ai_quota_log where created_at >= now() - interval '14 days') s
     ) u on u.user_id = log.user_id
    where log.created_at >= now() - interval '14 days'

@@ -330,11 +330,9 @@
   font-weight: 700;
 }
 
-/* 订阅等级帖子背景微色调（仅横屏整页双栏；竖屏连续内容流由 1024 断点透明化接管） */
+/* 订阅等级帖子背景微色调（仅横屏整页双栏；竖屏连续内容流由 1024 断点透明化接管）
+   2026-11-24（plans/046）：`tier-plus` 那条随 Plus 并入 Pro 删除。 */
 @media (min-width: 1025px) {
-  .x-post-card.tier-plus {
-    background: rgba(245, 250, 255, 0.7) !important;
-  }
   .x-post-card.tier-pro {
     background: rgba(250, 248, 240, 0.7) !important;
   }
@@ -897,10 +895,8 @@
   overflow: hidden;
 }
 
-/* 引用框随原帖作者订阅层级显示卡色（与帖子卡片 tier 微色调同源） */
-.quoted-post-box.tier-plus {
-  background: rgba(245, 250, 255, 0.95);
-}
+/* 引用框随原帖作者订阅层级显示卡色（与帖子卡片 tier 微色调同源）
+   2026-11-24（plans/046）：`tier-plus` 那条随 Plus 并入 Pro 删除。 */
 .quoted-post-box.tier-pro {
   background: rgba(250, 248, 240, 0.95);
 }

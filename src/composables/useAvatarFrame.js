@@ -5,7 +5,8 @@
  *   素材到位后只填 url，UI 不动。url 走 public/avatars/frames/（见 plans/avatar-frame-integration-spec.md）。
  * - 佩戴状态双写：本机 localStorage（boh-avatar-frame-id，首屏即读）+ profiles.avatar_frame_url
  *   （跨设备真源）。云同步时机由 initAvatarFrameSync() 注册，**唯一入口**（详见文件尾部）。
- * - 解锁判断：纯本地按订阅档位推导（TIER_RANK），跟 useUserTier 的 tier 走，不新增权益真相源。
+ * - 解锁判断：纯本地按订阅档位推导（tierRank，来自 utils/subscription-benefits.js 单一真源），
+ *   跟 useUserTier 的 tier 走，不新增权益真相源。
  *   限时免费框（freeUntil）由 utils/avatar-frame-campaign.js 统一判定，到期自动回落声明档位。
  *   Phase 2 换成服务端发放的 owned 列表（订阅/活动/商城多来源）。
  * - equippedId 是模块级单例 ref：资产中心顶卡、装扮 tab、弹层三处自动同步。
@@ -15,6 +16,7 @@ import { supabase } from '@/utils/supabase-client.js';
 import { useAuthStore } from '@/stores/auth';
 import { logger } from '@/utils/logger.js';
 import { freeUntilMs, resolveFrameTier } from '@/utils/avatar-frame-campaign.js';
+import { tierRank } from '@/utils/subscription-benefits.js';
 import {
   listPublishedAvatarFrames,
   listMyAvatarFrameUnlocks,
@@ -115,8 +117,13 @@ export const AVATAR_FRAMES = [
   // { id: 'limit-anniversary', name: '周年像素', tier: 'limit', ring: '#d85a30', url: '', limited: true, desc: '八周年活动限定' }
 ];
 
-/** 解锁档位排序（limit 限定不走 rank，一期 mock 默认已解锁，Phase 2 由服务端发放） */
-const TIER_RANK = { free: 0, plus: 1, pro: 2, max: 3, ultra: 4 };
+/** 解锁档位排序（limit 限定不走 rank，一期 mock 默认已解锁，Phase 2 由服务端发放）
+ *  ⚠️ 2026-11-24（plans/046）：档位序收归 `utils/subscription-benefits.js` 单一真源，
+ *  本文件不再内联映射 —— 内联副本会让「头像框解锁等级」与「配额档位」悄悄分叉。 */
+const frameRank = (code) => {
+  const rank = tierRank(code);
+  return rank < 0 ? -1 : rank;
+};
 
 /** 素材 URL 去版本参数（?v=N）——库中存量 url 无 query，反查清单时按路径匹配 */
 const stripUrlQuery = (u) => String(u || '').split('?')[0];
@@ -235,14 +242,14 @@ export function getFrameById(id) {
 
 /** 已解锁判定：内置档位推导 ∪ 限免窗口 ∪ 服务端积分解锁（永久） */
 export function ownedIdsForTier(tierCode, now = Date.now(), purchased = purchasedIds.value) {
-  const tier = TIER_RANK[tierCode] >= 0 ? tierCode : 'free';
+  const tier = frameRank(tierCode) >= 0 ? tierCode : 'free';
   return allAvatarFrames()
     .filter(
       (f) =>
         f.id === 'none' ||
         f.limited ||
         purchased.has(f.id) ||
-        TIER_RANK[tier] >= TIER_RANK[resolveFrameTier(f, now)],
+        frameRank(tier) >= frameRank(resolveFrameTier(f, now)),
     )
     .map((f) => f.id);
 }

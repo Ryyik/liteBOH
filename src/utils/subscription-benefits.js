@@ -1,8 +1,21 @@
 export const DEFAULT_CLOUD_IMAGE_LIMIT = 150;
 
+/* ===== 档位序单一真源（2026-11-24，plans/046）=====
+   合并前这条序被复制了 6 份（`SubscriptionPlans.vue` / `useAvatarFrame.js` /
+   `useLabQuota.js` / `photo-albums/quota.js` 各自内联 + 本文件的 `resolveHighestTierCode`
+   局部变量 + EF `api-key-vault`）。任一处漏改就会出现「同一用户在两张卡片上看成不同档」
+   或「头像框解锁等级与配额不一致」，且都不会报错。
+   ⇒ 前端一律 `import { TIER_ORDER, tierRank, nextTier }`，**不许再内联数组/映射**。
+   EF 跑在 Deno、引不到本文件，那一份保留独立实现，由
+   `tests/unit/subscription-tier-order-single-source.test.js` 比对源码文本锁同序。
+
+   ⚠️ 四档制：`plus` 已于 2026-11-24 并入 `pro`（用户逐条确认，见 plans/046）。
+      它不在这条序里 —— 历史 `plan_code='plus'` 的行靠 `PLAN_CODE_ALIASES` 折到 `pro`，
+      而不是靠这里留一个位置。别为了「兼容」把它加回来：加回来就等于承认它还是个独立档。 */
+export const TIER_ORDER = ['free', 'pro', 'max', 'ultra'];
+
 export const PLAN_DISPLAY_NAMES = {
-  free: 'Free',
-  plus: 'Plus',
+  free: 'Standard',
   pro: 'Pro',
   max: 'Max',
   ultra: 'Ultra',
@@ -20,8 +33,7 @@ export const PLAN_DISPLAY_NAMES = {
  */
 export const TIER_DISPLAY_LABELS = {
   guest: '未登录用户',
-  free: '免费用户',
-  plus: 'Plus',
+  free: '标准用户',
   pro: 'Pro',
   max: 'Max',
   ultra: 'Ultra',
@@ -29,7 +41,6 @@ export const TIER_DISPLAY_LABELS = {
 
 export const PLAN_CLOUD_IMAGE_LIMITS = {
   free: 150,
-  plus: 300,
   pro: 450,
   max: 900,
   ultra: 1200,
@@ -47,7 +58,9 @@ export const PLAN_CLOUD_IMAGE_LIMITS = {
      对齐口径：与 ai_pricing_config.rate_tokens_per_point 一起决定「1 积分能买多少」。
      ⚠️ 2026-10-20（plans/030 §3.3）：`free` 从 0 改成 **5 万** —— 注册即有免费量，
      用完才走积分兜底。DB 侧同步见迁移 2026102003。改后 `free` 在对比表里由
-     「—」变成「13%」（Plus=100% 那把尺子）—— **这是有意的展示变化，不是回归**。
+     「—」变成「13%」（当时是 Plus=100% 那把尺子）；2026-11-24 基准换成 Pro
+     ⇒ 现在是 **5%**（50000 / 1000000）。
+     **这是有意的展示变化，不是回归**。
      ⚠️ 2026-10-08 口径变更（用户口径「不再展示你还有多少 token，只用百分比」）：
      界面**不再展示绝对 Token 数**。`PLAN_AI_TOKEN_LIMITS` 保留为**绝对值底数** ——
      它既是档位百分比的推导来源，也是附加包百分比的分母；界面一律读
@@ -61,15 +74,19 @@ export const PLAN_CLOUD_IMAGE_LIMITS = {
      真实阈值以数据库 RPC 为准，此处为展示口径，改动需与 PityIslandCard 阈值文案同步核对。 */
 export const PLAN_AI_TOKEN_LIMITS = {
   free: 50000,
-  plus: 400000,
   pro: 1000000,
   max: 2500000,
   ultra: 5000000,
 };
 
-/* 档位横向对比的基准档：**最低付费档**。Plus = 100%、Pro = 250%…
-   （free 无 token 额度 ⇒ '—'，不参与百分比） */
-export const PLAN_AI_TOKEN_BASELINE_TIER = 'plus';
+/* 档位横向对比的基准档：**最低付费档**。Pro = 100%、Max = 250%…
+   （free 无 token 额度 ⇒ '—'，不参与百分比）
+
+   ⚠️ 2026-11-24（plans/046）：尺子从 `'plus'` 换成 `'pro'` —— Plus 并入 Pro 后，
+   Pro 成了最低付费档。**绝对 token 数一个没动**，只是分母换了：
+   free 13% → 5%、Pro 250% → 100%、Max 625% → 250%、Ultra 1250% → 500%。
+   这是有意的展示变化，须写进更新说明（用户看到「额度变低了」，实际额度不变）。 */
+export const PLAN_AI_TOKEN_BASELINE_TIER = 'pro';
 
 export const PLAN_AI_TOKEN_PERCENTS = Object.fromEntries(
   Object.entries(PLAN_AI_TOKEN_LIMITS).map(([code, tokens]) => [
@@ -81,9 +98,10 @@ export const PLAN_AI_TOKEN_PERCENTS = Object.fromEntries(
 );
 
 /**
- * 「Plus = 100%」这把尺子上某档位的**数值**（Plus 100 / Pro 250 / Max 625 / Ultra 1250）。
+ * 「Pro = 100%」这把尺子上某档位的**数值**（Pro 100 / Max 250 / Ultra 500；
+ * 2026-11-24 基准换成 Pro 前是 Plus 100 / Pro 250 / Max 625 / Ultra 1250）。
  *
- * 为什么需要它：`PLAN_AI_TOKEN_PERCENTS` 是给表格/卡片直接印的**字符串**（'625%'），
+ * 为什么需要它：`PLAN_AI_TOKEN_PERCENTS` 是给表格/卡片直接印的**字符串**（'250%'），
  * 而 AI 页要做「剩余 = 总额 − 已用」的运算，得拿到数值。2026-10-08 第二版口径把
  * AI 页的尺子也统一到这一把，于是 `utils/ai-quota-display.js` 依赖它。
  *
@@ -106,7 +124,6 @@ export function resolveTierQuotaPercent(tierCode) {
    改动需与面板当前值核对；口径同 PLAN_LOTTERY_PITY_THRESHOLDS（展示单源 vs DB 真值）。 */
 export const PLAN_AI_POINT_MULTIPLIERS = {
   free: 1,
-  plus: 0.95,
   pro: 0.9,
   max: 0.85,
   ultra: 0.8,
@@ -130,7 +147,6 @@ export const PLAN_AI_POINT_MULTIPLIERS = {
 
 export const PLAN_LOTTERY_PITY_THRESHOLDS = {
   free: null,
-  plus: 24,
   pro: 18,
   max: 12,
   ultra: 8,
@@ -138,7 +154,6 @@ export const PLAN_LOTTERY_PITY_THRESHOLDS = {
 
 export const PLAN_PHOTO_ALBUM_COUNTS = {
   free: '1 本',
-  plus: '3 本',
   pro: '5 本',
   max: '10 本',
   ultra: '不限',
@@ -146,7 +161,6 @@ export const PLAN_PHOTO_ALBUM_COUNTS = {
 
 export const PLAN_PHOTO_ALBUM_PHOTOS = {
   free: '12 张',
-  plus: '24 张',
   pro: '40 张',
   max: '60 张',
   ultra: '不限',
@@ -154,15 +168,19 @@ export const PLAN_PHOTO_ALBUM_PHOTOS = {
 
 export const PLAN_PHOTO_ALBUM_EXPORTS = {
   free: '2 次 / 月',
-  plus: '5 次 / 月',
   pro: '10 次 / 月',
   max: '20 次 / 月',
   ultra: '不限',
 };
 
 const PLAN_CODE_ALIASES = {
-  'boh-ai-plus': 'plus',
-  'boh-plus': 'plus',
+  /* ⚠️ 历史档位（2026-11-24 合并，plans/046）：Plus 已并入 Pro。
+     保留这条别名的**唯一目的**是让历史台账行（`points_cost = 8`）继续原样可用 ——
+     库里那 32 行 `plan_code='plus'` 不回填，审计上仍然看得见「当初花 8 积分买的 Plus」。
+     删除它会让这 23 个活跃用户当场掉成 free。 */
+  plus: 'pro',
+  'boh-ai-plus': 'pro',
+  'boh-plus': 'pro',
   'boh-pro': 'pro',
   'boh-max': 'max',
   'boh-ultra': 'ultra',
@@ -173,6 +191,24 @@ export function normalizeSubscriptionPlanCode(planCode = '') {
     .trim()
     .toLowerCase();
   return PLAN_CODE_ALIASES[normalized] || normalized;
+}
+
+/** 只读快照，供单测断言「别名表没有残留指向 plus 的键」（plans/046 P1 守卫）。 */
+export const PLAN_CODE_ALIASES_FOR_TEST = Object.freeze({ ...PLAN_CODE_ALIASES });
+
+/**
+ * 档位序号（越小越低）。未知档位/空值一律 -1 —— 与历史上 `TIER_RANK[x] ?? -1` 的
+ * 语义一致，调用方据此判断「这不是一个能比较的档」。
+ */
+export function tierRank(planCode) {
+  return TIER_ORDER.indexOf(normalizeSubscriptionPlanCode(planCode));
+}
+
+/** 下一档；已在最高档或无法识别的档位返回 null（原 `NEXT_TIER_MAP[tier]` 语义）。 */
+export function nextTier(planCode) {
+  const idx = tierRank(planCode);
+  if (idx < 0 || idx >= TIER_ORDER.length - 1) return null;
+  return TIER_ORDER[idx + 1];
 }
 
 export function isSubscriptionRecordActive(record, nowTs = Date.now()) {
@@ -228,7 +264,6 @@ export function resolveCloudBenefitFromSubscriptions(subscriptions = [], nowTs =
 
 export const TIER_NICKNAME_COLORS = {
   free: '',
-  plus: 'nickname-blue',
   pro: 'nickname-silver',
   max: 'nickname-gold',
   ultra: 'nickname-rainbow',
@@ -240,12 +275,11 @@ export function resolveNicknameTierClass(planCode) {
 }
 
 export function resolveHighestTierCode(subscriptions = [], nowTs = Date.now()) {
-  const TIER_ORDER = ['free', 'plus', 'pro', 'max', 'ultra'];
   let best = '';
   let bestIdx = -1;
   (Array.isArray(subscriptions) ? subscriptions : []).forEach((record) => {
     const code = normalizeSubscriptionPlanCode(record.planCode || record.plan_code);
-    const idx = TIER_ORDER.indexOf(code);
+    const idx = tierRank(code);
     if (code && idx > bestIdx && isSubscriptionRecordGrantingBenefits(record, nowTs)) {
       bestIdx = idx;
       best = code;

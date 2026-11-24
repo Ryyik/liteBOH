@@ -6995,10 +6995,10 @@ const openEditModal = async (item = null, opts = {}) => {
         editingItem.value.user_id = '';
         editingItem.value.username = '';
         editingItem.value.email = '';
-        editingItem.value.plan_code = 'plus';
-        editingItem.value.plan_name = SUBSCRIPTION_PLAN_NAMES['plus'];
+        editingItem.value.plan_code = 'pro';
+        editingItem.value.plan_name = SUBSCRIPTION_PLAN_NAMES['pro'];
         editingItem.value.billing_cycle = 'monthly';
-        editingItem.value.points_cost = 8;
+        editingItem.value.points_cost = 15;
         editingItem.value.duration_months = 1;
         editingItem.value.started_at = toDateTimeInputValue(now);
         editingItem.value.expires_at = toDateTimeInputValue(expires);

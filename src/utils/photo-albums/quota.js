@@ -9,32 +9,31 @@
 
 import { supabase } from '@/utils/supabase-client.js';
 import { useUserTier } from '@/composables/useUserTier.js';
+import { nextTier } from '@/utils/subscription-benefits.js';
 
 export const ALBUM_QUOTA_MAP = {
   free: 1,
-  plus: 3,
   pro: 5,
   max: 10,
-  ultra: -1
+  ultra: -1,
 };
 
 export const PHOTOS_QUOTA_MAP = {
   free: 12,
-  plus: 24,
   pro: 40,
   max: 60,
-  ultra: -1
+  ultra: -1,
 };
 
 export const EXPORT_QUOTA_MAP = {
   free: 2,
-  plus: 5,
   pro: 10,
   max: 20,
-  ultra: -1
+  ultra: -1,
 };
 
-const NEXT_TIER_MAP = { free: 'plus', plus: 'pro', pro: 'max', max: 'ultra' };
+/* 2026-11-24（plans/046）：`NEXT_TIER_MAP` 删除，升级链改由
+   `utils/subscription-benefits.js` 的 `nextTier()` 派生（档位序单一真源）。 */
 
 function quotaOf(map, tier) {
   return Object.prototype.hasOwnProperty.call(map, tier) ? map[tier] : map.free;
@@ -62,9 +61,9 @@ export function exportQuotaFor(tier) {
 }
 
 export function buildUpgradeHint(tier, what) {
-  const nextTier = NEXT_TIER_MAP[tier];
-  if (!nextTier) return `${what}已达当前档位上限`;
-  return `升级到 ${nextTier.toUpperCase()} 可获得更多${what}`;
+  const next = nextTier(tier);
+  if (!next) return `${what}已达当前档位上限`;
+  return `升级到 ${next.toUpperCase()} 可获得更多${what}`;
 }
 
 /**
@@ -83,7 +82,7 @@ export async function checkAlbumCountQuota() {
     allowed: used < limit,
     used,
     limit,
-    hint: used >= limit ? buildUpgradeHint(tier, '影集数量') : ''
+    hint: used >= limit ? buildUpgradeHint(tier, '影集数量') : '',
   };
 }
 
@@ -103,7 +102,7 @@ export async function checkPhotoQuota(albumId, countOfPhotos = 1) {
     allowed: used + countOfPhotos <= limit,
     used,
     limit,
-    hint: used + countOfPhotos > limit ? buildUpgradeHint(tier, '单集照片数') : ''
+    hint: used + countOfPhotos > limit ? buildUpgradeHint(tier, '单集照片数') : '',
   };
 }
 
@@ -126,6 +125,6 @@ export async function checkExportQuota() {
     allowed: used < limit,
     used,
     limit,
-    hint: used >= limit ? buildUpgradeHint(tier, '本月导出次数') : ''
+    hint: used >= limit ? buildUpgradeHint(tier, '本月导出次数') : '',
   };
 }

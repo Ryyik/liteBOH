@@ -461,7 +461,11 @@ import { useAuthStore } from '@/stores/auth';
 import { supabase } from '@/utils/supabase-client.js';
 import { useUserTier } from '@/composables/useUserTier.js';
 import { tweenNumber } from '@/utils/tween-number.js';
-import { PLAN_DISPLAY_NAMES } from '@/utils/subscription-benefits.js';
+import {
+  DEFAULT_CLOUD_IMAGE_LIMIT,
+  PLAN_CLOUD_IMAGE_LIMITS,
+  PLAN_DISPLAY_NAMES,
+} from '@/utils/subscription-benefits.js';
 import { logger } from '@/utils/logger.js';
 import { getMyLotteryPityStatus, getMySubscriptions } from '@/utils/api/subscription-api.js';
 import PointsCard from './PointsCard.vue';
@@ -611,8 +615,10 @@ watch(userPoints, (nv, ov) => {
   });
 });
 const pointsDisplay = computed(() => pointsShown.value.toLocaleString());
+/* ⚠️ 2026-11-24（plans/046）：内联 Cloud+ 映射删除，改引单一真源
+   （档位序 6 份副本的其中一份，见 plans/046 §0.3）。 */
 const cloudImageLimit = computed(
-  () => ({ free: 150, plus: 300, pro: 450, max: 900, ultra: 1200 })[tierCode.value] || 150,
+  () => PLAN_CLOUD_IMAGE_LIMITS[tierCode.value] || DEFAULT_CLOUD_IMAGE_LIMIT,
 );
 const subscriptionDisplayName = computed(() => {
   const subscription = activeSubscription.value;

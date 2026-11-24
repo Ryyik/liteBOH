@@ -330,7 +330,7 @@ export function useBohShell(props, emit) {
           // 靠探针才抓到。
           baseTokenLimit: Number(result.data.baseTokenLimit ?? 0),
           bonusTokens: Math.max(0, Number(result.data.bonusTokens ?? 0)),
-          // 档位一并留住，而且**新口径必需**：尺子（Plus = 100% ⇒ Max 625%）就是按它选的。
+          // 档位一并留住，而且**新口径必需**：尺子（Pro = 100% ⇒ Max 250%）就是按它选的。
           // 侧栏账号浮层也要用它显示「订阅计划」。
           // （设置面板的用量卡另用订阅接口覆盖一次 tier，见 sidebarPlan 的注释。）
           tier: String(result.data.tier || ''),
@@ -860,9 +860,11 @@ export function useBohShell(props, emit) {
   // 顶层模式（Fast / Air / Code / Ultra / Gemini）运行时从 DB 读，前端不硬编码。
 
   /* ── 今日额度：**只显示百分比**，且主指标是**剩余**（2026-10-08 用户口径第二版）────
-     不再展示「你还有多少 Token」。尺子是**唯一的**：最低付费档 Plus = 100%
-     ⇒ Plus 100% / Pro 250% / Max 625% / Ultra 1250%，附加包在同一把尺子上相加。
-     所以 Max 刚过 0 点、没消耗 ⇒ 「今日剩余 625%」（用户点名的口径）。
+     不再展示「你还有多少 Token」。尺子是**唯一的**：最低付费档 **Pro** = 100%
+     ⇒ Pro 100% / Max 250% / Ultra 500%，附加包在同一把尺子上相加。
+     所以 Max 刚过 0 点、没消耗 ⇒ 「今日剩余 250%」（用户点名的口径）。
+     ⚠️ 2026-11-24（plans/046）：基准档 plus → pro（Plus 并入 Pro），
+     百分比整体缩到原 40%；绝对 token 数未动。
      全部折算在 utils/ai-quota-display.js，本文件与两个子组件都不再自己算除法、
      更不再格式化 Token 数。
      ⚠️ 第一版把分母设成「自己档位的基础额度」（恒 100%），用户连问两次
@@ -2072,10 +2074,10 @@ export function useBohShell(props, emit) {
     includedMessageCount: contextBudgetUsage.value?.includedMessageCount || 0,
     hasSummary: Boolean(contextBudgetUsage.value?.hasSummary),
     quotaVisible: Boolean(todayTokenUsage.value),
-    // 主指标 = **剩余**（Plus 尺子）：Max 没消耗就是 625%。
+    // 主指标 = **剩余**（Pro 尺子）：Max 没消耗就是 250%。
     quotaRemainingText: quotaDisplay.value.remainingLabel,
     // ⚠️ 进度条宽度必须用归一后的 meterPercent：它是「已用 ÷ 总额」，天然落在 0–100。
-    // 不能把 remainingLabel 拿来当宽度 —— 625% 会把条撑到容器外。
+    // 不能把 remainingLabel 拿来当宽度 —— 250% 会把条撑到容器外。
     quotaMeterText: quotaDisplay.value.meterText,
     quotaDetailText: quotaDisplay.value.detailLabel,
     canCompress: canCompressContext.value,

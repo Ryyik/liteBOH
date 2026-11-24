@@ -2,6 +2,7 @@ import { ref, computed } from 'vue';
 import { supabase } from '@/utils/supabase-client.js';
 import { useAuthStore } from '@/stores/auth.ts';
 import { useUserTier } from '@/composables/useUserTier.js';
+import { nextTier as resolveNextTier } from '@/utils/subscription-benefits.js';
 import { logger } from '@/utils/logger.js';
 
 const DEVICE_ID_KEY = 'boh_lab_device_id';
@@ -10,7 +11,6 @@ const DEVICE_ID_KEY = 'boh_lab_device_id';
 const TIER_QUOTA_MAP = {
   anonymous: 3, // 未登录用户
   free: 10,
-  plus: 15,
   pro: 20,
   max: 30,
   ultra: -1, // 不限次数
@@ -91,9 +91,12 @@ export function useLabQuota() {
     nextTierQuota: getNextTierQuota(effectiveTier.value),
   }));
 
+  /* ⚠️ 2026-11-24（plans/046）：升级链改由 `subscription-benefits.js` 的 `nextTier()`
+     派生，本文件不再内联映射。`anonymous` 是实验室独有的未登录档（不在订阅档位序里），
+     单独折到 `free` —— 它不是订阅档，别往 TIER_ORDER 里加。 */
   function getNextTier(tier) {
-    const map = { anonymous: 'free', free: 'plus', plus: 'pro', pro: 'max', max: 'ultra' };
-    return map[tier] || null;
+    if (tier === 'anonymous') return 'free';
+    return resolveNextTier(tier);
   }
 
   function getNextTierQuota(tier) {
@@ -276,14 +279,7 @@ export function useLabQuota() {
     if (!isLoggedIn.value) {
       return '登录后可获得更多生成次数（10次/月）';
     }
-    const nextTierMap = {
-      anonymous: 'free',
-      free: 'plus',
-      plus: 'pro',
-      pro: 'max',
-      max: 'ultra',
-    };
-    const nextTier = nextTierMap[effectiveTier.value];
+    const nextTier = getNextTier(effectiveTier.value);
     if (!nextTier) return '';
     const nextQuota = TIER_QUOTA_MAP[nextTier];
     if (nextQuota === -1) {

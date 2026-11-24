@@ -6,26 +6,31 @@
  *     若有附加包，则可以显示 150%，以此类推。」
  * 用户口径原文（第二版，本文件当前实现）：
  *   「还是显示用户当日剩余百分比额度比较好，Max 就显示剩余 625%。」
+ *   （2026-11-24 plans/046：基准档 Plus → Pro，同一个 Max 现在显示剩余 **250%**。）
  *
  * ══════════════════════════════════════════════════════════════════════════
- * 只有**一把尺子**：最低付费档 Plus = 100%
- *   · Plus = 100% / Pro = 250% / Max = 625% / Ultra = 1250%
+ * 只有**一把尺子**：最低付费档 Pro = 100%
+ *   · Pro = 100% / Max = 250% / Ultra = 500%
  *     （数值来自 `PLAN_AI_TOKEN_PERCENTS`，与订阅页对比表**同一份**真源）；
- *   · 附加包在**同一把尺子**上相加（coding-lite 对 Plus = +62.5%）；
- *   · 主指标是**剩余**：剩余 = 总额 − 已用。Max 刚过 0 点、没消耗 ⇒ 剩余 625%。
+ *   · 附加包在**同一把尺子**上相加（coding-lite 对 Pro = +25%）；
+ *   · 主指标是**剩余**：剩余 = 总额 − 已用。Max 刚过 0 点、没消耗 ⇒ 剩余 250%。
  * ══════════════════════════════════════════════════════════════════════════
+ *
+ * ⚠️ 2026-11-24（plans/046）：尺子的基准档从 `plus` 换成 `pro`（Plus 已并入 Pro）。
+ *    **绝对 token 数一个没动**，只是分母从 400000 变成 1000000 ⇒ 所有百分比缩小到
+ *    原来的 40%（625%→250%、1250%→500%、13%→5%）。这是有意的展示变化。
  *
  * ⚠️ 为什么改掉了第一版的「以自己档位基础额度 = 100%」：
  *    那个口径下 Max 用户看到「已用 0% / 剩余 100%」，用户**连问两次**
  *    「我是 Max，为什么显示 100%」。两个数其实都对 —— 但订阅页宣传的是
- *    「相对 Plus 的 625%」，同一个产品里同时存在两把尺子，必然被读成 bug。
- *    现在 AI 页也走 Plus 尺子，于是「订阅页说你 625%、AI 页也说剩余 625%」。
+ *    「相对 Pro 的 250%」，同一个产品里同时存在两把尺子，必然被读成 bug。
+ *    现在 AI 页也走这条尺子，于是「订阅页说你 250%、AI 页也说剩余 250%」。
  *
  * 规则：
  *   1. `usedPercent = 档位百分比 × (used / base)`。
- *      ——用「真实比例 × 档位百分比」而不是「token ÷ Plus 的绝对 token 数」，是为了让
+ *      ——用「真实比例 × 档位百分比」而不是「token ÷ Pro 的绝对 token 数」，是为了让
  *      显示值**永远**与订阅页宣传的档位百分比一致：即使 `ai_quota_config` 里的绝对值
- *      与展示副本（`PLAN_AI_TOKEN_LIMITS`）某天漂移，用户看到的仍然是 625%，
+ *      与展示副本（`PLAN_AI_TOKEN_LIMITS`）某天漂移，用户看到的仍然是 250%，
  *      而不会莫名其妙变成 632%。比例（used/base、bonus/base）永远来自 EF 真值。
  *   2. `totalPercent = 档位百分比 × (base + bonus) / base` —— 附加包在同一把尺子上相加。
  *   3. `remainingPercent = totalPercent − usedPercent`，下限 0（超额不显示负数）。
@@ -34,7 +39,7 @@
  *   5. 不限量（`tokenLimit === -1`）⇒ 显示 ∞，不参与百分比运算。
  *   6. 档位未知（guest / free 档没有 token 额度，`resolveTierQuotaPercent` 返回 null）
  *      ⇒ **降级**成「相对自己额度」的 ±100% 尺子并置 `degraded: true`，
- *      绝不猜一个 Plus 基准出来（guest 根本没有订阅档位）。
+ *      绝不猜一个 Pro 基准出来（guest 根本没有订阅档位）。
  *   7. `baseTokenLimit` 是 2026-10-08 才加进 `quota-status` 返回值的字段。老版本 Edge
  *      Function 不返回它时同样降级：总量当分母、包加成当 0，此时百分比依然正确，
  *      只是「包区段」不显示 —— 绝不能猜一个 +63% 出来。
@@ -87,7 +92,7 @@ const unlimitedDisplay = () => ({
  * 把 `quota-status` 的原始字段折算成界面直接用的一组百分比。
  *
  * @param {object} input
- * @param {number} input.tier           订阅档位（plus / pro / max / ultra；缺省 ⇒ 降级）
+ * @param {number} input.tier           订阅档位（pro / max / ultra；缺省 ⇒ 降级）
  * @param {number} input.used           已用（或 `usedTokens`）；口径 = 额度拦截用的计费量
  * @param {number} input.limit          总可用（含附加包；或 `tokenLimit`）；-1 = 不限量
  * @param {number} [input.baseTokenLimit] 档位基础额度（不含包）；缺省则降级
@@ -109,7 +114,7 @@ export function resolveAiQuotaDisplay(input = {}) {
     bonusTokens = 0;
   }
 
-  // 尺子：档位在 Plus 基准上的百分比。拿不到（guest / free / 未知档）⇒ 退回 100% 并降级。
+  // 尺子：档位在 Pro 基准上的百分比。拿不到（guest / free / 未知档）⇒ 退回 100% 并降级。
   const tierPercent = resolveTierQuotaPercent(input.tier);
   const anchored = Number.isFinite(tierPercent) && tierPercent > 0;
   const scale = anchored ? tierPercent : 100;

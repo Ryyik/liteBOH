@@ -243,7 +243,9 @@ const isEquippedOwned = computed(() => effectiveFrame.value.id !== 'none');
 
 const TIER_LABELS = {
   free: '全员可戴',
-  plus: 'Plus 解锁',
+  /* 2026-11-24（plans/046）：plus 已并入 pro。保留映射只为让库里可能残留的
+     历史 `tier='plus'` 框显示成「Pro 解锁」而不是漏出原始代号（迁移已 UPDATE 到 pro）。 */
+  plus: 'Pro 解锁',
   pro: 'Pro 解锁',
   max: 'Max 解锁',
   ultra: 'Ultra 专属',

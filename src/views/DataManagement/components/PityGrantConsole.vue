@@ -31,7 +31,6 @@
         </div>
       </div>
       <div class="pity-threshold-grid">
-        <span class="pity-threshold-chip">Plus <strong>24</strong></span>
         <span class="pity-threshold-chip">Pro <strong>18</strong></span>
         <span class="pity-threshold-chip">Max <strong>12</strong></span>
         <span class="pity-threshold-chip">Ultra <strong>8</strong></span>

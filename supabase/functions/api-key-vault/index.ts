@@ -2116,27 +2116,35 @@ type RuntimeChatFailure = {
 
 type RuntimeChatOutcome = RuntimeChatSuccess | RuntimeChatFailure;
 
+/* ⚠️ 档位序：Deno 引不到前端 `src/utils/subscription-benefits.js`，这份是**独立实现**。
+   顺序必须与那边的 `TIER_ORDER`（['free','pro','max','ultra']）一致，
+   由 `tests/unit/subscription-tier-order-single-source.test.js` 比对源码文本锁死。
+   改动任一侧都会让那条单测变红 —— 这是有意的：档位序分叉不会报错，只会错发权益。
+
+   2026-11-24（plans/046）：`plus` 已并入 `pro`（四档制），此处不保留 plus 档位。
+   历史行靠 SUBSCRIPTION_PLAN_ALIASES 折到 pro。`guest` 是 EF 独有的未登录档。 */
 const TIER_RANK: Record<string, number> = {
   guest: 0,
   free: 1,
-  plus: 2,
-  pro: 3,
-  max: 4,
-  ultra: 5,
+  pro: 2,
+  max: 3,
+  ultra: 4,
 };
 
 const WEB_SEARCH_DAILY_LIMIT_FALLBACKS: Record<string, number> = {
   guest: 0,
   free: 10,
-  plus: 30,
   pro: 60,
   max: 120,
   ultra: 240,
 };
 
 const SUBSCRIPTION_PLAN_ALIASES: Record<string, string> = {
-  'boh-ai-plus': 'plus',
-  'boh-plus': 'plus',
+  /* 历史档位（2026-11-24 合并）：Plus 并入 Pro。保留别名是为了让库里
+     `plan_code='plus'` 的历史行继续按 Pro 发放权益，**不要**删成「未知档回落 free」。 */
+  plus: 'pro',
+  'boh-ai-plus': 'pro',
+  'boh-plus': 'pro',
   'boh-pro': 'pro',
   'boh-max': 'max',
   'boh-ultra': 'ultra',
@@ -2236,8 +2244,9 @@ async function resolveUserTier(
   const plans = await resolveUserPlans(client, userId);
   if (plans.has('ultra')) return 'ultra';
   if (plans.has('max')) return 'max';
+  // plus 已并入 pro（plans/046）：祖先归一表会把历史 plan_code='plus' 折成 'pro'，
+  // 但 resolveUserPlans 里 normalizeSubscriptionPlanCode 是同一张表 ⇒ 这里只需认 pro。
   if (plans.has('pro')) return 'pro';
-  if (plans.has('plus')) return 'plus';
   return 'free';
 }
 

@@ -285,9 +285,12 @@ export const PRODUCT_CATEGORY_OPTIONS = [
   { value: 'BOH 定制', label: 'BOH 定制' },
 ];
 
+/* 2026-11-24（plans/046）：Plus 已并入 Pro，四档制 ⇒ 下拉去掉 Plus。
+   ⚠️ 库里历史行仍可能有 `plan_code='plus'`（刻意不回填，保留成交价台账），
+   前端归一表会把它折成 pro；编辑历史行时下拉会「显示为空」但保存不会改它 —— 这是已知且可接受的，
+   不要为了让它显示出来把 Plus 加回选项（那等于告诉运营还有第 5 档可售）。 */
 export const SUBSCRIPTION_PLAN_OPTIONS = [
-  { value: 'free', label: 'Free' },
-  { value: 'plus', label: 'Plus' },
+  { value: 'free', label: 'Standard' },
   { value: 'pro', label: 'Pro' },
   { value: 'max', label: 'Max' },
   { value: 'ultra', label: 'Ultra' },
@@ -354,13 +357,15 @@ export const BOLEK_MODEL_STATUS_OPTIONS = [
 
 /* 2026-10-20（plans/030 §3.4）：档位门槛已收敛为**两种实际语义** ——
    guest = 游客也能用（只有 GLM4），free 及以上 = 登录即可用。
-   plus/pro/max/ultra 仍保留在合法值域里（DB 约束同款），但当前**没有任何行在用**：
+   max/ultra 仍保留在合法值域里（DB 约束同款），但当前**没有任何行在用**：
    若把某行设成它们，游客与免费用户都会被 EF 拦掉，等于把该模型变成付费专属。
-   ⚠️ 改这里的词表要同步迁移 2026102003 的 check 约束，否则后台能选到 DB 会拒绝的值。 */
+   ⚠️ 改这里的词表要同步迁移 2026102003 的 check 约束，否则后台能选到 DB 会拒绝的值。
+   ⚠️ 2026-11-24（plans/046）：`plus` 从词表移除（已并入 pro）。DB 的 CHECK 仍允许它
+      （历史零行在用，收紧约束属对外变更，plans/046 §P2 第 6 条明确不动）。
+      ⇒ 这里少一个值不会与 DB 冲突：DB 允许的是超集，后台只提供子集。 */
 export const BOLEK_MODEL_MIN_TIER_OPTIONS = [
   { value: 'guest', label: '游客可用（guest）' },
   { value: 'free', label: '登录可用（free）' },
-  { value: 'plus', label: 'Plus 专属' },
   { value: 'pro', label: 'Pro 专属' },
   { value: 'max', label: 'Max 专属' },
   { value: 'ultra', label: 'Ultra 专属' },

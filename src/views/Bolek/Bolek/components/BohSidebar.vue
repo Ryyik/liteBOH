@@ -217,9 +217,10 @@
               </div>
 
               <!-- 额度：今日**剩余**（数据源与输入区用量圆钮、设置页用量卡同源，都由壳传入） -->
-              <!-- 2026-10-08 用户口径第二版：主指标是剩余、尺子是「Plus = 100%」
-               ⇒ Max 没消耗就显示 剩余 625%（不再显示那个恒为 100% 的「相对自己」口径）。
-               进度条宽度走 meterPercent（已用 ÷ 总额）—— 直接把 625% 当 width 会撑破 track。 -->
+              <!-- 2026-10-08 用户口径第二版：主指标是剩余、尺子是「Pro = 100%」
+               （plans/046 起；旧基准是 Plus）⇒ Max 没消耗就显示 剩余 250%
+               （不再显示那个恒为 100% 的「相对自己」口径）。
+               进度条宽度走 meterPercent（已用 ÷ 总额）—— 直接把 250% 当 width 会撑破 track。 -->
               <div class="boh-account-quota">
                 <div class="boh-account-quota-head" :title="quota ? quota.title : ''">
                   <span>今日剩余</span>

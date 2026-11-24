@@ -192,11 +192,14 @@ const pricing = ref({ enabled: false, rate_tokens_per_point: 1000000, daily_poin
 /* 2026-10-20：packs / PACK_LABELS 随 Coding 附加包下线删除（plans/030 §5）。 */
 const message = ref('');
 const messageTone = ref('success');
+/* 2026-11-24（plans/046）：plus 已并入 pro，但 `ai_quota_config` 里那行**保留**
+   （plans/046 §P2 第 5 条：行留着，标「历史」；新订阅再也走不到它）。
+   所以这里仍要能显示它 —— 标成「Pro（历史）」而不是「Plus」，避免运营以为还有第 5 档。 */
 const TIER_LABELS = {
   guest: '访客',
-  free: '免费',
-  plus: 'Plus',
-  'boh-ai-plus': 'Plus',
+  free: 'Standard',
+  plus: 'Pro（历史）',
+  'boh-ai-plus': 'Pro（历史）',
   pro: 'Pro',
   'boh-pro': 'Pro',
   max: 'Max',

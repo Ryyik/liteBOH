@@ -225,7 +225,6 @@
             <span>订阅档位</span>
             <select v-model="draft.tier">
               <option value="free">全员可戴</option>
-              <option value="plus">Plus 起</option>
               <option value="pro">Pro 起</option>
               <option value="max">Max 起</option>
               <option value="ultra">Ultra 专属</option>
@@ -513,7 +512,10 @@ const miniAvatarStyle = (s) => {
 const tierText = (f) =>
   ({
     free: '全员可戴',
-    plus: 'Plus 起',
+    /* 2026-11-24（plans/046）：plus 已并入 pro。这条仍保留映射 —— 库里若还有
+       历史 `tier='plus'` 的框（迁移已 UPDATE 到 pro，但缓存/旧行可能残留），
+       列表要能显示成「Pro 起」而不是漏出原始 `plus` 字样。新框不该再选到它（下拉已删）。 */
+    plus: 'Pro 起',
     pro: 'Pro 起',
     max: 'Max 起',
     ultra: 'Ultra 专属',

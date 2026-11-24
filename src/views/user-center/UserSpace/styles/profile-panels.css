@@ -529,10 +529,7 @@
   text-transform: uppercase;
   white-space: nowrap;
 }
-.tier-badge.tier-plus {
-  background: rgba(106, 143, 201, 0.1);
-  color: #6a8fc9;
-}
+/* 2026-11-24（plans/046）：`.tier-badge.tier-plus` 随 Plus 并入 Pro 删除（昵称三色 银/金/虹）。 */
 .tier-badge.tier-pro {
   background: rgba(142, 154, 175, 0.1);
   color: #8e9aaf;

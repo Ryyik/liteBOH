@@ -4,23 +4,26 @@
  * 用户口径（2026-10-08，第二版）：
  *   「订阅页面、AI 页面统一不再展示额度，只用百分比显示，不再展示你还有多少 token；
  *     若有附加包，则可以显示 150%，以此类推。」
- *   →「还是显示用户当日剩余百分比额度比较好，Max 就显示剩余 625%。」
+ *   →「还是显示用户当日剩余百分比额度比较好，Max 就显示剩余 250%。」
  *
- * 尺子是**唯一的**：最低付费档 Plus = 100% ⇒ Pro 250% / Max 625% / Ultra 1250%，
- * 附加包在同一把尺子上相加。所以「Max 刚过 0 点、没消耗」必须显示 **剩余 625%**。
+ * 尺子是**唯一的**：最低付费档 **Pro** = 100% ⇒ Max 250% / Ultra 500%，
+ * 附加包在同一把尺子上相加。所以「Max 刚过 0 点、没消耗」必须显示 **剩余 250%**。
+ *
+ * ⚠️ 2026-11-24（plans/046）：Plus 并入 Pro，尺子基准从 plus(400k) 换成 pro(1000k)
+ *   ⇒ 所有百分比缩到原来的 40%（625→250、1250→500、13→5）。绝对 token 数一个没动。
  *
  * 这条口径有四个**截图看不出来**的坑，本探针逐个打：
  *   ① 尺子选错看不出来：同一个 Max 账号，用「以自己额度为 100%」的旧尺子会得到
- *      「剩余 100%」，用「Plus = 100%」才是 625% —— 两个数都像「合理的百分比」，
+ *      「剩余 100%」，用「Pro = 100%」才是 250% —— 两个数都像「合理的百分比」，
  *      只有断言能分辨（用户就是被前者误导，连问两次「为啥 Max 也是 100%」）。
- *   ② 分母错了看不出来：percent 必须相对**基础额度**（625 × 220/2500k = 138%），
- *      相对总量算会得到 125% 一类的另一个「合理」数。
- *   ③ 剩余是 625% 这种三位数，若被直接当进度条 width，条会长到容器外 6 倍；
+ *   ② 分母错了看不出来：percent 必须相对**基础额度**（250 × 550/2500k = 55%），
+ *      相对总量算会得到 50% 一类的另一个「合理」数。
+ *   ③ 剩余是 250% 这种三位数，若被直接当进度条 width，条会长到容器外 2.5 倍；
  *      必须用归一后的 meterPercent（已用 ÷ 总额）。
  *   ④ 「不再展示 token」是**否定断言**：要真的去文本里搜 Token 数字，
  *      否则改回 `已用 123,456` 这行也没人拦（这类"删掉某个东西"的需求只能反着测）。
  *
- * 四个场景：Max 无消耗（625%）/ Max 带附加包且有消耗 / 老 EF 形状降级 / 不限量。
+ * 四个场景：Max 无消耗（250%）/ Max 带附加包且有消耗 / 老 EF 形状降级 / 不限量。
  *
  * 用法：先起 dev（vite dev 只绑 IPv6 ⇒ `--host ::`），再
  *   node scripts/probes/probe-bolek-quota-percent.mjs http://localhost:5173
@@ -175,14 +178,14 @@ const runScenario = async ({ code, title, quotaData, expect, shot }) => {
       (expect.pack ? card.values[1] === expect.pack : card.values.length === 1),
     card?.values.join(' | '),
   );
-  // 剩余是 625% 这种三位数 ⇒ 条宽必须用归一值，否则条会长到容器外
+  // 剩余是 250% 这种三位数 ⇒ 条宽必须用归一值，否则条会长到容器外
   check(
     `${code}6 ${title}·设置页条宽归一 ${expect.meter}（不是 ${expect.remaining}）`,
     card?.barWidth === expect.meter,
     `width=${card?.barWidth}`,
   );
   check(
-    `${code}7 ${title}·设置页 aria 量程 = 0–100（读屏不会把量程报成 625）`,
+    `${code}7 ${title}·设置页 aria 量程 = 0–100（读屏不会把量程报成 250）`,
     card?.ariaMax === '100',
     `aria-valuemax=${card?.ariaMax} aria-valuenow=${card?.ariaNow}`,
   );
@@ -204,7 +207,7 @@ const runScenario = async ({ code, title, quotaData, expect, shot }) => {
   await ctx.close();
 };
 
-// ═══════════ 场景 A：Max 无消耗 ⇒ 剩余 625%（用户点名的那个数） ═══════════
+// ═══════════ 场景 A：Max 无消耗 ⇒ 剩余 250%（Pro = 100% 尺子上的 Max 值） ═══════════
 // 尺子唯一性的核心场景：旧口径（以自己额度为 100%）在这里会给出「剩余 100%」。
 await runScenario({
   code: 'A',
@@ -225,16 +228,16 @@ await runScenario({
     resetAt: '',
     pointsMode: false,
   },
-  expect: { remaining: '625%', used: '0%', meter: '0%', pack: '' },
+  expect: { remaining: '250%', used: '0%', meter: '0%', pack: '' },
   shot: 'bolek-quota-percent-max',
 });
 
-// ═══════════ 场景 B：Max + 附加包 + 有消耗 ⇒ 剩余 550% ═══════════
-// Max 基础 250 万（= Plus 的 625%）、Coding Lite 加 25 万（= +62.5%）、已用 55 万。
-//   已用  = 625 × 55/250  = 137.5% → 138%
-//   总额  = 625 × 275/250 = 687.5% → 688%
-//   剩余  = 687.5 − 137.5 = 550%
-//   条宽  = 137.5 / 687.5 = 20%
+// ═══════════ 场景 B：Max + 附加包 + 有消耗 ⇒ 剩余 220% ═══════════
+// Max 基础 250 万（= Pro 的 250%）、Coding Lite 加 25 万（= +25%）、已用 55 万。
+//   已用  = 250 × 55/250  = 55%
+//   总额  = 250 × 275/250 = 275%
+//   剩余  = 275 − 55 = 220%
+//   条宽  = 55 / 275 = 20%
 await runScenario({
   code: 'B',
   title: 'Max 带附加包且有消耗',
@@ -254,20 +257,20 @@ await runScenario({
     resetAt: '',
     pointsMode: false,
   },
-  expect: { remaining: '550%', used: '138%', meter: '20%', pack: '含附加包 · 总额 688%' },
+  expect: { remaining: '220%', used: '55%', meter: '20%', pack: '含附加包 · 总额 275%' },
   shot: 'bolek-quota-percent-pack',
 });
 
 // ═══════════ 场景 C：老 EF 形状（不返回 baseTokenLimit）⇒ 降级不猜包 ═══════════
 // 故意**不返回** baseTokenLimit / bonusTokens —— 老版本 Edge Function 的形状，
 // 前端必须降级成「总量即分母、包归零」，绝不能凭空显示一个附加包区段。
-// Plus 档：88/100 → 已用 88%，剩余 12%（Plus 的尺子就是 100%）。
+// Pro 档：88/100 → 已用 88%，剩余 12%（Pro 的尺子就是 100%）。
 await runScenario({
   code: 'C',
-  title: '老 EF 形状降级（Plus）',
+  title: '老 EF 形状降级（Pro）',
   quotaData: {
     unit: 'tokens',
-    tier: 'plus',
+    tier: 'pro',
     used: 88000,
     limit: 100000,
     usedTokens: 88000,
@@ -310,14 +313,15 @@ await runScenario({
   await openAiChat(page);
 
   const pop = await readAccountPop(page);
-  check('D1 不限量·账号浮层显示 ∞（不是 0% / 625%）', pop?.value === '∞', `value=${pop?.value}`);
+  check('D1 不限量·账号浮层显示 ∞（不是 0% / 250%）', pop?.value === '∞', `value=${pop?.value}`);
 
   const card = await openSettingsUsageCard(page);
   check(
-    'D2 不限量·设置页显示 ∞ / 不限用量（且不写 Plus = 100%）',
+    'D2 不限量·设置页显示 ∞ / 不限用量（且不写 Pro = 100% / Plus = 100%）',
     !!card &&
       card.value === '∞' &&
       card.text.includes('不限用量') &&
+      !card.text.includes('Pro = 100%') &&
       !card.text.includes('Plus = 100%'),
     card ? `${card.value} | ${card.text.slice(0, 60)}` : '未找到用量卡',
   );

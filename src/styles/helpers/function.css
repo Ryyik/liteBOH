@@ -1,9 +1,9 @@
 
 
-.nickname-blue {
-  color: #6a8fc9 !important;
-  font-weight: 700;
-}
+/* 2026-11-24（plans/046）：`.nickname-blue` 随 Plus 并入 Pro 退场（昵称三色：银/金/虹）。
+   三步证死：① 全仓枚举只剩本定义 + 两条测试断言；② 非 CSS 引用为零
+   （`TIER_NICKNAME_COLORS` 里 plus 已删，`resolveNicknameTierClass` 再也不会返回它）；
+   ③ 剪枝后 `npm run audit:css:orphans` 不新增孤儿。删定义前先删测试断言（已同批）。 */
 
 .nickname-silver {
   color: #8e9aaf !important;

@@ -64,7 +64,7 @@ const DB_FRAMES = [
     url: 'https://res.cloudinary.com/dkqae7j1m/image/upload/v1789798615/boh-cloud-plus/admin-avatar-frames/mupu5trhd5napiwg7zew.png',
     source_url: null,
     scale: 1.4,
-    tier: 'plus',
+    tier: 'pro',
     free_until: null,
     points_price: null,
     sort_order: 30,

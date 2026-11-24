@@ -234,7 +234,7 @@
         所有档位均包含 <b>多模态交互</b> 与
         <b>定制化看板</b
         >。保底门槛按「连续未中奖场次」累计、中奖后清零，达标后可在计入并兑现的活动中领取保底礼。 AI
-        额度以 <b>Plus = 100%</b> 为基准换算（不展示 Token 绝对值），附加包按同一基准标注增量。
+        额度以 <b>Pro = 100%</b> 为基准换算（不展示 Token 绝对值）。
       </p>
       <div class="liquid-glass table-scroll reveal">
         <table aria-describedby="comparison-title">
@@ -486,11 +486,13 @@ import {
   PLAN_AI_TOKEN_LIMITS,
   PLAN_AI_TOKEN_PERCENTS,
   PLAN_CLOUD_IMAGE_LIMITS,
+  PLAN_DISPLAY_NAMES,
   PLAN_LOTTERY_PITY_THRESHOLDS,
   PLAN_PHOTO_ALBUM_COUNTS,
   PLAN_PHOTO_ALBUM_EXPORTS,
   PLAN_PHOTO_ALBUM_PHOTOS,
   TIER_NICKNAME_COLORS,
+  tierRank,
 } from '@/utils/subscription-benefits.js';
 import sponsorQrImage from '@/assets/images/qrcode.webp';
 
@@ -565,7 +567,6 @@ const tweenedPrice = (plan) => displayPrices[plan.code] ?? calculatePrice(plan);
    摄影集数值口径：utils/photo-albums/quota.js 三张 enforcement MAP（展示口径见单源注释）。 */
 const PLAN_CODES = Object.keys(PLAN_CLOUD_IMAGE_LIMITS);
 const NICKNAME_LABELS = {
-  'nickname-blue': '蓝色',
   'nickname-silver': '银色',
   'nickname-gold': '金色',
   'nickname-rainbow': '彩虹',
@@ -585,7 +586,8 @@ const buildCardFeatures = (code) => {
   const multiplier = PLAN_AI_POINT_MULTIPLIERS[code];
   return [
     // 2026-10-08 口径：不再写绝对 Token 数（'40 万 Token / 天'），
-    // 改成相对基准档的百分比 —— 基准 = 最低付费档 Plus = 100%，见 PLAN_AI_TOKEN_PERCENTS。
+    // 改成相对基准档的百分比 —— 基准 = 最低付费档 **Pro** = 100%（plans/046 起；
+    // 旧基准是 Plus），见 PLAN_AI_TOKEN_PERCENTS。
     ...(multiplier && multiplier < 1 && PLAN_AI_TOKEN_LIMITS[code] > 0
       ? [
           `BOH AI 额度 ${PLAN_AI_TOKEN_PERCENTS[code]} · 积分 ${Math.round(multiplier * 100) / 100} 折`,
@@ -604,7 +606,7 @@ const buildBenefitRow = (label, format) => ({
 const plans = [
   {
     code: 'free',
-    name: 'Free',
+    name: PLAN_DISPLAY_NAMES.free,
     monthlyCost: 0,
     featured: false,
     alwaysActive: true,
@@ -612,24 +614,16 @@ const plans = [
     features: buildCardFeatures('free'),
   },
   {
-    code: 'plus',
-    name: 'Plus',
-    monthlyCost: 8,
-    featured: false,
-    position: '效率升级',
-    features: buildCardFeatures('plus'),
-  },
-  {
     code: 'pro',
-    name: 'Pro',
-    monthlyCost: 20,
+    name: PLAN_DISPLAY_NAMES.pro,
+    monthlyCost: 15,
     featured: true,
     position: '专业创作',
     features: buildCardFeatures('pro'),
   },
   {
     code: 'max',
-    name: 'Max',
+    name: PLAN_DISPLAY_NAMES.max,
     monthlyCost: 40,
     featured: false,
     position: '全能尊享',
@@ -637,7 +631,7 @@ const plans = [
   },
   {
     code: 'ultra',
-    name: 'Ultra',
+    name: PLAN_DISPLAY_NAMES.ultra,
     monthlyCost: 70,
     featured: false,
     position: '研究级无限',
@@ -663,7 +657,7 @@ const introFeatures = [
   {
     icon: Palette,
     title: '专属昵称效果',
-    copy: '蓝色、银色、金色与彩虹昵称渐次解锁，让名字自带档位光环。',
+    copy: '银色、金色与彩虹昵称渐次解锁，让名字自带档位光环。',
   },
   {
     icon: Gift,
@@ -671,23 +665,26 @@ const introFeatures = [
     copy: '会员档位享抽奖保底累计：按连续未中奖场次计、中奖清零，达标即兑保底礼。',
   },
 ];
-const TIER_RANK = { free: 0, plus: 1, pro: 2, max: 3, ultra: 4 };
+const planRank = (code) => {
+  const rank = tierRank(code);
+  return rank < 0 ? -1 : rank;
+};
 const paidPlans = computed(() => plans.slice(1).map(withStatus));
 const currentTopTierCode = computed(() => {
   const active = Object.values(activeSubscriptions.value).filter(
-    (s) => s?.planCode && TIER_RANK[s.planCode] !== undefined,
+    (s) => s?.planCode && tierRank(s.planCode) >= 0,
   );
   if (!active.length) return '';
   return active.reduce(
-    (top, sub) => (TIER_RANK[sub.planCode] > TIER_RANK[top] ? sub.planCode : top),
+    (top, sub) => (tierRank(sub.planCode) > tierRank(top) ? sub.planCode : top),
     active[0].planCode,
   );
 });
 const withStatus = (plan) => {
   if (plan.alwaysActive) return { ...plan, status: 'active', activeSubscription: null };
   const top = currentTopTierCode.value;
-  const topRank = TIER_RANK[top] ?? -1;
-  const rank = TIER_RANK[plan.code] ?? -1;
+  const topRank = planRank(top);
+  const rank = planRank(plan.code);
   const activeSubscription = activeSubscriptions.value[plan.code];
   if (top && rank < topRank) return { ...plan, status: 'blocked', activeSubscription };
   if (activeSubscription) {
@@ -708,7 +705,7 @@ const billingTabs = [
    客服优先级 / 年度徽章仅此处出现，保留明确标注：无差别档写「普通」，不写空白。 */
 const comparisonRows = [
   // 行名去掉 'Token / 天' —— 2026-10-08 起这一行显示的是百分比，不是 Token 数
-  // （基准 = 最低付费档 Plus = 100%，说明见表格上方 comparison-note）。
+  // （基准 = 最低付费档 Pro = 100%，plans/046 起；说明见表格上方 comparison-note）。
   buildBenefitRow('BOH AI 额度', (code) => PLAN_AI_TOKEN_PERCENTS[code]),
   buildBenefitRow('AI 积分消费', (code) => aiPointsText(code)),
   buildBenefitRow('Cloud+ 存储空间', (code) => `${PLAN_CLOUD_IMAGE_LIMITS[code]} 张`),
@@ -722,11 +719,11 @@ const comparisonRows = [
   }),
   {
     label: '年度会员纪念徽章',
-    values: { free: false, plus: true, pro: true, max: true, ultra: true },
+    values: { free: false, pro: true, max: true, ultra: true },
   },
   {
     label: '客服优先级',
-    values: { free: '普通', plus: '普通', pro: '普通', max: '优先', ultra: '最高优先级' },
+    values: { free: '普通', pro: '普通', max: '优先', ultra: '最高优先级' },
   },
 ];
 const faqList = [
@@ -772,10 +769,10 @@ const getButtonText = (plan) =>
 const buildUpgradePreview = (plan, fullCost) => {
   if (!plan || plan.status !== 'upgradable') return null;
   const active = Object.values(activeSubscriptions.value).filter(
-    (s) => s?.planCode && TIER_RANK[s.planCode] !== undefined,
+    (s) => s?.planCode && tierRank(s.planCode) >= 0,
   );
   if (!active.length) return null;
-  const top = active.reduce((a, b) => (TIER_RANK[b.planCode] > TIER_RANK[a.planCode] ? b : a));
+  const top = active.reduce((a, b) => (tierRank(b.planCode) > tierRank(a.planCode) ? b : a));
   const expiresAt = Date.parse(top.expiresAt || '');
   if (!Number.isFinite(expiresAt)) return null;
   const remainingDays = Math.max(0, Math.ceil((expiresAt - Date.now()) / 86400000));
@@ -1658,7 +1655,11 @@ onUnmounted(() => {
 
 .cards {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  /* 2026-11-24（plans/046）：付费卡 4 张 → **3 张**（Plus 并入 Pro）。
+     原来写死 repeat(4) 是为了四张付费卡正好铺满；少一张后右侧会空出整列
+     （实测容器 1160、三卡合计 840 ⇒ 右边 320px 空白），必须同批改成 3。
+     ⚠️ 卡片张数由 paidPlans 决定（free 不上卡），改档位数时要一起来看这里。 */
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
   align-items: stretch;
 }
@@ -2396,9 +2397,16 @@ html[data-theme='dark'] .recharge-close {
   background: #fff;
 }
 
-@media (max-width: 1100px) {
+/* 三卡在两列下会留下「2 + 1」的孤行 ⇒ 让最后一张跨满整行，不空半格。
+   断点定在 1024 而**不是**原来的 1100：实测三列在 1100 处每列 347px（充裕），
+   但到 900 处只剩 229px，权益文案被迫折行；1024 处降两列后每列回到 352px。
+   四卡时代 1100 处每列只有 265px，所以当时必须提前降。 */
+@media (max-width: 1024px) {
   .cards {
     grid-template-columns: repeat(2, 1fr);
+  }
+  .cards > .plan-card:last-child {
+    grid-column: 1 / -1;
   }
 }
 @media (max-width: 900px) {

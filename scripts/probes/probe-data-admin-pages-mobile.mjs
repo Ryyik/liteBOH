@@ -124,17 +124,18 @@ await page.route('**/rest/v1/**', async (route) => {
     // 行形状取各 Console 实际读取字段的超集（缺字段会让页面抛
     // "Cannot read properties of undefined"——那是 mock 缺形状，不是页面缺陷）。
     // AiQuotaConfigConsole 的模板对每个 pack 无条件读 cycles.monthly 与
-    // cycles.yearly（缺任一即整页崩，见 P2 遗留），因此 mock 给全 9 档 × 双周期。
+    // cycles.yearly（缺任一即整页崩，见 P2 遗留），因此 mock 给全档 × 双周期。
+    // 2026-11-24（plans/046）：Plus 并入 Pro ⇒ 行集去掉 plus / boh-plus / standard
+    // （standard 从不是真实档位码），只留四档 + boh-* 别名。
     body: JSON.stringify(
-      ['free', 'plus', 'boh-plus', 'pro', 'boh-pro', 'max', 'boh-max', 'ultra', 'standard'].flatMap(
-        (code, ci) =>
-          ['monthly', 'yearly'].map((cycle, i) => ({
-            ...RICH_ROW,
-            id: `row-${ci}-${i}`,
-            plan_code: code,
-            billing_cycle: cycle,
-            points_cost: i === 0 ? 100 : 1000,
-          })),
+      ['free', 'pro', 'boh-pro', 'max', 'boh-max', 'ultra', 'boh-ultra'].flatMap((code, ci) =>
+        ['monthly', 'yearly'].map((cycle, i) => ({
+          ...RICH_ROW,
+          id: `row-${ci}-${i}`,
+          plan_code: code,
+          billing_cycle: cycle,
+          points_cost: i === 0 ? 100 : 1000,
+        })),
       ),
     ),
   });

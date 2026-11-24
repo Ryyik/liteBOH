@@ -416,7 +416,8 @@
                       <b>{{ usage.quotaRemainingText }}</b>
                     </div>
                     <!-- 宽度用归一后的 meterText（已用 ÷ 总额，天然 0–100）。
-                     主指标是剩余（Plus 尺子，Max 可到 625%）—— 那个数当 width 会撑破容器。 -->
+                     主指标是剩余（Pro 尺子，Max 可到 250%；plans/046 起，旧基准是 Plus
+                     ⇒ 旧值 625%）—— 那个数当 width 会撑破容器。 -->
                     <div class="boh-usage-meter is-quota">
                       <i :style="{ width: usage.quotaMeterText }"></i>
                     </div>

@@ -63,7 +63,7 @@ const DB_FRAMES = [
     id: 'white-cat',
     name: '白绒猫',
     url: 'https://res.cloudinary.com/dkqae7j1m/image/upload/v1789798615/boh-cloud-plus/admin-avatar-frames/mupu5trhd5napiwg7zew.png',
-    tier: 'plus',
+    tier: 'pro',
     scale: 1.4,
   },
   {

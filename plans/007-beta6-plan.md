@@ -317,6 +317,7 @@ BETA 5 已经把"跑得稳"这件事做到了——`fx` 该修的都修了，路
 | 仅抽奖有完整生命周期管线（6 表 + scheduler + 保底 + 通知） | `CommunityLotteries` 子系统 |
 | 新闻详情为模态框，无独立路由、无 OG | `src/views/Newsroom/index.vue` |
 | 订阅 5 档（free/plus/pro/max/ultra）+ 本地 `TIER_RANK` | `SubscriptionPlans.vue:282-297` |
+| ⤷ **2026-11-24 更新（plans/046）**：已是 **4 档** —— Plus 并入 Pro。上方这行是 beta6 当时的现状记录，保留作历史快照；现状见 `plans/046-subscription-tier-merge.md` | — |
 | `subscribe_with_points` 不写 `points_transactions` | `subscription-api.js:90` + migration `2026033003` |
 | 积分充值 = 二维码 + UID 人工核对 | `SubscriptionPlans.vue:253` |
 | 权益判断四套真相源 | `subscription-benefits.js` / `useUserTier.js` / `SubscriptionPlans.vue` / `ProfileMain.vue` + `Shop` |

@@ -420,7 +420,8 @@ watch(
       return;
     }
     const tier = await fetchUserTier(id);
-    quotedTierCode.value = ['plus', 'pro', 'max', 'ultra'].includes(tier) ? tier : '';
+    // 2026-11-24（plans/046）：plus 已并入 pro（fetchUserTier 已按归一表折过）
+    quotedTierCode.value = ['pro', 'max', 'ultra'].includes(tier) ? tier : '';
     quotedNickClass.value = getNicknameClass(id);
   },
   { immediate: true },
@@ -3044,7 +3045,6 @@ const handleChangeCommentSortMode = async (mode) => {
             <article
               class="x-post-card glass-panel"
               :class="{
-                'tier-plus': authorTierCode === 'plus',
                 'tier-pro': authorTierCode === 'pro',
                 'tier-max': authorTierCode === 'max',
                 'tier-ultra': authorTierCode === 'ultra',

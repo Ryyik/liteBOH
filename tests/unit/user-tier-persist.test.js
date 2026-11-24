@@ -59,8 +59,13 @@ describe('A4 档位缓存持久化', () => {
     const { useUserTier } = await loadTierModule();
     const { fetchUserTiersBatch, getNicknameClass, getUserTierCode } = useUserTier();
 
-    // 导入即水合 —— 渲染第一帧就有配色，不用等任何请求
-    expect(getNicknameClass('u1')).toBe('nickname-blue');
+    // 导入即水合 —— 渲染第一帧就有配色，不用等任何请求。
+    // ⚠️ 2026-11-24（plans/046）：这里刻意用**历史档位 `plus`** 做样本 ——
+    //    Plus 已并入 Pro，缓存里可能还留着合并前的 `plus` 条目（2h TTL 内）。
+    //    `getNicknameClass` 走归一表 ⇒ 必须染成银色（Pro）而不是掉成无色。
+    //    这正是「别名收敛」要保住的行为，别把这个样本改成 pro（那就测不到兼容了）。
+    expect(getNicknameClass('u1')).toBe('nickname-silver');
+    // getUserTierCode 不做归一，返回缓存原始值；调用方需要归一自己去过表
     expect(getUserTierCode('u1')).toBe('plus');
 
     const map = await fetchUserTiersBatch(['u1']);

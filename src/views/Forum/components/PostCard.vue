@@ -475,7 +475,9 @@ watch(
       return;
     }
     const tier = await fetchUserTier(id);
-    quotedTierCode.value = ['plus', 'pro', 'max', 'ultra'].includes(tier) ? tier : '';
+    // 2026-11-24（plans/046）：plus 已并入 pro —— `fetchUserTier` 走归一表，
+    // 历史 `plan_code='plus'` 的用户拿到的就是 'pro'，白名单不需要 plus 这一项。
+    quotedTierCode.value = ['pro', 'max', 'ultra'].includes(tier) ? tier : '';
     quotedNickClass.value = getNicknameClass(id);
   },
   { immediate: true },
@@ -490,7 +492,6 @@ watch(
       'image-post-card-v2': post.hasImages,
       'is-expanded': isExpanded || (activeReplyTarget && activeReplyTarget.postId === post.id),
       'is-new-post': isHighlighted,
-      'tier-plus': authorTierCode === 'plus',
       'tier-pro': authorTierCode === 'pro',
       'tier-max': authorTierCode === 'max',
       'tier-ultra': authorTierCode === 'ultra',
