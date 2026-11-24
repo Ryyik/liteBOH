@@ -136,7 +136,12 @@ const modalLayoutMetrics = () => {
     done: true,
     mediaGapLeft: mediaRect ? Math.round(mediaRect.left - panelRect.left) : null,
     mediaGapTop: mediaRect ? Math.round(mediaRect.top - panelRect.top) : null,
+    mediaBottom: mediaRect ? Math.round(panelRect.bottom - mediaRect.bottom) : null,
     mediaInfoGap: mediaRect && infoRect ? Math.round(infoRect.left - mediaRect.right) : null,
+    /* 信息列自己承担的内衬（2026-11-24 补）：媒体满出血后容器 padding 归零，
+       左右内衬搬到了 .pd-modal-info 的 padding 上 —— 这条必须一起量，否则
+       「媒体贴边」和「正文也贴边」会被当成同一件好事。 */
+    infoPaddingLeft: info ? Math.round(parseFloat(getComputedStyle(info).paddingLeft)) : null,
     hasFollowBtn: Boolean(followBtn),
     followLabel: followBtn ? followBtn.textContent.trim() : null,
     actionbarBottomGap: Math.round(panelRect.bottom - actionbar.getBoundingClientRect().bottom),
@@ -408,15 +413,27 @@ const run = async () => {
   // auth store 的异步初始化（getSession=null）会不定时重置伪造登录态 → 断言前幂等补打
   await injectAuth(pageL);
   const a6 = await waitForInPage(pageL, modalLayoutMetrics, { timeout: 15000 });
+  /* A6 媒体满出血 + 信息列自担内衬（2026-11-24 修口径）。
+     ⚠️ 旧期望是「左/顶约 16px、媒体↔信息列间距约 18px」，那是 2026-10-22 媒体满出血改造
+     **之前**的旧口径（当时 `.detail-container` 有 16px 内衬、列间还有 18px gap）。改造后
+     `.detail-container { padding: 0 }` + `gap: 0`，媒体贴面板边、内衬改由 `.pd-modal-info`
+     的 `padding: 0 24px` 自己承担 ⇒ 旧值永远不成立，这条从此长红。
+     与 A8 完全同源的失效模式：**红得久了就被当「环境问题」跳过，真正的契约无人守**。
+
+     改后的判据按当前设计拆成两件事，都能量出真错：
+       · 媒体满出血：左/上/下边距 ≤ 2px（只允许面板 1px 边框）—— 一旦有人把内衬写回去，
+         媒体会缩进 16px，这条立刻红；
+       · 信息列自担内衬：info 的左内边距必须是 24px 档（不是 0）—— 内衬不能两头都没，
+         否则无图帖正文直接贴面板边（这正是当初把内衬从容器挪到 info 的原因）。
+     媒体↔信息列的 gap 不再单独断言：满出血下它是 0，且已由上面两条间接锁住列宽关系。 */
   check(
-    'A6 媒体区边距：左/顶约 16px、媒体↔信息列间距约 18px',
-    a6?.mediaGapLeft >= 10 &&
-      a6.mediaGapLeft <= 24 &&
-      a6.mediaGapTop >= 10 &&
-      a6.mediaGapTop <= 24 &&
-      a6.mediaInfoGap >= 12 &&
-      a6.mediaInfoGap <= 26,
-    `left=${a6?.mediaGapLeft} top=${a6?.mediaGapTop} gap=${a6?.mediaInfoGap}`,
+    'A6 媒体满出血（贴面板边 ≤2px）+ 信息列自担 24px 左内衬',
+    a6?.mediaGapLeft !== null &&
+      a6.mediaGapLeft <= 2 &&
+      a6.mediaGapTop <= 2 &&
+      a6.mediaBottom <= 2 &&
+      a6.infoPaddingLeft === 24,
+    `边距 L${a6?.mediaGapLeft} T${a6?.mediaGapTop} B${a6?.mediaBottom}（要求 ≤2）；info 左内衬 ${a6?.infoPaddingLeft}px（要求 24）`,
   );
   check(
     'A7a 关注按钮渲染且为未关注态',
@@ -573,39 +590,73 @@ const run = async () => {
   });
   await pageL.screenshot({ path: `${OUT}/pd-modal-landscape-open.png` }).catch(() => {});
 
-  // ---- A9 无图帖降级：单栏（feed 无无图帖则 SKIP） ----
+  // ---- A9 无图帖降级：无媒体区 + 单栏信息铺满（**判据必须是 post.hasImages**） ----
+  /* ⚠️ 旧实现有两个真错（2026-11-24 实测确认，这条之所以长红不是口径漂移，是选错了对象）：
+     ① 选帖判据用的是 `!card.querySelector('.image-post-thumb')` —— 但那是个**懒加载 img**，
+        没滚进视口时根本不渲染。于是「没有缩略图」命中的往往是一条**有图帖**，
+        打开后 `media:true / hasMediaClass:true`，断言「无媒体区」必然红，且红得毫无意义。
+        实测当前 feed 的 12 张卡**全是 hasImages:true**（一条无图帖都没有），
+        旧判据却照样挑出一张来测 —— 等于每次都在用有图帖冒充无图帖。
+     ② `infoFullWidth` 判 `|infoW - (panelW-32)| <= 4` —— 那 32 是媒体满出血改造**之前**的
+        外层 16px×2 内衬。改造后容器内衬归零，info 应当是**整格宽**（只差面板 1px 边框），
+        旧式子在满出血下永远差 30px ⇒ 即使真拿到无图帖也会红。
+     现在：判据换成卡片上的 `image-post-card-v2` 类（由 `post.hasImages` 驱动，与懒加载无关）；
+     断言改成「无媒体区 + 无 has-media 标记 + info 铺满整格」。
+     ③ **广告位也带 `.post-card-v2`**（`ad-slot ad-slot-fixed`，实测 feed 里 12 张卡有 2 张是它）。
+        广告卡没有 post、没有标题、没有缩略图 ⇒ 旧判据「没有 .image-post-thumb」**恰好优先命中广告卡**，
+        随后 `clickCardAt` 去点 `.post-title-v2` 的第 N 个 —— 而它根本不存在，
+        于是点到了**另一个真实帖子**（有图），这才是 A9 长红的最终真因。
+        选帖必须用 `:not(.ad-slot)` 排除广告位。 */
   await pageL.keyboard.press('Escape');
   await waitForInPage(pageL, modalClosedState, { timeout: 10000 });
+  /* ⚠️ 必须等 overlay 节点**真的从 DOM 移除**再开下一个（2026-11-24 踩到）。
+     `modalClosedState` 只看 hash 前缀，而关闭是带离场过渡的 —— 实测此时旧 overlay 还挂在
+     文档里。随后 `waitForInPage(readA9)` 第一次轮询就命中**旧面板**（有图的），
+     读出 `media:true` + `panelW:760`（新旧两棵树的尺寸混在一起，数值自相矛盾），
+     断言必红且红错原因。 */
+  await pageL
+    .waitForFunction(() => !document.querySelector('.pd-modal-overlay'), { timeout: 10000 })
+    .catch(() => {});
+  const textOnlyTarget = await pageL.evaluate(() => {
+    const cards = Array.from(document.querySelectorAll('.post-card-v2'));
+    // image-post-card-v2 由 post.hasImages 决定，**不受缩略图懒加载影响**（旧判据就栽在这）
+    const card = cards.find(
+      (c) => !c.classList.contains('ad-slot') && !c.classList.contains('image-post-card-v2'),
+    );
+    return card ? String(card.dataset.forumPostId || '') : '';
+  });
   const textOnlyIndex = await pageL.evaluate(() => {
     const cards = Array.from(document.querySelectorAll('.post-card-v2'));
-    return cards.findIndex((card) => !card.querySelector('.image-post-thumb'));
+    return cards.findIndex(
+      (card) =>
+        !card.classList.contains('ad-slot') && !card.classList.contains('image-post-card-v2'),
+    );
   });
-  if (textOnlyIndex >= 0) {
+  if (textOnlyIndex >= 0 && textOnlyTarget) {
+    const readA9 = () => {
+      const overlay = document.querySelector('.pd-modal-overlay');
+      if (!overlay) return { done: false };
+      const panel = overlay.querySelector('.pd-modal-panel');
+      const info = overlay.querySelector('.pd-modal-info');
+      const body = overlay.querySelector('.pd-modal-body');
+      const p = panel ? panel.getBoundingClientRect() : null;
+      const i = info ? info.getBoundingClientRect() : null;
+      return {
+        done: Boolean(body),
+        media: Boolean(overlay.querySelector('.pd-modal-media')),
+        hasMediaClass: Boolean(overlay.querySelector('.pd-modal-body--has-media')),
+        panelW: p ? Math.round(p.width) : null,
+        infoW: i ? Math.round(i.width) : null,
+        infoLeftGap: p && i ? Math.round(i.left - p.left) : null,
+        infoRightGap: p && i ? Math.round(p.right - i.right) : null,
+        bodyCols: body ? getComputedStyle(body).gridTemplateColumns : null,
+        // 满出血口径：info 只该让出面板左右各 1px 边框
+        infoFillsCell: Boolean(p && i && Math.abs(i.width - (p.width - 2)) <= 4),
+      };
+    };
     await clickCardAt(pageL, textOnlyIndex);
     await waitForInPage(pageL, modalOpenState, { timeout: 20000 });
-    let a9 = await waitForInPage(
-      pageL,
-      () => {
-        const overlay = document.querySelector('.pd-modal-overlay');
-        if (!overlay) return { done: false };
-        const panel = overlay.querySelector('.pd-modal-panel');
-        const info = overlay.querySelector('.pd-modal-info');
-        const body = overlay.querySelector('.pd-modal-body');
-        const p = panel ? panel.getBoundingClientRect() : null;
-        const i = info ? info.getBoundingClientRect() : null;
-        return {
-          done: Boolean(body),
-          media: Boolean(overlay.querySelector('.pd-modal-media')),
-          hasMediaClass: Boolean(overlay.querySelector('.pd-modal-body--has-media')),
-          panelW: p ? Math.round(p.width) : null,
-          infoW: i ? Math.round(i.width) : null,
-          infoLeftGap: p && i ? Math.round(i.left - p.left) : null,
-          bodyCols: body ? getComputedStyle(body).gridTemplateColumns : null,
-          infoFullWidth: Boolean(p && i && Math.abs(i.width - (p.width - 32)) <= 4),
-        };
-      },
-      { timeout: 20000 },
-    );
+    let a9 = await waitForInPage(pageL, readA9, { timeout: 20000 });
     if (!a9?.done) {
       const emptyState = await pageL.evaluate(() =>
         Boolean(document.querySelector('.pd-modal-overlay .boh-empty-state')),
@@ -614,41 +665,35 @@ const run = async () => {
         console.log('  [A9] 详情加载空态（真库抖动），关闭重开重试');
         await pageL.keyboard.press('Escape');
         await waitForInPage(pageL, modalClosedState, { timeout: 10000 });
+        await pageL
+          .waitForFunction(() => !document.querySelector('.pd-modal-overlay'), { timeout: 10000 })
+          .catch(() => {});
         await clickCardAt(pageL, textOnlyIndex);
       }
-      a9 = await waitForInPage(
-        pageL,
-        () => {
-          const overlay = document.querySelector('.pd-modal-overlay');
-          if (!overlay) return { done: false };
-          const panel = overlay.querySelector('.pd-modal-panel');
-          const info = overlay.querySelector('.pd-modal-info');
-          const body = overlay.querySelector('.pd-modal-body');
-          const p = panel ? panel.getBoundingClientRect() : null;
-          const i = info ? info.getBoundingClientRect() : null;
-          return {
-            done: Boolean(body),
-            media: Boolean(overlay.querySelector('.pd-modal-media')),
-            hasMediaClass: Boolean(overlay.querySelector('.pd-modal-body--has-media')),
-            panelW: p ? Math.round(p.width) : null,
-            infoW: i ? Math.round(i.width) : null,
-            infoLeftGap: p && i ? Math.round(i.left - p.left) : null,
-            bodyCols: body ? getComputedStyle(body).gridTemplateColumns : null,
-            infoFullWidth: Boolean(p && i && Math.abs(i.width - (p.width - 32)) <= 4),
-          };
-        },
-        { timeout: 25000 },
-      );
+      a9 = await waitForInPage(pageL, readA9, { timeout: 25000 });
     }
+    /* 带上实际悬停的帖子 id：这一条历史上「红错原因」过，必须让输出能自证对象没选错。 */
+    const openedId = await pageL.evaluate(() => {
+      const m = /#\/forum\/post\/([^/?#]+)/.exec(location.hash || '');
+      return m ? decodeURIComponent(m[1]) : '';
+    });
     check(
-      'A9 无图帖：无媒体区、单栏信息且全宽',
-      Boolean(a9?.done) && !a9.media && !a9.hasMediaClass && a9.infoFullWidth,
-      JSON.stringify(a9 || {}),
+      'A9 无图帖：无媒体区、info 单栏铺满整格',
+      Boolean(a9?.done) && !a9.media && !a9.hasMediaClass && a9.infoFillsCell,
+      `目标帖 ${textOnlyTarget} / 实开 ${openedId}｜${JSON.stringify(a9 || {})}`,
     );
     await pageL.keyboard.press('Escape');
     await waitForInPage(pageL, modalClosedState, { timeout: 10000 });
   } else {
-    check('A9 无图帖降级（feed 无无图帖，SKIP）', true, 'skip: no text-only post');
+    /* 当前 feed 一条无图帖都没有（2026-11-24 实测：12 张卡全 hasImages:true）。
+       ⚠️ 这里刻意打 SKIP 而不是「假装通过」—— 无图帖单栏只是**没被覆盖**，
+       不是「已验证」；要真覆盖得让 fixture 带一条无图帖，属于探针数据问题，
+       别把 SKIP 读成绿色。 */
+    check(
+      'A9 无图帖降级（feed 无无图帖，SKIP —— 该路径本轮未被覆盖）',
+      true,
+      'skip: 当前 feed 无 hasImages:false 的帖子',
+    );
   }
 
   // ---- B Esc 关闭 ----
