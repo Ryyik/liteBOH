@@ -102,9 +102,22 @@ const toRow = (r) => ({
   archived_at: null,
   sender: { id: `u-${r.sender}`, username: r.sender, avatar_url: '' },
   post: r.postId
-    ? { id: r.postId, title: null, body: null, content: '帖子正文内容,用于摘要与聚合文案' }
+    ? {
+        id: r.postId,
+        title: `帖子 ${r.postId}`,
+        body: null,
+        content: '帖子正文内容,用于摘要与聚合文案',
+      }
     : null,
-  comment: null,
+  comment:
+    r.type === 'comment'
+      ? {
+          id: `comment-${r.id}`,
+          content: `来自 ${r.sender} 的评论内容，用于验证回复与原文卡。`,
+          parent_id: null,
+          author_username: r.sender,
+        }
+      : null,
 });
 
 const results = [];
@@ -406,6 +419,10 @@ const firePointer = (el, type, x, y) =>
   await page.waitForTimeout(500);
   const s1 = await navState();
   check('C3 · 「下一条」切到第二条(Mochi)', s1.name === 'Mochi', s1.name);
+  const focusOnTitle = await page.evaluate(
+    () => document.activeElement?.classList.contains('detail-title') === true,
+  );
+  check('C3b · 切换详情后焦点落到新标题', focusOnTitle);
   await page.keyboard.press('k');
   await page.waitForTimeout(400);
   const s2 = await navState();
@@ -415,8 +432,16 @@ const firePointer = (el, type, x, y) =>
   const s3 = await navState();
   check('C5 · J 键切到下一条(Mochi)', s3.name === 'Mochi', s3.name);
 
-  // 归档 auto-advance:l2 详情点归档 → 详情落到 l3(阿澈);聚合组少一人(Mochi 出组,阿澈入文案)
-  await page.locator('.notif-action-btn.archive').click();
+  await page.locator('.detail-more-trigger').focus();
+  await page.keyboard.press('Tab');
+  const focusTrapped = await page.evaluate(
+    () => document.activeElement?.closest('.x-detail-panel') !== null,
+  );
+  check('C5b · 详情尾部 Tab 循环回抽屉内首个焦点', focusTrapped);
+
+  // 归档 auto-advance:l2 详情点「更多 → 归档」→ 详情落到 l3(阿澈);聚合组少一人(Mochi 出组,阿澈入文案)
+  await page.locator('.detail-more-trigger').click();
+  await page.locator('[data-detail-action="archive"]').click();
   await page.waitForTimeout(900);
   const after = await navState();
   const aggText = await page.evaluate(() => {
@@ -624,6 +649,115 @@ const firePointer = (el, type, x, y) =>
   // 实际全量渲染——组头/聚合被挡在阈值外是唯一防线。若未来改成真窗口渲染,
   // 请同步把本断言改为窗口尺寸并复测 E1。
   check('E2 · 虚拟分支全量渲染(伪虚拟契约)', e1.rows === manyRows.length, `rows=${e1.rows}`);
+  await context.close();
+}
+
+// ── F. 详情操作分级 / 原帖卡 / 竖屏头部 / Esc 草稿保护(390×844) ──────────
+{
+  console.log('\n▶ F 详情优化(390×844)');
+  const { context, page } = await openMessages({ width: 390, height: 844 }, { hasTouch: true });
+  await page.locator('.x-item[data-message-id="c1"]').click();
+  await page.waitForTimeout(600);
+
+  const detailInfo = await page.evaluate(() => {
+    const panel = document.querySelector('.x-detail-panel');
+    const avatar = panel?.querySelector('.large-avatar-img, .large-avatar');
+    const actions = [...(panel?.querySelectorAll('.notification-actions .notif-action-btn') || [])];
+    const source = panel?.querySelector('.source-content');
+    return {
+      open: Boolean(panel),
+      avatarW: avatar?.getBoundingClientRect().width || 0,
+      timeVisible: Boolean(panel?.querySelector('.detail-time')?.offsetParent),
+      actions: actions.map((button) => button.textContent.replace(/\s+/g, '').trim()),
+      moreInBar: actions.some((button) => button.classList.contains('detail-more-trigger')),
+      archiveInBar: actions.some((button) => button.textContent.includes('归档')),
+      sourceTag: source?.tagName,
+      sourceClickable: source?.classList.contains('is-clickable'),
+      sourceHasTitle: Boolean(panel?.querySelector('.source-title')),
+      sourceHasLink: Boolean(panel?.querySelector('.source-link')),
+      navInHeader: Boolean(panel?.querySelector('.detail-header-nav .detail-nav-next')),
+      titleFocused: document.activeElement?.classList.contains('detail-title'),
+    };
+  });
+  check(
+    'F1 · 竖屏详情打开且标题获得焦点',
+    detailInfo.open && detailInfo.titleFocused,
+    JSON.stringify(detailInfo),
+  );
+  check(
+    'F2 · 身份头部紧凑：头像 44px、相对时间可见',
+    detailInfo.avatarW === 44 && detailInfo.timeVisible,
+    JSON.stringify(detailInfo),
+  );
+  check(
+    'F3 · 主操作只保留回复/查看原文/更多，归档不占底栏',
+    detailInfo.actions.includes('回复') &&
+      detailInfo.actions.includes('查看原文') &&
+      detailInfo.moreInBar &&
+      !detailInfo.archiveInBar,
+    JSON.stringify(detailInfo.actions),
+  );
+  check('F4 · 上一条/下一条移到详情头部', detailInfo.navInHeader);
+  check(
+    'F5 · 原帖摘要卡是按钮且带标题/查看原文',
+    detailInfo.sourceTag === 'BUTTON' &&
+      detailInfo.sourceClickable &&
+      detailInfo.sourceHasTitle &&
+      detailInfo.sourceHasLink,
+    JSON.stringify(detailInfo),
+  );
+
+  await page.locator('.source-content.is-clickable').click();
+  await page.waitForTimeout(600);
+  const sourceHash = await page.evaluate(() => location.hash);
+  check(
+    'F6 · 点击原帖卡进入对应帖子并带评论锚点',
+    sourceHash.includes('/forum/post/p2') && sourceHash.includes('comment=comment-c1'),
+    sourceHash,
+  );
+
+  await page.evaluate(() => {
+    location.hash = '#/user-space?tab=messages';
+  });
+  await page.waitForTimeout(1400);
+  await page.locator('.x-item[data-message-id="c1"]').click();
+  await page.waitForTimeout(500);
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(500);
+  const closedWithoutDraft = await page.evaluate(() => !document.querySelector('.x-detail-panel'));
+  check('F7 · 空草稿按 Esc 直接关闭详情', closedWithoutDraft);
+
+  await page.locator('.x-item[data-message-id="c1"]').click();
+  await page.waitForTimeout(500);
+  await page.locator('.notification-actions .reply').click();
+  await page.locator('.reply-textarea').fill('这是一条不应被误关的草稿');
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(400);
+  const guarded = await page.evaluate(() => ({
+    panel: Boolean(document.querySelector('.x-detail-panel')),
+    confirm: Boolean(document.querySelector('.confirm-modal-overlay')),
+    draft: document.querySelector('.reply-textarea')?.value || '',
+  }));
+  check(
+    'F8 · 有草稿按 Esc 先确认，详情与草稿都保留',
+    guarded.panel && guarded.confirm && guarded.draft.includes('不应被误关'),
+    JSON.stringify(guarded),
+  );
+  await page.locator('.confirm-btn.cancel').click();
+  await page.waitForTimeout(300);
+  const keptAfterCancel = await page.evaluate(
+    () =>
+      Boolean(document.querySelector('.x-detail-panel')) &&
+      (document.querySelector('.reply-textarea')?.value || '').includes('不应被误关'),
+  );
+  check('F9 · 取消放弃后继续留在详情与草稿', keptAfterCancel);
+
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(300);
+  await page.locator('.confirm-btn.primary').click();
+  await page.waitForTimeout(500);
+  const closedAfterConfirm = await page.evaluate(() => !document.querySelector('.x-detail-panel'));
+  check('F10 · 确认放弃后关闭详情并清空草稿', closedAfterConfirm);
   await context.close();
 }
 

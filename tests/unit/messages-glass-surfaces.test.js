@@ -192,3 +192,56 @@ describe('消息中心液态玻璃：材质单源与暗色清障', () => {
     expect(dark).toMatch(/\.x-sender-name/);
   });
 });
+
+describe('消息详情：操作分级与无障碍接线', () => {
+  const vue = prep('src/views/user-center/Messages/index.vue');
+
+  it('主操作只剩回复/查看原文，其余动作收进 BohDropdown', () => {
+    expect(vue).toContain('notif-action-btn reply is-primary');
+    expect(vue).toContain('notif-action-btn view-post is-primary');
+    expect(vue).toContain('<BohDropdown v-model="detailMoreOpen"');
+    const detailDropdownStart = vue.indexOf('<BohDropdown v-model="detailMoreOpen"');
+    const detailDropdownEnd = vue.indexOf('</BohDropdown>', detailDropdownStart);
+    const detailDropdown = vue.slice(detailDropdownStart, detailDropdownEnd);
+    expect(detailDropdown).toMatch(/#default="\{[^}]*close[^}]*\}"/);
+    expect(vue).toContain('data-detail-action="retry"');
+    expect(vue).toContain('data-detail-action="mark-read"');
+    expect(vue).toContain('data-detail-action="archive"');
+    expect(vue).toContain('data-detail-action="unarchive"');
+    expect(vue).not.toContain('notif-action-btn archive');
+  });
+
+  it('上一条/下一条移到详情头部，保留 J/K 与禁用态接线', () => {
+    expect(vue).toContain('detail-header-nav');
+    expect(vue).toContain('detail-nav-prev');
+    expect(vue).toContain('detail-nav-next');
+    expect(vue).toContain(':disabled="!hasPrevMessage"');
+    expect(vue).toContain(':disabled="!hasNextMessage"');
+    expect(vue).toContain("navigateDetail(key === 'j' ? 1 : -1)");
+  });
+
+  it('原帖摘要卡是真实按钮，标题与查看原文入口同卡提供', () => {
+    expect(vue).toContain('source-content is-clickable');
+    expect(vue).toContain('selectedSourceTitle');
+    expect(vue).toContain('source-link');
+    expect(vue).toContain('@click="viewOriginalPost"');
+  });
+
+  it('竖屏身份头部紧凑化，时间进入身份行且触控按钮不低于 44px', () => {
+    expect(vue).toContain('class="detail-time"');
+    expect(css).toMatch(/\.large-avatar-wrapper,[^{]+\{[^}]*width:\s*44px/);
+    expect(ruleOf(css, '.user-info')).toContain('grid-template-columns: minmax(0, 1fr) auto');
+    expect(ruleOf(css, '.notif-action-btn')).toContain('min-height: 44px');
+    expect(ruleOf(css, '.notification-actions')).toContain('flex-wrap: wrap');
+  });
+
+  it('详情切换聚焦标题，Esc 与返回走草稿保护，Tab 圈在抽屉内', () => {
+    expect(vue).toContain('ref="detailTitleRef"');
+    expect(vue).toContain('focusDetailTitle()');
+    expect(vue).toContain('closeDetailWithDraftGuard');
+    expect(vue).toContain('confirmDiscardReply');
+    expect(vue).toContain('isDialogBusy(error)');
+    expect(vue).toContain('@keydown.tab="trapDetailFocus"');
+    expect(vue).toContain('event.shiftKey && document.activeElement === first');
+  });
+});

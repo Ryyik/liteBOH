@@ -869,21 +869,72 @@
         role="dialog"
         aria-modal="true"
         aria-label="通知详情"
-        @click.self="closeDetail"
+        @click.self="closeDetailWithDraftGuard"
       >
         <Transition
           name="slide-right"
           @before-enter="onTransitionStart"
           @after-leave="onTransitionEnd"
         >
-          <div v-if="selectedMessage" class="x-detail-panel" @click.stop>
+          <div
+            v-if="selectedMessage"
+            ref="detailPanelRef"
+            class="x-detail-panel"
+            tabindex="-1"
+            @keydown.tab="trapDetailFocus"
+            @click.stop
+          >
             <div class="drawer-header">
               <UserCenterBackButton
                 class="x-detail-back"
                 label="返回消息列表"
-                @click="closeDetail"
+                @click="closeDetailWithDraftGuard"
               />
               <h3>通知详情</h3>
+              <div class="detail-header-nav" aria-label="切换通知">
+                <button
+                  type="button"
+                  class="notif-action-btn detail-nav detail-nav-prev"
+                  :disabled="!hasPrevMessage"
+                  :aria-label="hasPrevMessage ? '上一条通知' : '没有上一条通知'"
+                  title="上一条通知（K）"
+                  @click="navigateDetail(-1)"
+                >
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    aria-hidden="true"
+                  >
+                    <path d="m15 18-6-6 6-6" />
+                  </svg>
+                  <span class="detail-nav-label">上一条</span>
+                </button>
+                <button
+                  type="button"
+                  class="notif-action-btn detail-nav detail-nav-next"
+                  :disabled="!hasNextMessage"
+                  :aria-label="hasNextMessage ? '下一条通知' : '没有下一条通知'"
+                  title="下一条通知（J）"
+                  @click="navigateDetail(1)"
+                >
+                  <span class="detail-nav-label">下一条</span>
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    aria-hidden="true"
+                  >
+                    <path d="m9 18 6-6-6-6" />
+                  </svg>
+                </button>
+              </div>
             </div>
             <div class="drawer-content">
               <div class="detail-user-card">
@@ -906,13 +957,49 @@
                 <div class="user-info">
                   <span class="name">{{ selectedMessage.sender?.username || '系统' }}</span>
                   <span class="type">{{ getNotificationTypeLabel(selectedMessage.type) }}</span>
+                  <time class="detail-time" :datetime="selectedMessage.created_at">
+                    {{ formatDate(selectedMessage.created_at) }}
+                  </time>
                 </div>
               </div>
               <div class="detail-body">
-                <h2 class="detail-title">{{ getNotificationTitle(selectedMessage) }}</h2>
+                <h2 ref="detailTitleRef" class="detail-title" tabindex="-1">
+                  {{ getNotificationTitle(selectedMessage) }}
+                </h2>
                 <p class="main-text">{{ getNotificationContent(selectedMessage) }}</p>
+                <button
+                  v-if="canViewOriginalPost"
+                  type="button"
+                  class="source-content is-clickable"
+                  :aria-label="
+                    selectedSourceTitle ? `查看原帖：${selectedSourceTitle}` : '查看原帖'
+                  "
+                  @click="viewOriginalPost"
+                >
+                  <span class="source-label">{{
+                    getNotificationSourceLabel(selectedMessage)
+                  }}</span>
+                  <span v-if="selectedSourceTitle" class="source-title">{{
+                    selectedSourceTitle
+                  }}</span>
+                  <span class="source-text">{{ getNotificationSourceText(selectedMessage) }}</span>
+                  <span class="source-link">
+                    查看原文
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      aria-hidden="true"
+                    >
+                      <path d="m9 18 6-6-6-6" />
+                    </svg>
+                  </span>
+                </button>
                 <div
-                  v-if="selectedMessage.type === 'comment' || selectedMessage.type === 'like'"
+                  v-else-if="selectedMessage.type === 'comment' || selectedMessage.type === 'like'"
                   class="source-content"
                 >
                   <span class="source-label">{{
@@ -920,7 +1007,7 @@
                   }}</span>
                   <p class="source-text">{{ getNotificationSourceText(selectedMessage) }}</p>
                 </div>
-                <span class="full-date">{{
+                <time class="full-date" :datetime="selectedMessage.created_at">{{
                   new Date(selectedMessage.created_at).toLocaleString('zh-CN', {
                     year: 'numeric',
                     month: 'long',
@@ -928,7 +1015,7 @@
                     hour: '2-digit',
                     minute: '2-digit',
                   })
-                }}</span>
+                }}</time>
               </div>
               <!-- Reply Input Section -->
               <Transition name="fade-slide">
@@ -961,25 +1048,9 @@
               </Transition>
               <!-- Action Buttons -->
               <div class="notification-actions">
-                <!-- 上一条 / 下一条(Gmail auto-advance 模式,2026-11-21):
-                     归档当前后自动落到下一条;桌面键盘 J/K 同义 -->
-                <button
-                  class="notif-action-btn detail-nav"
-                  :disabled="!hasPrevMessage"
-                  @click="navigateDetail(-1)"
-                >
-                  ← 上一条
-                </button>
-                <button
-                  class="notif-action-btn detail-nav"
-                  :disabled="!hasNextMessage"
-                  @click="navigateDetail(1)"
-                >
-                  下一条 →
-                </button>
                 <button
                   v-if="selectedMessage.type === 'comment'"
-                  class="notif-action-btn reply"
+                  class="notif-action-btn reply is-primary"
                   @click="openReplyInput"
                 >
                   <svg
@@ -989,6 +1060,7 @@
                     fill="none"
                     stroke="currentColor"
                     stroke-width="2"
+                    aria-hidden="true"
                   >
                     <polyline points="9 17 4 12 9 7"></polyline>
                     <path d="M20 18v-2a4 4 0 0 0-4-4H4"></path>
@@ -996,11 +1068,8 @@
                   回复
                 </button>
                 <button
-                  v-if="
-                    (selectedMessage.type === 'comment' || selectedMessage.type === 'like') &&
-                    (selectedMessage.post?.id || selectedMessage.post_id)
-                  "
-                  class="notif-action-btn view-post"
+                  v-if="canViewOriginalPost"
+                  class="notif-action-btn view-post is-primary"
                   @click="viewOriginalPost"
                 >
                   <svg
@@ -1010,6 +1079,7 @@
                     fill="none"
                     stroke="currentColor"
                     stroke-width="2"
+                    aria-hidden="true"
                   >
                     <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
                     <polyline points="15 3 21 3 21 9"></polyline>
@@ -1017,59 +1087,88 @@
                   </svg>
                   查看原文
                 </button>
-                <button
-                  v-if="canRetryModerationNotification(selectedMessage)"
-                  class="notif-action-btn retry"
-                  @click="retryRejectedPostFromNotification"
-                  :disabled="isRetryingSelectedNotification"
+                <BohDropdown
+                  v-model="detailMoreOpen"
+                  placement="top-end"
+                  label="更多通知操作"
+                  min-width="180px"
                 >
-                  {{ isRetryingSelectedNotification ? '重试中...' : '重试一次' }}
-                </button>
-                <button
-                  v-if="selectedMessage.status === 'unread'"
-                  class="notif-action-btn mark-read"
-                  @click="markAsRead(selectedMessage)"
-                >
-                  标记已读
-                </button>
-                <button
-                  v-if="!selectedMessage.archived_at"
-                  class="notif-action-btn archive"
-                  @click="archiveMessageFromDetail"
-                >
-                  <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                  >
-                    <path d="M21 8v13H3V8"></path>
-                    <path d="M1 3h22v5H1z"></path>
-                    <line x1="10" y1="12" x2="14" y2="12"></line>
-                  </svg>
-                  归档
-                </button>
-                <button
-                  v-else
-                  class="notif-action-btn unarchive"
-                  @click="unarchiveMessageFromDetail"
-                >
-                  <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                  >
-                    <path d="M21 8v13H3V8"></path>
-                    <path d="M1 3h22v5H1z"></path>
-                    <line x1="10" y1="12" x2="14" y2="12"></line>
-                  </svg>
-                  取消归档
-                </button>
+                  <template #trigger="{ open, toggle }">
+                    <button
+                      type="button"
+                      class="notif-action-btn detail-more-trigger"
+                      :aria-expanded="open"
+                      aria-haspopup="menu"
+                      @click="toggle"
+                    >
+                      <svg
+                        width="18"
+                        height="18"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        aria-hidden="true"
+                      >
+                        <circle cx="5" cy="12" r="1.5" />
+                        <circle cx="12" cy="12" r="1.5" />
+                        <circle cx="19" cy="12" r="1.5" />
+                      </svg>
+                      更多
+                    </button>
+                  </template>
+                  <template #default="{ close }">
+                    <button
+                      v-if="canRetryModerationNotification(selectedMessage)"
+                      type="button"
+                      class="boh-dropdown__item"
+                      data-detail-action="retry"
+                      :disabled="isRetryingSelectedNotification"
+                      @click="
+                        close();
+                        retryRejectedPostFromNotification();
+                      "
+                    >
+                      {{ isRetryingSelectedNotification ? '重试中...' : '重试一次' }}
+                    </button>
+                    <button
+                      v-if="selectedMessage.status === 'unread'"
+                      type="button"
+                      class="boh-dropdown__item"
+                      data-detail-action="mark-read"
+                      @click="
+                        close();
+                        markAsRead(selectedMessage);
+                      "
+                    >
+                      标记已读
+                    </button>
+                    <button
+                      v-if="!selectedMessage.archived_at"
+                      type="button"
+                      class="boh-dropdown__item"
+                      data-detail-action="archive"
+                      @click="
+                        close();
+                        archiveMessageFromDetail();
+                      "
+                    >
+                      归档
+                    </button>
+                    <button
+                      v-else
+                      type="button"
+                      class="boh-dropdown__item"
+                      data-detail-action="unarchive"
+                      @click="
+                        close();
+                        unarchiveMessageFromDetail();
+                      "
+                    >
+                      取消归档
+                    </button>
+                  </template>
+                </BohDropdown>
               </div>
             </div>
           </div>
@@ -1138,6 +1237,7 @@ import { useVirtualList } from '@vueuse/core';
 import { bohtoast } from '@/components/ui/boh-toast-controller.js';
 import { showIsland } from '@/composables/useIsland.js';
 import { useAutoGrowTextarea } from '@/composables/useAutoGrowTextarea.js';
+import { isDialogBusy, useConfirmDialog } from '@/composables/useConfirmDialog.js';
 import { useSwipeActions } from '@/composables/useSwipeActions.js';
 import {
   buildAggregateEntries,
@@ -1182,6 +1282,9 @@ const authStore = useAuthStore();
 const { userInfo, isLoggedIn, isInitialized, showLoginModal } = storeToRefs(authStore);
 const messages = ref([]);
 const selectedMessage = ref(null);
+const detailPanelRef = ref(null);
+const detailTitleRef = ref(null);
+const detailMoreOpen = ref(false);
 const lastFocusedMessageId = ref(null);
 const showOverlay = ref(false);
 const windowWidth = ref(window.innerWidth);
@@ -1371,6 +1474,7 @@ const isRetryingSelectedNotification = computed(() => {
 const showReplyInput = ref(false);
 const replyContent = ref('');
 const isReplySubmitting = ref(false);
+const { confirm: confirmDialog } = useConfirmDialog();
 // 回复框「多字扩展」：高度随内容长高，真源见 composables/useAutoGrowTextarea.js。
 // ⚠️ 必须传 value：取消 / 发送成功 / 关闭详情都会主动清空 replyContent，
 // 只绑 @input 的实现在这些路径上不会收缩。
@@ -1841,6 +1945,18 @@ const startRealtimeChannels = async (userId) => {
 };
 
 // ─── 详情连续处理(2026-11-21,Gmail auto-advance 模式) ─────────────────────
+const canViewOriginalPost = computed(() => {
+  const type = selectedMessage.value?.type;
+  return (
+    (type === 'comment' || type === 'like') &&
+    Boolean(selectedMessage.value?.post?.id || selectedMessage.value?.post_id)
+  );
+});
+const selectedSourceTitle = computed(() => {
+  if (!selectedMessage.value?.post) return '';
+  const title = getForumPostTitle(selectedMessage.value.post);
+  return title && title !== '无标题' ? title : '';
+});
 const currentDetailIndex = computed(() => {
   if (!selectedMessage.value) return -1;
   return filteredMessages.value.findIndex((m) => m.id === selectedMessage.value.id);
@@ -1868,10 +1984,13 @@ const navigateDetail = (delta) => {
 const archiveMessageFromDetail = async () => {
   if (!selectedMessage.value) return;
   const idx = filteredMessages.value.findIndex((m) => m.id === selectedMessage.value.id);
-  await archiveMessage(selectedMessage.value);
-  const rowStillThere = idx >= 0 && filteredMessages.value[idx]?.id === selectedMessage.value?.id;
-  if (!rowStillThere && filteredMessages.value[idx]) {
-    selectedMessage.value = filteredMessages.value[idx];
+  const nextMessage = idx >= 0 ? filteredMessages.value[idx + 1] : null;
+  const archived = await archiveMessage(selectedMessage.value);
+  if (!archived) return;
+  if (nextMessage) {
+    selectedMessage.value = nextMessage;
+    await nextTick();
+    focusDetailTitle();
     return;
   }
   closeDetail();
@@ -1880,10 +1999,13 @@ const archiveMessageFromDetail = async () => {
 const unarchiveMessageFromDetail = async () => {
   if (!selectedMessage.value) return;
   const idx = filteredMessages.value.findIndex((m) => m.id === selectedMessage.value.id);
-  await unarchiveMessage(selectedMessage.value);
-  const rowStillThere = idx >= 0 && filteredMessages.value[idx]?.id === selectedMessage.value?.id;
-  if (!rowStillThere && filteredMessages.value[idx]) {
-    selectedMessage.value = filteredMessages.value[idx];
+  const nextMessage = idx >= 0 ? filteredMessages.value[idx + 1] : null;
+  const unarchived = await unarchiveMessage(selectedMessage.value);
+  if (!unarchived) return;
+  if (nextMessage) {
+    selectedMessage.value = nextMessage;
+    await nextTick();
+    focusDetailTitle();
     return;
   }
   closeDetail();
@@ -1892,6 +2014,7 @@ const unarchiveMessageFromDetail = async () => {
 // 监听弹窗状态，控制 body 滚动（iOS 安全锁定）+ 管理 Teleport overlay 显隐
 let bodyScrollPosition = 0;
 watch(selectedMessage, (newVal) => {
+  detailMoreOpen.value = false;
   if (newVal?.archived_at) {
     closeDetail();
     return;
@@ -2092,14 +2215,20 @@ const handleWindowResize = () => {
   }
 };
 
-// 键盘：Esc 退出选择模式（桌面 / 平板接键盘）。详情抽屉不接 Esc ——
-// 里面有回复输入框，误按会连草稿一起关掉。
+// 键盘：Esc 优先退出选择模式；详情打开时空草稿直接关闭，有草稿先确认。
 // J/K 切下一条/上一条（Gmail 惯例，2026-11-21）：只用 J/K 不用 ↑↓——方向键默认
 // 滚动详情面板，劫持会砸滚动；输入框内不劫持，修饰键组合不劫持。
 const handleKeydown = (event) => {
-  if (event.key === 'Escape' && isSelectMode.value) {
-    event.preventDefault();
-    exitSelectMode();
+  if (event.key === 'Escape') {
+    if (isSelectMode.value) {
+      event.preventDefault();
+      exitSelectMode();
+      return;
+    }
+    if (selectedMessage.value) {
+      event.preventDefault();
+      void closeDetailWithDraftGuard();
+    }
     return;
   }
   if (!selectedMessage.value || isSelectMode.value || isMobile.value) return;
@@ -2320,7 +2449,7 @@ const restoreArchivedMessages = async (rows = []) => {
 };
 
 const archiveMessage = async (msg) => {
-  if (!msg?.id) return;
+  if (!msg?.id) return false;
   const previousArchivedAt = msg.archived_at;
   msg.archived_at = new Date().toISOString();
   const archivedSnapshot = { ...msg };
@@ -2337,15 +2466,17 @@ const archiveMessage = async (msg) => {
       actionLabel: '撤销',
       action: () => restoreArchivedMessages([archivedSnapshot]),
     });
+    return true;
   } catch (error) {
     msg.archived_at = previousArchivedAt;
     logger.error('messages', '归档失败', error);
     showFeedback(error?.message || '归档失败，请稍后重试', 'error');
+    return false;
   }
 };
 
 const unarchiveMessage = async (msg) => {
-  if (!msg?.id) return;
+  if (!msg?.id) return false;
   const previousArchivedAt = msg.archived_at;
   msg.archived_at = null;
   try {
@@ -2360,10 +2491,12 @@ const unarchiveMessage = async (msg) => {
       await loadNotifications();
     }
     showFeedback('已取消归档', 'success');
+    return true;
   } catch (error) {
     msg.archived_at = previousArchivedAt;
     logger.error('messages', '取消归档失败', error);
     showFeedback(error?.message || '取消归档失败，请稍后重试', 'error');
+    return false;
   }
 };
 
@@ -2937,10 +3070,45 @@ const markAllAsRead = async ({ silent = false } = {}) => {
   }
 };
 
+function focusDetailTitle() {
+  detailTitleRef.value?.focus?.({ preventScroll: true });
+}
+
+async function confirmDiscardReply() {
+  if (!replyContent.value.trim()) return true;
+  try {
+    return await confirmDialog({
+      title: '放弃回复草稿？',
+      message: '切换或关闭通知后，当前回复内容将不会保留。',
+      confirmText: '放弃草稿',
+      cancelText: '继续编辑',
+      tone: 'warning',
+    });
+  } catch (error) {
+    if (isDialogBusy(error)) return false;
+    throw error;
+  }
+}
+
 // 显示详情并标记已读
 const showDetail = async (msg) => {
+  if (
+    selectedMessage.value?.id &&
+    selectedMessage.value.id !== msg.id &&
+    replyContent.value.trim()
+  ) {
+    const confirmed = await confirmDiscardReply();
+    if (!confirmed) return false;
+  }
+
+  showReplyInput.value = false;
+  replyContent.value = '';
   lastFocusedMessageId.value = msg.id;
   selectedMessage.value = msg;
+  detailMoreOpen.value = false;
+
+  await nextTick();
+  focusDetailTitle();
 
   if (msg.status === 'unread') {
     try {
@@ -2955,11 +3123,7 @@ const showDetail = async (msg) => {
     }
   }
 
-  await nextTick();
-  const panel = document.querySelector('.x-detail-panel');
-  const firstFocusable = panel?.querySelector('button, [tabindex], input, textarea, select');
-  if (firstFocusable) firstFocusable.focus();
-  else panel?.focus();
+  return true;
 };
 
 const afterPanelLeave = () => {
@@ -2968,7 +3132,40 @@ const afterPanelLeave = () => {
   }
 };
 
+async function closeDetailWithDraftGuard() {
+  if (isReplySubmitting.value) return;
+  if (!(await confirmDiscardReply())) return;
+  closeDetail();
+}
+
+const trapDetailFocus = (event) => {
+  if (event.key !== 'Tab') return;
+  const panel = detailPanelRef.value;
+  if (!panel) return;
+  const focusables = [
+    ...panel.querySelectorAll(
+      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    ),
+  ].filter((element) => element.getClientRects().length > 0);
+  if (!focusables.length) return;
+  const first = focusables[0];
+  const last = focusables[focusables.length - 1];
+  if (!panel.contains(document.activeElement)) {
+    event.preventDefault();
+    first.focus();
+    return;
+  }
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
+};
+
 const closeDetail = () => {
+  detailMoreOpen.value = false;
   selectedMessage.value = null;
   showReplyInput.value = false;
   replyContent.value = '';
@@ -2992,6 +3189,7 @@ const openReplyInput = () => {
     return;
   }
   showReplyInput.value = true;
+  nextTick(() => replyTextareaRef.value?.focus?.());
 };
 
 const cancelReply = () => {
