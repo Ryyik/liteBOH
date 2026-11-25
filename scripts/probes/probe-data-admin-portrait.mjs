@@ -11,6 +11,8 @@
  *   6. 表单输入字号 ≥ 16px（iOS 会自动放大的阈值）
  *   7. 详情子页在竖屏可打开且返回按钮可见
  *   8. 勾选行后批量条出现且不遮挡内容
+ *   9. 详情分段（plans/050）：用户 5 段 / 订单 4 段、行高 ≥44px
+ *  10. 就地操作：积分扣除走差异确认、礼品状态四档、地址一键复制（都不是浮层）
  *
  * 默认诊断模式（打印 PASS/FAIL，exit 0）；`--strict` 作门禁。
  * 运行：node scripts/probes/probe-data-admin-portrait.mjs [--strict]
@@ -38,10 +40,47 @@ const users = Array.from({ length: 12 }, (_, i) => ({
   tags: [],
 }));
 
+// plans/050 期 1 详情分段的 mock 记录（礼品详情）
+const GIFT_ID = '11111111-1111-4111-8111-111111111111';
+const gift = {
+  id: GIFT_ID,
+  user_id: IDs[0],
+  username: 'user_1',
+  gift_scope_label: 'BOH Bag',
+  gift_content: 'E2E 礼物',
+  gift_status: 'preparing',
+  gift_no: 'SF1234567890',
+  gift_price: 199,
+  gift_points: 500,
+  shipping_recipient: '测试收件人',
+  shipping_phone: '13800000000',
+  shipping_address: '上海市测试路 1 号',
+  created_at: '2026-11-01T10:00:00.000Z',
+  completed_at: null,
+  is_active: true,
+};
+
 const results = [];
 const check = (viewport, name, pass, detail = '') => {
   results.push({ viewport, name, pass: Boolean(pass), detail: String(detail).slice(0, 160) });
   console.log(`${pass ? 'PASS' : 'FAIL'}  [${viewport}] ${name}${detail ? `  -- ${detail}` : ''}`);
+};
+
+/** 等某条 toast 出现（toast 是队列制，直接读 .boh-toast__msg 会读到上一条） */
+const waitToast = async (page, needle, timeout = 5000) => {
+  try {
+    await page.waitForFunction(
+      (text) =>
+        [...document.querySelectorAll('.boh-toast__msg')].some((node) =>
+          (node.innerText || '').includes(text),
+        ),
+      needle,
+      { timeout },
+    );
+    return needle;
+  } catch {
+    return '';
+  }
 };
 
 const browser = await chromium.launch({
@@ -70,10 +109,49 @@ const mockRest = async (page) => {
   await page.route('**/rest/v1/**', async (route) => {
     const url = route.request().url();
     if (url.includes('/rpc/')) {
+      // 订阅层级批量/单发：返回真实形状，便于断言「Pro」而不是 mock 兜底
+      if (url.includes('get_user_subscription_tiers')) {
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          headers: { 'access-control-allow-origin': '*' },
+          body: JSON.stringify(users.map((u) => ({ user_id: u.id, tier: 'pro' }))),
+        });
+      }
+      if (url.includes('get_user_subscription_tier')) {
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          headers: { 'access-control-allow-origin': '*' },
+          body: JSON.stringify('pro'),
+        });
+      }
       return route.fulfill({
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({ ok: true, users: 12, forum: 137, lotteries: 3 }),
+      });
+    }
+    // 礼品详情（plans/050）：单条取数/更新返回对象，列表返回数组
+    if (url.includes('/user_gifts')) {
+      const giftAccept = route.request().headers().accept || '';
+      if (giftAccept.includes('vnd.pgrst.object') || url.includes('id=eq.')) {
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/vnd.pgrst.object+json',
+          headers: { 'access-control-allow-origin': '*' },
+          body: JSON.stringify(gift),
+        });
+      }
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        headers: {
+          'content-range': '0-0/1',
+          'access-control-allow-origin': '*',
+          'access-control-expose-headers': 'content-range',
+        },
+        body: JSON.stringify([gift]),
       });
     }
     // 详情页按 id 单条取数（id=eq.xxx）：返回数组会被 postgrest-js 判成
@@ -110,6 +188,7 @@ const runViewport = async (width, height) => {
     deviceScaleFactor: 2,
     isMobile: true,
     hasTouch: true,
+    permissions: ['clipboard-read', 'clipboard-write'],
     serviceWorkers: 'block',
     userAgent:
       'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
@@ -126,6 +205,19 @@ const runViewport = async (width, height) => {
   });
   await page.waitForSelector('.data-management-page', { timeout: 30000 });
   await page.waitForTimeout(2500);
+
+  // plans/050 §6：列表卡片按构思图定字段（标题已是用户名）
+  const userCardText = await page.evaluate(() => {
+    const card = document.querySelector('.mobile-card');
+    return (card?.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 120);
+  });
+  check(
+    vp,
+    '用户卡片显示「订阅层级 + 积分」',
+    /Pro/.test(userCardText) && /积分/.test(userCardText),
+    userCardText,
+  );
+  await page.screenshot({ path: `debug-screenshots/portrait-${vp}-list.png`, fullPage: false });
 
   const base = await page.evaluate(() => {
     const q = (sel) => document.querySelector(sel);
@@ -414,6 +506,140 @@ const runViewport = async (width, height) => {
       : 'not found',
   );
   await page.screenshot({ path: `debug-screenshots/portrait-${vp}-detail.png`, fullPage: false });
+
+  // ── plans/050 期 1：详情分身段 ──
+  const userSections = await page.evaluate(() => {
+    const nodes = [...document.querySelectorAll('.detail-section')];
+    const rows = [...document.querySelectorAll('.detail-section-row')];
+    return {
+      count: nodes.length,
+      titles: nodes.map((n) => n.querySelector('.detail-section-title')?.innerText?.trim() || ''),
+      minRowHeight: Math.min(...rows.map((n) => Math.round(n.getBoundingClientRect().height))),
+      actionTexts: [...document.querySelectorAll('.detail-section-row.is-action')].map((n) =>
+        (n.innerText || '').replace(/\s+/g, ' ').trim(),
+      ),
+    };
+  });
+  check(vp, '用户详情按 5 段渲染', userSections.count === 5, userSections.titles.join(' / '));
+  check(
+    vp,
+    '详情分段行高 ≥44px',
+    userSections.minRowHeight >= 44,
+    `min=${userSections.minRowHeight}`,
+  );
+  check(
+    vp,
+    '资产段有可点行（积分 + 订阅层级）',
+    userSections.actionTexts.some((t) => t.includes('积分')) &&
+      userSections.actionTexts.some((t) => t.includes('订阅层级')),
+    userSections.actionTexts.join(' | '),
+  );
+  check(
+    vp,
+    '订阅层级显示为可读档位（Pro，不是 [object Object]）',
+    userSections.actionTexts.some((t) => t.includes('订阅层级') && t.includes('Pro')),
+    userSections.actionTexts.join(' | '),
+  );
+
+  // ── plans/050 期 3：积分就地扣除（差异确认 → RPC） ──
+  await page.locator('.detail-section-row.is-action', { hasText: '积分' }).first().click();
+  await page.waitForSelector('.detail-quick-panel', { timeout: 5000 });
+  const pointsPanel = await page.evaluate(() => {
+    const panel = document.querySelector('.detail-quick-panel');
+    const rect = panel.getBoundingClientRect();
+    return {
+      position: getComputedStyle(panel).position,
+      width: Math.round(rect.width),
+      innerWidth: window.innerWidth,
+      inViewport: rect.top >= 0 && rect.bottom <= window.innerHeight + 1,
+    };
+  });
+  check(
+    vp,
+    '积分面板就地展开（不是浮层）',
+    pointsPanel.position !== 'fixed' && pointsPanel.width <= pointsPanel.innerWidth,
+    `${pointsPanel.position} w=${pointsPanel.width}`,
+  );
+  await page.locator('.detail-quick-panel input[type="number"]').fill('30');
+  await page.locator('.detail-quick-panel .detail-quick-modes button', { hasText: '扣除' }).click();
+  await page.locator('.detail-quick-panel .detail-quick-primary').click();
+  await page.waitForSelector('.confirm-btn.primary', { timeout: 5000 });
+  const confirmSnapshot = await page.evaluate(() => ({
+    text: document.body.innerText.replace(/\s+/g, ' '),
+    primary: document.querySelector('.confirm-btn.primary')?.innerText?.trim() || '',
+  }));
+  check(
+    vp,
+    '扣除前弹出差异确认（100 → 70）',
+    confirmSnapshot.text.includes('确认扣除积分') && confirmSnapshot.text.includes('100 → 70'),
+    confirmSnapshot.primary,
+  );
+  await page.locator('.confirm-btn.primary').click();
+  const pointsToast = await waitToast(page, '积分已更新');
+  check(vp, '积分扣除成功提示', Boolean(pointsToast), pointsToast || '（无 toast）');
+
+  // ── plans/050 期 1/3：礼品详情（4 段 + 复制地址 + 状态四档） ──
+  await page.goto(`${BASE}/#/admin/data-management/gifts/${GIFT_ID}`, {
+    waitUntil: 'domcontentloaded',
+    timeout: 60000,
+  });
+  await page.waitForSelector('.detail-sections', { timeout: 30000 });
+  await page.waitForTimeout(900);
+  const giftSections = await page.evaluate(() => {
+    const nodes = [...document.querySelectorAll('.detail-section')];
+    return {
+      count: nodes.length,
+      titles: nodes.map((n) => n.querySelector('.detail-section-title')?.innerText?.trim() || ''),
+      actionTexts: [...document.querySelectorAll('.detail-section-row.is-action')].map((n) =>
+        (n.innerText || '').replace(/\s+/g, ' ').trim(),
+      ),
+    };
+  });
+  check(vp, '订单详情按 4 段渲染', giftSections.count === 4, giftSections.titles.join(' / '));
+  check(
+    vp,
+    '订单详情有一键复制收货信息',
+    giftSections.actionTexts.some((t) => t.includes('一键复制收货信息')),
+    giftSections.actionTexts.join(' | '),
+  );
+  await page.locator('.detail-section-row.is-action', { hasText: '一键复制收货信息' }).click();
+  const copyToast = await waitToast(page, '收件信息已复制');
+  check(vp, '收货信息一键复制', Boolean(copyToast), copyToast || '（无 toast）');
+
+  await page.locator('.detail-section-row.is-action', { hasText: '状态' }).first().click();
+  await page.waitForSelector('.detail-quick-panel select', { timeout: 5000 });
+  const statusOptionCount = await page.locator('.detail-quick-panel select option').count();
+  check(vp, '状态就地点选四档', statusOptionCount === 4, `${statusOptionCount} 档`);
+  await page.locator('.detail-quick-panel select').selectOption('shipped');
+  await page.locator('.detail-quick-panel .detail-quick-primary').click();
+  const statusToast = await waitToast(page, '状态已更新');
+  check(vp, '状态保存成功', Boolean(statusToast), statusToast || '（无 toast）');
+  await page.screenshot({
+    path: `debug-screenshots/portrait-${vp}-gift-detail.png`,
+    fullPage: false,
+  });
+
+  // 礼品列表卡片：用户名（标题）+ 内容 + 进度
+  await page.goto(`${BASE}/#/admin/data-management?section=data&tab=gifts`, {
+    waitUntil: 'domcontentloaded',
+    timeout: 60000,
+  });
+  await page.waitForSelector('.mobile-card', { timeout: 30000 });
+  await page.waitForTimeout(1200);
+  const giftCardText = await page.evaluate(() => {
+    const card = document.querySelector('.mobile-card');
+    return (card?.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 120);
+  });
+  check(
+    vp,
+    '礼品卡片显示「内容 + 进度」',
+    /E2E 礼物/.test(giftCardText) && /准备中/.test(giftCardText),
+    giftCardText,
+  );
+  await page.screenshot({
+    path: `debug-screenshots/portrait-${vp}-gift-list.png`,
+    fullPage: false,
+  });
 
   check(vp, '全程零 pageerror', pageErrors.length === 0, pageErrors.join(' | '));
   await ctx.close();

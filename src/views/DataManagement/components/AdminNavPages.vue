@@ -653,30 +653,30 @@ watch(isSearching, (on) => {
 :global(.data-management-page[data-theme='dark']) .ap-rows,
 :global(.data-management-page[data-theme='dark']) .ap-search,
 :global(.data-management-page[data-theme='dark']) .ap-back {
-  background: rgba(38, 38, 42, 0.86);
-  border-color: rgba(255, 255, 255, 0.1);
+  background: var(--liquid-bg-strong);
+  border-color: var(--liquid-border);
 }
 
 :global(.data-management-page[data-theme='dark']) .ap-title,
 :global(.data-management-page[data-theme='dark']) .ap-row {
-  color: #f5f5f7;
+  color: var(--liquid-text-primary);
 }
 
 :global(.data-management-page[data-theme='dark']) .ap-row:active {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--liquid-border-hairline);
 }
 
 :global(.data-management-page[data-theme='dark']) .ap-row.is-active {
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--liquid-border);
 }
 
 :global(.data-management-page[data-theme='dark']) .ap-row + .ap-row::before {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--liquid-border-hairline);
 }
 
 :global(.data-management-page[data-theme='dark']) .ap-count {
-  background: rgba(255, 255, 255, 0.12);
-  color: #b8b8bd;
+  background: var(--liquid-border);
+  color: var(--liquid-text-secondary);
 }
 
 @media (min-width: 480px) {

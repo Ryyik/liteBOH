@@ -208,14 +208,14 @@ const badgeOf = (tabId) => {
 }
 
 :global([data-theme='dark']) .tab-row:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--liquid-border-hairline);
 }
 
 :global([data-theme='dark']) .tab-row:active {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--liquid-border);
 }
 
 :global([data-theme='dark']) .tab-row.is-active {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--liquid-border);
 }
 </style>

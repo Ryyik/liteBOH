@@ -6,7 +6,7 @@
 ## 0. 项目一句话
 
 Vue 3 + Vite 7 + Supabase 的 SPA，hash 路由，产品名「方块之家 BOH」，迭代代号 Beta 2.5 / Beta 6。
-`src/` 729 个源文件（.vue/.js/.ts），327 个脚本（`scripts/*.mjs` 65 + `scripts/probes/*.mjs` 262），413 个单元测试文件。
+`src/` 733 个源文件（.vue/.js/.ts），327 个脚本（`scripts/*.mjs` 65 + `scripts/probes/*.mjs` 262），415 个单元测试文件。
 （2026-11-25 对齐；这三个数由 `npm run check:doc-truth` 实时对账，写错会被 verify 拦下——别手改估计值。）
 
 三条最高纲领：
@@ -199,7 +199,7 @@ Vue 3 + Vite 7 + Supabase 的 SPA，hash 路由，产品名「方块之家 BOH�
     `cp scripts/git-hooks/pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit`
   - 没用 husky 是刻意的：husky 会接管 `core.hooksPath`，而现有 `.git/hooks/post-commit` 是 Qoder 的 tracker，接管后它会静默失效。
 - **MCP**：`~/.workbuddy/mcp.json` 配了三个 —— supabase（`--read-only`，project ref `nplnlefdwfgtyimfkyih`）、playwright（`--browser chrome`）、github。首次启用要在连接器管理页点「信任」。Supabase 那一个是只读档，写操作照旧走 migration SQL。
-- **测试**：`npm run test` 覆盖 **413 个测试文件**（口径 `find tests -name '*.test.js' | wc -l`），跑满约 3 分钟。`pool: forks` + `maxWorkers: 2` 是定数**别调高**（CPU 密集任务抢不到时间片，只会互相拖累）。⚠️ `maxForks` 是 vitest 5 的**未知选项、被静默忽略**，曾致 project-structure 每次全量撞 45s 超时——2026-10-15 已修正名并合并 src 双读（17s→9.1s），对照实验与教训见 `vitest.config.js` 注释。
+- **测试**：`npm run test` 覆盖 **415 个测试文件**（口径 `find tests -name '*.test.js' | wc -l`），跑满约 3 分钟。`pool: forks` + `maxWorkers: 2` 是定数**别调高**（CPU 密集任务抢不到时间片，只会互相拖累）。⚠️ `maxForks` 是 vitest 5 的**未知选项、被静默忽略**，曾致 project-structure 每次全量撞 45s 超时——2026-10-15 已修正名并合并 src 双读（17s→9.1s），对照实验与教训见 `vitest.config.js` 注释。
 - **截图产物轮转**：`npm run clean:screenshots --keep-days=7 -- --apply`（不加 `--apply` 是 dry-run；上限 200，超了需 `--max-delete`）。`debug-screenshots/` 只会涨（轮转前 2485 个 / 589MB）。
 
 ## 6. 不要做的事

@@ -642,7 +642,6 @@
   background: var(--muted);
 }
 
-
 .filter-select select,
 .date-filter input {
   min-height: 36px;
@@ -668,6 +667,42 @@
   gap: 8px;
   color: var(--dm-text-subtle);
   font-size: 12px;
+}
+
+/* 日期快捷档（plans/050 期 2）：常驻分段控件，只改起止日期，复用既有筛选链路 */
+.date-quick-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 10px;
+  background: var(--muted);
+}
+
+.date-quick-btn {
+  min-height: 30px;
+  padding: 5px 10px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted-foreground);
+  font-family: inherit;
+  font-size: 12.5px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.date-quick-btn:hover {
+  color: var(--foreground);
+}
+
+.date-quick-btn.is-active {
+  background: var(--card);
+  border-color: var(--border);
+  color: var(--foreground);
 }
 
 .clear-filters-btn {

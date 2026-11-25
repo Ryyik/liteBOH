@@ -353,6 +353,7 @@ import { logAdminAction } from '@/utils/api/admin-audit-api.js';
 import DashboardPagination from './shared/DashboardPagination.vue';
 import UserPicker from './shared/UserPicker.vue';
 import SubscriptionEditModal from './SubscriptionEditModal.vue';
+import { consumeSubscriptionGrantPrefill } from '../composables/useSubscriptionGrantPrefill.js';
 
 const { confirm } = useConfirmDialog();
 
@@ -783,6 +784,12 @@ const loadRecent = async (page = recentPage.value) => {
 };
 
 onMounted(() => {
+  // 从用户对象页「订阅层级」跳过来时预填该用户（plans/050 期 3）
+  const prefill = consumeSubscriptionGrantPrefill();
+  if (prefill?.id) {
+    mode.value = 'selected';
+    selectedUsers.value = [{ id: prefill.id, username: prefill.username }];
+  }
   startedAt.value = toDatetimeLocal(new Date());
   computeExpiresAt();
   void loadAllUserCount();

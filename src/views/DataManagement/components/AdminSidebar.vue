@@ -991,14 +991,14 @@ const goHome = () => {
       组件不读 html[data-theme]。写成 html 那一版在主题切换时可能不生效。 */
 .data-management-page[data-theme='dark'] .g-nav-btn.g-nav-row.is-active,
 .data-management-page[data-theme='dark'] .g-nav-btn.g-nav-row.is-active:hover {
-  background: rgba(255, 255, 255, 0.12);
-  color: var(--liquid-text-primary, #f5f5f7);
+  background: var(--liquid-border);
+  color: var(--liquid-text-primary);
 }
 
 /* 暗色卡片描边：--liquid-border 在暗色下已翻转，但玻璃底叠在深侧栏上
    边界感会消失，所以给一档更清楚的描边。 */
 .data-management-page[data-theme='dark'] .g-sidebar-rows {
-  border-color: rgba(255, 255, 255, 0.1);
+  border-color: var(--liquid-border);
 }
 
 /* 行间发丝线（设置页 .gs-row + .gs-row::before 的同款）：

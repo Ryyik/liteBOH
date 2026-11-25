@@ -19,7 +19,14 @@
         <div class="record-pane-main">
           <!-- D2 升级：编辑态 = 完整抽屉表单 Teleport 进本槽位（全部字段类型可用），
                只读视图与编辑表单互斥显示；槽位必须常驻（Teleport 目标） -->
-          <DetailFields v-show="!editing" :fields="fields" :record="record" />
+          <DetailFields
+            v-show="!editing"
+            :fields="fields"
+            :record="record"
+            :sections="sections"
+            :overrides="overrides"
+            @field-action="$emit('field-action', $event)"
+          />
           <div id="detail-edit-slot" v-show="editing"></div>
         </div>
         <DetailAside
@@ -56,6 +63,8 @@ const props = defineProps({
   table: { type: String, default: '' },
   selectColumns: { type: String, default: '' },
   fields: { type: Array, default: () => [] },
+  sections: { type: Array, default: null },
+  overrides: { type: Object, default: () => ({}) },
   moduleLabel: { type: String, default: '' },
   tabLabel: { type: String, default: '' },
   getRelatedLabels: { type: Function, default: null },
@@ -67,7 +76,17 @@ const props = defineProps({
   canEdit: { type: Boolean, default: false },
   editModel: { type: Object, default: null },
 });
-const emit = defineEmits(['back', 'edit', 'crumb', 'delete', 'save', 'cancel-edit', 'open-drawer']);
+const emit = defineEmits([
+  'back',
+  'edit',
+  'crumb',
+  'delete',
+  'save',
+  'cancel-edit',
+  'open-drawer',
+  'field-action',
+  'loaded',
+]);
 
 const record = ref(null);
 const loading = ref(false);
@@ -98,9 +117,11 @@ const fetchRecord = async () => {
     });
     record.value = row || null;
     notFound.value = !row;
+    emit('loaded', record.value);
   } catch (e) {
     // 错误只 banner + 重试，不 toast（D1 口径：错误状态要可见可恢复）
     error.value = String(e?.message || e || '未知错误');
+    emit('loaded', null);
   } finally {
     loading.value = false;
   }

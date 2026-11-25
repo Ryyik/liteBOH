@@ -214,6 +214,8 @@
               :module-label="currentModule?.label || '数据管理'"
               :tab-label="detailTabLabel"
               :get-related-labels="getDetailRelatedLabels"
+              :sections="detailSections"
+              :overrides="detailOverrides"
               :can-delete="canDeleteCurrentTab && !isModerationTab"
               :can-edit="canEditCurrentTab"
               :editing="detailEditing"
@@ -225,6 +227,17 @@
               @delete="onDetailDangerDelete"
               @save="saveDetailEdit"
               @cancel-edit="cancelDetailEdit"
+              @loaded="onDetailRecordLoaded"
+              @field-action="onDetailFieldAction"
+            />
+            <DetailQuickActions
+              v-if="detailQuickAction"
+              :action="detailQuickAction"
+              :tab-id="recordTab"
+              :tier-label="detailOverrides.subscription_tier || ''"
+              @close="detailQuickAction = null"
+              @saved="onDetailQuickSaved"
+              @open-tab="onDetailOpenTab"
             />
           </section>
           <section v-else-if="recordId" class="management-section">
@@ -595,6 +608,24 @@
                         {{ option.label }}
                       </option>
                     </select>
+                  </div>
+                  <div
+                    v-if="currentDateFilterField"
+                    class="date-quick-filter"
+                    role="group"
+                    aria-label="日期快捷筛选"
+                  >
+                    <button
+                      v-for="range in DATE_QUICK_RANGES"
+                      :key="range.id"
+                      type="button"
+                      class="date-quick-btn"
+                      :class="{ 'is-active': activeDateQuickRange === range.id }"
+                      :title="describeDateQuickRange(range.id)"
+                      @click="applyDateQuickRange(range.id)"
+                    >
+                      {{ range.label }}
+                    </button>
                   </div>
                   <div v-if="currentDateFilterField" class="date-filter">
                     <input
@@ -2292,6 +2323,16 @@ import {
   resolveNavRowIdForTab,
 } from './config/nav-groups.js';
 import { consumeAdminTabJumpSearch } from './composables/useAdminTabIntent.js';
+import { DETAIL_SECTIONS } from './config/detail-sections.js';
+import {
+  DATE_QUICK_RANGES,
+  describeDateQuickRange,
+  detectDateQuickRange,
+  resolveDateQuickRange,
+} from './composables/date-quick-ranges.js';
+import { setSubscriptionGrantPrefill } from './composables/useSubscriptionGrantPrefill.js';
+import DetailQuickActions from './components/detail/DetailQuickActions.vue';
+import { useUserTier } from '@/composables/useUserTier.js';
 import { resolveInitialAdminTab } from './composables/resolveInitialAdminTab.js';
 import {
   buildBatchDeleteScope,
@@ -2308,6 +2349,10 @@ const CACHE_TTL = 45_000;
 
 const router = useRouter();
 const route = useRoute();
+
+// 订阅层级批量查询（plans/050）。必须**尽早**初始化：fetchTabData 里会用到它，
+// 而列表拉取可能由 immediate watcher 在 setup 内同步触发（TDZ ⇒ 整页崩）。
+const { fetchUserTiersBatch } = useUserTier();
 
 /* ── 路由态的两个基本判定：必须**在 setup 最前面**定义（plans/049 期 2）──
    `editorBindings`（约 7.6k 行）与 `closeModal` 都要读 isCreateRecordPage，
@@ -3105,6 +3150,17 @@ const mobileVisibleColumns = computed(() =>
   visibleCurrentColumns.value.filter((col) => col.key !== cardTitleKey.value),
 );
 
+// plans/050 §6：竖屏卡片按用户构思图定字段优先级（标题已承担用户名）。
+// 未配置的页签继续走「可见列前 3 个有值」的既有兜底。
+const MOBILE_CARD_PRIORITY = {
+  users: ['subscription_tier', 'points'],
+  gifts: ['gift_content', 'gift_status'],
+};
+// 不在 columns 里的合成列（值由 fetch 阶段补进行对象）
+const MOBILE_CARD_SYNTHETIC_COLS = {
+  subscription_tier: { key: 'subscription_tier', label: '订阅层级' },
+};
+
 /**
  * 移动端卡片字段的显示值。
  *
@@ -3114,6 +3170,10 @@ const mobileVisibleColumns = computed(() =>
 const formatCardFieldValue = (item, col) => {
   const raw = item?.[col?.key];
   if (col?.key === 'is_banned' || col?.key === 'is_muted') return raw === true ? '是' : '—';
+  if (col?.key === 'gift_status') {
+    const meta = dataConfig.gifts?.cardView?.statusMeta?.[raw];
+    if (meta?.label) return meta.label;
+  }
   if (col?.type === 'date' || col?.type === 'datetime') return formatDate(raw);
   if (typeof raw === 'boolean') return raw ? '是' : '否';
   return formatCellValue(raw, col?.maxLength);
@@ -3123,8 +3183,27 @@ const formatCardFieldValue = (item, col) => {
  * 每条记录实际要显示的字段：先剔掉「这条记录本来就没有值」的列，再取前 3 个。
  * 固定取前 3 列的后果是：20 个用户里 18 个的卡片都有一行「封禁 —」，
  * 真正有用的「积分」永远排不进来。全空时退回原顺序（至少还能看到列名）。
+ * 配了优先级的页签（见 MOBILE_CARD_PRIORITY）按构思图顺序取，其余兜底不变。
  */
 const mobileCardFields = (item) => {
+  const priority = MOBILE_CARD_PRIORITY[currentTab.value];
+  if (priority?.length) {
+    const colMap = new Map(
+      [...currentColumns.value, ...Object.values(MOBILE_CARD_SYNTHETIC_COLS)].map((col) => [
+        col.key,
+        col,
+      ]),
+    );
+    const rows = priority
+      .filter((key) => key !== cardTitleKey.value)
+      .map((key) => {
+        const col = colMap.get(key) || { key, label: key };
+        return { col, value: formatCardFieldValue(item, col) };
+      });
+    const filled = rows.filter((row) => row.value !== '—' && row.value !== '-');
+    return (filled.length ? filled : rows).slice(0, MOBILE_CARD_FIELD_LIMIT).map((row) => row.col);
+  }
+
   const rows = mobileVisibleColumns.value.map((col) => ({
     col,
     value: formatCardFieldValue(item, col),
@@ -4325,6 +4404,22 @@ const resetColumnSettings = () => {
 // createChangeLogCenter 已移至 createNavigationCenter 之后注入 (依赖 switchTab)
 // 见下方 "变更日志中心注入" 区块
 
+const copyTextToClipboard = async (content) => {
+  if (navigator.clipboard && window.isSecureContext) {
+    await navigator.clipboard.writeText(content);
+    return;
+  }
+  const textArea = document.createElement('textarea');
+  textArea.value = content;
+  textArea.style.position = 'fixed';
+  textArea.style.left = '-9999px';
+  document.body.appendChild(textArea);
+  textArea.focus();
+  textArea.select();
+  document.execCommand('copy');
+  document.body.removeChild(textArea);
+};
+
 const copyAddressBundle = async () => {
   const content = addressBundleText.value;
   if (!content) {
@@ -4333,19 +4428,7 @@ const copyAddressBundle = async () => {
   }
 
   try {
-    if (navigator.clipboard && window.isSecureContext) {
-      await navigator.clipboard.writeText(content);
-    } else {
-      const textArea = document.createElement('textarea');
-      textArea.value = content;
-      textArea.style.position = 'fixed';
-      textArea.style.left = '-9999px';
-      document.body.appendChild(textArea);
-      textArea.focus();
-      textArea.select();
-      document.execCommand('copy');
-      document.body.removeChild(textArea);
-    }
+    await copyTextToClipboard(content);
     showToast('收件信息已复制', 'success');
   } catch (error) {
     logger.error('data-admin', '复制收件信息失败:', error);
@@ -5093,6 +5176,20 @@ const fetchTabData = async (tabId = currentTab.value, options = {}) => {
       } catch (secError) {
         logger.warn('data-admin', '获取用户敏感字段失败:', secError);
       }
+      // plans/050 §6：列表行要显示「订阅层级」。批量 RPC 有 5 分钟内存缓存与
+      // 跨调用 in-flight 去重（useUserTier），失败时整列留空、不影响列表。
+      try {
+        const tierIds = rows.map((r) => r.id).filter(Boolean);
+        if (tierIds.length > 0) {
+          const tierMap = await fetchUserTiersBatch(tierIds);
+          rows.forEach((row) => {
+            const tier = tierMap.get(row.id) || '';
+            row.subscription_tier = tier ? SUBSCRIPTION_PLAN_NAMES[tier] || '' : '';
+          });
+        }
+      } catch (tierError) {
+        logger.warn('data-admin', '获取用户订阅层级失败:', tierError);
+      }
       assignTabRows(tabId, rows, count);
       return;
     }
@@ -5632,6 +5729,21 @@ const {
     return kanban.columns?.find((item) => item.value === value)?.label || '';
   },
 });
+
+// ==================== 日期快捷筛选（plans/050 期 2） ====================
+// 纯前端换算后写进 dateFromFilter / dateToFilter，复用既有查询链路（零新查询）。
+// 边界计算在 composables/date-quick-ranges.js（单测覆盖），这里只做接线。
+const activeDateQuickRange = computed(() =>
+  detectDateQuickRange(dateFromFilter.value, dateToFilter.value),
+);
+
+const applyDateQuickRange = (rangeId) => {
+  const resolved = resolveDateQuickRange(rangeId);
+  if (!resolved) return;
+  dateFromFilter.value = resolved.from;
+  dateToFilter.value = resolved.to;
+  handleFilterChange();
+};
 
 // ==================== 数据操作 ====================
 const fetchSecondaryData = async () => {
@@ -8703,6 +8815,80 @@ const detailTable = computed(() => dataConfig[recordTab.value]?.table || '');
 // 窄列清单会让 editingItem 缺键 → 更新时把未知字段写成 undefined）。单行查询用 *。
 const detailSelectColumns = computed(() => '*');
 const detailFields = computed(() => dataConfig[recordTab.value]?.columns || []);
+
+// ---------- 详情页分段 + 就地操作（plans/050 期 1 / 期 3） ----------
+// 未配置分段的表返回 null，DetailFields 退回原「单组平铺」——49 个页签零回归。
+const detailSections = computed(() => DETAIL_SECTIONS[recordTab.value] || null);
+
+const detailRecord = ref(null);
+const detailTier = ref('');
+const detailQuickAction = ref(null);
+
+// 合成展示值：订阅层级不在 profiles 行上；礼品状态展示中文标签。
+const detailOverrides = computed(() => {
+  const record = detailRecord.value;
+  const overrides = {};
+  if (!record) return overrides;
+  if (recordTab.value === 'users' && detailTier.value) {
+    // 未知档位（历史上出现过的 plus / 异常返回值）一律留空，不把原始值直接上屏
+    overrides.subscription_tier = SUBSCRIPTION_PLAN_NAMES[detailTier.value] || '';
+  }
+  if (recordTab.value === 'gifts' && record.gift_status) {
+    const meta = dataConfig.gifts?.cardView?.statusMeta || {};
+    overrides.gift_status = meta[record.gift_status]?.label || record.gift_status;
+  }
+  return overrides;
+});
+
+const onDetailRecordLoaded = (record) => {
+  detailRecord.value = record || null;
+  detailQuickAction.value = null;
+  detailTier.value = '';
+  if (!record || recordTab.value !== 'users') return;
+  const userId = String(record.id || '').trim();
+  if (!userId) return;
+  fetchUserTiersBatch([userId])
+    .then((tiers) => {
+      // 记录已切换：丢弃过期结果，避免 A 的层级显示在 B 上
+      if (String(detailRecord.value?.id || '') !== userId) return;
+      detailTier.value = tiers.get(userId) || '';
+    })
+    .catch(() => {
+      if (String(detailRecord.value?.id || '') === userId) detailTier.value = '';
+    });
+};
+
+const onDetailFieldAction = ({ field, section, record }) => {
+  if (!field?.action) return;
+  if (field.action === 'copy-address') {
+    const content = [
+      `收货人：${String(record?.shipping_recipient || '').trim() || '未填写'}`,
+      `地址：${String(record?.shipping_address || '').trim() || '未填写'}`,
+      `电话：${String(record?.shipping_phone || '').trim() || '未填写'}`,
+    ].join('\n');
+    copyTextToClipboard(content)
+      .then(() => showToast('收件信息已复制', 'success'))
+      .catch((error) => {
+        logger.error('data-admin', '复制收件信息失败:', error);
+        showToast('复制失败，请手动复制', 'error');
+      });
+    return;
+  }
+  detailQuickAction.value = { field, section, record };
+};
+
+const onDetailQuickSaved = () => {
+  detailQuickAction.value = null;
+  recordPaneRef.value?.fetchRecord?.();
+  // 列表里的状态 / 积分列也要跟着变，否则返回列表看到旧值
+  Promise.resolve(fetchTabData(recordTab.value)).catch(() => {});
+};
+
+const onDetailOpenTab = ({ tab, user }) => {
+  detailQuickAction.value = null;
+  if (user?.id) setSubscriptionGrantPrefill(user);
+  switchTab(tab);
+};
 const getDetailRelatedLabels = (record) => [
   ...new Set(
     relatedJumpsForItem(record)
@@ -8770,6 +8956,7 @@ const recordPaneRef = ref(null);
 
 const onEditRecord = (record) => {
   if (!record?.id) return openEditModal(record);
+  detailQuickAction.value = null;
   bumpUsageCounter(USAGE_DETAIL_EDIT);
   openEditModal(record, { embedded: true });
   detailEditing.value = true;

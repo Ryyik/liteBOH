@@ -1,12 +1,18 @@
 import { supabase } from '@/utils/supabase-client.js';
 import { normalizeDbError } from '@/utils/request-core.js';
 
-export async function grantPoints({ userIds = null, amount = 0, remark = '' }) {
-  const { data, error } = await supabase.rpc('admin_grant_points', {
+export async function grantPoints({ userIds = null, amount = 0, remark = '', reason = '' }) {
+  const params = {
     p_user_ids: Array.isArray(userIds) && userIds.length > 0 ? userIds : null,
     p_amount: Number(amount) || 0,
-    p_remark: String(remark || '').trim()
-  });
+    p_remark: String(remark || '').trim(),
+  };
+  // 流水原因（2026112501 起）：不传则沿用库里的默认 'admin_grant' ——
+  // 老部署没有该参数时也能照常调用。
+  const normalizedReason = String(reason || '').trim();
+  if (normalizedReason) params.p_reason = normalizedReason;
+
+  const { data, error } = await supabase.rpc('admin_grant_points', params);
   if (error) {
     throw new Error(normalizeDbError(error)?.message || error.message || '发放积分失败');
   }
@@ -17,7 +23,7 @@ export async function revokeGrant(batchId) {
   const safeBatchId = String(batchId || '').trim();
   if (!safeBatchId) throw new Error('批次 ID 不能为空');
   const { data, error } = await supabase.rpc('admin_revoke_grant', {
-    p_batch_id: safeBatchId
+    p_batch_id: safeBatchId,
   });
   if (error) {
     throw new Error(normalizeDbError(error)?.message || error.message || '撤销积分发放失败');
@@ -31,7 +37,7 @@ export async function fetchRecentGrants({ page = 1, pageSize = 20 } = {}) {
   const fetchPage = async (targetPage) => {
     const { data, error } = await supabase.rpc('admin_list_point_grant_batches', {
       p_page: targetPage,
-      p_page_size: safePageSize
+      p_page_size: safePageSize,
     });
     if (error) {
       throw new Error(normalizeDbError(error)?.message || error.message || '加载发放记录失败');
@@ -46,7 +52,7 @@ export async function fetchRecentGrants({ page = 1, pageSize = 20 } = {}) {
   }
   return {
     rows,
-    total: Number(rows[0]?.total_count || 0)
+    total: Number(rows[0]?.total_count || 0),
   };
 }
 

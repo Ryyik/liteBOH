@@ -7,7 +7,7 @@
 > 列表侧需要**日期快捷筛选**（配合进度筛选）。
 >
 > - 编写日期：2026-11-25
-> - 状态：**方案，未动代码**
+> - 状态：**期 1（详情分段）+ 期 2（日期快捷）+ 期 3（积分内联 / 订阅跳转 / p_reason）已落地**；期 4（一次性令牌）待语义
 > - 关联：`plans/049`（本方案的前提：导航整页化 + 新增对象页已落地）、
 >   `plans/027`（详情页 D1/D2，本方案在它之上做分段）、
 >   `plans/048`（分组导航，定义了「哪些页签属于哪个对象」）
@@ -241,3 +241,22 @@ export const DETAIL_SECTIONS = {
 - **不在对象页重写订阅发放**：它有 6 个字段与完整生命周期，跳已有页签更合理
 - **不把 54 个页签都分段**：只配 `users` / 订单类几张表，其余退回单一分组
 - **不弹任何浮层**：状态用下拉内联、积分用就地展开，延续 `plans/049` 的「不要抽屉」
+
+---
+
+## 9. 落地记录（2026-11-25）
+
+| 期 | 结果 | 判据（可重跑） |
+| --- | --- | --- |
+| 1 · 详情分段 | `config/detail-sections.js`：users 5 段 / gifts 4 段，**覆盖该表全部列**；未配置的表由 `DetailFields` 退回旧平铺 | `npx vitest run tests/unit/data-admin-detail-sections.test.js`（17） |
+| 1 · 订单详情 | 「一键复制收货信息」+ 状态四档就地切换（复用 `SAVE_STRATEGIES.gifts`，不写第二份状态规则） | `BASE=http://localhost:5199 node scripts/probes/probe-data-admin-portrait.mjs` → **78/78** |
+| 2 · 日期快捷 | 全部 / 今天 / 近 7 天 / 近 30 天；本地日期、含今天；只写 `dateFromFilter`/`dateToFilter` | `npx vitest run tests/unit/data-admin-date-quick-ranges.test.js`（15） |
+| 3 · 积分内联 | 详情页发放 / 扣除；扣超余额前端先拦；必弹差异确认 | 竖屏探针「扣除前弹出差异确认（100 → 70）」 |
+| 3 · 订阅层级 | 行内跳「订阅发放」并预填该用户（`useSubscriptionGrantPrefill`，TTL 3s） | 源码守卫 + `SubscriptionGrantConsole` onMounted 消费 |
+| 3 · 流水原因 | 迁移 `2026112501_points_grant_reason.sql`：3 参 → 4 参（默认 `admin_grant`），ACL 重授 | 线上 4 参已生效；`probe-ledger-verify.mjs` ALL PASS |
+| 列表行 | 用户卡片 = 订阅层级 + 积分；礼品卡片 = 内容 + 进度 | 竖屏探针两条卡片断言 |
+
+**与构思图的差异（均为已确认口径）**：状态不弹浮层（改内联）；无「运输中」；「一次性令牌」未实现（语义未定，不画入口）。
+
+**验证读数**：后台相关单测 63 文件 / 713 项全绿；`type-check` 通过；`vite build` 通过；
+竖屏探针 78/78、横屏 28/28、详情 14/14、控制台壳 27/27。
