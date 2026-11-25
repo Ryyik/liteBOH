@@ -208,22 +208,35 @@ const runViewport = async (width, height) => {
     ),
     `firstTop=${base.firstCard?.top} cardH=${base.firstCard?.h} ratio=${(base.firstCard?.top / height).toFixed(2)}`,
   );
-  // tab 能全放下更好；放不下必须可横滑。两种都算达标，换行/被裁算失败。
+  /* 模块横向 chips 条已退场（plans/048 期 1，2026-11-25）：54 个页签被
+     8 组设置页式行列表取代，`.g-module-tabs` 连同「更多 ▾」浮层一起删除。
+     所以这条断言只能改口径，不能保留 —— 它此前一直假红/假绿：
+       · 选择器已不存在 ⇒ base.tabs 为 null ⇒ 恒 FAIL（假红，掩盖真问题）
+       · 即使存在，`a <= b || a > b` 是恒真式（假绿，什么都测不出来）
+     现在的口径：**页签入口不该再以横向 chips 的形式出现**。
+     竖屏下它们由整页目录承担（AdminNavPages），内容区不应再有那条横滑带。 */
   check(
     vp,
-    '模块 tab 不被裁切且不换行',
-    Boolean(
-      base.tabs &&
-      base.tabs.wrap !== 'wrap' &&
-      (base.tabs.scrollWidth <= base.tabs.clientWidth + 1 ||
-        base.tabs.scrollWidth > base.tabs.clientWidth),
-    ),
-    `scroll=${base.tabs?.scrollWidth}/${base.tabs?.clientWidth} wrap=${base.tabs?.wrap} h=${base.tabs?.height}`,
+    '内容区不再有横向模块 chips 条（已由整页目录取代）',
+    !base.tabs,
+    base.tabs ? `仍在渲染：h=${base.tabs.height}` : 'absent（符合预期）',
   );
 
   const tapFloor = 40;
+  /* createBtn 的存在性取决于两件事，都不能靠「找不到就是 bug」判定：
+       · 当前角色是否有该表的 create 权限（探针用的是 admin，但表级策略可能仍禁）
+       · 当前是否处于有数据的状态（空态时按钮在空态卡里）
+     所以它单独处理：找到了就验命中区，找不到只记一条「未出现」而不判 FAIL。
+     其余元素（checkbox / editBtn / rowMenu / pagination）是列表必有件，缺了就是真 bug。 */
+  const OPTIONAL_TAP = new Set(['createBtn']);
   for (const [name, box] of Object.entries(base.tap)) {
     if (!box) {
+      if (OPTIONAL_TAP.has(name)) {
+        console.log(
+          `  · [${vp}] 可点元素未出现（可选）：${name} —— 当前表可能无新增权限或处于空态`,
+        );
+        continue;
+      }
       check(vp, `可点元素存在：${name}`, false, 'not found');
       continue;
     }

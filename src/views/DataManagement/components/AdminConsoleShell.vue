@@ -278,6 +278,43 @@ const handleFunctionClick = (entry) => {
 }
 
 @media (max-width: 768px), (orientation: landscape) and (max-height: 500px) {
+  /* ── 窄屏抽屉：**本组件自己的职责**（2026-11-25 plans/049 期 1 补）──
+     ⚠️ 这段以前是不存在的：坑在于 AdminSidebar.vue 里原本带着一份
+        「窄屏把 .g-sidebar 变成 fixed + 负向平移抽屉」的媒体查询，
+        四个控制台页靠它顺带获得了抽屉行为 —— 而那是**跨组件的隐式依赖**。
+
+        plans/049 把 DataAdmin 的竖屏改成整页目录，删掉了 AdminSidebar 里那段
+        （DataAdmin 不再在窄屏渲染侧栏，留着就是死代码）。删除的副作用立刻显形：
+        **这四个控制台页的侧栏失去定位，变成静态块盖住整个内容区**，
+        连汉堡按钮都被它压住点不到（实测：`<aside class="g-sidebar"> …
+        subtree intercepts pointer events`，点击超时）。
+
+        所以抽屉的定位必须写在这里 —— 用 `.console-shell` 前缀限定作用域，
+        不污染 DataAdmin 的侧栏。四个控制台页仍然是「抽屉」形态，
+        没跟着改成整页目录：它们是独立路由、没有 8 组分区的层级结构，
+        硬套一页一层反而多一层无意义的目录。 */
+  .console-shell .admin-shell > .g-sidebar,
+  .console-shell > .g-sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: min(86vw, 302px);
+    height: 100vh;
+    height: 100dvh;
+    flex: 0 0 auto;
+    transform: translateX(-100%);
+    transition: transform 0.32s cubic-bezier(0.25, 0.1, 0.25, 1);
+    z-index: 1002;
+    overflow-y: auto;
+    padding-bottom: calc(16px + env(safe-area-inset-bottom));
+    overscroll-behavior: contain;
+  }
+
+  .console-shell .g-sidebar.open,
+  .console-shell > .g-sidebar.open {
+    transform: translateX(0);
+  }
+
   .console-shell-toggle {
     position: fixed;
     left: 12px;

@@ -67,17 +67,26 @@ describe('data admin editing flow', () => {
     expect(view).toContain('run: () => undoModeration');
   });
 
-  it('narrow/short-landscape renders sidebar as drawer instead of hover-expand', () => {
-    // 2026-10-19 行为变更：窄屏/矮横屏侧栏抽屉化（与 DataAdmin computeMobileView 判据对齐），
-    // 旧的 .is-collapsed:hover 悬停展开被有意移除 —— 触摸设备没有 hover。
+  it('narrow/short-landscape uses a full-page nav instead of a drawer', () => {
+    /* 2026-11-25 行为变更（plans/049 期 1）：用户明确否掉了抽屉形态 ——
+       「不再采用侧拉面板切页面了，而是改成像现在网站的设置页一样一页一个完整页面」。
+       原来的断言（锁 `.g-sidebar` 的 translateX(-100%) + `.g-sidebar.open`）
+       现在锁定的是**已废弃的行为**，必须改写成锁新行为。
+
+       ⚠️ 这条测试的名字也一起改了：名字写着 drawer 但断言整页目录，
+          下一个人读测试列表时会以为断言写错了。
+
+       新口径：窄屏不渲染侧栏，改渲染整页目录（AdminNavPages），
+       且侧栏里不应再残留抽屉的 transform。 */
     const sidebar = read('src/views/DataManagement/components/AdminSidebar.vue');
-    expect(sidebar).toContain(
-      '(max-width: 768px), (orientation: landscape) and (max-height: 500px)',
-    );
-    expect(sidebar).toContain('transform: translateX(-100%)');
-    expect(sidebar).toContain('.g-sidebar.open');
+    expect(sidebar).not.toContain('transform: translateX(-100%)');
+
     const view = read('src/views/DataManagement/DataAdmin.vue');
-    expect(view).toContain('dm-sidebar-collapsed');
+    expect(view).toMatch(/<AdminSidebar\s+v-if="!isNarrowNav"/);
+    expect(view).toMatch(/<AdminNavPages\s+v-if="isNarrowNav/);
+    // 竖屏整页目录必须有返回条（一页一层，靠它退出）
+    const navPages = read('src/views/DataManagement/components/AdminNavPages.vue');
+    expect(navPages).toContain('ap-back');
   });
 
   it('treats landscape phones as mobile and compresses short viewports', () => {

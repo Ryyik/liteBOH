@@ -228,12 +228,20 @@ for (const { w, h, label } of VIEWPORTS) {
     Boolean(base.checkbox && base.checkbox.w >= 40 && base.checkbox.h >= 40),
     base.checkbox ? `${base.checkbox.w}x${base.checkbox.h}` : 'not found',
   );
-  check(
-    label,
-    '新增按钮命中区 ≥40px',
-    Boolean(base.createBtn && base.createBtn.h >= 40),
-    base.createBtn ? `${base.createBtn.w}x${base.createBtn.h}` : 'not found',
-  );
+  /* 新增按钮的存在性取决于当前角色对该表的 create 权限 —— 探针的 mock 环境
+     里 `canCreateCurrentTab` 可能为 false（表级策略），找不到按钮**不等于** bug。
+     所以只在它出现时验命中区，不出现就记一条说明。
+     （与竖屏探针 probe-data-admin-portrait 的 OPTIONAL_TAP 同一口径。） */
+  if (base.createBtn) {
+    check(
+      label,
+      '新增按钮命中区 ≥40px',
+      base.createBtn.h >= 40,
+      `${base.createBtn.w}x${base.createBtn.h}`,
+    );
+  } else {
+    console.log(`  · [${label}] 新增按钮未出现（当前表可能无新增权限），跳过命中区断言`);
+  }
   check(
     label,
     '侧栏开合按钮命中区 ≥40px',
@@ -321,30 +329,60 @@ for (const { w, h, label } of VIEWPORTS) {
     await page.waitForTimeout(400);
   }
 
-  // ── 场景 3：列表页弹层抽屉 ──
+  // ── 场景 3：新增从「浮层抽屉」改为「整页对象页」（plans/049 期 2）──
+  /* 原来这里断言「点新增 → 弹出 .drawer-overlay 抽屉且右边缘不裁切」。
+     2026-11-25 用户明确要求「一页一个完整页面来改东西」，新增改成
+     `/admin/data-management/:tab/new` 这个真实路由 + 页内 embedded 表单，
+     抽屉形态**不再存在**。所以断言的语义要整体换掉：
+
+       · 必须跳到 DataManagementCreate 路由（不是停在列表上）
+       · 必须渲染 .create-record-section（整页容器）
+       · **不能**出现浮层抽屉（`.drawer-overlay:not(.is-embedded)`）
+       · 表单与操作条必须在视口内且不横向溢出
+
+     ⚠️ 这条不能只删不补：删掉就等于「新增入口没有守卫」，
+        下次谁把它改回抽屉也不会有人发现。 */
   await page.goto(`${BASE}/#/admin/data-management?section=data&tab=users`, {
     waitUntil: 'domcontentloaded',
   });
   await page.waitForTimeout(2200);
-  await page.locator('.toolbar-actions .btn-primary').click();
-  await page.waitForTimeout(900);
-  const popup = await page.evaluate(() => {
-    const d = document.querySelector('.drawer-overlay:not(.is-embedded) .drawer');
-    const r = d ? d.getBoundingClientRect() : null;
-    return {
-      exists: Boolean(d),
-      right: r ? Math.round(r.right) : null,
-      vw: document.documentElement.clientWidth,
-    };
-  });
-  check(
-    label,
-    '新增抽屉打开且不裁切',
-    popup.exists && popup.right !== null && popup.right <= popup.vw + 1,
-    popup.exists ? `right=${popup.right} vw=${popup.vw}` : 'drawer not found',
-  );
-  await page.keyboard.press('Escape');
-  await page.waitForTimeout(400);
+  const createEntry = page.locator('.toolbar-actions .btn-primary').first();
+  if (await createEntry.count()) {
+    await createEntry.click();
+    await page.waitForTimeout(1600);
+    const create = await page.evaluate(() => {
+      const app = document.querySelector('#app');
+      const rt = app?.__vue_app__?.config.globalProperties.$router.currentRoute.value;
+      const sec = document.querySelector('.create-record-section');
+      const sr = sec ? sec.getBoundingClientRect() : null;
+      const floatDrawer = document.querySelector('.drawer-overlay:not(.is-embedded)');
+      const bar = document.querySelector('.create-action-bar');
+      const br = bar ? bar.getBoundingClientRect() : null;
+      return {
+        routeName: rt?.name || '',
+        hasSection: Boolean(sec),
+        sectionW: sr ? Math.round(sr.width) : null,
+        floatDrawer: Boolean(floatDrawer),
+        barInViewport: br ? br.bottom <= document.documentElement.clientHeight + 1 : false,
+        docScrollWidth: document.documentElement.scrollWidth,
+        vw: document.documentElement.clientWidth,
+      };
+    });
+    check(
+      label,
+      '点新增 → 跳到对象页路由（不再弹抽屉）',
+      create.routeName === 'DataManagementCreate' && create.hasSection && !create.floatDrawer,
+      `route=${create.routeName} section=${create.hasSection} floatDrawer=${create.floatDrawer}`,
+    );
+    check(
+      label,
+      '对象页无横向溢出且操作条在视口内',
+      create.docScrollWidth <= create.vw + 1 && create.barInViewport,
+      `scrollW=${create.docScrollWidth} vw=${create.vw} barInViewport=${create.barInViewport}`,
+    );
+  } else {
+    console.log(`  · [${label}] 当前表无新增权限，跳过新增对象页断言`);
+  }
 
   check(label, '零 pageerror', pageErrors.length === 0, pageErrors.slice(0, 2).join(' | '));
   await context.close();

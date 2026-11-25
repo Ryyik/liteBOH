@@ -32,7 +32,6 @@ import { hydrateAdminPreferences } from './useDataAdminPersistence.js';
  * @param {Object} deps.userPickerKeyword    - ref<string>
  * @param {Object} deps.searchDebounceTimer  - ref<any>
  * @param {Object} deps.userPickerSearchDebounceTimer - ref<any>
- * @param {Object} deps.toast                - reactive (含 timer)
  * @param {Object} deps.isSubscriptionTab    - computed<boolean>
  * @param {Object} deps.showUserPickerModal  - ref<boolean>
  * @param {Object} deps.SUBSCRIPTION_PLAN_NAMES - 套餐名映射
@@ -60,14 +59,13 @@ export const setupDataAdminLifecycle = (deps) => {
     userPickerKeyword,
     searchDebounceTimer,
     userPickerSearchDebounceTimer,
-    toast,
     isSubscriptionTab,
     showUserPickerModal,
     SUBSCRIPTION_PLAN_NAMES,
     fetchData,
     fetchTabData,
     fetchUserPickerUsers,
-    saveCurrentDraft
+    saveCurrentDraft,
   } = deps;
 
   // ==================== onMounted ====================
@@ -77,7 +75,7 @@ export const setupDataAdminLifecycle = (deps) => {
       savedFilterViews,
       pinnedTabIds,
       recentRecords,
-      changeLogEntries
+      changeLogEntries,
     });
     fetchData({ deferSecondary: true });
   });
@@ -102,14 +100,17 @@ export const setupDataAdminLifecycle = (deps) => {
   });
 
   // 订阅套餐联动: 选 plan_code 自动填 plan_name
-  watch(() => editingItem.value?.plan_code, (planCode) => {
-    if (!isSubscriptionTab.value) return;
-    const normalizedPlanCode = String(planCode || '').trim();
-    const planName = SUBSCRIPTION_PLAN_NAMES[normalizedPlanCode];
-    if (planName) {
-      editingItem.value.plan_name = planName;
-    }
-  });
+  watch(
+    () => editingItem.value?.plan_code,
+    (planCode) => {
+      if (!isSubscriptionTab.value) return;
+      const normalizedPlanCode = String(planCode || '').trim();
+      const planName = SUBSCRIPTION_PLAN_NAMES[normalizedPlanCode];
+      if (planName) {
+        editingItem.value.plan_name = planName;
+      }
+    },
+  );
 
   // 总页数变化时修正 currentPage 范围
   watch(totalPages, (pages) => {
@@ -136,16 +137,20 @@ export const setupDataAdminLifecycle = (deps) => {
   // 编辑草稿自动保存: debounce 800ms 避免每键都做 JSON.stringify
   // editingItem 是 deep reactive, 频繁输入会触发序列化 + localStorage 写入
   const draftSaveDebounceTimer = ref(null);
-  watch(editingItem, () => {
-    if (!showModal.value || suppressDraftSave.value) return;
-    if (draftSaveDebounceTimer.value) {
-      clearTimeout(draftSaveDebounceTimer.value);
-    }
-    draftSaveDebounceTimer.value = setTimeout(() => {
-      saveCurrentDraft();
-      draftSaveDebounceTimer.value = null;
-    }, 800);
-  }, { deep: true });
+  watch(
+    editingItem,
+    () => {
+      if (!showModal.value || suppressDraftSave.value) return;
+      if (draftSaveDebounceTimer.value) {
+        clearTimeout(draftSaveDebounceTimer.value);
+      }
+      draftSaveDebounceTimer.value = setTimeout(() => {
+        saveCurrentDraft();
+        draftSaveDebounceTimer.value = null;
+      }, 800);
+    },
+    { deep: true },
+  );
 
   // ==================== onUnmounted ====================
   onUnmounted(() => {
@@ -161,9 +166,13 @@ export const setupDataAdminLifecycle = (deps) => {
       clearTimeout(draftSaveDebounceTimer.value);
       draftSaveDebounceTimer.value = null;
     }
-    if (toast.timer) {
-      clearTimeout(toast.timer);
-      toast.timer = null;
-    }
+    /* ⚠️ 这里原本还有一段 `if (toast.timer) clearTimeout(toast.timer)` —— 已删（2026-11-25）。
+       `toast` 这个依赖**从来没有被传入过**（DataAdmin 的 setupDataAdminLifecycle 调用里
+       没有这个字段），而提示早已改走全站 `bohtoast` 单例（见 DataAdmin 的 showToast）。
+       所以它是「引用了不存在的变量」的死代码，后果是**每次卸载都抛
+       TypeError: Cannot read properties of undefined (reading 'timer')**。
+       这个洞长期没暴露，是因为它只在「从详情页卸载」时触发，而详情页以往是低频深链；
+       plans/049 把详情页变成高频往返之后它立刻把整页打崩（全局错误边界接住，
+       用户看到「页面出了点问题」）。 */
   });
 };

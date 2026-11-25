@@ -400,3 +400,71 @@ export const buildGroupBadges = (source = {}) => {
   if (source.lotteryDue) badges.lottery = true;
   return badges;
 };
+
+/* ══════════════════════════════════════════════════════════════════════
+ * 竖屏整页钻取的「目录层级」反查（plans/049 期 1，2026-11-25）
+ *
+ * 竖屏不再是「一个抽屉装 32 行」，而是**一页一层**：
+ *   第一层 目录（8 个组）→ 第二层 组内行 →（有子页的再进一层）→ 内容页
+ * 所以渲染时需要回答两个问题：
+ *   ① 某个容器 id（组 id 或带 children 的行 id）里有哪几行？
+ *   ② 当前页签在这条层级链的哪一层？—— 用于深链直达内容页时把返回路径补全，
+ *      否则从 `?tab=pity-grant` 进来点「返回」会直接掉到目录，跳过用户本来该看见的那一层。
+ *
+ * 这两个函数是**纯函数**（无 ref、无 DOM），单测可直接穷举 54 个页签验证链路完整。
+ * ══════════════════════════════════════════════════════════════════════ */
+
+/**
+ * 容器 id → 它的行列表与标题。
+ * 容器有两种：分组（`NAV_GROUPS` 的项）与带 children 的行（`kind: 'group'`）。
+ *
+ * @param {string} containerId
+ * @returns {{ id: string, label: string, rows: import('./nav-groups.js').NavRow[], isGroup: boolean } | null}
+ */
+export const resolveNavContainer = (containerId) => {
+  const id = String(containerId || '');
+  if (!id) return null;
+  const group = NAV_GROUPS.find((g) => g.id === id);
+  if (group) return { id: group.id, label: group.label, rows: group.rows, isGroup: true };
+  const row = NAV_ROW_BY_ID.get(id);
+  // 叶子行（没有 children）不是容器 —— 它点下去就该进内容页，没有「里面」可看
+  if (row && Array.isArray(row.children) && row.children.length) {
+    return { id: row.id, label: row.label, rows: row.children, isGroup: false };
+  }
+  return null;
+};
+
+/**
+ * 某个页签在竖屏层级链上的**容器 id 序列**（从外到内）。
+ *
+ * 例：
+ *   · `users`          → `['users']`              （在「用户」组的第一层）
+ *   · `pity-grant`     → `['lottery', 'lottery-diagnostics']`？—— 不，保底中心是顶层行
+ *                        ⇒ `['lottery']`
+ *   · `lotteryDrawLogs`→ `['lottery', 'lottery-diagnostics']`（诊断 ▸ 里的子页）
+ *
+ * ⚠️ 深度最多 2（组 → 带子页的行）：`admin-tab-groups.test.js` 锁了「只支持两层」，
+ *    本函数不递归到底，遇到第三层会原样返回已找到的两层 —— 那种结构在守卫里就过不了。
+ */
+export const resolveNavAncestryForTab = (tabId) => {
+  const rowId = resolveNavRowIdForTab(tabId);
+  if (!rowId) return [];
+  return resolveNavAncestryForRow(rowId);
+};
+
+/** 行 id → 容器 id 序列（同上，但入口是行而不是页签） */
+export const resolveNavAncestryForRow = (rowId) => {
+  const id = String(rowId || '');
+  if (!id) return [];
+  for (const group of NAV_GROUPS) {
+    for (const row of group.rows) {
+      if (row.id === id) return [group.id];
+      const children = Array.isArray(row.children) ? row.children : [];
+      if (children.some((child) => child.id === id)) return [group.id, row.id];
+    }
+  }
+  return [];
+};
+
+/** 行是否可达（用于「深链的 tab 已从导航里删掉」时不要凭空空展开一层） */
+export const isNavRowReachable = (rowId) => resolveNavAncestryForRow(rowId).length > 0;

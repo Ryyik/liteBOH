@@ -19,6 +19,28 @@ export const adminRoutes: RouteRecordRaw[] = [
     meta: { requiresAdmin: true, hideNavbar: true },
   },
   {
+    /* 新增记录对象页（plans/049 期 2，2026-11-25）
+       ── 为什么单开一条路由，而不是沿用抽屉 ──────────────────────────
+       用户口径：「不再采用侧拉面板切页面了，而是改成像现在网站的设置页一样
+       一页一个完整页面来改东西」。新增是全后台最高频的「切页面」动作之一，
+       原来它是从右侧滑出 700px 抽屉盖住列表 —— 列表在背后被挡住，改完关掉
+       才能看下一条。
+
+       ── ⚠️ 必须排在 `:tab/:id` 之前 ─────────────────────────────────
+       vue-router 4 的路由打分里静态段优先于动态段，理论上 `new` 会赢；
+       但那条 `:id` 是同前缀的动态段，一旦将来有人给 `:id` 加正则或改顺序，
+       `/users/new` 就会被当成「id 为 new 的记录」取一次数、拿 404 再报错。
+       显式放前面，让「新增」永远是一个专门的落点。
+
+       ── 为什么 id 用字面量 `new` 而不是 `create` ────────────────────
+       短、与 REST 惯例一致、且不会和任何真实主键撞（本后台主键是 uuid 或
+       数字串，不存在叫 new 的）。DataAdmin 里靠 `recordId === 'new'` 判定。 */
+    path: '/admin/data-management/:tab/new',
+    name: 'DataManagementCreate',
+    component: () => import('../../views/DataManagement/index.vue'),
+    meta: { requiresAdmin: true, hideNavbar: true },
+  },
+  {
     // 详情子页（plans/027 D1）：与列表共用同一个组件。
     // ⚠️ 不要以为「共用组件 = 实例复用」：App.vue 用 `:key="activeRoute.path"` 渲染
     // 路由组件，列表 ↔ 详情的 path 不同 ⇒ 实例会重建。列表的筛选/页码靠 E 批的

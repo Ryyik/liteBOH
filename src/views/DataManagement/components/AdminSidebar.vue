@@ -1139,42 +1139,20 @@ const goHome = () => {
   }
 }
 
-/* 窄屏或矮横屏（手机旋转）侧栏抽屉化：与 DataAdmin computeMobileView
-   判据对齐 —— 844×390 若仍走桌面常驻侧栏，内容区被压到 533px。 */
-@media (max-width: 768px), (orientation: landscape) and (max-height: 500px) {
-  .g-sidebar {
-    position: fixed;
-    top: var(--dm-nav-height);
-    left: 0;
-    width: min(86vw, 302px);
-    flex-basis: auto;
-    transform: translateX(-100%);
-    transition: transform 0.35s cubic-bezier(0.25, 0.1, 0.25, 1);
-    z-index: 1050;
-    padding-bottom: calc(var(--spacing) * 4 + env(safe-area-inset-bottom));
-    overscroll-behavior: contain;
-  }
-  .g-sidebar.open {
-    transform: translateX(0);
-  }
-  /* 移动端抽屉内始终展开，不沿用桌面折叠态 */
-  .g-sidebar.is-collapsed {
-    width: min(86vw, 302px);
-    padding: calc(var(--spacing) * 3);
-  }
-  .g-sidebar.is-collapsed .g-sidebar-brand-copy,
-  .g-sidebar.is-collapsed .g-sidebar-search,
-  .g-sidebar.is-collapsed .g-sidebar-search-status,
-  .g-sidebar.is-collapsed .g-sidebar-group-label,
-  .g-sidebar.is-collapsed .g-nav-label,
-  .g-sidebar.is-collapsed .g-nav-dot,
-  .g-sidebar.is-collapsed .g-nav-lock,
-  .g-sidebar.is-collapsed .g-sidebar-quick-label,
-  .g-sidebar.is-collapsed .g-sidebar-foot span:last-child {
-    display: revert;
-  }
-  .g-sidebar.is-collapsed .g-nav-btn {
-    justify-content: flex-start;
-  }
-}
+/* ⚠️ 窄屏抽屉样式已删除（plans/049 期 1，2026-11-25）。
+ *
+ * 原来这里有一整块「fix 定位 + 负向平移」的滑出规则 + `.open` 态
+ * 的滑出抽屉，服务于「侧拉面板切页面」。用户明确否掉了这个交互形态：
+ * 「不再采用侧拉面板切页面了，而是改成像现在网站的设置页一样一页一个完整页面」。
+ * 竖屏现在由 AdminNavPages（整页目录，一页一层）承担，本组件在窄屏下
+ * **根本不会被渲染**（DataAdmin 的 `v-if="!isNarrowNav"`）。
+ *
+ * 留着这套规则会制造两个隐患：
+ *   ① 任何人把侧栏放回窄屏，看到的是「默认被平移到屏幕外、因而不可见」的侧栏——
+ *      因为没人再传 isOpen=true，表现为「导航凭空不见」；
+ *   ② 它与 AdminNavPages 的整页样式会同时命中，靠源序决定胜负（CSS 里最脆的一种）。
+ *
+ * 所以在源码层面就删掉，让「窄屏没有抽屉」成为结构事实而不是运行时约定。
+ * 需要恢复抽屉时，请先读 plans/049 §2 的取舍记录。
+ */
 </style>

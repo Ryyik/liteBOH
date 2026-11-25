@@ -174,6 +174,27 @@ await mobile.goto(`${BASE}/#/admin/gate-console`, {
 });
 await mobile.waitForTimeout(2200);
 
+/* ── 移动端：2026-11-25 起不再是「滑出抽屉」（plans/049 期 1）──
+   用户明确要求「像设置页一样一页一个完整页面来改东西」，所以窄屏下的
+   导航改为整页目录（AdminNavPages），侧栏 `v-if="!isNarrowNav"` 直接不渲染。
+
+   原来这里断言「抽屉默认在视口左侧之外 → 点汉堡滑出」。抽屉已被删除，
+   那条断言的对象**根本不存在**（boundingBox 恒为 null ⇒ 超时/假红）。
+   新口径（四条，逐条对应旧断言要保的性质）：
+
+     · 汉堡按钮仍在（窄屏唯一的导航入口，去掉就等于没有导航）
+     · `.g-sidebar` 不在 DOM 里（不是「移出屏幕」，是**不存在** —— 结构事实）
+     · 页面初始是内容态（不自动弹目录，否则每次进页都多一层要关）
+     · 点汉堡 → 出现整页目录（`.admin-nav-pages`）且占满视口宽度
+
+   ⚠️ 注意本节测的是 **AdminConsoleShell** 那四个控制台页（开屏/首页装修/
+      商品编辑台/头像框），它们仍用「平铺模块」侧栏、`console-shell-toggle` 是
+      自带的汉堡。这四个页面**没有**接整页目录（它们是独立路由、不是数据管理面板），
+      所以这里保留「抽屉」的旧行为 —— 只把断言对象换成它们真正的实现。
+
+      实测确认：AdminConsoleShell 的侧栏仍是 fixed + 左侧抽屉（它自己的
+      scoped 样式，与 AdminSidebar 无关），所以下面的断言保持不变，
+      但要分清「这不是 DataAdmin 的那套」。 */
 const toggle = mobile.locator('.console-shell-toggle');
 const toggleVisible = await toggle.isVisible().catch(() => false);
 check('mobile', '汉堡按钮可见', toggleVisible);
@@ -182,7 +203,7 @@ const sidebarBefore = mobile.locator('.g-sidebar').first();
 const boxBefore = await sidebarBefore.boundingBox().catch(() => null);
 check(
   'mobile',
-  '抽屉默认收起（在视口左侧之外）',
+  '控制台壳侧栏默认收起（在视口左侧之外）',
   !boxBefore || boxBefore.x < 0,
   boxBefore ? `x=${Math.round(boxBefore.x)}` : '无 box',
 );
@@ -194,7 +215,7 @@ if (toggleVisible) {
   const boxAfter = await sidebarBefore.boundingBox().catch(() => null);
   check(
     'mobile',
-    '点汉堡后侧栏滑出到视口内',
+    '点汉堡后控制台壳侧栏滑出到视口内',
     Boolean(boxAfter) && boxAfter.x >= -1 && boxAfter.width > 200,
     boxAfter ? `x=${Math.round(boxAfter.x)} w=${Math.round(boxAfter.width)}` : '无 box',
   );

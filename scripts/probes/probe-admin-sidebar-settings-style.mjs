@@ -22,6 +22,14 @@
  *   E 选中行有中性淡染（非 transparent）+ 左缘蓝条 + 600 字重
  *   F 行几何与设置页左栏一致：40px 高 / 9px 12px 内距 / 10px 圆角 / 14px 字
  *
+ * ── 2026-11-25 改版（plans/049 期 1）────────────────────────────────
+ * 竖屏**不再有侧拉抽屉**：改成整页目录（AdminNavPages，一页一层）。
+ * 所以本探针按视口分成两套断言，各测各的形态：
+ *   · 横屏 1440×900 → 侧栏常驻（上表 A–F 全部适用）
+ *   · 竖屏 390×844  → 整页目录（`.admin-nav-pages`），**侧栏 DOM 必须不存在**，
+ *                     改为断言「目录页占满屏 / 行高 ≥44 / 返回条 / 无遮罩」
+ * ⚠️ 不要为了「两套断言都能跑」把侧栏硬塞回竖屏 —— 那正是本次要删掉的东西。
+ *
  * 默认诊断模式（打印 PASS/FAIL，exit 0）；`--strict` 作门禁。
  * 运行：node scripts/probes/probe-admin-sidebar-settings-style.mjs --strict
  * 依赖：dev server 在 5173（BASE 可覆盖）；假 admin 登录态 + mock PostgREST，不写真实库。
@@ -58,8 +66,8 @@ const EXPECT = {
 };
 
 const VIEWPORTS = [
-  { name: 'portrait', w: 390, h: 844 },
-  { name: 'landscape', w: 1440, h: 900 },
+  { name: 'portrait', w: 390, h: 844, mode: 'nav-pages' },
+  { name: 'landscape', w: 1440, h: 900, mode: 'sidebar' },
 ];
 
 mkdirSync(SHOT_DIR, { recursive: true });
@@ -133,13 +141,116 @@ for (const vp of VIEWPORTS) {
         await page.waitForTimeout(900);
       }
     }
-    // 窄屏抽屉需显式打开
-    if (vp.w < 769) {
-      await page.locator('header button').first().click();
+    // 竖屏：顶栏那颗「导航」打开整页目录（不再是滑出抽屉）。
+    // 横屏：侧栏常驻，不需要任何操作。
+    if (vp.mode === 'nav-pages') {
+      await page.locator('.g-topbar .g-icon-btn.round').first().click();
       await page.waitForTimeout(800);
     }
 
     await page.screenshot({ path: `${SHOT_DIR}/${tag}.png` });
+
+    if (vp.mode === 'nav-pages') {
+      // ── 竖屏：整页目录（AdminNavPages）──────────────────────────
+      const m = await page.evaluate(() => {
+        const g = (el, p) => (el ? getComputedStyle(el)[p] : null);
+        const pages = document.querySelector('.admin-nav-pages');
+        const rows = [...document.querySelectorAll('.admin-nav-pages .ap-row')];
+        const cards = [...document.querySelectorAll('.admin-nav-pages .ap-rows')];
+        const back = document.querySelector('.admin-nav-pages .ap-back');
+        const title = document.querySelector('.admin-nav-pages .ap-title');
+        const act = document.querySelector('.admin-nav-pages .ap-row.is-active');
+        const r = pages ? pages.getBoundingClientRect() : null;
+        return {
+          exists: Boolean(pages),
+          // 侧栏 DOM 必须完全不存在（v-if 而非 v-show）
+          sidebarInDom: Boolean(document.querySelector('.g-sidebar')),
+          width: r ? Math.round(r.width) : null,
+          height: r ? Math.round(r.height) : null,
+          vw: document.documentElement.clientWidth,
+          vh: document.documentElement.clientHeight,
+          rowCount: rows.length,
+          cardCount: cards.length,
+          cardBg: cards[0] ? g(cards[0], 'backgroundColor') : null,
+          cardRadius: cards[0] ? g(cards[0], 'borderRadius') : null,
+          cardBorderW: cards[0] ? g(cards[0], 'borderTopWidth') : null,
+          rowH: rows[0] ? Math.round(rows[0].getBoundingClientRect().height) : null,
+          rowFont: rows[0] ? parseFloat(g(rows[0], 'fontSize')) : null,
+          titleText: title?.textContent?.trim() || '',
+          // 第一层是目录首页：没有返回按钮（没有上一层可回）
+          backOnHome: Boolean(back),
+          activeBg: act ? g(act, 'backgroundColor') : null,
+          activeBarW: act ? getComputedStyle(act, '::after').width : null,
+          docScrollWidth: document.documentElement.scrollWidth,
+          pageTheme: document.querySelector('.data-management-page')?.getAttribute('data-theme'),
+        };
+      });
+
+      console.log(`\n── ${tag}（整页目录）──`);
+      check(tag, 'A 渲染整页目录（.admin-nav-pages）', m.exists);
+      check(tag, 'A 侧栏 DOM 不存在（不再有抽屉）', !m.sidebarInDom);
+      check(
+        tag,
+        'B 目录页占满视口宽度',
+        m.width !== null && Math.abs(m.width - m.vw) <= 2,
+        `w=${m.width} vw=${m.vw}`,
+      );
+      check(tag, 'C 第一层是 8 个分区', m.rowCount === 8, `rows=${m.rowCount}`);
+      check(tag, 'D 每层一张卡片', m.cardCount === 1, `cards=${m.cardCount}`);
+      check(
+        tag,
+        'E 卡片有底色（不是 transparent）',
+        !!m.cardBg && m.cardBg !== 'rgba(0, 0, 0, 0)' && m.cardBg !== 'transparent',
+        m.cardBg,
+      );
+      check(
+        tag,
+        'E 卡片有圆角与描边',
+        parseFloat(m.cardRadius) > 0 && parseFloat(m.cardBorderW) > 0,
+        `radius=${m.cardRadius} border=${m.cardBorderW}`,
+      );
+      check(tag, 'F 行高 ≥ 44px（手指命中区）', m.rowH >= 44, `${m.rowH}px`);
+      check(tag, 'F 字号 ≥ 15px', m.rowFont >= 15, `${m.rowFont}px`);
+      check(tag, 'G 目录首页无返回按钮（没有上一层）', !m.backOnHome);
+      check(tag, 'G 标题为「数据管理」', m.titleText === '数据管理', m.titleText);
+      check(
+        tag,
+        'H 无横向溢出',
+        m.docScrollWidth <= m.vw + 1,
+        `scrollWidth=${m.docScrollWidth} vw=${m.vw}`,
+      );
+      if (theme === 'dark') {
+        check(tag, 'I 暗色真源一致（页面根 data-theme=dark）', m.pageTheme === 'dark', m.pageTheme);
+      }
+
+      // 进第二层：点第一个分区，必须出现返回条
+      const first = page.locator('.admin-nav-pages .ap-row').first();
+      if (await first.count()) {
+        await first.click();
+        await page.waitForTimeout(500);
+        const l2 = await page.evaluate(() => {
+          const back = document.querySelector('.admin-nav-pages .ap-back');
+          const title = document.querySelector('.admin-nav-pages .ap-title');
+          return {
+            hasBack: Boolean(back),
+            title: title?.textContent?.trim() || '',
+            rows: document.querySelectorAll('.admin-nav-pages .ap-row').length,
+          };
+        });
+        check(tag, 'J 第二层出现返回条', l2.hasBack);
+        check(
+          tag,
+          'J 第二层标题换成组名',
+          l2.title.length > 0 && l2.title !== '数据管理',
+          l2.title,
+        );
+        check(tag, 'J 第二层有行', l2.rows > 0, `rows=${l2.rows}`);
+        await page.screenshot({ path: `${SHOT_DIR}/${tag}-level2.png` });
+      }
+
+      await ctx.close();
+      continue;
+    }
 
     const m = await page.evaluate(() => {
       const g = (el, p) => (el ? getComputedStyle(el)[p] : null);

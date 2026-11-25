@@ -6,8 +6,8 @@
 ## 0. 项目一句话
 
 Vue 3 + Vite 7 + Supabase 的 SPA，hash 路由，产品名「方块之家 BOH」，迭代代号 Beta 2.5 / Beta 6。
-`src/` 726 个源文件（.vue/.js/.ts），327 个脚本（`scripts/*.mjs` 65 + `scripts/probes/*.mjs` 262），411 个单元测试文件。
-（2026-11-23 对齐；这三个数由 `npm run check:doc-truth` 实时对账，写错会被 verify 拦下——别手改估计值。）
+`src/` 729 个源文件（.vue/.js/.ts），327 个脚本（`scripts/*.mjs` 65 + `scripts/probes/*.mjs` 262），413 个单元测试文件。
+（2026-11-25 对齐；这三个数由 `npm run check:doc-truth` 实时对账，写错会被 verify 拦下——别手改估计值。）
 
 三条最高纲领：
 

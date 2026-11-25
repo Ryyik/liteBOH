@@ -202,10 +202,17 @@ await page.locator('.detail-action-bar .btn-primary', { hasText: '保存' }).cli
 await page.waitForSelector('.confirm-modal', { timeout: 10000 });
 await page.locator('.confirm-btn.primary').click();
 await page.waitForTimeout(1500);
+/* ⚠️ 选择器 2026-11-25 更新：提示早已从自绘 `.toast-message` 迁到全站
+   `bohtoast` 单例（DataAdmin 的 showToast 走 boh-toast-controller）。
+   旧选择器恒取到空串 ⇒ 这条断言长期假红，掩盖了「保存提示是否真的出现」。
+   新类名见 components/ui/BohToastHost.vue：.boh-toast__msg。 */
 const saveToast = await page.evaluate(
-  () => document.querySelector('.toast-message')?.innerText?.trim() || '',
+  () =>
+    document.querySelector('.boh-toast__msg')?.innerText?.trim() ||
+    document.querySelector('.boh-toast')?.innerText?.trim() ||
+    '',
 );
-check('页内保存成功 toast', saveToast.includes('数据更新成功'), saveToast);
+check('页内保存成功 toast', saveToast.includes('数据更新成功'), saveToast || '(未捕获到 toast)');
 check(
   'PATCH 携带新 draw_at',
   patchCalls.some((p) => String(p.draw_at || '').startsWith('2026-12-25')),

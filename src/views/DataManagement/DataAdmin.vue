@@ -1,13 +1,24 @@
 <template>
-  <div class="data-management-page" :data-theme="currentTheme">
+  <div
+    class="data-management-page"
+    :class="{ 'is-narrow-nav': isNarrowNav }"
+    :data-theme="currentTheme"
+  >
     <div class="admin-shell">
+      <!-- ── 导航：两个视口、两种形态（plans/049 期 1，2026-11-25）─────────
+           横屏（≥1024×600）：左栏 256px 常驻，与改动前一致。
+           竖屏 / 窄横屏：**不再是侧拉抽屉**，而是整页目录（AdminNavPages）：
+             目录（8 组）→ 组内行 → 子页，一页一层，靠顶部返回条退出。
+           两者互斥渲染 —— 同一批入口绝不左右各出现一次
+           （期 1 曾用 currentModuleTabIds 判渲染，结果双栏重复，见 plans/048 §14.4）。 -->
       <AdminSidebar
+        v-if="!isNarrowNav"
         :active-module="activeModule"
         :active-row-id="activeNavRowId"
         :denied-ids="deniedModuleIds"
         :has-unmoderated="moderationPendingCount > 0"
         :alert-modules="lotteryAlertModules"
-        :is-open="isAdminSidebarOpen"
+        :is-open="true"
         :module-badges="draftBadges"
         :modules="sidebarModules"
         :nav-groups="navGroups"
@@ -23,24 +34,34 @@
         @update:searchQuery="sidebarSearchQuery = $event"
       />
 
-      <div
-        v-if="isAdminSidebarOpen"
-        class="sidebar-scrim is-visible"
-        @click="isAdminSidebarOpen = false"
-      ></div>
+      <!-- 竖屏目录页：占满整屏（不是浮层、没有遮罩、没有 Esc 关闭） -->
+      <AdminNavPages
+        v-if="isNarrowNav && portraitNavOpen"
+        ref="adminNavPagesRef"
+        :groups="navGroups"
+        :active-row-id="activeNavRowId"
+        :group-badges="navGroupBadges"
+        :functions="adminFunctions"
+        @navigate="handleNavRowClick"
+        @denied="handleDeniedModuleClick"
+      />
 
-      <main class="admin-main">
+      <main v-show="!isNarrowNav || !portraitNavOpen" class="admin-main">
         <!-- 顶栏搜索已并入表格工具栏（plans/042 A1）：一个关键词 + 一个范围开关，
              不再让「顶部一个框、筛选面板里又一个框」各持一份关键词。
              顶栏这个框在概览/页面型 tab 上从来没能展示结果，属于无效控件。
              2026-11-12：eyebrow（Users / Lottery …）与下方标题是同一件事，
              双行标题只让顶栏变高；「新增」与工具栏那颗完全重复（条件一致），
-             这里一并去掉 —— 新增留在表格工具栏，离数据更近。 -->
+             这里一并去掉 —— 新增留在表格工具栏，离数据更近。
+
+             ⚠️ 竖屏下左上角那颗「导航」按钮语义变了（plans/049）：不再是
+               「滑出抽屉」，而是「回到目录页」。图标与 aria 标签都沿用
+               PanelLeft / 打开管理导航 —— 对它而言「展开导航」两种形态下是同一件事。 -->
         <AdminHeader
           :can-create="false"
-          :can-toggle-sidebar="isMobileView"
+          :can-toggle-sidebar="isNarrowNav"
           :is-refreshing="isRefreshing"
-          :is-sidebar-open="sidebarToggleOpen"
+          :is-sidebar-open="navPaneShown"
           :notification-count="moderationPendingCount"
           :searchable="false"
           :theme="currentTheme"
@@ -50,7 +71,7 @@
           :avatar-url="adminAvatarUrl"
           @create="handleAdminCreate"
           @refresh="refreshAllData"
-          @toggle-sidebar="toggleSidebar"
+          @toggle-sidebar="toggleAdminNav"
           @toggle-theme="() => toggleAdminTheme()"
           @notify="goNotificationsTab"
           @home="goSiteHome"
@@ -99,6 +120,81 @@
             @select-tab="handleOverviewTabClick"
             @quick-create="quickCreateRecord"
           />
+
+          <!-- 新增记录对象页（plans/049 期 2，2026-11-25）
+               ── 它替代了什么 ────────────────────────────────────────────
+               原来「新增」是从右侧滑出的 700px 抽屉（overlays.css:21），盖住列表。
+               用户口径：「改成像设置页一样一页一个完整页面」。现在它是
+               `/admin/data-management/:tab/new` 这个**真实路由**，
+               整页只有一个表单，列表在背后不被遮挡。
+
+               ── 为什么复用 EditDrawer 的 embedded 形态 ──────────────────
+               表单有 25+ 种字段类型（图片上传 / 用户选择器 / 商品选择器 / JSON /
+               规格 / 标签 / AI 抽取地址…），重写一遍等于把这套逻辑抄第二份，
+               下一次改字段就要改两个地方。embedded 形态本来就是「表单嵌进一页」，
+               这里只是把宿主从详情页换成对象页 —— 无遮罩、无滚动锁、无 Esc 关闭，
+               保存/取消走页内操作条。
+
+               ⚠️ Teleport 目标是本分支自己的槽位 `#create-edit-slot`，
+                  不能复用详情页的 `#detail-edit-slot`（两者互斥渲染，
+                  目标不存在时 Teleport 会静默失败 —— 那会表现为「点了新增一片空白」）。 -->
+          <section
+            v-if="isCreateRecordPage && !recordId"
+            class="management-section create-record-section"
+          >
+            <!-- 面包屑：模块 › 新增。不要再写「用户 › 用户管理」——
+                 当前 tab 的 label 与模块 label 常常就是同一个词去掉后缀，
+                 并列会读成两个不同层级，实际是同一件事。 -->
+            <nav class="detail-crumbs" aria-label="面包屑">
+              <button type="button" class="detail-crumb" @click="goBackToRecordList()">
+                {{ moduleLabelForCreate }}
+              </button>
+              <span class="detail-crumb-sep" aria-hidden="true">›</span>
+              <span class="detail-crumb is-current" aria-current="page">新增</span>
+            </nav>
+            <div class="detail-header-row">
+              <h1 class="detail-title">新增{{ createSubjectLabel }}</h1>
+              <button type="button" class="btn btn-secondary" @click="goBackToRecordList()">
+                返回列表
+              </button>
+            </div>
+            <div class="create-record-body">
+              <!-- 槽位必须常驻：Teleport 目标在挂载期解析，v-if 会让它解析失败 -->
+              <div id="create-edit-slot"></div>
+            </div>
+            <div class="detail-action-bar create-action-bar">
+              <span class="detail-action-hint"
+                >整页编辑 · 保存走既有保存管线（校验 / 审计 / 缓存一致）</span
+              >
+              <div class="detail-action-btns">
+                <button
+                  type="button"
+                  class="btn btn-secondary"
+                  :disabled="isSaving"
+                  @click="goBackToRecordList()"
+                >
+                  取消
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-secondary"
+                  :disabled="isSaving"
+                  title="保存后继续新建下一条"
+                  @click="saveAndCreateNext"
+                >
+                  保存并新建
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-primary"
+                  :disabled="isSaving"
+                  @click="saveData()"
+                >
+                  {{ isSaving ? '保存中…' : '保存' }}
+                </button>
+              </div>
+            </div>
+          </section>
 
           <!-- 详情子页（D1）：面包屑 + 字段面板 + 侧栏。
                D2 升级（2026-10-18）：「编辑」改为页内编辑态（detailEditing），
@@ -158,9 +254,14 @@
             </div>
           </section>
 
-          <!-- 管理模块标签页 -->
+          <!-- 管理模块标签页
+               ⚠️ `!isCreateRecordPage` 是必须的（plans/049 期 2）：新增对象页与列表
+                  共用同一个组件，只判 `!recordId` 时新增态的 recordId 也为空 ⇒
+                  列表会在新增页**下面**一起渲染（实测截图：新增表单底部接着
+                  「积分管理 / 全部表 / 暂无数据」），两页串成一页。
+                  对象页与列表必须严格互斥。 -->
           <section
-            v-if="isDataConsoleSection && !recordId"
+            v-if="isDataConsoleSection && !recordId && !isCreateRecordPage"
             id="data-console"
             class="management-section"
           >
@@ -460,7 +561,7 @@
                   <button
                     v-if="!isModerationTab && canCreateCurrentTab"
                     class="btn btn-primary"
-                    @click="openEditModal()"
+                    @click="handleAdminCreate()"
                   >
                     <Plus :size="16" />
                     新增
@@ -1856,7 +1957,7 @@
                 <button
                   v-if="isMobileView && !isModerationTab && canCreateCurrentTab"
                   class="fab-button"
-                  @click="openEditModal()"
+                  @click="handleAdminCreate()"
                   aria-label="新增"
                 >
                   <Plus :size="24" />
@@ -1888,159 +1989,32 @@
       </button>
     </div>
 
-    <!-- D2 升级（第二版）：编辑态 = 同一 EditDrawer 的 embedded 实例 Teleport 进
-         详情槽位（全部字段类型可用）；列表页仍是弹层抽屉。两个实例 v-if/v-else
-         互斥 —— 同一时刻只挂载一个，共享同一份 editingItem / 保存管线。
-         不用「单实例 + Teleport disabled 动态切换」：disabled 与子树同帧翻转时
-         内容会落在原位（实测）。 -->
-    <!-- Teleport 自身 v-if 门控：目标 #detail-edit-slot 由 RecordPane 在详情路由
-         渲染；若 Teleport 在首页（无目标）就挂载，target 会解析失败并缓存空值 -->
-    <Teleport v-if="detailEditing" to="#detail-edit-slot">
-      <EditDrawer
-        ref="editDrawerRef"
-        embedded
-        :show="detailEditing"
-        :is-editing="isEditing"
-        :editing-item="editingItem"
-        :current-tab="currentTab"
-        :current-fields="currentFields"
-        :is-saving="isSaving"
-        :is-news-tab="isNewsTab"
-        :can-regenerate-auto-id="canRegenerateAutoId"
-        :current-tab-label="currentTabLabel"
-        :field-errors="fieldErrors"
-        :json-buffers="jsonBuffers"
-        :selected-gift-user="selectedGiftUser"
-        :show-user-picker="showUserPickerModal"
-        :user-picker-keyword="userPickerKeyword"
-        @update:user-picker-keyword="(v) => (userPickerKeyword = v)"
-        :filtered-gift-users="filteredGiftUsers"
-        :address-bundle-text="addressBundleText"
-        :address-ai-text="addressAiText"
-        :is-processing-address-ai="isProcessingAddressAi"
-        :gift-address-options="giftAddressOptions"
-        @update:address-ai-text="(v) => (addressAiText = v)"
-        @extract-address="handleExtractAddress"
-        @clear-address-ai-text="clearAddressAiText"
-        @select-gift-address="handleSelectGiftAddress"
-        :uploading-image-fields="uploadingImageFields"
-        :user-picker-loading="userPickerLoading"
-        :show-product-picker="showProductPicker"
-        :product-picker-keyword="productPickerKeyword"
-        :product-picker-loading="productPickerLoading"
-        :filtered-products="filteredProducts"
-        @update:product-picker-keyword="(v) => (productPickerKeyword = v)"
-        @toggle-product-picker="toggleProductPicker"
-        @select-product="selectProduct"
-        :is-field-disabled="isFieldDisabled"
-        :is-image-upload-pending="isImageUploadPending"
-        :has-prev-record="editDrawerNav.hasPrev"
-        :has-next-record="editDrawerNav.hasNext"
-        :record-nav-label="editDrawerNav.label"
-        @close="onDrawerClose"
-        @save="saveData"
-        @save-group="handleSaveGroup"
-        @duplicate-template="handleCreateFromTemplate"
-        @save-and-next="saveAndEditNext"
-        @save-and-create="saveAndCreateNext"
-        @prev-record="navigateEditRecord(-1)"
-        @next-record="navigateEditRecord(1)"
-        @regenerate-id="regenerateAutoIdForCurrentTab"
-        @regenerate-news-id="regenerateNewsId"
-        @inject-news-template="injectNewsTemplate"
-        @generate-excerpt="generateExcerptFromContent"
-        @copy-address-bundle="copyAddressBundle"
-        @open-user-picker="openUserPicker"
-        @close-user-picker="closeUserPicker"
-        @select-gift-user="selectGiftUser"
-        @clear-gift-user="clearSelectedGiftUser"
-        @clear-image-field="clearImageField"
-        @copy-image-value="copyImageValue"
-        @image-upload="handleAdminImageUpload"
-        @add-tag="addTag"
-        @remove-tag="removeTag"
-        @add-spec="addSpec"
-        @remove-spec="removeSpec"
-        @clear-field-error="clearFieldError"
-        @validate-field="validateField"
-        @update-field="handleUpdateField"
-        @update-json-buffer="handleUpdateJsonBuffer"
-        @update-spec-field="handleUpdateSpecField"
-        @bolek-key-select="handleBolekKeySelect"
-      />
+    <!-- ══ 编辑 / 新增 表单的**三个挂载点**（plans/049 期 2 收敛）══════════
+         props 与事件只在 `editorBindings` 里写一份（见 script），这里只决定
+         「用哪个形态、挂到哪、给什么 show」。改造前是两份 60 行的重复绑定，
+         加第三个实例（新增对象页）会变成第三份 —— 那种重复必然漂移：
+         上一次改字段就在 `@update-json-buffer` 上漏了其中一个实例。
+
+         ① 详情页内编辑：Teleport 进 RecordPane 的槽位（embedded，无遮罩）
+         ② 新增对象页：  Teleport 进本页自己的槽位（embedded，无遮罩）
+         ③ 兜底抽屉：     列表页的复杂字段 / 行内铅笔（浮层，唯一保留的抽屉形态）
+         ⚠️ 三者的 v-if 必须互斥：同一时刻只挂载一个，共享同一份 editingItem。
+
+         Teleport 自身要带 v-if 门控：目标槽位不存在时它会静默失败
+         （表现为「点了新增一片空白」），所以门控写在 Teleport 上而不是内部元素。 -->
+    <Teleport v-if="detailEditing && recordId" to="#detail-edit-slot">
+      <EditDrawer ref="editDrawerRef" embedded :show="detailEditing" v-bind="editorBindings" />
+    </Teleport>
+
+    <Teleport v-if="isCreateRecordPage && !recordId" to="#create-edit-slot">
+      <EditDrawer ref="createDrawerRef" embedded :show="true" v-bind="editorBindings" />
     </Teleport>
 
     <EditDrawer
-      v-if="!detailEditing"
+      v-if="!detailEditing && !isCreateRecordPage"
       ref="editDrawerRef"
       :show="showModal"
-      :is-editing="isEditing"
-      :editing-item="editingItem"
-      :current-tab="currentTab"
-      :current-fields="currentFields"
-      :is-saving="isSaving"
-      :is-news-tab="isNewsTab"
-      :can-regenerate-auto-id="canRegenerateAutoId"
-      :current-tab-label="currentTabLabel"
-      :field-errors="fieldErrors"
-      :json-buffers="jsonBuffers"
-      :selected-gift-user="selectedGiftUser"
-      :show-user-picker="showUserPickerModal"
-      :user-picker-keyword="userPickerKeyword"
-      @update:user-picker-keyword="(v) => (userPickerKeyword = v)"
-      :filtered-gift-users="filteredGiftUsers"
-      :address-bundle-text="addressBundleText"
-      :address-ai-text="addressAiText"
-      :is-processing-address-ai="isProcessingAddressAi"
-      :gift-address-options="giftAddressOptions"
-      @update:address-ai-text="(v) => (addressAiText = v)"
-      @extract-address="handleExtractAddress"
-      @clear-address-ai-text="clearAddressAiText"
-      @select-gift-address="handleSelectGiftAddress"
-      :uploading-image-fields="uploadingImageFields"
-      :user-picker-loading="userPickerLoading"
-      :show-product-picker="showProductPicker"
-      :product-picker-keyword="productPickerKeyword"
-      :product-picker-loading="productPickerLoading"
-      :filtered-products="filteredProducts"
-      @update:product-picker-keyword="(v) => (productPickerKeyword = v)"
-      @toggle-product-picker="toggleProductPicker"
-      @select-product="selectProduct"
-      :is-field-disabled="isFieldDisabled"
-      :is-image-upload-pending="isImageUploadPending"
-      :has-prev-record="editDrawerNav.hasPrev"
-      :has-next-record="editDrawerNav.hasNext"
-      :record-nav-label="editDrawerNav.label"
-      @close="onDrawerClose"
-      @save="saveData"
-      @save-group="handleSaveGroup"
-      @duplicate-template="handleCreateFromTemplate"
-      @save-and-next="saveAndEditNext"
-      @save-and-create="saveAndCreateNext"
-      @prev-record="navigateEditRecord(-1)"
-      @next-record="navigateEditRecord(1)"
-      @regenerate-id="regenerateAutoIdForCurrentTab"
-      @regenerate-news-id="regenerateNewsId"
-      @inject-news-template="injectNewsTemplate"
-      @generate-excerpt="generateExcerptFromContent"
-      @copy-address-bundle="copyAddressBundle"
-      @open-user-picker="openUserPicker"
-      @close-user-picker="closeUserPicker"
-      @select-gift-user="selectGiftUser"
-      @clear-gift-user="clearSelectedGiftUser"
-      @clear-image-field="clearImageField"
-      @copy-image-value="copyImageValue"
-      @image-upload="handleAdminImageUpload"
-      @add-tag="addTag"
-      @remove-tag="removeTag"
-      @add-spec="addSpec"
-      @remove-spec="removeSpec"
-      @clear-field-error="clearFieldError"
-      @validate-field="validateField"
-      @update-field="handleUpdateField"
-      @update-json-buffer="handleUpdateJsonBuffer"
-      @update-spec-field="handleUpdateSpecField"
-      @bolek-key-select="handleBolekKeySelect"
+      v-bind="editorBindings"
     />
 
     <!-- 全局提示 -->
@@ -2127,7 +2101,7 @@ import {
   onUnmounted,
   watch,
 } from 'vue';
-import { useRouter, useRoute } from 'vue-router';
+import { useRouter, useRoute, onBeforeRouteLeave } from 'vue-router';
 import { storeToRefs } from 'pinia';
 import { useAuthStore } from '@/stores/auth';
 import {
@@ -2150,6 +2124,7 @@ import {
   X,
 } from 'lucide-vue-next';
 import AdminHeader from './components/AdminHeader.vue';
+import AdminNavPages from './components/AdminNavPages.vue';
 import AdminOverview from './components/AdminOverview.vue';
 import AdminSidebar from './components/AdminSidebar.vue';
 import AdminTabList from './components/AdminTabList.vue';
@@ -2170,6 +2145,7 @@ import DashboardSheet from './components/shared/DashboardSheet.vue';
 import ExportMenu from './components/shared/ExportMenu.vue';
 import { fetchAllRows, insertAdminRow } from '@/utils/api/data-admin-table-api.js';
 import { EMPTY_ACTIONS, resolveEmptyState } from './composables/data-admin-empty-state.js';
+import { consumeListScroll, rememberListScroll } from './composables/list-scroll-memory.js';
 import { RULE_CHIP_PREFIX } from './composables/data-admin-filter-chips.js';
 import { resolveKanbanConfig } from './composables/kanban-config.js';
 import { resolveQueryTotal } from './composables/resolve-query-total.js';
@@ -2306,6 +2282,7 @@ import { createExportCenter } from './composables/useDataAdminExport.js';
 import { createGlobalSearchCenter } from './composables/useDataAdminGlobalSearch.js';
 import { createShortcutsCenter } from './composables/useDataAdminShortcuts.js';
 import { createNavigationCenter, ROUTE_MAP } from './composables/useDataAdminNavigation.js';
+import { adminWideViewport } from './composables/useAdminViewport.js';
 import {
   HIDDEN_TAB_IDS,
   LISTED_TAB_IDS,
@@ -2330,6 +2307,37 @@ import {
 const CACHE_TTL = 45_000;
 
 const router = useRouter();
+const route = useRoute();
+
+/* ── 路由态的两个基本判定：必须**在 setup 最前面**定义（plans/049 期 2）──
+   `editorBindings`（约 7.6k 行）与 `closeModal` 都要读 isCreateRecordPage，
+   而它们都远早于原来 8.6k 行的定义点 ⇒ 会触发 TDZ：
+     ReferenceError: Cannot access 'isCreateRecordPage' before initialization
+   后果不是「某个功能失效」，而是**整页渲染边界捕获、白屏报错**
+   （实测：/admin/data-management/users/new 直接显示「页面出了点问题」）。
+
+   ⚠️ 这两个 computed 只依赖 `route.params`，没有任何前置依赖，
+      所以可以安全地提到最前面 —— 不要把依赖 setup 中段状态的 computed
+      也一起搬上来，那样会从 TDZ 换成「读到初始值」。 */
+/**
+ * 当前路由是否为「新增对象页」。
+ *
+ * ⚠️ **判据必须是路由名，不能是 `params.id === 'new'`**（2026-11-25 实测踩过）：
+ *    路由表里 `/admin/data-management/:tab/new` 的 `new` 是**静态段**，
+ *    vue-router 不会把它放进 params ⇒ 匹配到 DataManagementCreate 时
+ *    `params.id` 是 `undefined`、`params.tab` 才是 `'users'`。
+ *    按 id 判会恒为 false，表现是「新增页不渲染、直接掉回列表」，
+ *    而且**没有任何报错** —— 这类静默失效只能靠路由名判据避免。
+ */
+const isCreateRecordPage = computed(() => route.name === 'DataManagementCreate');
+/**
+ * 记录 id。
+ *
+ * 详情路由（`:tab/:id`）才有 id；新增路由的 `new` 是静态段、不进 params，
+ * 所以这里天然为空，不需要额外排除字面量。
+ */
+const recordId = computed(() => String(route.params.id || ''));
+
 const authStore = useAuthStore();
 const { userInfo } = storeToRefs(authStore);
 
@@ -2539,6 +2547,42 @@ const isMobileView = ref(computeMobileView());
 const handleResize = () => {
   isMobileView.value = computeMobileView();
 };
+
+/* ── 竖屏整页目录（plans/049 期 1，2026-11-25）────────────────────────
+   用户口径：「不再采用侧拉面板切页面了，而是改成像现在网站的设置页一样
+   一页一个完整页面来改东西」。判据 = 是否为「够宽的横屏」（见 useAdminViewport）。
+
+   两个状态的分工必须分清：
+     · `isNarrowNav`    视口是窄的（竖屏 / 窄横屏）⇒ 走整页目录，没有抽屉
+     · `portraitNavOpen` 整页目录**当前是否显示**（窄屏下它是独立一页）
+   宽屏时 `portraitNavOpen` 恒无意义（左栏常驻）。
+
+   ⚠️ 用完即弃的旧状态：`isAdminSidebarOpen` 仍保留在导航 composable 的签名里
+      （多个 composable 依赖它），但竖屏已不再用它控制抽屉 —— 保留是为了
+      那些「切 tab 后顺手关一下」的调用不报错，值本身不再驱动任何渲染。 */
+const isNarrowNav = computed(() => !adminWideViewport.value);
+const portraitNavOpen = ref(false);
+const adminNavPagesRef = ref(null);
+
+/** 竖屏目录是否可见（含宽屏下的「始终可见」语义，供顶栏按钮图标取反） */
+const navPaneShown = computed(() => (isNarrowNav.value ? portraitNavOpen.value : true));
+
+/** 顶栏那颗「导航」：竖屏 = 打开/关闭整页目录 */
+const toggleAdminNav = () => {
+  if (!isNarrowNav.value) return;
+  const opening = !portraitNavOpen.value;
+  portraitNavOpen.value = opening;
+  // 每次「打开」都从第一层开始：用户点导航是想去别的地方，
+  // 不是想看自己现在在哪（那件事由行高亮表达）。nextTick 等目录挂载后再复位。
+  if (opening) nextTick(() => adminNavPagesRef.value?.resetPath?.());
+};
+
+/* 切到宽屏（横屏 / 转屏）时把整页目录收起：
+   否则转横屏后左栏常驻、目录页还盖在右边，看起来像「多了一层」。
+   ⚠️ 只关目录，不动当前 tab —— 转屏不该改变用户在改什么。 */
+watch(isNarrowNav, (narrow) => {
+  if (!narrow) portraitNavOpen.value = false;
+});
 
 // ==================== 当前表配置（前置声明） ====================
 // 视图形态区块的 immediate watcher 会在 setup 期立即求值 currentConfig，
@@ -3842,7 +3886,7 @@ const emptyState = computed(() => {
  */
 const runEmptyStateAction = (actionId) => {
   if (actionId === EMPTY_ACTIONS.CREATE) {
-    openEditModal();
+    handleAdminCreate();
     return;
   }
   if (actionId === EMPTY_ACTIONS.GLOBAL_SEARCH) {
@@ -5812,6 +5856,11 @@ const activeNavRowId = computed(() => {
 const handleNavRowClick = (row) => {
   if (!row) return;
   isAdminSidebarOpen.value = false;
+  // 竖屏：点了内容就回内容页（整页目录是独立一页，选完必须离开它），
+  // 并把目录复位到第一层 —— 下次打开「导航」从 8 个分区重新开始，
+  // 而不是停在上次进过的那个组里（口径见 AdminNavPages 的 resetPath）。
+  portraitNavOpen.value = false;
+  adminNavPagesRef.value?.resetPath?.();
   if (row.kind === 'tab' && row.tabId) {
     // 权限：按该页签所属模块判（tab 自己不带权限位，权限在模块上）
     const ownerModule = tabs.find((tab) => tab.id === row.tabId)?.module;
@@ -5893,12 +5942,9 @@ watch(currentTab, (tabId) => {
 // ==================== 顶栏：侧栏开关/搜索/通知/用户菜单 ====================
 // 桌面端侧栏恒全宽：开关按钮只在移动端渲染（AdminHeader.canToggleSidebar），
 // is-sidebar-open 传 true 让图标态判断恒定，不影响其它布局
-const sidebarToggleOpen = computed(() => (isMobileView.value ? isAdminSidebarOpen.value : true));
-const toggleSidebar = () => {
-  if (isMobileView.value) {
-    isAdminSidebarOpen.value = !isAdminSidebarOpen.value;
-  }
-};
+// 竖屏整页目录的开关见 setup 前段的 toggleAdminNav / navPaneShown（plans/049）。
+// 旧的 sidebarToggleOpen / toggleSidebar 已随之删除 —— 它们只服务「滑出抽屉」，
+// 抽屉不存在后就是死代码（顶栏 :can-toggle-sidebar 现在直接绑 isNarrowNav）。
 
 const adminUserLabel = computed(
   () => userInfo.value?.username || userInfo.value?.email || '管理员',
@@ -6147,7 +6193,7 @@ const quickCreateRecord = (tabId) => {
     return;
   }
   switchTab(tabId);
-  nextTick(() => openEditModal());
+  nextTick(() => handleAdminCreate());
 };
 
 const handleAdminLogout = async () => {
@@ -6998,7 +7044,43 @@ const confirmPayloadDiffs = async (payload) => {
 };
 
 // ==================== 编辑模态框 ====================
-const handleAdminCreate = () => openEditModal();
+/* ── 「新增」改走对象页路由（plans/049 期 2，2026-11-25）────────────
+   原来 handleAdminCreate 直接 `openEditModal()` 弹抽屉。用户口径是
+   「一页一个完整页面来改东西」⇒ 新增应该是一个**独立的页**，有自己的地址：
+     /admin/data-management/:tab/new
+   这样「新增一条」可收藏、可从别处深链、浏览器返回键语义正常（回列表）。
+
+   ⚠️ 这里刻意仍然保留 openEditModal 的**抽屉**路径给「编辑」用：
+      编辑已经在详情页内做页内编辑（D2），抽屉只作为复杂字段的兜底。
+      一次性把所有入口都切成路由会让本期改动面失控（21 个调用点），
+      而用户最在意的是「新增时不要被浮层盖住」。 */
+const handleAdminCreate = () => {
+  if (!canCreateCurrentTab.value) {
+    showToast('当前角色无权新增该表记录', 'error');
+    return;
+  }
+  // 竖屏目录开着时先收起，否则会导航到对象页却仍被目录盖住
+  portraitNavOpen.value = false;
+  router
+    .push({
+      name: 'DataManagementCreate',
+      params: { tab: currentTab.value },
+    })
+    .catch(() => {});
+};
+
+/** 进入新增对象页：做一次字段预处理（复用 openEditModal 的 null 分支） */
+const ensureCreateFormReady = () => {
+  if (!isCreateRecordPage.value) return;
+  if (!dataConfig[recordTab.value]) return;
+  // 已经准备好就不重跑（避免每次渲染都重置用户填了一半的内容）
+  if (isEditing.value || Object.keys(editingItem.value || {}).length) return;
+  openEditModal(null, { embedded: true });
+};
+
+watch(isCreateRecordPage, (on) => {
+  if (on) nextTick(ensureCreateFormReady);
+});
 
 const openEditModal = async (item = null, opts = {}) => {
   try {
@@ -7309,6 +7391,12 @@ const closeModal = async ({ askDraft = true } = {}) => {
   editingOriginalItem.value = null;
   jsonBuffers.value = {};
   clearFieldErrors();
+  /* 新增对象页保存成功后要回列表（plans/049 期 2）：
+     抽屉时代「关抽屉 = 回到列表」是自然结果，整页化之后
+     「清空表单」只会留下一张空白的新增页 —— 用户会以为保存失败。
+     ⚠️ 只在新增页收尾时跳；详情页内编辑的收尾由 detailEditing 分支负责
+        （保存后留在详情页看新值，那是 D2 的既定行为）。 */
+  if (isCreateRecordPage.value) goBackToRecordList();
 };
 
 const fetchUserPickerUsers = async () => {
@@ -7572,6 +7660,97 @@ let saveDataIdCounter = 0;
 const activeSaveDataId = ref(0);
 
 const editDrawerRef = ref(null);
+/** 新增对象页的编辑器实例（与 editDrawerRef 是两个实例，互斥挂载） */
+const createDrawerRef = ref(null);
+
+/**
+ * 编辑表单的 props + 事件绑定 —— **单一真源**（plans/049 期 2）。
+ *
+ * 改造前模板里有两份 60 行的重复绑定（详情页内编辑 / 兜底抽屉），
+ * 本期要加第三个实例（新增对象页）。三份手写必然漂移：
+ * 上一次改字段时 `@update-json-buffer` 就只补了其中一份。
+ *
+ * ⚠️ 用 computed 而不是普通对象：里面读的是 ref / computed（editingItem、
+ *    currentFields、editDrawerNav…），普通对象只会在 setup 期求值一次，
+ *    之后表单永远是空的。`v-bind` 拿到的是「当前快照」而不是静态字面量。
+ * ⚠️ 事件处理器同名 key 用 `onXxx` 形式（camelCase），与 Vue 3 的
+ *    `v-bind` 事件解析一致：`@update-field` 对应 `onUpdateField`。
+ *    写成 `'@update-field'` 在 v-bind 对象里**不会生效**（v-bind 只认 onXxx）。
+ */
+const editorBindings = computed(() => ({
+  isEditing: isEditing.value,
+  editingItem: editingItem.value,
+  currentTab: currentTab.value,
+  currentFields: currentFields.value,
+  isSaving: isSaving.value,
+  isNewsTab: isNewsTab.value,
+  canRegenerateAutoId: canRegenerateAutoId.value,
+  currentTabLabel: currentTabLabel.value,
+  fieldErrors, // reactive 对象，不是 ref —— 不能写 .value
+  jsonBuffers: jsonBuffers.value,
+  selectedGiftUser: selectedGiftUser.value,
+  showUserPicker: showUserPickerModal.value,
+  userPickerKeyword: userPickerKeyword.value,
+  filteredGiftUsers: filteredGiftUsers.value,
+  addressBundleText: addressBundleText.value,
+  addressAiText: addressAiText.value,
+  isProcessingAddressAi: isProcessingAddressAi.value,
+  giftAddressOptions: giftAddressOptions.value,
+  uploadingImageFields: uploadingImageFields.value,
+  userPickerLoading: userPickerLoading.value,
+  showProductPicker: showProductPicker.value,
+  productPickerKeyword: productPickerKeyword.value,
+  productPickerLoading: productPickerLoading.value,
+  filteredProducts: filteredProducts.value,
+  hasPrevRecord: editDrawerNav.value.hasPrev,
+  hasNextRecord: editDrawerNav.value.hasNext,
+  recordNavLabel: editDrawerNav.value.label,
+  /* ⚠️ `update:xxx` 类事件的 v-bind 键**必须带冒号且加引号**：
+     `'onUpdate:addressAiText'` ✅ / `onUpdateAddressAiText` ❌
+     后者的驼峰化把冒号吃掉了，Vue 认不出这个键 ⇒ 输入框的双向绑定静默失效
+     （不是报错，是「打字没反应」——本次重构第一版就是这么错的，
+      被 data-admin-edit-wiring.test.js 的 emits 全覆盖断言抓到）。 */
+  'onUpdate:userPickerKeyword': (v) => (userPickerKeyword.value = v),
+  'onUpdate:addressAiText': (v) => (addressAiText.value = v),
+  'onUpdate:productPickerKeyword': (v) => (productPickerKeyword.value = v),
+  onExtractAddress: handleExtractAddress,
+  onClearAddressAiText: clearAddressAiText,
+  onSelectGiftAddress: handleSelectGiftAddress,
+  onToggleProductPicker: toggleProductPicker,
+  onSelectProduct: selectProduct,
+  isFieldDisabled,
+  isImageUploadPending,
+  onClose: onDrawerClose,
+  onSave: saveData,
+  onSaveGroup: handleSaveGroup,
+  onDuplicateTemplate: handleCreateFromTemplate,
+  onSaveAndNext: saveAndEditNext,
+  onSaveAndCreate: saveAndCreateNext,
+  onPrevRecord: () => navigateEditRecord(-1),
+  onNextRecord: () => navigateEditRecord(1),
+  onRegenerateId: regenerateAutoIdForCurrentTab,
+  onRegenerateNewsId: regenerateNewsId,
+  onInjectNewsTemplate: injectNewsTemplate,
+  onGenerateExcerpt: generateExcerptFromContent,
+  onCopyAddressBundle: copyAddressBundle,
+  onOpenUserPicker: openUserPicker,
+  onCloseUserPicker: closeUserPicker,
+  onSelectGiftUser: selectGiftUser,
+  onClearGiftUser: clearSelectedGiftUser,
+  onClearImageField: clearImageField,
+  onCopyImageValue: copyImageValue,
+  onImageUpload: handleAdminImageUpload,
+  onAddTag: addTag,
+  onRemoveTag: removeTag,
+  onAddSpec: addSpec,
+  onRemoveSpec: removeSpec,
+  onClearFieldError: clearFieldError,
+  onValidateField: validateField,
+  onUpdateField: handleUpdateField,
+  onUpdateJsonBuffer: handleUpdateJsonBuffer,
+  onUpdateSpecField: handleUpdateSpecField,
+  onBolekKeySelect: handleBolekKeySelect,
+}));
 
 // E4: 行内铅笔直达字段 —— 记录抽屉打开后要定位的字段 key，被 openEditModal 消费一次即清空。
 // 只做同步交接、不参与渲染，故用普通 let 而非 ref（与 editDrawerRef 同层声明）。
@@ -8513,8 +8692,8 @@ const showShortcutHelp = ref(false);
 // ==================== 详情子页（plans/027 D1） ====================
 // 与列表共用同一个组件实例：仅 route.params 变化时 Vue Router 复用组件，
 // 列表的筛选/页码/滚动位置天然保留。
-const route = useRoute();
-const recordId = computed(() => String(route.params.id || ''));
+// route / recordId / isCreateRecordPage 三者已在 setup 最前面定义（见 plans/049：
+// 迟定义会 TDZ 打崩整页），这里不再重复声明。
 const recordTab = computed(() => String(route.params.tab || currentTab.value));
 const detailTabLabel = computed(
   () => tabs.find((t) => t.id === recordTab.value)?.label || recordTab.value,
@@ -8536,6 +8715,42 @@ const goBackToList = () => {
   if (window.history.length > 1) router.back();
   else router.replace({ path: '/admin/data-management', query: { tab: recordTab.value } });
 };
+
+/**
+ * 从对象页（详情 / 新增）回列表。
+ *
+ * ⚠️ 与 `goBackToList` 分开写，因为两者的历史语义不同：
+ *    · 详情页是从列表**点进来**的，`router.back()` 正好回列表，且保留滚动位置；
+ *    · 新增页可能是**直接深链**进来的（收藏了「新增一条」的地址，或从别处跳来），
+ *      这时 `history.back()` 会退到站外/上一个无关页面。
+ * 所以这里判断来源：`from` 是列表态才后退，否则显式 replace 回列表。
+ */
+const goBackToRecordList = () => {
+  // 一律 replace 到本 tab 列表（不产生新的历史条目，连按返回不会在
+  // 新增页和列表页之间反复横跳）。不用 history.back()：新增页可能是深链进来的，
+  // 那时 back() 会退到站外或上一个无关页面。
+  router
+    .replace({ path: '/admin/data-management', query: { tab: recordTab.value } })
+    .catch(() => {});
+};
+
+/** 新增对象页面包屑第一环的文字：当前 tab 所属模块名。
+    直接读已解析好的 currentModule（它的来源就是 tabModules），
+    不在这里再 import 一次 tabModules —— 同一个真源两处 import 迟早漂移。 */
+const moduleLabelForCreate = computed(() => currentModule.value?.label || '数据管理');
+
+/**
+ * 新增页标题里的「对象名」。
+ *
+ * `currentTabLabel` 是**管理页的名字**（「用户管理」「积分流水」），
+ * 直接拼成「新增用户管理」读起来不通 —— 那是「新增一个用户管理」。
+ * 标题要说的是「新增一个什么」，所以去掉结尾的「管理」二字；
+ * 像「积分流水」「履约台」这类本来就不带「管理」的，原样使用。
+ */
+const createSubjectLabel = computed(() => {
+  const label = String(currentTabLabel.value || '记录');
+  return label.endsWith('管理') ? label.slice(0, -2) : label;
+});
 
 const openRecordDetail = (item) => {
   // 防御性回退：无 id 仍开抽屉（plans/027 §5.2）
@@ -8714,7 +8929,7 @@ const commandInputRef = ref(null);
 const commandPaletteItems = computed(() => {
   const items = [];
   if (!isModerationTab.value && canCreateCurrentTab.value) {
-    items.push({ id: 'create', label: '新增记录', hint: 'N', run: () => openEditModal() });
+    items.push({ id: 'create', label: '新增记录', hint: 'N', run: () => handleAdminCreate() });
   }
   items.push({ id: 'refresh', label: '刷新数据', hint: '', run: () => refreshAllData() });
   items.push({ id: 'theme', label: '切换深/浅色主题', hint: '', run: () => toggleAdminTheme() });
@@ -8872,6 +9087,75 @@ onUnmounted(() => {
   document.removeEventListener('keydown', handleCommandPaletteKey);
   document.removeEventListener('visibilitychange', handleVisibilityChange);
 });
+
+/* ── 列表滚动位置记忆（plans/049 期 3）────────────────────────────────
+   整页化后「列表 → 对象页 → 回列表」是真实的路由往返，`App.vue` 的
+   `:key="activeRoute.path"` 会让实例重建 ⇒ 滚动位置丢失。
+   抽屉时代不存在这个问题，所以这个代价是本次改造带来的，需要一并补上。
+
+   ── 捕获点为什么必须是路由守卫，不是 watch / onBeforeUnmount ─────────
+   实测两次都失败，原因值得记下来：
+     · `onBeforeUnmount`：从列表进详情时**根本不卸载**（同一个组件、
+       只是 route.params 变了），钩子不触发 ⇒ 一次都没记到。
+     · `watch(recordId)`：回调执行时 recordId 已经是新值了，
+       任何「当前是否在列表」的守卫都必然失败 ⇒ 记进去的是对象页的位置，
+       甚至是 0。
+   唯一能拿到「离开前那一刻 scrollY」的时机是 **`onBeforeRouteLeave`**
+   —— 此时路由还没 commit、旧页面还在屏幕上。
+
+   ⚠️ 只在「离开时是列表态」才记：在对象页里离开（比如点侧栏去别的 tab）
+      记的是对象页的滚动位置，存进去会让下次回列表跳到半山腰。 */
+if (typeof window !== 'undefined') {
+  onBeforeRouteLeave(() => {
+    if (recordId.value || isCreateRecordPage.value) return true;
+    rememberListScroll(currentTab.value, window.scrollY);
+    return true;
+  });
+}
+
+/* 从对象页回到列表：恢复上一次的滚动位置。
+   ⚠️ **不能用 watch 对比「对象页 → 列表」**（第一版就是这么写的，实测无效）：
+      回列表时 App.vue 的 `:key="activeRoute.path"` 会让本组件**重建**，
+      新实例的 watch 首次执行时 `wasOnObjectPage` 是 undefined，
+      「刚从对象页回来」这个信息根本不存在 —— 它随旧实例一起销毁了。
+
+   ⚠️ **也不能在 onMounted 里直接 scrollTo**（第二版，实测只滚到 172/600）：
+      挂载那一刻表格还是空的，`document` 可滚高度不足，
+      `scrollTo(600)` 会被浏览器**静默夹到当前上限**（172）。
+      必须等**数据到位**再滚 —— 以 `hasLoadedOnce` 为信号（它在 assignTabRows
+      里置位，即行数据已经写进 dataStore）。
+
+   所以是「消费式订阅」：先取出位置，等数据到位再滚；取不到就什么都不做
+   （真正的列表首访没有记忆条目 ⇒ consume 返回 undefined ⇒ 不滚动）。
+   跟踪一个局部 flag 而不是全局状态：拿到位置后无论数据何时到，只滚一次。 */
+let pendingScrollRestore = null;
+
+const restoreListScrollIfNeeded = () => {
+  if (typeof window === 'undefined') return;
+  if (recordId.value || isCreateRecordPage.value) return;
+  const saved = consumeListScroll(currentTab.value);
+  if (saved === undefined) return;
+  pendingScrollRestore = saved;
+  applyPendingScrollRestore();
+};
+
+const applyPendingScrollRestore = () => {
+  if (pendingScrollRestore === null) return;
+  if (!hasLoadedOnce.value) return; // 数据没到，等 watch 再来一次
+  const top = pendingScrollRestore;
+  pendingScrollRestore = null;
+  // 再等一帧：表格行 DOM 落位后高度才稳定
+  nextTick(() => {
+    if (typeof window !== 'undefined') window.scrollTo({ top, behavior: 'auto' });
+  });
+};
+
+onMounted(restoreListScrollIfNeeded);
+// 数据到位后再补一次（首访时 pending 为 null，这里开销为零）
+watch(hasLoadedOnce, (loaded) => {
+  if (loaded) applyPendingScrollRestore();
+});
+
 // 第二阶段: 所有 onMounted / onUnmounted / watch 已迁移至 composables/useDataAdminLifecycle.js
 // (setupDataAdminLifecycle 工厂)
 // 内部统一管理 searchDebounceTimer / userPickerSearchDebounceTimer / draftSaveDebounceTimer / toast.timer
@@ -9170,6 +9454,172 @@ onUnmounted(() => {
 /* Module sub-tabs 的 chips 样式已随行列表替换退场（2026-11-25，plans/048 期 1）：
    `.g-module-tabs` / `.g-module-tab` / `.g-module-tab-more` 三组规则连同
    「更多 ▾」浮层一起删除，新视觉在 components/AdminTabList.vue 的 scoped 块里。 */
+
+/* ── 新增记录对象页（plans/049 期 2）───────────────────────────────
+   ⚠️ 面包屑 / 操作条的类名（.detail-crumbs / .detail-action-bar）在
+      detail/DetailHeader.vue 与 detail/DetailActionBar.vue 的 **scoped**
+      样式里定义，本页拿不到 —— 所以这三段必须在本组件自己写一份。
+      不是「重复劳动」：那两个组件的样式带各自的 data-v，作用不到这里的元素
+      （同一个坑在 SettingsSubpageHeader.vue 的文件头已记过一次）。 */
+.create-record-section {
+  padding-bottom: 8px;
+}
+
+.create-record-body {
+  margin-top: 10px;
+}
+
+/* 面包屑：与详情页同一视觉（小字、灰、可点的那一环保留 hover） */
+.create-record-section .detail-crumbs {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--muted-foreground);
+}
+
+.create-record-section .detail-crumb {
+  border: none;
+  background: transparent;
+  padding: 0;
+  color: var(--muted-foreground);
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.create-record-section .detail-crumb:hover {
+  color: var(--primary);
+}
+
+.create-record-section .detail-crumb.is-current {
+  color: var(--foreground);
+  cursor: default;
+}
+
+.create-record-section .detail-crumb-sep {
+  color: var(--muted-foreground);
+}
+
+.create-record-section .detail-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 6px;
+}
+
+.create-record-section .detail-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--foreground);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* 底部操作条：吸在视口底部。
+   ⚠️ 这里必须用 `position: fixed` 而不是 `sticky`（2026-11-25 实测）：
+      容器 `.create-record-body` 的高度由表单内容决定（可达 2800px），
+      sticky 的 `bottom: 0` 是相对**最近的滚动容器**定位的 ——
+      在 body 滚动的情形下它会被推到内容末尾，
+      实测 bottom=861 而视口只有 844，即按钮被裁掉 17px。
+      fixed 相对视口，滚到哪都在。
+   ⚠️ 左右不能铺满：宽屏下要跟随 .main-container 的 1320px 上限与内距，
+      否则按钮会贴在浏览器边缘。用 inset + max-width + auto margin 对齐。 */
+.create-action-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  max-width: 1320px;
+  margin: 0 auto;
+  padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+  border: 1px solid var(--border);
+  border-top: 1px solid var(--border);
+  border-radius: 12px 12px 0 0;
+  background: var(--card);
+  box-shadow: 0 -6px 20px rgba(14, 17, 21, 0.08);
+}
+
+/* 内容给操作条让出高度，否则最后一段字段会被压在按钮底下点不到。
+   量：操作条实测 66px（按钮 44 + 上下内距 20 + 安全区）+ 12px 呼吸。
+   ⚠️ 这个值必须 ≥ 操作条实际高度，否则「滚到底仍差一点」——
+      实测第一版写 72px，最后那个 textarea 的 bottom 落在 1398（视口 844），
+      也就是用户滚到底也点不到它。 */
+.create-record-section {
+  padding-bottom: calc(86px + env(safe-area-inset-bottom));
+}
+
+.create-action-bar .detail-action-hint {
+  font-size: 12.5px;
+  color: var(--muted-foreground);
+}
+
+.create-action-bar .detail-action-btns {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+
+/* 竖屏：面包屑允许横向滑动（长表名不挤标题），操作条按钮撑到 40px 命中区 */
+@media (max-width: 768px) {
+  .create-record-section .detail-crumbs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .create-record-section .detail-crumbs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .create-record-section .detail-crumb {
+    min-height: 32px;
+    padding: 0 4px;
+    flex: 0 0 auto;
+  }
+
+  .create-record-section .detail-header-row {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .create-record-section .detail-header-row .btn {
+    flex: 0 0 auto;
+    min-height: 40px;
+    padding: 8px 14px;
+  }
+
+  .create-action-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .create-action-bar .detail-action-btns {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+
+  .create-action-bar .detail-action-btns .btn {
+    min-height: 44px;
+    padding: 8px 6px;
+    font-size: 13px;
+  }
+
+  /* 提示文案在竖屏是纯占位，删掉省一行高度 */
+  .create-action-bar .detail-action-hint {
+    display: none;
+  }
+}
 
 .admin-shell {
   display: flex;

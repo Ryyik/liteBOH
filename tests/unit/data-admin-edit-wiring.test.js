@@ -10,40 +10,74 @@ const read = (p) => readFileSync(join(ROOT, p), 'utf8');
    但两个 EditDrawer 实例都没绑处理器 —— 点了既不保存也不提示，是死 UI。
    Vue 不会为未监听的 emit 报错，所以这类洞只能靠源码级断言兜住。
 
+   ── 2026-11-25 结构变更（plans/049 期 2）──────────────────────────
+   绑定从「模板里手写三份」收敛成 `editorBindings` computed 里的**单一真源**
+   （模板只写 `v-bind="editorBindings"`）。原因：加第三个实例（新增对象页）时
+   会变成三份 60 行重复，上次改字段就已经漏过其中一份。
+   所以下面的断言从「模板里出现 @xxx=」改成「editorBindings 里有对应的 onXxx」。
+
+   ⚠️ 关键细节：v-bind 对象里的**事件键必须是 onXxx 驼峰**。
+      写成 '@save-group' 在 v-bind 对象里不会生效（v-bind 只认 onXxx），
+      这正是本次重构最容易犯的错 —— 所以断言要按 onXxx 检查，
+      而不是宽松地 search 一遍 '@save-group'。
+
    反证（都会在这里变红）：
-   - 把 DataAdmin 里的 `@save-group="handleSaveGroup"` 删掉 → ① 的 missing 非空；
+   - 把 editorBindings 里的 onSaveGroup 删掉 → ① 的 missing 非空；
    - 把 handleSaveGroup 改回不传参（丢掉 keepOpen）→ ② 失败；
+   - 把 onSaveGroup 写成 '@save-group' → ① 报 missing（v-bind 不认这个键）；
    - 模板复制时不清 id / 不顺延时间 → ③ 失败。 */
 
-const kebab = (name) => name.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
+/** emits 名单 → v-bind 对象里的键（Vue 3 对 v-bind 事件只认 onXxx 驼峰） */
+const emitToBindingKey = (name) =>
+  'on' +
+  name.charAt(0).toUpperCase() +
+  name.slice(1).replace(/[-_](\w)/g, (_, c) => c.toUpperCase());
 
 describe('数据管理 · 编辑抽屉接线', () => {
   const drawer = read('src/views/DataManagement/components/EditDrawer.vue');
   const admin = read('src/views/DataManagement/DataAdmin.vue');
+  /** 单一真源：编辑器绑定对象 */
+  const bindingsBlock = () => {
+    const m = admin.match(/const editorBindings = computed\(\(\) => \(\{([\s\S]*?)\n\}\)\);/);
+    expect(m, '找不到 editorBindings（编辑器绑定的单一真源）').toBeTruthy();
+    return m[1];
+  };
 
-  it('EditDrawer 声明的每个事件都有宿主监听（防死按钮）', () => {
+  it('EditDrawer 声明的每个事件都在 editorBindings 里有对应键（防死按钮）', () => {
     const block = drawer.match(/defineEmits\(\[([\s\S]*?)\]\)/);
     expect(block, '找不到 defineEmits 列表').toBeTruthy();
     const emits = [...block[1].matchAll(/'([^']+)'/g)].map((match) => match[1]);
     expect(emits.length).toBeGreaterThan(20);
 
+    const host = bindingsBlock();
     const missing = emits.filter((name) => {
-      const k = kebab(name);
-      return !(
-        admin.includes(`@${k}=`) ||
-        admin.includes(`@${k} `) ||
-        admin.includes(`@${name}=`) ||
-        admin.includes(`v-model:${name}`)
-      );
+      const key = emitToBindingKey(name);
+      // 允许两种合法写法：`onXxx:` / `'onXxx':`（带连字符的事件只能用引号键）
+      return !(host.includes(`${key}:`) || host.includes(`'${key}':`));
     });
 
     expect(missing, `这些事件没有宿主监听，按钮会是死的：${missing.join(', ')}`).toEqual([]);
   });
 
+  it('三个编辑器实例共用同一份绑定（模板只写 v-bind，不再手抄）', () => {
+    // 详情页内编辑 / 新增对象页 / 兜底抽屉 —— 三个实例都必须走 editorBindings
+    const instances = admin.match(/<EditDrawer[\s\S]*?\/>/g) || [];
+    expect(instances.length, '应该有 3 个 EditDrawer 实例').toBe(3);
+    instances.forEach((tag) => {
+      expect(tag, '每个实例都必须 v-bind="editorBindings"，不允许手抄绑定').toContain(
+        'v-bind="editorBindings"',
+      );
+    });
+    // 反向：模板里不应再出现手写的事件绑定（那意味着又抄了一份）
+    const templatePart = admin.slice(0, admin.indexOf('<script'));
+    expect(templatePart, '模板里出现了手写的 @save-group —— 说明绑定又被抄回模板了').not.toContain(
+      '@save-group=',
+    );
+  });
+
   it('「保存「分组」」= 带 keepOpen 的整条保存（存完不关抽屉）', () => {
-    // 两个 EditDrawer 实例（详情槽位 + 列表抽屉）都必须绑
-    const bindings = admin.match(/@save-group="handleSaveGroup"/g) || [];
-    expect(bindings.length, '两处 EditDrawer 实例都要绑 @save-group').toBe(2);
+    const host = bindingsBlock();
+    expect(host, 'editorBindings 必须绑 onSaveGroup').toContain('onSaveGroup: handleSaveGroup');
 
     const handler = admin.match(/const handleSaveGroup = ([^;]+);/);
     expect(handler, '找不到 handleSaveGroup').toBeTruthy();
