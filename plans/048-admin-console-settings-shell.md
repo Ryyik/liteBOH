@@ -487,3 +487,94 @@ pre-commit 的 lint-staged **把并行会话的 `src/utils/global-navbar-visibil
 - 期 4：用户 / 订单 / 内容三个真实对象页（要动数据层聚合查询）。
 - 「待发货」分区角标：需要一个跨表 count RPC，本次刻意没做。
 - 抽奖分区角标从圆点升级成真实场次：需抽奖工作台把 snapshot 里的计数透上来。
+
+---
+
+## 15. 自审复核（2026-11-25 · commit `bdf928e2`）
+
+§14 交付后立刻做了一次逐文件复核，**发现 3 处「写了但没生效」**。这类缺陷的共同点是：
+不报错、不白屏、不测试红，只表现为「新功能好像不存在」。记在这里因为它们都是**验收方式**的教训。
+
+### 15.1 修掉的 3 处静默失效
+
+| # | 病灶 | 为什么程序化检查没抓到 | 修法 |
+| --- | --- | --- | --- |
+| 1 | **`AdminTabList` 一次都没渲染过** | 组件能编译、能挂载逻辑、字形也正确 —— 只是 `v-if` 恒为假 | 新增 `LISTED_TAB_IDS` |
+| 2 | **深链进子页时侧栏无一高亮** | 高亮类确实加上了，只是父级折叠着看不见 | 按 `activeRowId` 反查父级并自动展开 |
+| 3 | **分组模式下权限置灰缺失** | 平铺分支有 `is-denied`，分组分支**整条路径都没写** | 宿主逐行算 `denied` |
+
+**① `AdminTabList` 死代码**（最关键，因为它是期 1 的唯一交付物）
+`unlistedModuleTabIds` 拿 `ROW_ID_BY_TAB_ID.keys()` 当「侧栏已列出」集合，
+但那张表是**高亮反查表**、刻意含 `mergedFrom`（`points` → `users`）。
+于是 `points` / `shopOrders` / `gifts` 被当成「已列出」⇒ 该列表恒为空。
+实测 9 个模块全部 `unlisted=[]`，**从提交那一刻起组件就没出现过**。
+
+教训：`ROW_ID_BY_TAB_ID` 与 `LISTED_TAB_IDS` 现在并列存在，语义差写进两边注释，
+并由守卫锁死（`LISTED ⊆ ROW_ID`、两者**必须不等**、每个可达页签要么在 LISTED
+要么在某个 `mergedFrom` 里 —— 不留第三种状态）。
+
+**② 深链进子页无高亮**
+`?tab=points-grant` → `activeRowId = 'points-grant'`，它挂在默认折叠的「权益发放」下，
+只有父级 `is-descendant-active` 淡染，还得先展开才可见。
+新增 watch：按 `activeRowId` 反查父级并展开。
+⚠️ 刻意**只依赖 `activeRowId`**、不依赖 `expandedRowIds` —— 否则用户手动折叠父级的那一下
+会被立刻弹开，变成「打不开的抽屉」。
+
+**③ 分组模式权限置灰缺失**
+平铺分支靠 `filteredModules` 算 `denied`；换成分组渲染后**没有任何代码算它**，
+所以无权模块看起来和能点的一模一样，点下去才弹提示。
+宿主 `navGroups` 逐行算：`tab` 查归属模块 / `module` 查自身 id /
+`group` 行**不置灰**（它只是抽屉，里面可能一半有权限一半没有，置灰会挡住能进的子页）。
+`onRowClick` 把 denied 判断提到**最前**，否则无权父行点一下还能展开，看着像「能进去」。
+
+### 15.2 删掉的 2 处死代码
+
+- **`GROUP_ICONS` + `iconFor`**：判的是 `row.isGroupRow`，而**全仓没有任何地方产出该字段**
+  （`nav-groups.js` 只挂 `groupId`）⇒ 恒返回空串，从上线起没渲染过一个图标。
+  删而**不是**补字段：这些 emoji 是按分区映射的（users→👤），与组头正上方的分区名重复，
+  等于把同一个词说两遍；设置页左栏同样无图标（图标在内容区 `.gs-row` 上）。
+- **`NAV_TOP_ROWS`**：零消费方。
+
+### 15.3 守卫 24 → 32 条
+
+新增两组断言，每条都做过反证：
+
+| 反证 | 变红条数 |
+| --- | --- |
+| `LISTED_TAB_IDS` 退化成 `NAV_ROW_BY_ID.values()`（等价于原来的 bug） | **4 条** |
+| 某个 `module` 行指向不存在的 id（模拟新增控制台忘登记） | **3 条** |
+
+### 15.4 浏览器实测（1440×900，mock PostgREST）
+
+| 检查 | 结果 |
+| --- | --- |
+| `?tab=points-grant` | `active=积分发放`，父行「权益发放」自动展开 ✅ |
+| 侧栏结构 | 8 组 / 32 顶层行 / emoji 图标残留 **0** ✅ |
+| `?tab=points` | 高亮「用户」，内容区不再重复列页签 ✅ |
+| 内容区 `tab-row` | lotteries **0** / forum **0** / users **1**（`points` 的可达入口，合理） |
+| `pageerror` | **0** |
+
+### 15.5 提交纪律：同一个坑踩了两次
+
+`da691bb1` 时 lint-staged 卷进 `global-navbar-visibility.js`，撤出了。
+`bdf928e2` 的**第一次提交又把 `BohActivityAvatar.vue`（48 行）与
+`ProfileSettingsPanel.vue`（424 行）卷了进来** —— 6 个文件而非 4 个。
+同样用 `git reset --soft HEAD~1` + `git restore --staged <他人文件>` 修掉，
+最终 4 文件 227 行，他人改动完好留在工作区。
+
+**结论：路径式 `git commit -- <paths>` 并不能阻止 lint-staged 卷文件。**
+唯一可靠做法是**提交后立刻 `git show --stat HEAD` 核对文件数**，
+发现多的就 `reset --soft` 重来。这一条值得提到 `AI-ENV.md`。
+
+### 15.6 验证（提交后的树）
+
+- 全量单测 **412 文件 / 5311 passed + 1 skipped**（较 §14 多 8 条，即新增守卫）
+- 后台相关 7 个守卫文件 **84 条全绿**
+- lint **0 error / 89 warning**（上限 90，未上调）
+- `verify` 唯一红仍是并行会话的 3 个未追踪文件，不在本次范围
+
+### 15.7 仍未处理
+
+- `xmas-console` 不在 `useDataAdminNavigation.js` 的 `DATA_SECTION_MODULES` 里
+  （同族的 hero / gate / avatar 都在）。`?section=data` 时它的 `activeModule` 同步可能被
+  复位成 `users`，导致侧栏高亮与内容不一致。**既有缺陷、非本次引入**，需单独立项复核。
