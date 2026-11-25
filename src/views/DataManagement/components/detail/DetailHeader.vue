@@ -1,6 +1,6 @@
 <template>
-  <div class="detail-header">
-    <nav class="detail-crumbs" aria-label="面包屑">
+  <div class="detail-header" :class="{ 'is-plain': plain }">
+    <nav v-if="!plain" class="detail-crumbs" aria-label="面包屑">
       <template v-for="(crumb, idx) in crumbs" :key="`${crumb}-${idx}`">
         <button
           v-if="idx < crumbs.length - 1"
@@ -15,8 +15,19 @@
       </template>
     </nav>
     <div class="detail-header-row">
+      <button
+        v-if="plain"
+        type="button"
+        class="detail-back-plain"
+        aria-label="返回列表"
+        @click="$emit('back')"
+      >
+        ‹
+      </button>
       <h1 class="detail-title">{{ title }}</h1>
-      <button type="button" class="btn btn-secondary" @click="$emit('back')">返回列表</button>
+      <button v-if="!plain" type="button" class="btn btn-secondary" @click="$emit('back')">
+        返回列表
+      </button>
     </div>
   </div>
 </template>
@@ -25,11 +36,34 @@
 defineProps({
   crumbs: { type: Array, default: () => [] },
   title: { type: String, default: '' },
+  plain: { type: Boolean, default: false },
 });
 defineEmits(['back', 'crumb']);
 </script>
 
 <style scoped>
+.detail-header.is-plain .detail-header-row {
+  justify-content: flex-start;
+  gap: 6px;
+  margin-top: 0;
+}
+
+.detail-back-plain {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  min-width: 40px;
+  min-height: 40px;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font-size: 26px;
+  line-height: 1;
+  color: var(--primary);
+  cursor: pointer;
+}
+
 .detail-header {
   margin-bottom: 14px;
 }

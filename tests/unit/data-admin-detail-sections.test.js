@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { dataConfig } from '@/views/DataManagement/config/tables.js';
-import { DETAIL_SECTIONS } from '@/views/DataManagement/config/detail-sections.js';
+import {
+  DETAIL_SECTIONS,
+  DETAIL_SECTION_OMITTED_FIELDS,
+} from '@/views/DataManagement/config/detail-sections.js';
 
 /**
  * 详情页分段 + 就地操作（plans/050 期 1 / 期 3）。
@@ -23,7 +26,12 @@ const stripComments = (src) =>
   src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
 
 // 不在 columns 里的合成行：值来自 fetch 阶段或运行时计算，必须有显式 label
-const SYNTHETIC_KEYS = new Set(['subscription_tier', '__copy_address']);
+const SYNTHETIC_KEYS = new Set([
+  'subscription_tier',
+  'birthday',
+  '__copy_address',
+  '__delete_record',
+]);
 
 const flattenKeys = (sections) =>
   sections.flatMap((section) =>
@@ -56,25 +64,28 @@ describe('分段配置与表列一一对应', () => {
     }
   });
 
-  it('配置覆盖该表全部列，且不重复（少一个就是少显示一列）', () => {
+  it('展示字段 + 登记的不展示字段 = 全部列（新增列必须二选一）', () => {
     for (const [tabId, sections] of Object.entries(DETAIL_SECTIONS)) {
-      const used = flattenKeys(sections).filter((key) => !SYNTHETIC_KEYS.has(key));
+      const used = flattenKeys(sections);
+      const shown = used.filter((key) => !SYNTHETIC_KEYS.has(key));
+      const omitted = DETAIL_SECTION_OMITTED_FIELDS[tabId] || [];
       const columnKeys = (dataConfig[tabId]?.columns || []).map((col) => col.key);
-      expect(new Set(used).size, `${tabId} 有重复字段`).toBe(used.length);
-      expect(
-        columnKeys.filter((key) => !used.includes(key)),
-        `${tabId} 有列没被分段覆盖`,
-      ).toEqual([]);
+      expect(new Set(shown).size, `${tabId} 有重复展示字段`).toBe(shown.length);
+      expect(new Set([...shown, ...omitted]).size, `${tabId} 展示/不展示清单有重叠`).toBe(
+        shown.length + omitted.length,
+      );
+      expect([...shown, ...omitted].sort(), `${tabId} 有列既没展示也没登记`).toEqual(
+        [...columnKeys].sort(),
+      );
     }
   });
 
-  it('用户详情按「身份 / 资产 / 收货」分段；订单详情含收货与进度', () => {
+  it('用户详情按草稿收敛为「身份 / 资产 / 操作」；订单详情含收货与进度', () => {
     const userSections = DETAIL_SECTIONS.users.map((section) => section.id);
-    expect(userSections).toEqual(['identity', 'account', 'assets', 'contact', 'shipping']);
+    expect(userSections).toEqual(['identity', 'assets', 'actions']);
 
     const giftSections = DETAIL_SECTIONS.gifts.map((section) => section.id);
-    expect(giftSections).toContain('shipping');
-    expect(giftSections).toContain('progress');
+    expect(giftSections).toEqual(['order', 'shipping', 'progress', 'actions']);
   });
 
   it('未配置的表没有条目（DetailFields 会退回旧平铺）', () => {
@@ -100,15 +111,22 @@ describe('每个 action 都有处理点', () => {
   it('配置里声明的 action 集合就是这几个（新增必须先实现）', () => {
     expect([...actions].sort()).toEqual([
       'copy-address',
+      'delete-record',
       'edit-points',
       'edit-status',
       'edit-tier',
+      'toggle-ban',
+      'toggle-mute',
     ]);
   });
 
-  it('copy-address 在 DataAdmin 里处理', () => {
+  it('copy-address / toggle-ban / toggle-mute 在 DataAdmin 里处理', () => {
     expect(adminSrc).toContain("field.action === 'copy-address'");
     expect(adminSrc).toContain('copyTextToClipboard(');
+    expect(adminSrc).toContain("field.action === 'toggle-ban' || field.action === 'toggle-mute'");
+    expect(adminSrc).toContain("field.action === 'delete-record'");
+    expect(adminSrc).toContain('banUser');
+    expect(adminSrc).toContain('muteUser');
   });
 
   it('edit-status / edit-points / edit-tier 在就地面板里处理', () => {
@@ -178,8 +196,28 @@ describe('接线守卫（源码级）', () => {
     expect(adminSrc).toContain('row.subscription_tier =');
   });
 
-  it('竖屏卡片按构思图定字段优先级', () => {
-    expect(adminSrc).toMatch(/users:\s*\['subscription_tier', 'points'\]/);
-    expect(adminSrc).toMatch(/gifts:\s*\['gift_content', 'gift_status'\]/);
+  it('对象页在桌面也用纯文字列表（不再渲染表格）', () => {
+    expect(adminSrc).toContain('isCompactRowTab || isMobileView');
+    expect(adminSrc).toContain('!isMobileView && !emptyState && !isCompactRowTab');
+  });
+
+  it('详情页的纯文字形态由 plain 一路传到子组件', () => {
+    expect(adminSrc).toContain(':plain="isPlainRecordTab"');
+    expect(recordPaneSrc).toContain(':plain="plain"');
+    expect(recordPaneSrc).toContain('v-if="!editing && !plain"');
+  });
+
+  it('竖屏紧凑行：点整行进详情，勾选只在「选择」模式出现', () => {
+    expect(adminSrc).toContain('isCompactRowTab');
+    expect(adminSrc).toContain("new Set(['users', 'gifts'])");
+    expect(adminSrc).toContain('onCompactRowClick');
+    expect(adminSrc).toContain('toggleCompactSelectMode');
+    expect(adminSrc).toContain('mobile-row-card');
+    expect(adminSrc).toMatch(/onCompactRowClick[\s\S]{0,240}openRecordDetail\(item\)/);
+    expect(adminSrc).toMatch(/v-if="compactSelectMode"[\s\S]{0,160}checkbox-wrapper/);
+  });
+
+  it('订单行的进度 tag 复用 cardView.statusMeta（不写第二份标签/色调）', () => {
+    expect(adminSrc).toMatch(/compactRowTag[\s\S]{0,360}cardView\?\.statusMeta/);
   });
 });

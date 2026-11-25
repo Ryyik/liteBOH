@@ -204,6 +204,7 @@
           <section
             v-if="recordId && dataConfig[recordTab]"
             class="management-section record-section"
+            :class="{ 'is-plain-object-list': isPlainRecordTab }"
           >
             <RecordPane
               ref="recordPaneRef"
@@ -216,6 +217,7 @@
               :get-related-labels="getDetailRelatedLabels"
               :sections="detailSections"
               :overrides="detailOverrides"
+              :plain="isPlainRecordTab"
               :can-delete="canDeleteCurrentTab && !isModerationTab"
               :can-edit="canEditCurrentTab"
               :editing="detailEditing"
@@ -277,6 +279,7 @@
             v-if="isDataConsoleSection && !recordId && !isCreateRecordPage"
             id="data-console"
             class="management-section"
+            :class="{ 'is-plain-object-list': isCompactRowTab }"
           >
             <!-- 模块内子表：设置页式行列表（2026-11-25，plans/048 期 1+2）
                  ⚠️ 只在「当前模块的页签里还有侧栏没覆盖到的」时才渲染。
@@ -287,10 +290,11 @@
                  判定见 unlistedModuleTabIds：只有当模块里存在侧栏未列出的页签（典型是
                  被融合的旧深链，如 ?tab=points）才补一行，避免「打开了却看不见自己在哪」。 -->
             <AdminTabList
-              v-if="unlistedModuleTabIds.length > 0"
+              v-if="unlistedModuleTabIds.length > 0 && !isCompactRowTab"
               :tab-ids="unlistedModuleTabIds"
               :current-tab="currentTab"
               :get-tab-label="getTabLabel"
+              :plain="isCompactRowTab"
               aria-label="其它子表"
               @select="switchTab"
             />
@@ -521,6 +525,17 @@
                   }}</span>
                 </button>
 
+                <button
+                  v-if="isCompactRowTab"
+                  class="select-mode-toggle"
+                  :class="{ 'is-on': compactSelectMode }"
+                  type="button"
+                  :aria-pressed="compactSelectMode"
+                  @click="toggleCompactSelectMode"
+                >
+                  {{ compactSelectMode ? '完成' : '选择' }}
+                </button>
+
                 <!-- 当前生效条件（plans/042 A4）：常驻可单条删除，不必展开筛选面板 -->
                 <ActiveFilterChips
                   v-if="activeFilterChips.length"
@@ -561,7 +576,7 @@
 
                 <!-- 低频操作收进 ⋯（plans/042 A2）：列配置与命令面板都不是每屏必用，
                      常驻会让「新增」被挤到一堆同级按钮里 -->
-                <div class="filter-row-tools">
+                <div v-if="!isCompactRowTab" class="filter-row-tools">
                   <RowActionMenu
                     :items="toolbarMenuItems"
                     title="更多表格操作"
@@ -580,6 +595,7 @@
                     新增
                   </button>
                   <ExportMenu
+                    v-if="!isCompactRowTab"
                     :items="exportMenuItems"
                     :loading="isExportingAll"
                     @open="openRowMenu"
@@ -1144,69 +1160,120 @@
 
                 <!-- 移动端卡片。emptyState 时与空状态互斥（同 DashboardSheet
                      的 v-if 修法）：否则空状态 + 12 张卡片同屏。 -->
-                <div v-if="isMobileView && !emptyState" class="mobile-card-list">
-                  <div
-                    v-for="item in paginatedData"
-                    :key="item.id || getRowIdentity(item)"
-                    class="mobile-card"
-                    :class="{
-                      selected: isSelected(item),
-                      anomaly: isAnomalyRow(item),
-                      'row-flash': flashRowId === String(item?.id),
-                    }"
-                  >
-                    <div class="mobile-card-header">
-                      <label class="checkbox-wrapper">
-                        <input
-                          type="checkbox"
-                          :checked="isSelected(item)"
-                          @click="onRowCheckboxChange(item, $event)"
-                        />
-                        <span class="checkmark"></span>
-                      </label>
-                      <div class="mobile-card-title">{{ getCardTitle(item) }}</div>
-                    </div>
-                    <div class="mobile-card-body">
+                <div
+                  v-if="!emptyState && (isCompactRowTab || isMobileView)"
+                  class="mobile-card-list"
+                >
+                  <!-- 竖屏紧凑行（plans/050 §6 草图口径）：用户 / 订单与礼物。
+                       一行一条、平时无勾选无行内按钮；点整行进详情，
+                       封禁/禁言收进详情页「操作」段。 -->
+                  <template v-if="isCompactRowTab">
+                    <div class="mobile-row-card">
                       <div
-                        v-for="col in mobileCardFields(item)"
-                        :key="col.key"
-                        class="mobile-card-field"
+                        v-for="item in paginatedData"
+                        :key="item.id || getRowIdentity(item)"
+                        class="mobile-row"
+                        :class="{
+                          selected: isSelected(item),
+                          'is-select-mode': compactSelectMode,
+                          'row-flash': flashRowId === String(item?.id),
+                        }"
+                        role="button"
+                        tabindex="0"
+                        @click="onCompactRowClick(item)"
+                        @keydown.enter.prevent="onCompactRowClick(item)"
                       >
-                        <span class="mobile-card-label">{{ col.label }}</span>
-                        <span class="mobile-card-value">{{ formatCardFieldValue(item, col) }}</span>
+                        <label v-if="compactSelectMode" class="checkbox-wrapper" @click.stop>
+                          <input
+                            type="checkbox"
+                            :checked="isSelected(item)"
+                            @click="onRowCheckboxChange(item, $event)"
+                          />
+                          <span class="checkmark"></span>
+                        </label>
+                        <span class="mobile-row-main">
+                          <span class="mobile-row-title">{{ getCardTitle(item) }}</span>
+                          <span class="mobile-row-meta">{{ compactRowMeta(item) }}</span>
+                        </span>
+                        <span
+                          v-if="compactRowTag(item)"
+                          class="mobile-row-tag"
+                          :class="`is-${compactRowTag(item).tone}`"
+                        >
+                          {{ compactRowTag(item).label }}
+                        </span>
                       </div>
                     </div>
-                    <div class="mobile-card-actions">
-                      <button
-                        v-for="act in getRowActionModel(item).primary"
-                        :key="act.id"
-                        type="button"
-                        :class="[
-                          'review-btn',
-                          act.tone,
-                          { 'is-quiet': !isModerationTab && !isLotteryOpsTab },
-                        ]"
-                        :disabled="act.disabled"
-                        :title="act.title"
-                        @click="act.run"
-                      >
-                        {{ act.label }}
-                      </button>
-                      <button
-                        v-if="canEditCurrentTab"
-                        type="button"
-                        class="mobile-action-btn edit"
-                        @click="openEditModal(item)"
-                        aria-label="编辑"
-                      >
-                        <Pencil :size="16" />
-                      </button>
-                      <RowActionMenu :items="getRowActionModel(item).menu" @open="openRowMenu" />
+                  </template>
+                  <template v-else>
+                    <div
+                      v-for="item in paginatedData"
+                      :key="item.id || getRowIdentity(item)"
+                      class="mobile-card"
+                      :class="{
+                        selected: isSelected(item),
+                        anomaly: isAnomalyRow(item),
+                        'row-flash': flashRowId === String(item?.id),
+                      }"
+                    >
+                      <div class="mobile-card-header">
+                        <label class="checkbox-wrapper">
+                          <input
+                            type="checkbox"
+                            :checked="isSelected(item)"
+                            @click="onRowCheckboxChange(item, $event)"
+                          />
+                          <span class="checkmark"></span>
+                        </label>
+                        <div class="mobile-card-title">{{ getCardTitle(item) }}</div>
+                      </div>
+                      <div class="mobile-card-body">
+                        <div
+                          v-for="col in mobileCardFields(item)"
+                          :key="col.key"
+                          class="mobile-card-field"
+                        >
+                          <span class="mobile-card-label">{{ col.label }}</span>
+                          <span class="mobile-card-value">{{
+                            formatCardFieldValue(item, col)
+                          }}</span>
+                        </div>
+                      </div>
+                      <div class="mobile-card-actions">
+                        <button
+                          v-for="act in getRowActionModel(item).primary"
+                          :key="act.id"
+                          type="button"
+                          :class="[
+                            'review-btn',
+                            act.tone,
+                            { 'is-quiet': !isModerationTab && !isLotteryOpsTab },
+                          ]"
+                          :disabled="act.disabled"
+                          :title="act.title"
+                          @click="act.run"
+                        >
+                          {{ act.label }}
+                        </button>
+                        <button
+                          v-if="canEditCurrentTab"
+                          type="button"
+                          class="mobile-action-btn edit"
+                          @click="openEditModal(item)"
+                          aria-label="编辑"
+                        >
+                          <Pencil :size="16" />
+                        </button>
+                        <RowActionMenu :items="getRowActionModel(item).menu" @open="openRowMenu" />
+                      </div>
                     </div>
-                  </div>
+                  </template>
                 </div>
 
-                <div v-if="isMobileView && totalRecordCount > 0" class="mobile-data-pagination">
+                <div
+                  v-if="(isMobileView || isCompactRowTab) && totalRecordCount > 0"
+                  class="mobile-data-pagination"
+                >
                   <span class="g-sheet-foot-text">
                     显示 {{ (currentPage - 1) * pageSize + 1 }} -
                     {{ Math.min(currentPage * pageSize, rankedRowLimit) }} 条 / 共
@@ -1236,7 +1303,10 @@
 
                 <!-- 数据表格（plans/027 C 批 -71px：g-sheet-head 的重复标题与
                      密度/视图/每页条数移到表脚 #pagination，head 整行不再渲染） -->
-                <DashboardSheet v-if="!isMobileView && !emptyState" style="position: relative">
+                <DashboardSheet
+                  v-if="!isMobileView && !emptyState && !isCompactRowTab"
+                  style="position: relative"
+                >
                   <template #pagination>
                     <div class="g-sheet-foot-tools">
                       <div class="density-toggle" role="group" aria-label="表格密度">
@@ -3150,15 +3220,54 @@ const mobileVisibleColumns = computed(() =>
   visibleCurrentColumns.value.filter((col) => col.key !== cardTitleKey.value),
 );
 
-// plans/050 §6：竖屏卡片按用户构思图定字段优先级（标题已承担用户名）。
-// 未配置的页签继续走「可见列前 3 个有值」的既有兜底。
-const MOBILE_CARD_PRIORITY = {
-  users: ['subscription_tier', 'points'],
-  gifts: ['gift_content', 'gift_status'],
+// ---------- 纯文字对象列表（plans/050 §6 用户口径：推翻表格/卡片） ----------
+// 只对「用户 / 订单与礼物」两个页签生效，且**所有视口**都用同一套文本行 ——
+// 桌面不再出表格，手机不再出卡片。
+const COMPACT_ROW_TABS = new Set(['users', 'gifts']);
+const isCompactRowTab = computed(() => COMPACT_ROW_TABS.has(currentTab.value));
+const compactSelectMode = ref(false);
+
+const toggleCompactSelectMode = () => {
+  compactSelectMode.value = !compactSelectMode.value;
+  if (!compactSelectMode.value) {
+    selectedItems.value = [];
+    selectAllResultsMode.value = false;
+  }
 };
-// 不在 columns 里的合成列（值由 fetch 阶段补进行对象）
-const MOBILE_CARD_SYNTHETIC_COLS = {
-  subscription_tier: { key: 'subscription_tier', label: '订阅层级' },
+
+watch(currentTab, () => {
+  compactSelectMode.value = false;
+});
+
+/** 行副标题：用户 = 层级 · 积分；订单 = 内容 · 日期 */
+const compactRowMeta = (item) => {
+  if (currentTab.value === 'users') {
+    const tier = String(item?.subscription_tier || '').trim();
+    const points = Number(item?.points || 0).toLocaleString('zh-CN');
+    return tier ? `${tier} · ${points} 积分` : `${points} 积分`;
+  }
+  if (currentTab.value === 'gifts') {
+    const content = String(item?.gift_content || '').trim() || '—';
+    const date = item?.created_at ? formatDate(item.created_at) : '';
+    return date ? `${content} · ${date}` : content;
+  }
+  return '';
+};
+
+/** 行尾进度 tag（只有订单与礼物有；标签/色调沿用 cardView.statusMeta 真源） */
+const compactRowTag = (item) => {
+  if (currentTab.value !== 'gifts') return null;
+  const meta = dataConfig.gifts?.cardView?.statusMeta?.[item?.gift_status];
+  if (!meta) return null;
+  return { label: meta.label, tone: meta.tone || 'muted' };
+};
+
+const onCompactRowClick = (item) => {
+  if (compactSelectMode.value) {
+    toggleSelect(item);
+    return;
+  }
+  openRecordDetail(item);
 };
 
 /**
@@ -3186,24 +3295,6 @@ const formatCardFieldValue = (item, col) => {
  * 配了优先级的页签（见 MOBILE_CARD_PRIORITY）按构思图顺序取，其余兜底不变。
  */
 const mobileCardFields = (item) => {
-  const priority = MOBILE_CARD_PRIORITY[currentTab.value];
-  if (priority?.length) {
-    const colMap = new Map(
-      [...currentColumns.value, ...Object.values(MOBILE_CARD_SYNTHETIC_COLS)].map((col) => [
-        col.key,
-        col,
-      ]),
-    );
-    const rows = priority
-      .filter((key) => key !== cardTitleKey.value)
-      .map((key) => {
-        const col = colMap.get(key) || { key, label: key };
-        return { col, value: formatCardFieldValue(item, col) };
-      });
-    const filled = rows.filter((row) => row.value !== '—' && row.value !== '-');
-    return (filled.length ? filled : rows).slice(0, MOBILE_CARD_FIELD_LIMIT).map((row) => row.col);
-  }
-
   const rows = mobileVisibleColumns.value.map((col) => ({
     col,
     value: formatCardFieldValue(item, col),
@@ -7790,6 +7881,7 @@ const createDrawerRef = ref(null);
  *    写成 `'@update-field'` 在 v-bind 对象里**不会生效**（v-bind 只认 onXxx）。
  */
 const editorBindings = computed(() => ({
+  plain: isPlainRecordTab.value,
   isEditing: isEditing.value,
   editingItem: editingItem.value,
   currentTab: currentTab.value,
@@ -8812,14 +8904,21 @@ const detailTabLabel = computed(
 );
 const detailTable = computed(() => dataConfig[recordTab.value]?.table || '');
 // D2 升级：详情页内编辑需要完整行（保存策略会读取列表列之外的字段，
-// 窄列清单会让 editingItem 缺键 → 更新时把未知字段写成 undefined）。单行查询用 *。
-const detailSelectColumns = computed(() => '*');
+// 窄列清单会让 editingItem 缺键 → 更新时把未知字段写成 undefined）。
+// ⚠️ users 不能用 `*`：profiles 的 shipping_* 列级 SELECT 已被收回（2026070802），
+//    `.select('*')` 等于 RETURNING * ⇒ 线上直接 42501「permission denied for table
+//    profiles」（2026-11-25 用户实测截图）。这里用保存链路的显式列清单，
+//    正是为编辑回读准备的同一份；邮箱/收货信息在详情里不展示，改走编辑流程。
+const detailSelectColumns = computed(() =>
+  recordTab.value === 'users' ? PROFILE_SAVE_SELECT_COLUMNS : '*',
+);
 const detailFields = computed(() => dataConfig[recordTab.value]?.columns || []);
 
 // ---------- 详情页分段 + 就地操作（plans/050 期 1 / 期 3） ----------
 // 未配置分段的表返回 null，DetailFields 退回原「单组平铺」——49 个页签零回归。
 const detailSections = computed(() => DETAIL_SECTIONS[recordTab.value] || null);
 
+const isPlainRecordTab = computed(() => COMPACT_ROW_TABS.has(recordTab.value));
 const detailRecord = ref(null);
 const detailTier = ref('');
 const detailQuickAction = ref(null);
@@ -8832,6 +8931,13 @@ const detailOverrides = computed(() => {
   if (recordTab.value === 'users' && detailTier.value) {
     // 未知档位（历史上出现过的 plus / 异常返回值）一律留空，不把原始值直接上屏
     overrides.subscription_tier = SUBSCRIPTION_PLAN_NAMES[detailTier.value] || '';
+  }
+  if (recordTab.value === 'users') {
+    const month = Number(record.birth_month) || 0;
+    const day = Number(record.birth_day) || 0;
+    if (month > 0 && day > 0) {
+      overrides.birthday = `${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    }
   }
   if (recordTab.value === 'gifts' && record.gift_status) {
     const meta = dataConfig.gifts?.cardView?.statusMeta || {};
@@ -8872,6 +8978,27 @@ const onDetailFieldAction = ({ field, section, record }) => {
         logger.error('data-admin', '复制收件信息失败:', error);
         showToast('复制失败，请手动复制', 'error');
       });
+    return;
+  }
+  // 封禁 / 禁言：逻辑仍走既有 mutations 中心（含原因输入、撤销会话、审计日志），
+  // 只是入口从列表行搬到了详情页「操作」段。
+  if (field.action === 'delete-record') {
+    onDetailDangerDelete(record);
+    return;
+  }
+  if (field.action === 'toggle-ban' || field.action === 'toggle-mute') {
+    const user = record || {};
+    const fn =
+      field.action === 'toggle-ban'
+        ? user.is_banned
+          ? unbanUser
+          : banUser
+        : user.is_muted
+          ? unmuteUser
+          : muteUser;
+    Promise.resolve(fn(user))
+      .then(() => recordPaneRef.value?.fetchRecord?.())
+      .catch(() => {});
     return;
   }
   detailQuickAction.value = { field, section, record };
@@ -10696,6 +10823,25 @@ onUnmounted(() => {
 }
 .data-management-page .data-content {
   padding-top: 10px;
+}
+
+/* plans/050 纯文字对象页：详情由子组件（DetailHeader / DetailAside）渲染，
+   它们不继承本组件的 scoped 属性，所以这几条必须放在这块**无 scoped** 的样式里。
+   前缀 .data-management-page 是为了压过子组件 scoped 规则的特异性。 */
+.data-management-page .record-section.is-plain-object-list .detail-aside-card {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+}
+
+.data-management-page .record-section.is-plain-object-list .detail-header-row .btn {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--primary);
+  font-weight: 500;
 }
 
 /* 表脚工具组（C 批：g-sheet-head 移除后密度/视图/每页条数落位处） */

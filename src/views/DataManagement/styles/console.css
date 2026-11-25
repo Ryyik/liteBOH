@@ -84,6 +84,13 @@
   box-shadow: none;
 }
 
+/* 纯文字对象页（用户 / 订单与礼物）：去掉外层卡片，列表直接铺在页面底色上 */
+.management-section.is-plain-object-list {
+  background: transparent;
+  border-color: transparent;
+  border-radius: 0;
+}
+
 /* 标签页头部 */
 .tabs-header {
   display: flex;
@@ -2130,6 +2137,114 @@
   margin-top: 12px;
 }
 
+/* 批量选择入口：纯文字按钮，与筛选同一行；平时不占列表视觉 */
+.select-mode-toggle {
+  border: 0;
+  background: transparent;
+  padding: 8px 6px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--primary);
+  cursor: pointer;
+}
+
+.select-mode-toggle.is-on {
+  color: var(--foreground);
+  font-weight: 600;
+}
+
+/* ==================== 竖屏紧凑行（plans/050 §6 草图口径） ==================== */
+/* 用户 / 订单与礼物：一行一条，点整行进详情；平时没有勾选框与行内动作按钮。
+   批量选择是独立模式（右上角「选择」），不选时不占视觉。 */
+.mobile-row-card {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  overflow: visible;
+}
+
+.mobile-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 0;
+  padding: 10px 2px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mobile-row + .mobile-row::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 2px;
+  right: 0;
+  height: 1px;
+  background: var(--border);
+  pointer-events: none;
+}
+
+.mobile-row:active {
+  opacity: 0.6;
+}
+
+.mobile-row.selected .mobile-row-title {
+  color: var(--primary);
+}
+
+.mobile-row:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+
+.mobile-row-main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.mobile-row-title {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--foreground);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mobile-row-meta {
+  font-size: 12.5px;
+  color: var(--muted-foreground);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mobile-row-tag {
+  flex: 0 0 auto;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted-foreground);
+}
+
+.mobile-row-tag.is-warning {
+  color: var(--warning);
+}
+
+.mobile-row-tag.is-success {
+  color: var(--success);
+}
+
+.mobile-row-tag.is-danger {
+  color: var(--danger);
+}
+
 /* ==================== 移动端卡片布局 ==================== */
 .mobile-card-list {
   display: flex;
@@ -2942,4 +3057,41 @@
 .admin-issue-banner-text {
   min-width: 0;
   overflow-wrap: anywhere;
+}
+
+/* 纯文字对象页的工具栏：把药丸按钮退回文字，只保留搜索框（下划线） */
+.is-plain-object-list .search-scope {
+  min-height: 0;
+  padding: 8px 4px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--primary);
+}
+
+.is-plain-object-list .filter-toggle {
+  min-height: 0;
+  padding: 8px 6px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--primary);
+  box-shadow: none;
+}
+
+.is-plain-object-list .toolbar-actions .btn-primary {
+  min-height: 0;
+  padding: 8px 6px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--primary);
+  box-shadow: none;
+}
+
+.is-plain-object-list .search-box input {
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
 }

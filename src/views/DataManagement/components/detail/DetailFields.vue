@@ -15,9 +15,9 @@
           <span class="detail-row-label">{{ labelFor(item) }}</span>
           <span v-if="!item.hideValue" class="detail-row-value">
             <span class="detail-row-text">{{ valueFor(item) }}</span>
-            <ChevronRight v-if="item.action" :size="16" class="detail-row-chevron" />
+            <span v-if="item.action" class="detail-row-chevron" aria-hidden="true">›</span>
           </span>
-          <ChevronRight v-else-if="item.action" :size="16" class="detail-row-chevron" />
+          <span v-else-if="item.action" class="detail-row-chevron" aria-hidden="true">›</span>
         </component>
       </div>
     </section>
@@ -33,7 +33,6 @@
 
 <script setup>
 import { computed } from 'vue';
-import { ChevronRight } from 'lucide-vue-next';
 import { formatDate, formatDateTime } from '../../composables/useDataAdminHelpers.js';
 
 const props = defineProps({
@@ -149,11 +148,11 @@ const formatValue = (val) => {
 }
 
 .detail-section-card {
-  background: var(--liquid-bg-strong, var(--card));
-  border: 1px solid var(--liquid-border, var(--border));
-  border-radius: var(--liquid-radius-md, 16px);
-  box-shadow: var(--liquid-shadow-sm);
-  overflow: hidden;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  overflow: visible;
 }
 
 .detail-section-row {
@@ -164,7 +163,7 @@ const formatValue = (val) => {
   gap: 16px;
   width: 100%;
   min-height: 44px;
-  padding: 12px 18px;
+  padding: 9px 0;
   border: 0;
   background: transparent;
   font-family: inherit;
@@ -186,18 +185,6 @@ const formatValue = (val) => {
 
 .detail-section-row.is-action:active {
   background: var(--liquid-bg-nested);
-}
-
-/* 发丝线内缩到文字起点（与设置页 .gs-row 同口径，不穿过左侧内容） */
-.detail-section-row + .detail-section-row::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 18px;
-  right: 0;
-  height: 1px;
-  background: var(--liquid-border-hairline, var(--border));
-  pointer-events: none;
 }
 
 .detail-row-label {
@@ -223,7 +210,10 @@ const formatValue = (val) => {
 
 .detail-row-chevron {
   flex: 0 0 auto;
+  font-size: 16px;
+  line-height: 1;
   color: var(--muted-foreground);
+  opacity: 0.5;
 }
 
 @media (max-width: 768px) {

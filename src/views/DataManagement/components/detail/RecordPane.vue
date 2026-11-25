@@ -1,6 +1,12 @@
 <template>
   <div class="record-pane">
-    <DetailHeader :crumbs="crumbs" :title="recordTitle" @crumb="onCrumb" @back="$emit('back')" />
+    <DetailHeader
+      :crumbs="crumbs"
+      :title="recordTitle"
+      :plain="plain"
+      @crumb="onCrumb"
+      @back="$emit('back')"
+    />
 
     <div v-if="loading" class="record-pane-state">加载中…</div>
 
@@ -30,7 +36,7 @@
           <div id="detail-edit-slot" v-show="editing"></div>
         </div>
         <DetailAside
-          v-if="!editing"
+          v-if="!editing && !plain"
           :record="record"
           :related-labels="getRelatedLabels?.(record) || []"
           :can-delete="canDelete"
@@ -39,6 +45,7 @@
       </div>
       <DetailActionBar
         :editing="editing"
+        :plain="plain"
         :saving="saving"
         :can-edit="canEdit"
         @edit="$emit('edit', record)"
@@ -65,6 +72,8 @@ const props = defineProps({
   fields: { type: Array, default: () => [] },
   sections: { type: Array, default: null },
   overrides: { type: Object, default: () => ({}) },
+  // 纯文字对象页（plans/050）：隐藏面包屑 / 侧栏卡片，标题旁只留返回箭头
+  plain: { type: Boolean, default: false },
   moduleLabel: { type: String, default: '' },
   tabLabel: { type: String, default: '' },
   getRelatedLabels: { type: Function, default: null },

@@ -10,10 +10,25 @@
        卡片底 / 描边 / 圆角 / 行高 / 发丝线内缩都由下面的 `--tab-*` 变量给出，
        值与 settings-glass.css 的行几何一致（44px 行、18px 左内距、13px 图标间距）。
        ⚠️ 刻意**不 import** settings-glass.css：那个文件是经
-          `ProfileSettingsPanel.vue` 的 `<style scoped> @import` 引入的，编译后规则
+          `ProfileSettingsPanel.vue` 的 `<style scoped>
+/* 纯文字形态：去掉卡片底/描边/圆角，行直接铺在页面底色上 */
+.tab-list.is-plain .tab-list-rows {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.tab-list.is-plain .tab-row {
+  padding-left: 2px;
+  padding-right: 2px;
+}
+ @import` 引入的，编译后规则
           带的是父组件的 data-v，作用不到本组件（同类坑见 SettingsSubpageHeader.vue 头部）。
           所以这里复制的是**数值**，不是规则 —— 改设置页行高时本文件要跟着看。 -->
-  <div class="tab-list" role="tablist" :aria-label="ariaLabel">
+  <div class="tab-list" :class="{ 'is-plain': plain }" role="tablist" :aria-label="ariaLabel">
     <div class="tab-list-rows">
       <button
         v-for="tabId in tabIds"
@@ -58,6 +73,8 @@ const props = defineProps({
    */
   getTabBadge: { type: Function, default: null },
   ariaLabel: { type: String, default: '子表切换' },
+  /** 纯文字对象页（plans/050）：去掉卡片皮肤，只留文字行 */
+  plain: { type: Boolean, default: false },
 });
 
 defineEmits(['select']);
@@ -75,6 +92,21 @@ const badgeOf = (tabId) => {
 </script>
 
 <style scoped>
+/* 纯文字形态：去掉卡片底/描边/圆角，行直接铺在页面底色上 */
+.tab-list.is-plain .tab-list-rows {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.tab-list.is-plain .tab-row {
+  padding-left: 2px;
+  padding-right: 2px;
+}
+
 /* 行几何单点：改这里就是改所有行（与 settings-glass.css 的 .gs-rows 数值对齐） */
 .tab-list {
   --tab-row-pad-x: 18px;

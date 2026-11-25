@@ -15,7 +15,7 @@
       tabindex="-1"
       ref="overlayRef"
     >
-      <div class="drawer" @keydown.esc.stop="$emit('close')">
+      <div class="drawer" :class="{ 'is-plain': plain }" @keydown.esc.stop="$emit('close')">
         <div v-if="!embedded" class="drawer-header">
           <div class="drawer-title-group">
             <h3 :id="titleId">{{ isEditing ? '编辑数据' : '新增数据' }}</h3>
@@ -1212,6 +1212,8 @@ const props = defineProps({
   show: Boolean,
   // D2：嵌入详情页形态（无遮罩/无滚动锁/Esc/焦点圈，头尾隐藏）
   embedded: Boolean,
+  // 纯文字对象页（plans/050）：表单去掉卡片/边框，输入框退回下划线
+  plain: { type: Boolean, default: false },
   isEditing: Boolean,
   editingItem: Object,
   currentTab: String,

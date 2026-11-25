@@ -1,5 +1,3 @@
-
-
 /* ==================== 编辑抽屉(右侧滑入) ==================== */
 .drawer-overlay {
   position: fixed;
@@ -15,7 +13,7 @@
   overflow: hidden;
   overscroll-behavior: none;
   margin: 0;
-  font-family: "DM Sans", ui-sans-serif, sans-serif, system-ui;
+  font-family: 'DM Sans', ui-sans-serif, sans-serif, system-ui;
 }
 
 .drawer {
@@ -30,7 +28,9 @@
   -webkit-backdrop-filter: var(--liquid-filter);
   border-radius: 16px 0 0 16px;
   border-left: 1px solid var(--border);
-  box-shadow: -6px 0 24px rgba(14, 17, 21, 0.12), var(--dm-liquid-highlight, inset 0 1px 0 rgba(255, 255, 255, 0.55));
+  box-shadow:
+    -6px 0 24px rgba(14, 17, 21, 0.12),
+    var(--dm-liquid-highlight, inset 0 1px 0 rgba(255, 255, 255, 0.55));
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -81,7 +81,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background-color 0.15s, color 0.15s;
+  transition:
+    background-color 0.15s,
+    color 0.15s;
 }
 
 .drawer-close:hover {
@@ -243,7 +245,10 @@
   color: var(--dm-muted, #7f8d9f);
   font-variant-numeric: tabular-nums;
 }
-.field-groups-actions { display: flex; gap: 4px; }
+.field-groups-actions {
+  display: flex;
+  gap: 4px;
+}
 .field-groups-actions button {
   border: none;
   background: transparent;
@@ -255,7 +260,9 @@
   padding: 4px 6px;
   border-radius: 6px;
 }
-.field-groups-actions button:hover { background: var(--muted); }
+.field-groups-actions button:hover {
+  background: var(--muted);
+}
 
 /* 字段定位高亮（直达字段/错误定位时闪一下） */
 .form-group.field-flash {
@@ -263,8 +270,14 @@
   border-radius: 8px;
 }
 @keyframes field-flash {
-  0%, 100% { background: transparent; }
-  20%, 60% { background: color-mix(in srgb, var(--primary) 12%, transparent); }
+  0%,
+  100% {
+    background: transparent;
+  }
+  20%,
+  60% {
+    background: color-mix(in srgb, var(--primary) 12%, transparent);
+  }
 }
 
 .field-group:last-child {
@@ -496,7 +509,9 @@
   font-size: 14px;
   line-height: 1.5;
   color: var(--foreground);
-  transition: border-color 0.15s, box-shadow 0.15s;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
   outline: none;
 }
 .form-input:focus-visible,
@@ -563,7 +578,7 @@
 }
 
 .field-error::before {
-  content: "\26A0";
+  content: '\26A0';
   font-size: 11px;
 }
 
@@ -723,8 +738,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
-  font-family: "DM Sans", ui-sans-serif, sans-serif, system-ui;
+  padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right))
+    max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+  font-family: 'DM Sans', ui-sans-serif, sans-serif, system-ui;
 }
 
 .user-picker-modal {
@@ -1081,8 +1097,6 @@
   opacity: 0;
 }
 
-
-
 /* 未定义样式的补全 */
 .edit-form {
   display: flex;
@@ -1209,12 +1223,19 @@
   /* 限高 + 内部滚动（.drawer-body 已有 overflow-y:auto + min-height:0）：
      完整表单可达 2800px 高，不限高会把整个详情页撑到 3000px+——
      横屏(390 高)下第一个输入框在视口上方 344px，竖屏也要滚很久。
-     216 = 顶栏 64 + 详情头部 ~90 + 操作条 ~60；极矮视口保底 160px。 */
+     216 = 顶栏 64 + 详情头部 ~90 + 操作条 ~60；极矮视口保底 160px。
+     ⚠️ 纯文字（.is-plain）形态由下面的同名选择器就地解除限高与盒子：
+     它没有自己的滚动区，限高会让整页编辑被裁在圆角盒子里（滚动交给详情页）。 */
   max-height: max(160px, calc(100dvh - 216px));
   border-radius: 12px;
   border: 1px solid var(--border);
   box-shadow: none;
   animation: none;
+}
+
+.drawer-overlay.is-embedded .drawer.is-plain {
+  overflow: visible;
+  max-height: none;
 }
 
 /* 嵌入形态禁用滑入动画（Transition name=drawer-embedded，无对应 CSS 即瞬时） */
@@ -1245,4 +1266,155 @@
   .product-picker-dropdown {
     animation: none;
   }
+}
+
+/* ==================== plans/050：纯文字对象页的页内编辑 ====================
+   与详情只读视图同一套口径：无卡片、无分组底、输入框只留下划线。
+   ⚠️ 本文件经 DataAdmin 的**无 scoped** <style> 引入，能作用到 EditDrawer 的子元素；
+      写进 EditDrawer 的 scoped 块会被 data-v 限定，只对自身模板生效。 */
+/*  specificity：嵌入形态的盒子样式写在 .drawer-overlay.is-embedded .drawer（0,3,0），
+    这里必须用同级或更高的选择器，否则边框/圆角/底色压不掉（实测第一轮就漏在这）。 */
+.drawer-overlay .drawer.is-plain {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: none;
+}
+
+.drawer.is-plain .drawer-body {
+  padding: 0;
+}
+
+.drawer.is-plain .field-group {
+  margin-bottom: 20px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  overflow: visible;
+}
+
+.drawer.is-plain .field-group-header {
+  padding: 0 0 8px;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted-foreground);
+}
+
+.drawer.is-plain .field-group-header:hover {
+  background: transparent;
+}
+
+.drawer.is-plain .field-group-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 0;
+}
+
+.drawer.is-plain .form-label {
+  font-size: 12.5px;
+  color: var(--muted-foreground);
+}
+
+.drawer.is-plain .form-input,
+.drawer.is-plain .form-select,
+.drawer.is-plain .form-textarea {
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
+  padding: 8px 0;
+}
+
+.drawer.is-plain .form-input:focus,
+.drawer.is-plain .form-select:focus,
+.drawer.is-plain .form-textarea:focus {
+  outline: none;
+  border-bottom-color: var(--primary);
+}
+
+.drawer.is-plain .btn.btn-secondary {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--primary);
+  padding: 6px 0;
+}
+
+.drawer.is-plain .news-assist-panel,
+.drawer.is-plain .gift-address-copy-box {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+}
+
+/* 纯文字编辑：一行一条、无折叠、无分组保存（只有底部「保存」） */
+.drawer.is-plain .field-groups-toolbar {
+  display: none;
+}
+
+.drawer.is-plain .field-group-header {
+  pointer-events: none;
+}
+
+.drawer.is-plain .field-group-toggle,
+.drawer.is-plain .field-group-count,
+.drawer.is-plain .field-group-save-row,
+.drawer.is-plain .field-copy-btn {
+  display: none;
+}
+
+.drawer.is-plain .field-group.collapsed .field-group-body {
+  display: flex;
+}
+
+.drawer.is-plain .form-group {
+  display: flex;
+  /* 基础 .form-group 是 column（标签在上、控件在下），只改 display 不改方向 = 仍旧两行 */
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 16px;
+  margin-bottom: 0;
+}
+
+.drawer.is-plain .form-group .form-label {
+  flex: 0 0 auto;
+  margin: 0;
+}
+
+/* 控件有的是裸 input/select，有的包在 .user-picker-field / .product-picker-field 里，
+   一律占满标签右侧；说明文字（.field-hint）单独换行铺满。 */
+.drawer.is-plain .form-group > :not(.form-label):not(.field-hint) {
+  flex: 1 1 200px;
+  min-width: 0;
+}
+
+.drawer.is-plain .form-group > .field-hint {
+  flex: 1 0 100%;
+  margin: 0;
+}
+
+.drawer.is-plain .form-group > .form-input,
+.drawer.is-plain .form-group > .form-select,
+.drawer.is-plain .form-group > .form-textarea {
+  flex: 1 1 160px;
+  width: auto;
+  min-width: 0;
+  text-align: right;
+}
+
+.drawer.is-plain .form-group > .form-textarea {
+  text-align: left;
+}
+
+.drawer.is-plain .form-group > div > .form-input,
+.drawer.is-plain .form-group > div > .form-select {
+  width: 100%;
+  text-align: right;
 }

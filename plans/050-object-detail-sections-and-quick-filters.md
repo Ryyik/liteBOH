@@ -260,3 +260,35 @@ export const DETAIL_SECTIONS = {
 
 **验证读数**：后台相关单测 63 文件 / 713 项全绿；`type-check` 通过；`vite build` 通过；
 竖屏探针 78/78、横屏 28/28、详情 14/14、控制台壳 27/27。
+
+---
+
+## 10. 期 4 · 视觉返工轮（2026-11-25，按草图推翻卡片/表格）
+
+用户口径（原话）：「我的草图似乎不长这样」「我不想做表格式」「感觉这些按钮也太冗余了」
+「编辑页面也要相应的一样的极简文字无衬线」「保存也只有全部保存，然后不再有什么展开收起，
+一行一个数据，点击直接可以编辑，然后无衬线，极简」。
+
+| 改动 | 结论 / 判据 / 实测日期 |
+| --- | --- |
+| 列表形态 | **纯文字行**（既不是卡片也不是表格）。判据：`grep -n "is-plain-object-list" src/views/DataManagement/DataAdmin.vue`；实测 2026-11-25 |
+| 行内动作 | 封禁 / 禁言 / 删除**从行里搬进详情「操作」段**（用户选定「收进详情页」）。判据：竖屏探针「「操作」段含封禁 / 禁言入口」 |
+| 分段收口 | users 3 段（身份 / 资产 / 操作）、gifts 4 段（订单 / 收货信息 / 进度 / 操作）；未展示的列进 `DETAIL_SECTION_OMITTED_FIELDS` 显式登记。判据：`npx vitest run tests/unit/data-admin-detail-sections.test.js`（20，含「分段并集 + 省略集 == 全部列」） |
+| 工具条冗余 | 批量模式改为文字开关 `.select-mode-toggle`，行内菜单 / 导出菜单在纯行 tab 隐藏。判据：`grep -n "select-mode-toggle" src/views/DataManagement/styles/console.css` |
+| 编辑页极简 | 无分组卡片、无「N/M 组展开 + 全部展开/收起」、一行一条（标签左 / 控件同行右对齐）、底部只留文字态「取消 / 保存」。判据：竖屏探针四条「编辑页…」断言 |
+
+⚠️ 两条必踩的坑（第一轮返工就是栽在这，探针当时还全绿）：
+
+1. **specificity**：嵌入形态的盒子写在 `.drawer-overlay.is-embedded .drawer`（0,3,0），
+   `.drawer.is-plain`（0,2,0）**压不掉边框 / 圆角 / 限高** —— 必须用
+   `.drawer-overlay .drawer.is-plain`（同级且靠后）。症状：整页编辑被裁在一个圆角盒子里。
+2. **只改 `display` 不改方向 = 仍旧两行**：基础 `.form-group` 是
+   `display:flex; flex-direction:column`，纯文字态必须显式写回 `flex-direction: row`。
+   另外控件不只有裸 `input`，还包在 `.user-picker-field` / `.product-picker-field` 里，
+   所以「一行一条」的选择器要写 `> :not(.form-label):not(.field-hint)`，
+   `.field-hint` 单独 `flex: 1 0 100%` 换行。
+
+**验证读数（2026-11-25）**：竖屏探针 **98/98**（两档视口 × 新增 4 条编辑页断言）；
+后台单测 `data-admin-detail-sections`(20) + `data-admin-date-quick-ranges`(15) 全绿；
+`check:dark-tokens:strict` 2408/2408、`check:important-budget` 603/603、
+`check:doc-truth` 通过、`type-check` 通过、`npm run lint` 89 警告（上限 90）。

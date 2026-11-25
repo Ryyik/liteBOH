@@ -14,8 +14,11 @@
  */
 export const DETAIL_SECTIONS = {
   users: [
-    { id: 'identity', label: '身份', fields: ['username', 'role', 'id'] },
-    { id: 'account', label: '账号状态', fields: ['is_banned', 'is_muted', 'join_date'] },
+    {
+      id: 'identity',
+      label: '身份',
+      fields: ['username', { key: 'birthday', label: '生日' }],
+    },
     {
       id: 'assets',
       label: '资产',
@@ -24,24 +27,27 @@ export const DETAIL_SECTIONS = {
         { key: 'subscription_tier', label: '订阅层级', action: 'edit-tier' },
       ],
     },
-    { id: 'contact', label: '联系方式', fields: ['email'] },
     {
-      id: 'shipping',
-      label: '收货信息',
-      fields: ['shipping_recipient', 'shipping_phone', 'shipping_address'],
+      id: 'actions',
+      label: '操作',
+      fields: [
+        { key: 'is_banned', label: '封禁状态', action: 'toggle-ban' },
+        { key: 'is_muted', label: '禁言状态', action: 'toggle-mute' },
+        {
+          key: '__delete_record',
+          label: '删除记录',
+          action: 'delete-record',
+          hideValue: true,
+        },
+      ],
     },
   ],
   gifts: [
-    {
-      id: 'order',
-      label: '订单',
-      fields: ['username', 'created_at', 'gift_content', 'gift_scope_label'],
-    },
+    { id: 'order', label: '订单', fields: ['username', 'created_at', 'gift_content'] },
     {
       id: 'shipping',
       label: '收货信息',
       fields: [
-        'shipping_recipient',
         'shipping_address',
         {
           key: '__copy_address',
@@ -51,11 +57,43 @@ export const DETAIL_SECTIONS = {
         },
       ],
     },
+    { id: 'progress', label: '进度', fields: [{ key: 'gift_status', action: 'edit-status' }] },
     {
-      id: 'progress',
-      label: '进度',
-      fields: [{ key: 'gift_status', action: 'edit-status' }, 'gift_no', 'completed_at'],
+      id: 'actions',
+      label: '操作',
+      fields: [
+        {
+          key: '__delete_record',
+          label: '删除记录',
+          action: 'delete-record',
+          hideValue: true,
+        },
+      ],
     },
-    { id: 'amount', label: '金额', fields: ['gift_price', 'gift_points'] },
+  ],
+};
+
+/**
+ * 草稿只要求展示少数核心字段；其余字段仍在「编辑」里可改，但不在只读页铺开。
+ * 这份清单让守卫能区分「刻意不展示」与「新增列漏配」：
+ *   columns = sections 里用到的 key + 这里登记的 key（两边都必须恰好覆盖、互不重叠）。
+ */
+export const DETAIL_SECTION_OMITTED_FIELDS = {
+  users: [
+    'id',
+    'role',
+    'email',
+    'join_date',
+    'shipping_recipient',
+    'shipping_phone',
+    'shipping_address',
+  ],
+  gifts: [
+    'gift_scope_label',
+    'shipping_recipient',
+    'gift_no',
+    'gift_price',
+    'gift_points',
+    'completed_at',
   ],
 };
