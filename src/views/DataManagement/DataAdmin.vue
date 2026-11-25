@@ -3,16 +3,20 @@
     <div class="admin-shell">
       <AdminSidebar
         :active-module="activeModule"
+        :active-row-id="activeNavRowId"
         :denied-ids="deniedModuleIds"
         :has-unmoderated="moderationPendingCount > 0"
         :alert-modules="lotteryAlertModules"
         :is-open="isAdminSidebarOpen"
         :module-badges="draftBadges"
         :modules="sidebarModules"
+        :nav-groups="navGroups"
+        :group-badges="navGroupBadges"
         :functions="adminFunctions"
         :search-query="sidebarSearchQuery"
         @denied-click="handleDeniedModuleClick"
         @module-click="guardedModuleClick"
+        @row-click="handleNavRowClick"
         @function-click="handleFunctionClick"
         @create-record="handleAdminCreate"
         @refresh-data="refreshAllData"
@@ -160,34 +164,22 @@
             id="data-console"
             class="management-section"
           >
-            <!-- 模块内子表 Tabs -->
-            <div
-              v-if="currentModuleTabIds.length > 1"
-              class="g-module-tabs"
-              role="tablist"
-              aria-label="子表切换"
-            >
-              <button
-                v-for="tabId in visibleModuleTabs"
-                :key="tabId"
-                type="button"
-                role="tab"
-                :class="['g-module-tab', { 'is-active': currentTab === tabId }]"
-                :aria-selected="currentTab === tabId"
-                @click="switchTab(tabId)"
-              >
-                {{ getTabLabel(tabId) }}
-              </button>
-              <button
-                v-if="overflowModuleTabs.length && !isMobileView"
-                type="button"
-                class="g-module-tab g-module-tab-more"
-                aria-haspopup="menu"
-                @click="openMoreTabsMenu($event)"
-              >
-                更多 {{ overflowModuleTabs.length }} ▾
-              </button>
-            </div>
+            <!-- 模块内子表：设置页式行列表（2026-11-25，plans/048 期 1+2）
+                 ⚠️ 只在「当前模块的页签里还有侧栏没覆盖到的」时才渲染。
+                 期 2 之后侧栏已经按 8 组把每个页签都列了一遍，再在内容区重复列一次
+                 就是同一批入口出两遍 —— 用户看到「用户 / 积分流水 / 权益发放」在左栏，
+                 右边又来「用户管理 / 积分管理 / 积分发放」，会以为是两组不同的东西。
+                 这是设置页绝不会有的结构（设置页的右栏只放**当前那一项**的内容）。
+                 判定见 unlistedModuleTabIds：只有当模块里存在侧栏未列出的页签（典型是
+                 被融合的旧深链，如 ?tab=points）才补一行，避免「打开了却看不见自己在哪」。 -->
+            <AdminTabList
+              v-if="unlistedModuleTabIds.length > 0"
+              :tab-ids="unlistedModuleTabIds"
+              :current-tab="currentTab"
+              :get-tab-label="getTabLabel"
+              aria-label="其它子表"
+              @select="switchTab"
+            />
 
             <LotteryOperationsPanel
               v-if="activeModule === 'lottery'"
@@ -2160,6 +2152,7 @@ import {
 import AdminHeader from './components/AdminHeader.vue';
 import AdminOverview from './components/AdminOverview.vue';
 import AdminSidebar from './components/AdminSidebar.vue';
+import AdminTabList from './components/AdminTabList.vue';
 import LotteryOperationsPanel from './components/LotteryOperationsPanel.vue';
 import FulfillmentWorkbench from './components/FulfillmentWorkbench.vue';
 import ApiKeyConsole from './components/ApiKeyConsole.vue';
@@ -2312,7 +2305,15 @@ import {
 import { createExportCenter } from './composables/useDataAdminExport.js';
 import { createGlobalSearchCenter } from './composables/useDataAdminGlobalSearch.js';
 import { createShortcutsCenter } from './composables/useDataAdminShortcuts.js';
-import { createNavigationCenter } from './composables/useDataAdminNavigation.js';
+import { createNavigationCenter, ROUTE_MAP } from './composables/useDataAdminNavigation.js';
+import {
+  HIDDEN_TAB_IDS,
+  NAV_GROUPS_WITH_ROW_META,
+  ROW_ID_BY_TAB_ID,
+  buildGroupBadges,
+  resolveNavRowIdForModule,
+  resolveNavRowIdForTab,
+} from './config/nav-groups.js';
 import { consumeAdminTabJumpSearch } from './composables/useAdminTabIntent.js';
 import { resolveInitialAdminTab } from './composables/resolveInitialAdminTab.js';
 import {
@@ -3688,29 +3689,9 @@ const currentAdminPageActions = computed(() => {
   }
   return [];
 });
-// tab 溢出（plans/027 4.1.4）：置顶优先，最多可见 4 个，其余进「更多 ▾」浮层
-const MAX_VISIBLE_TABS = 4;
-const visibleModuleTabs = computed(() => {
-  const all = currentModuleTabIds.value;
-  const pinned = all.filter((id) => isTabPinned(id));
-  const rest = all.filter((id) => !isTabPinned(id));
-  return [...pinned, ...rest].slice(0, MAX_VISIBLE_TABS);
-});
-const overflowModuleTabs = computed(() =>
-  currentModuleTabIds.value.filter((id) => !visibleModuleTabs.value.includes(id)),
-);
-const openMoreTabsMenu = (event) => {
-  const rect = event.currentTarget?.getBoundingClientRect();
-  if (!rect) return;
-  openRowMenu({
-    rect,
-    items: overflowModuleTabs.value.map((tabId) => ({
-      id: tabId,
-      label: getTabLabel(tabId),
-      run: () => switchTab(tabId),
-    })),
-  });
-};
+/* 「tab 溢出 → 更多 ▾ 浮层」整套逻辑已随 chips 条一起退场（2026-11-25，plans/048 期 1）：
+   行列表把全部页签一次性摊开，不再有可见/溢出的二分。`isTabPinned` 仍被
+   右键菜单与变更日志使用（见本文件 6343/6404），保留。 */
 
 const tableSummaryCards = computed(() =>
   dashboardTableIds.map((tabId) => {
@@ -5717,6 +5698,107 @@ const handleDeniedModuleClick = (mod) => {
     `当前角色（${getRoleLabel(currentUserRole.value)}）无权访问「${mod?.label || mod?.id || '该模块'}」`,
     'error',
   );
+};
+
+// ==================== 设置页式分组导航（plans/048 期 2） ====================
+/**
+ * 侧栏传下去的分组结构。
+ *
+ * ⚠️ 只在 `tabModules` 之上做**渲染映射**，不动 `tabModules` 本身：
+ *    后者是落点注册表（每个 /admin/*-console 必须在里面有一席，
+ *    见 tests/unit/admin-console-wiring.test.js），颗粒度与本结构不同。
+ */
+const navGroups = computed(() => NAV_GROUPS_WITH_ROW_META);
+
+/**
+ * 当前模块里**侧栏没有列出、但也不是刻意删除**的页签。
+ *
+ * 三类页签要分清，否则这个列表会出现不该出现的行：
+ *   ① 侧栏已列出（绝大多数）→ 不渲染，内容区不重复导航
+ *   ② `HIDDEN_TAB_IDS`（明确删入口）→ 不渲染。它们只是旧深链还能打开，
+ *      不该在「其它子表」里重新冒出来，那等于把刚删掉的入口又加回来
+ *   ③ 被融合但仍在用（如 `points` 并进「用户」）→ 渲染。用户从旧书签进来时
+ *      侧栏高亮的是「用户」，需要一行告诉他「你其实在积分页」
+ *
+ * ⚠️ 不要用 `currentModuleTabIds.length > 1` 来判 —— 那是期 1 的写法，会让同一批
+ *    入口在左右两栏各出现一次（2026-11-25 截图实测）。
+ */
+const unlistedModuleTabIds = computed(() => {
+  const listed = new Set(ROW_ID_BY_TAB_ID.keys());
+  const hidden = new Set(HIDDEN_TAB_IDS);
+  const rest = currentModuleTabIds.value.filter(
+    (tabId) => !listed.has(tabId) && !hidden.has(tabId),
+  );
+  // 只有 1 个且就是当前页时不渲染：一行「你在积分管理」纯属占地方，标题已经说了
+  if (rest.length === 1 && rest[0] === currentTab.value) return [];
+  return rest;
+});
+
+/**
+ * 分区待办角标（plans/048 期 3）：只喂**已经算好**的数，不新开查询。
+ *
+ * ⚠️ `lotteryDueDrawPending` 是 **boolean**（`ref(false)`，表示「有没有到期未开奖」），
+ *    不是数量。所以传原值进去，由 buildGroupBadges 决定画圆点还是数字 ——
+ *    把布尔当 count 会让角标显示「1」，而实际可能是 5 场到期，那个数字是假的。
+ */
+const navGroupBadges = computed(() =>
+  buildGroupBadges({
+    moderation: moderationPendingCount.value,
+    lotteryDue: lotteryDueDrawPending.value,
+  }),
+);
+
+/**
+ * 当前应高亮哪一行。
+ *
+ * 两个来源必须都覆盖，否则深链进页会「一个都没选中」：
+ *   ① 表格页签（?tab=users）→ 按 tabId 反查行，被融合的旧页签落回它被并进的那行
+ *      （如 ?tab=points → 高亮「用户」）
+ *   ② 独立控制台（/admin/hero-console）→ 按 moduleId 反查行（→「视觉装修」）
+ */
+const activeNavRowId = computed(() => {
+  if (activeAdminSection.value === 'overview') return '';
+  const byModule = resolveNavRowIdForModule(activeModule.value);
+  if (byModule) return byModule;
+  return resolveNavRowIdForTab(currentTab.value);
+});
+
+/**
+ * 分组导航的叶子行点击：按 kind 分派到**既有的**三条导航路径，不另造第四条。
+ *   tab     → switchTab（会同步 activeModule，见 useDataAdminNavigation）
+ *   module  → 跳它自己的路由（独立控制台 / 编辑器）
+ *   section → 进占位 section（媒体资源 / 网站设置）
+ */
+const handleNavRowClick = (row) => {
+  if (!row) return;
+  isAdminSidebarOpen.value = false;
+  if (row.kind === 'tab' && row.tabId) {
+    // 权限：按该页签所属模块判（tab 自己不带权限位，权限在模块上）
+    const ownerModule = tabs.find((tab) => tab.id === row.tabId)?.module;
+    if (ownerModule && !canViewModule(currentUserRole.value, ownerModule)) {
+      handleDeniedModuleClick({ id: ownerModule, label: row.label });
+      return;
+    }
+    switchTab(row.tabId);
+    return;
+  }
+  if (row.kind === 'module' && row.moduleId) {
+    if (!canViewModule(currentUserRole.value, row.moduleId)) {
+      handleDeniedModuleClick({ id: row.moduleId, label: row.label });
+      return;
+    }
+    const target = ROUTE_MAP[row.moduleId];
+    if (target) {
+      router.push(target).catch(() => {});
+    }
+    return;
+  }
+  if (row.kind === 'section' && row.section) {
+    activeAdminSection.value = row.section;
+    if (router.currentRoute.value.path !== '/admin/data-management') {
+      router.push('/admin/data-management').catch(() => {});
+    }
+  }
 };
 
 // ==================== 功能索引（侧栏搜索 / ⌘K 共用一份） ====================
@@ -9045,57 +9127,9 @@ onUnmounted(() => {
   --dm-nav-height: calc(var(--dm-header-height) + env(safe-area-inset-top));
 }
 
-/* Module sub-tabs (Google-style underline tabs) */
-.g-module-tabs {
-  display: flex;
-  align-items: center;
-  gap: calc(var(--spacing) * 6);
-  border-bottom: 1px solid var(--border);
-  /* 2026-11-12：原本 margin-bottom 15px —— 标签条自己已有 border-bottom 当分隔线，
-     这 15px 是纯粹的空洞（工具栏被推低一整行距）。直接归零。 */
-  margin-bottom: 0;
-  padding: 0 calc(var(--spacing) * 1);
-  flex: 0 0 auto;
-  overflow-x: auto;
-  overscroll-behavior-x: contain;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
-}
-.g-module-tabs::-webkit-scrollbar {
-  display: none;
-}
-.g-module-tab {
-  position: relative;
-  /* 42 → 36：这是全页最不该占高度的一条（它的信息量 = 一个词） */
-  padding: 8px calc(var(--spacing) * 1);
-  border: none;
-  background: transparent;
-  color: var(--muted-foreground);
-  font: inherit;
-  font-size: 0.82rem;
-  font-weight: 500;
-  line-height: 1.2;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: color 0.2s ease;
-}
-.g-module-tab:hover {
-  color: var(--foreground);
-}
-.g-module-tab.is-active {
-  color: var(--primary);
-  font-weight: 600;
-}
-.g-module-tab.is-active::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: -1px;
-  height: 2px;
-  background: var(--primary);
-  border-radius: 2px 2px 0 0;
-}
+/* Module sub-tabs 的 chips 样式已随行列表替换退场（2026-11-25，plans/048 期 1）：
+   `.g-module-tabs` / `.g-module-tab` / `.g-module-tab-more` 三组规则连同
+   「更多 ▾」浮层一起删除，新视觉在 components/AdminTabList.vue 的 scoped 块里。 */
 
 .admin-shell {
   display: flex;

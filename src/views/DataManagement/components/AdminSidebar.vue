@@ -81,36 +81,118 @@
         </button>
       </div>
 
-      <template v-for="group in groupedModules" :key="group.section">
-        <div v-if="group.items.length" class="g-sidebar-group">
-          <span class="g-sidebar-group-label">{{ group.label }}</span>
-          <button
-            v-for="mod in group.items"
-            :key="mod.id"
-            type="button"
-            :class="['g-nav-btn', { 'is-active': isModuleActive(mod.id), 'is-denied': mod.denied }]"
-            :aria-disabled="mod.denied"
-            :title="mod.denied ? `${mod.label}（当前角色无权限）` : mod.description || mod.label"
-            @click="selectModule(mod)"
-          >
-            <component :is="mod.icon" :size="16" class="g-nav-glyph" />
-            <span class="g-nav-label">{{ mod.label }}</span>
-            <Lock v-if="mod.denied" :size="12" class="g-nav-lock" aria-hidden="true" />
-            <!-- 未保存草稿角标：数字比红点更该看见「有几条」，所以单开一格 -->
-            <span
-              v-if="badgeCount(mod.id)"
-              class="g-nav-badge"
-              :title="`${badgeCount(mod.id)} 条未保存草稿`"
-              >{{ badgeCount(mod.id) }}</span
+      <!-- 设置页式分组导航（2026-11-25，plans/048 期 2）
+           替代原来「10 个模块平铺 + 3 个 section 组头」：现在 8 组、32 个顶层行，
+           有子页的行可展开（.g-nav-row.has-children），与设置页左栏同一套语义。
+           ⚠️ 传入 navGroups 时才走这条分支；不传的宿主（AdminOverview 等）退回下面的模块列表，
+              两者不会同时出现。 -->
+      <template v-if="navGroups.length">
+        <div v-for="group in filteredNavGroups" :key="group.id" class="g-sidebar-group">
+          <span class="g-sidebar-group-label">
+            {{ group.label }}
+            <!-- 分区级待办：放在组头而不是某一行上 —— 「审核」有 3 个子页都可能待办，
+                 挂到某一行会让人以为只有那一页要处理。
+                 数字 = 真实条数；圆点 = 只知道「有」但不知道几条（见 nav-groups.js 注）。 -->
+            <template v-if="groupBadge(group.id)">
+              <span
+                v-if="groupBadge(group.id) === true"
+                class="g-sidebar-group-dot"
+                aria-hidden="true"
+              />
+              <span v-else class="g-sidebar-group-badge">{{ groupBadge(group.id) }}</span>
+            </template>
+          </span>
+          <template v-for="row in group.rows" :key="row.id">
+            <button
+              type="button"
+              :class="[
+                'g-nav-btn',
+                'g-nav-row',
+                {
+                  'is-active': activeRowId === row.id,
+                  'has-children': hasChildren(row),
+                  'is-open': isExpanded(row),
+                  'is-descendant-active': isDescendantActive(row),
+                },
+              ]"
+              :aria-expanded="hasChildren(row) ? isExpanded(row) : undefined"
+              :title="row.label"
+              @click="onRowClick(row)"
             >
-            <span v-else-if="hasAlert(mod.id)" class="g-nav-dot" aria-hidden="true"></span>
-          </button>
+              <span v-if="iconFor(row)" class="g-nav-glyph g-nav-emoji" aria-hidden="true">{{
+                iconFor(row)
+              }}</span>
+              <span class="g-nav-label">{{ row.label }}</span>
+              <!-- 子页行数：让人在点开前就知道里面有几项（设置页「当前值」那一列的等价物） -->
+              <span v-if="hasChildren(row)" class="g-nav-count">{{ row.children.length }}</span>
+              <ChevronDown
+                v-if="hasChildren(row)"
+                :size="12"
+                class="g-nav-chevron"
+                aria-hidden="true"
+              />
+            </button>
+
+            <!-- 子页：展开后缩进一层。再深一层就超出「两次点击可达」的预算，不支持。 -->
+            <template v-if="hasChildren(row) && isExpanded(row)">
+              <button
+                v-for="child in row.children"
+                :key="child.id"
+                type="button"
+                :class="[
+                  'g-nav-btn',
+                  'g-nav-row',
+                  'g-nav-child',
+                  { 'is-active': activeRowId === child.id },
+                ]"
+                :title="child.label"
+                @click="onRowClick(child)"
+              >
+                <span class="g-nav-label">{{ child.label }}</span>
+              </button>
+            </template>
+          </template>
         </div>
+        <p v-if="normalizedQuery && !matchCount" class="g-sidebar-empty">
+          换个关键词试试（也可搜「补发」「banner」这类叫法）
+        </p>
       </template>
-      <p v-if="normalizedQuery && !matchCount && !functionMatchCount" class="g-sidebar-empty">
-        换个关键词试试（也可搜「补发」「banner」这类叫法）
-      </p>
-      <p v-if="!modules.length" class="g-sidebar-empty">暂无可用模块，请刷新重试</p>
+
+      <template v-else>
+        <template v-for="group in groupedModules" :key="group.section">
+          <div v-if="group.items.length" class="g-sidebar-group">
+            <span class="g-sidebar-group-label">{{ group.label }}</span>
+            <button
+              v-for="mod in group.items"
+              :key="mod.id"
+              type="button"
+              :class="[
+                'g-nav-btn',
+                { 'is-active': isModuleActive(mod.id), 'is-denied': mod.denied },
+              ]"
+              :aria-disabled="mod.denied"
+              :title="mod.denied ? `${mod.label}（当前角色无权限）` : mod.description || mod.label"
+              @click="selectModule(mod)"
+            >
+              <component :is="mod.icon" :size="16" class="g-nav-glyph" />
+              <span class="g-nav-label">{{ mod.label }}</span>
+              <Lock v-if="mod.denied" :size="12" class="g-nav-lock" aria-hidden="true" />
+              <!-- 未保存草稿角标：数字比红点更该看见「有几条」，所以单开一格 -->
+              <span
+                v-if="badgeCount(mod.id)"
+                class="g-nav-badge"
+                :title="`${badgeCount(mod.id)} 条未保存草稿`"
+                >{{ badgeCount(mod.id) }}</span
+              >
+              <span v-else-if="hasAlert(mod.id)" class="g-nav-dot" aria-hidden="true"></span>
+            </button>
+          </div>
+        </template>
+        <p v-if="normalizedQuery && !matchCount && !functionMatchCount" class="g-sidebar-empty">
+          换个关键词试试（也可搜「补发」「banner」这类叫法）
+        </p>
+        <p v-if="!modules.length" class="g-sidebar-empty">暂无可用模块，请刷新重试</p>
+      </template>
     </nav>
 
     <!-- Quick actions
@@ -156,7 +238,7 @@
 
 <script setup>
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
-import { Lock, Plus, RefreshCw, Search as SearchIcon, Zap } from 'lucide-vue-next';
+import { ChevronDown, Lock, Plus, RefreshCw, Search as SearchIcon, Zap } from 'lucide-vue-next';
 import { SIDEBAR_SECTION_LABELS } from '../config/rbac.js';
 import { searchAdminFunctions } from '../config/function-index.js';
 
@@ -197,10 +279,29 @@ const props = defineProps({
    * 两者的实现都在数据管理面板里（当前列表上下文）；没有列表的宿主传 false。
    */
   showQuickActions: { type: Boolean, default: true },
+  /**
+   * 设置页式分组导航（config/nav-groups.js 的 NAV_GROUPS）。
+   *
+   * 传了它 ⇒ 侧栏渲染成 8 组 32 行、子页可展开；
+   * 不传 ⇒ 退回原来的「模块平铺」（AdminConsoleShell 等宿主用不到分组，保持原样）。
+   *
+   * ⚠️ 为什么用 prop 而不是让侧栏自己 import NAV_GROUPS：
+   *    独立控制台壳那几个页面只需要「能切走」，不需要设置页式分组；硬绑死会让它们
+   *    也变成折叠结构，而它们本来的 18 条平铺已经够用。
+   */
+  navGroups: { type: Array, default: () => [] },
+  /** 当前应高亮的行 id（分组结构下由宿主按 tab / module 反查后传入） */
+  activeRowId: { type: String, default: '' },
+  /**
+   * 分区级待办角标：`{ 分区id: count }`（见 config/nav-groups.js 的 buildGroupBadges）。
+   * 只有传了 navGroups 的宿主才会渲染它。
+   */
+  groupBadges: { type: Object, default: () => ({}) },
 });
 
 const emit = defineEmits([
   'module-click',
+  'row-click',
   'denied-click',
   'function-click',
   'update:searchQuery',
@@ -294,6 +395,120 @@ const groupedModules = computed(() =>
 );
 
 const isModuleActive = (modId) => props.activeModule === modId;
+
+/* ── 设置页式分组导航（2026-11-25，plans/048 期 2） ──────────────────
+   展开状态是**纯本地 UI 状态**，不写 URL：
+   分组只是导航的折叠，不改变「当前在哪一页」这个事实（那由 ?tab= 表达）。
+   如果把展开态也塞进 URL，每次折叠都要 push 一条历史，浏览器返回键会变味。 */
+const expandedRowIds = ref(new Set());
+
+const hasChildren = (row) => Array.isArray(row?.children) && row.children.length > 0;
+
+const isExpanded = (row) => expandedRowIds.value.has(row.id);
+
+const isDescendantActive = (row) =>
+  hasChildren(row) && row.children.some((child) => child.id === props.activeRowId);
+
+const toggleExpand = (row) => {
+  const next = new Set(expandedRowIds.value);
+  if (next.has(row.id)) next.delete(row.id);
+  else next.add(row.id);
+  expandedRowIds.value = next;
+};
+
+/**
+ * 侧栏分组行的图标（emoji，一行一个，保证「一眼分辨」）。
+ * ⚠️ 只用于**分组行**；叶子行不带图标 —— 8 组 × 每行一个 emoji 会让左栏变成
+ *    一列花花绿绿的符号，反而更难扫（设置页左栏也是无图标的）。
+ *    `NAV_GROUPS` 里的 `icon` 字段是 lucide 名（给别处用），这里不用它。
+ */
+const GROUP_ICONS = {
+  users: '👤',
+  fulfillment: '📮',
+  lottery: '🎲',
+  community: '💬',
+  operations: '📣',
+  moderation: '🚩',
+  ai: '🤖',
+  tools: '🛠️',
+};
+
+const iconFor = (row) => (row?.isGroupRow ? GROUP_ICONS[row.groupId] || '' : '');
+
+/** 分区待办角标：0 / 非法值一律不显示（0 个待办不该占一个位置）。
+ *  返回 `true` 表示「只画圆点」（宿主只知道有、不知道几条）。 */
+const groupBadge = (groupId) => {
+  const value = props.groupBadges?.[groupId];
+  if (value === true) return true;
+  const count = Number(value || 0);
+  return Number.isFinite(count) && count > 0 ? count : 0;
+};
+
+/**
+ * 分组行点击：
+ *   · 有子页 ⇒ 展开/收起（不导航，避免「点一下就跳走、看不见里面有什么」）
+ *   · 叶子行 ⇒ 交给宿主（row-click），宿主自己决定 switchTab 还是跳路由
+ *
+ * ⚠️ 「有子页就只展开不导航」是刻意取舍：像「权益发放」这种组，进去哪一页都有歧义
+ *    （积分还是订阅？），默认跳第一个等于替用户瞎猜。
+ */
+const onRowClick = (row) => {
+  if (!row) return;
+  if (hasChildren(row)) {
+    toggleExpand(row);
+    return;
+  }
+  emit('row-click', row);
+};
+
+/** 分组导航的搜索过滤：按行 label 过滤，组整体隐藏时不留空组头 */
+const filteredNavGroups = computed(() => {
+  const q = normalizedQuery.value;
+  if (!q) return props.navGroups;
+  const matchRow = (row) => {
+    if (`${row.label || ''}`.toLowerCase().includes(q)) return true;
+    return hasChildren(row) && row.children.some((child) => matchRow(child));
+  };
+  return props.navGroups
+    .map((group) => ({ ...group, rows: group.rows.filter(matchRow) }))
+    .filter((group) => group.rows.length > 0);
+});
+
+/**
+ * 搜索时把命中子行的父级自动展开 —— 否则搜「保底」命中的是子行，
+ * 但父级「诊断」是折叠的，用户看到的是一片空。
+ *
+ * ⚠️ 展开是**写进 expandedRowIds 的副作用**，所以必须放在 watch 里，不能塞进 computed：
+ *    computed 里改响应式状态会触发自身重算，Vue 会报「recursive update」。
+ */
+watch(normalizedQuery, (q) => {
+  if (!q) return;
+  const next = new Set(expandedRowIds.value);
+  const walk = (rows) => {
+    rows.forEach((row) => {
+      // 子行命中 ⇒ 展开父级。子行本身不需要参与后续逻辑，所以只取 label 判断
+      if (hasChildren(row) && row.children.some((c) => c.label.toLowerCase().includes(q))) {
+        next.add(row.id);
+      }
+      if (hasChildren(row)) walk(row.children);
+    });
+  };
+  props.navGroups.forEach((group) => walk(group.rows));
+  expandedRowIds.value = next;
+});
+
+/** 当前行在可视区外时滚进来（深链进抽奖/AI 时侧栏高亮会落在屏幕外） */
+const scrollActiveRowIntoView = () => {
+  if (!props.navGroups.length) return;
+  const el = navEl.value?.querySelector('.g-nav-row.is-active, .g-nav-row.is-descendant-active');
+  if (el && typeof el.scrollIntoView === 'function') {
+    el.scrollIntoView({ block: 'nearest' });
+  }
+};
+watch(
+  () => props.activeRowId,
+  () => nextTick(scrollActiveRowIntoView),
+);
 
 const onSearchInput = () => {
   emit('update:searchQuery', localSearchQuery.value);
@@ -498,12 +713,43 @@ const goHome = () => {
   gap: calc(var(--spacing) * 0.5);
 }
 .g-sidebar-group-label {
-  font-size: 0.66rem;
+  /* 设置页口径（settings-glass.css 的 .gs-group-title）：13px / 600 / 常规大小写。
+     原来是 0.66rem + uppercase —— 那是「后台模块分区」的旧语言，
+     与设置页的组头差得远（中文全大写没有意义，只会显得又小又挤）。 */
+  font-size: 13px;
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.01em;
   color: var(--muted-foreground);
-  padding: 0 calc(var(--spacing) * 3);
+  padding: 0 calc(var(--spacing) * 3) 7px;
+  /* 分区待办角标要跟组头同一行、靠右 */
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* 分区待办角标（plans/048 期 3）：与行内 .g-nav-badge 同色系但更小 ——
+   它是「这个分区里有几件待办」的汇总，粒度和行内角标不同，视觉要能区分 */
+.g-sidebar-group-badge {
+  min-width: 15px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--chart-2, #f59e0b);
+  color: var(--sidebar-primary-foreground, #fff);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 15px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
+
+/* 「有但不知几条」用圆点：比显示一个假数字诚实 */
+.g-sidebar-group-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--chart-2, #f59e0b);
+  flex: 0 0 auto;
 }
 .g-sidebar-empty {
   font-size: 0.76rem;
@@ -617,6 +863,90 @@ const goHome = () => {
 .g-nav-btn.is-active .g-nav-dot {
   background: var(--sidebar-primary-foreground);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--sidebar-primary-foreground) 28%, transparent);
+}
+
+/* ── 设置页式分组行（2026-11-25，plans/048 期 2） ─────────────────────
+   与上面 .g-nav-btn 的平铺模块行共用基础几何，这里只补四样：
+   组图标槽、子页缩进、子页展开箭头、**设置页口径的选中态**。 */
+
+/* 分组行的选中态改成设置页那套三通道（中性淡染 + 左缘蓝条 + 加粗），
+   而不是 .g-nav-btn.is-active 的整块实心主色。
+   ⚠️ 为什么必须覆盖：实心蓝块在设置页里根本不存在 —— 那边左栏选中是
+      `--rail-pill-bg` 淡染（见 ProfileSettingsPanel.vue 的 .gs-nav-item.active）。
+      整块蓝会让侧栏看起来像一排按钮，而不是一份目录。
+   ⚠️ 三通道缺一不可：玻璃底上只靠淡染几乎看不出（AGENTS.md 记过「加了 class
+      但看不出选中」），所以底色 + 左缘条 + 字重一起上。 */
+/* ⚠️ 选择器写成 `.g-nav-btn.g-nav-row.is-active`（0,3,0）而不是 `.g-nav-row.is-active`（0,2,0）：
+   上面的 `.g-nav-btn.is-active` 是 0,2,0，两者同权重时只能靠源序决胜 ——
+   而源序会随格式化/插入位置变动。抬高一级，让「分组行不套实心蓝」这件事不依赖顺序。 */
+.g-nav-btn.g-nav-row.is-active,
+.g-nav-btn.g-nav-row.is-active:hover {
+  background: var(--sidebar-accent);
+  color: var(--sidebar-accent-foreground);
+  font-weight: 600;
+  position: relative;
+}
+
+.g-nav-btn.g-nav-row.is-active::before {
+  content: '';
+  position: absolute;
+  left: 2px;
+  top: 50%;
+  width: 3px;
+  height: 16px;
+  margin-top: -8px;
+  border-radius: 2px;
+  background: var(--sidebar-primary, #0071e3);
+}
+
+/* 分组行：图标是 emoji，需要比 lucide 的 16px 槽略宽一点才不会挤 */
+.g-nav-row .g-nav-emoji {
+  font-size: 0.92rem;
+  line-height: 1;
+}
+
+/* 子页行数：与 .g-nav-badge 同一位置语义（右侧），但用中性色 ——
+   它是「里面有几项」而不是「有几条要处理」，红/黄会让人误以为有待办 */
+.g-nav-count {
+  flex: 0 0 auto;
+  margin-left: auto;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--sidebar-accent);
+  color: var(--muted-foreground);
+  font-size: 0.68rem;
+  font-weight: 600;
+  line-height: 17px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 展开箭头：折叠时朝右、展开时朝下。
+   ⚠️ 用 transform 而不是换图标组件 —— 换组件会重建 DOM，展开动效会闪。
+      高度只有 12px，rotate 90° 后视觉中心不偏。 */
+.g-nav-chevron {
+  flex: 0 0 auto;
+  margin-left: 4px;
+  opacity: 0.5;
+  transition: transform 0.18s ease;
+}
+
+.g-nav-row.is-open .g-nav-chevron {
+  transform: rotate(180deg);
+}
+
+/* 子页缩进：与组图标的槽宽对齐（16px 槽 + 12px gap）。
+   ⚠️ 「子页行」刻意不加图标 —— 加了一层 emoji 会让缩进层级反而看不清。 */
+.g-nav-child {
+  padding-left: calc(var(--spacing) * 7);
+  font-size: 0.8rem;
+  min-height: 32px;
+}
+
+/* 父级有选中子页时也淡染一下：否则「我展开了但其实在第三个子页」看不出来。
+   与 is-active 的实心主色区分开 —— 父级只是「路径」，子页才是「位置」。 */
+.g-nav-row.is-descendant-active {
+  color: var(--sidebar-accent-foreground);
+  font-weight: 600;
 }
 
 /* 未保存草稿角标：与审核红点同色系但带数字，且不占满行 —— 右侧留白靠 margin-left:auto */

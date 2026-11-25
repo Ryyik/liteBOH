@@ -1158,11 +1158,26 @@
   margin-bottom: 14px;
 }
 
-/* prefers-reduced-motion */
+/* prefers-reduced-motion
+   ⚠️ 这个块长期是**语法错误**（2026-11-25 修）：原来只有
+        `.drawer-enter-active,` / `.drawer-leave-active,` 两行选择器 + 一个悬空逗号，
+        规则体是空的。postcss-import 解析到悬空逗号后的 `}` 直接抛
+        「Unknown word」，整条 CSS 链编译失败 ⇒ `/admin/data-management` 的
+        动态导入 500、整个面板打不开。
+        它一直没被发现，是因为没人真在浏览器里打开过这个页面（单测读的是源码文本，
+        不跑 postcss）。修法就是把它补成**有内容的合法规则**：reduced-motion 下
+        关掉抽屉的进出场过渡与滑入动画（用户显式要求减少动效）。 */
 @media (prefers-reduced-motion: reduce) {
   .drawer-enter-active,
-  .drawer-leave-active,
+  .drawer-leave-active {
+    transition: none;
   }
+
+  .drawer-enter-active .drawer,
+  .drawer-leave-active .drawer {
+    animation: none;
+  }
+}
 
 /* 移动端：抽屉全宽时保持直角，避免圆角不对称 */
 @media (max-width: 768px) {

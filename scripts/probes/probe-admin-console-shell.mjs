@@ -27,11 +27,15 @@ const STRICT = process.argv.includes('--strict');
 const SHOT_DIR = 'debug-screenshots/admin-console-shell';
 const ADMIN_UUID = '00ac36b4-6594-440f-a9c1-38b7bd47ee8b';
 
-/** 被测页面：路径 + 侧栏里预期高亮的标签 */
+/** 被测页面：路径 + 侧栏里预期高亮的标签
+ *  ⚠️ 2026-11-25：`/admin/shop-console` 的侧栏标签在 2026-11-21 已从「商城装修」
+ *     改名为「商品编辑台」（见 tests/unit/admin-editor-naming.test.js 与提交 ba4230bb）。
+ *     本探针当时没跟上，一直断言旧名字 ⇒ 一条长期假红。改名口径的真源是 tabs.js，
+ *     这里只跟随，不另立说法。 */
 const PAGES = [
   { path: '/admin/gate-console', label: '开屏管理', slug: 'gate' },
   { path: '/admin/hero-console', label: '首页装修', slug: 'hero' },
-  { path: '/admin/shop-console', label: '商城装修', slug: 'shop' },
+  { path: '/admin/shop-console', label: '商品编辑台', slug: 'shop' },
   { path: '/admin/avatar-console', label: '头像框', slug: 'avatar' },
 ];
 
