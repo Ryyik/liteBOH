@@ -102,58 +102,64 @@
               <span v-else class="g-sidebar-group-badge">{{ groupBadge(group.id) }}</span>
             </template>
           </span>
-          <template v-for="row in group.rows" :key="row.id">
-            <button
-              type="button"
-              :class="[
-                'g-nav-btn',
-                'g-nav-row',
-                {
-                  'is-active': activeRowId === row.id,
-                  'has-children': hasChildren(row),
-                  'is-open': isExpanded(row),
-                  'is-descendant-active': isDescendantActive(row),
-                  'is-denied': !!row.denied,
-                },
-              ]"
-              :aria-disabled="row.denied ? 'true' : undefined"
-              :aria-expanded="hasChildren(row) ? isExpanded(row) : undefined"
-              :title="row.denied ? `${row.label}（当前角色无权限）` : row.label"
-              @click="onRowClick(row)"
-            >
-              <span class="g-nav-label">{{ row.label }}</span>
-              <Lock v-if="row.denied" :size="12" class="g-nav-lock" aria-hidden="true" />
-              <!-- 子页行数：让人在点开前就知道里面有几项（设置页「当前值」那一列的等价物） -->
-              <span v-if="hasChildren(row)" class="g-nav-count">{{ row.children.length }}</span>
-              <ChevronDown
-                v-if="hasChildren(row)"
-                :size="12"
-                class="g-nav-chevron"
-                aria-hidden="true"
-              />
-            </button>
-
-            <!-- 子页：展开后缩进一层。再深一层就超出「两次点击可达」的预算，不支持。 -->
-            <template v-if="hasChildren(row) && isExpanded(row)">
+          <!-- 行卡片（2026-11-25 补）：设置页左栏 .gs-nav 的同款白卡。
+               没有它就是「一堆散落的白字浮在半透明玻璃上」—— 截图实测：
+               行底色 rgba(0,0,0,0)、无 border、无 shadow，看着像粗体标签列表，
+               而不是设置页那种「一张卡片里排着几行」。 -->
+          <div class="g-sidebar-rows">
+            <template v-for="row in group.rows" :key="row.id">
               <button
-                v-for="child in row.children"
-                :key="child.id"
                 type="button"
                 :class="[
                   'g-nav-btn',
                   'g-nav-row',
-                  'g-nav-child',
-                  { 'is-active': activeRowId === child.id, 'is-denied': !!child.denied },
+                  {
+                    'is-active': activeRowId === row.id,
+                    'has-children': hasChildren(row),
+                    'is-open': isExpanded(row),
+                    'is-descendant-active': isDescendantActive(row),
+                    'is-denied': !!row.denied,
+                  },
                 ]"
-                :aria-disabled="child.denied ? 'true' : undefined"
-                :title="child.denied ? `${child.label}（当前角色无权限）` : child.label"
-                @click="onRowClick(child)"
+                :aria-disabled="row.denied ? 'true' : undefined"
+                :aria-expanded="hasChildren(row) ? isExpanded(row) : undefined"
+                :title="row.denied ? `${row.label}（当前角色无权限）` : row.label"
+                @click="onRowClick(row)"
               >
-                <span class="g-nav-label">{{ child.label }}</span>
-                <Lock v-if="child.denied" :size="11" class="g-nav-lock" aria-hidden="true" />
+                <span class="g-nav-label">{{ row.label }}</span>
+                <Lock v-if="row.denied" :size="12" class="g-nav-lock" aria-hidden="true" />
+                <!-- 子页行数：让人在点开前就知道里面有几项（设置页「当前值」那一列的等价物） -->
+                <span v-if="hasChildren(row)" class="g-nav-count">{{ row.children.length }}</span>
+                <ChevronDown
+                  v-if="hasChildren(row)"
+                  :size="12"
+                  class="g-nav-chevron"
+                  aria-hidden="true"
+                />
               </button>
+
+              <!-- 子页：展开后缩进一层。再深一层就超出「两次点击可达」的预算，不支持。 -->
+              <template v-if="hasChildren(row) && isExpanded(row)">
+                <button
+                  v-for="child in row.children"
+                  :key="child.id"
+                  type="button"
+                  :class="[
+                    'g-nav-btn',
+                    'g-nav-row',
+                    'g-nav-child',
+                    { 'is-active': activeRowId === child.id, 'is-denied': !!child.denied },
+                  ]"
+                  :aria-disabled="child.denied ? 'true' : undefined"
+                  :title="child.denied ? `${child.label}（当前角色无权限）` : child.label"
+                  @click="onRowClick(child)"
+                >
+                  <span class="g-nav-label">{{ child.label }}</span>
+                  <Lock v-if="child.denied" :size="11" class="g-nav-lock" aria-hidden="true" />
+                </button>
+              </template>
             </template>
-          </template>
+          </div>
         </div>
         <p v-if="normalizedQuery && !matchCount" class="g-sidebar-empty">
           换个关键词试试（也可搜「补发」「banner」这类叫法）
@@ -749,6 +755,29 @@ const goHome = () => {
   flex-direction: column;
   gap: calc(var(--spacing) * 0.5);
 }
+
+/* 行卡片：设置页左栏 `.gs-nav` 的同款皮肤（settings-glass.css 与
+   ProfileSettingsPanel.vue 的 .gs-nav 规则）。
+   ⚠️ 为什么必须有这一层：没有它时行直接铺在 .g-sidebar 的半透明玻璃上，
+      实测行底色 rgba(0,0,0,0)、无 border、无 shadow —— 视觉是「一堆粗体白字」，
+      不是设置页那种「一张卡里排着几行」。用户口径是「跟设置页风格一样」，
+      差距就在这一层卡片上，不在分组标签上。
+   数值与设置页逐项对齐（浏览器实测两边 computed style 完全相同）：
+     background rgba(255,255,255,.84) / border-radius 16px（--liquid-radius-md）
+     / padding 6px / gap 2px / 1px 描边 + 轻阴影 */
+.g-sidebar-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
+  border: 1px solid var(--liquid-border, var(--border));
+  border-radius: var(--liquid-radius-md, 12px);
+  background: var(--liquid-bg-strong, rgba(255, 255, 255, 0.84));
+  backdrop-filter: var(--liquid-filter-sm);
+  -webkit-backdrop-filter: var(--liquid-filter-sm);
+  box-shadow: var(--liquid-shadow-sm, none);
+}
+
 .g-sidebar-group-label {
   /* 设置页口径（settings-glass.css 的 .gs-group-title）：13px / 600 / 常规大小写。
      原来是 0.66rem + uppercase —— 那是「后台模块分区」的旧语言，
@@ -903,28 +932,43 @@ const goHome = () => {
 }
 
 /* ── 设置页式分组行（2026-11-25，plans/048 期 2） ─────────────────────
-   与上面 .g-nav-btn 的平铺模块行共用基础几何，这里只补四样：
-   组图标槽、子页缩进、子页展开箭头、**设置页口径的选中态**。 */
+   几何与选中态**逐项照抄设置页左栏**（ProfileSettingsPanel.vue 的 .gs-nav-item）：
+     行高 40px / 圆角 10px / padding 9px 12px / gap 9px
+   原来这里沿用的是平铺模块行的几何（36px / 8px / spacing 倍数），
+   与设置页差 4px 行高、2px 圆角 —— 单看不明显，和设置页并排就很清楚。 */
 
-/* 分组行的选中态改成设置页那套三通道（中性淡染 + 左缘蓝条 + 加粗），
-   而不是 .g-nav-btn.is-active 的整块实心主色。
-   ⚠️ 为什么必须覆盖：实心蓝块在设置页里根本不存在 —— 那边左栏选中是
-      `--rail-pill-bg` 淡染（见 ProfileSettingsPanel.vue 的 .gs-nav-item.active）。
-      整块蓝会让侧栏看起来像一排按钮，而不是一份目录。
-   ⚠️ 三通道缺一不可：玻璃底上只靠淡染几乎看不出（AGENTS.md 记过「加了 class
-      但看不出选中」），所以底色 + 左缘条 + 字重一起上。 */
-/* ⚠️ 选择器写成 `.g-nav-btn.g-nav-row.is-active`（0,3,0）而不是 `.g-nav-row.is-active`（0,2,0）：
-   上面的 `.g-nav-btn.is-active` 是 0,2,0，两者同权重时只能靠源序决胜 ——
-   而源序会随格式化/插入位置变动。抬高一级，让「分组行不套实心蓝」这件事不依赖顺序。 */
+.g-nav-btn.g-nav-row {
+  /* 发丝线用 ::before 绝对定位在本行顶部，所以行自己必须是定位祖先 */
+  position: relative;
+  min-height: 40px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  /* 字号与行高对齐设置页左栏实测值（.gs-nav-item: 14px / line-height 20px）。
+     ⚠️ line-height 必须**显式写**：设置页写了 20px，而 .g-nav-btn 是继承行高，
+        14px 字落在继承行高上会撑到 45px（实测），比设置页的 40px 高 5px。 */
+  font-size: 14px;
+  line-height: 20px;
+  /* 卡片内部的行间距由 .g-sidebar-rows 的 gap 给（2px），行自己不再留白 */
+}
+
+/* 分组行的选中态 = 设置页那套三通道（中性淡染 + 左缘蓝条 + 加粗）。
+   ⚠️ 底色必须是**中性灰**（--rail-pill-bg），原来是 --sidebar-accent 的**淡蓝**
+      rgb(219,234,254)：淡蓝压在蓝色玻璃底上几乎分不出层次，而且设置页左栏
+      从来不用蓝底 —— 那边是 `rgba(15,23,42,0.075)` 的中性淡染。
+      用户口径「跟设置页风格一样」，差异就在这里。 */
 .g-nav-btn.g-nav-row.is-active,
 .g-nav-btn.g-nav-row.is-active:hover {
-  background: var(--sidebar-accent);
-  color: var(--sidebar-accent-foreground);
+  background: var(--rail-pill-bg, rgba(15, 23, 42, 0.075));
+  color: var(--liquid-text-primary, var(--foreground));
   font-weight: 600;
   position: relative;
 }
 
-.g-nav-btn.g-nav-row.is-active::before {
+/* ⚠️ 左缘蓝条用 ::after，不是 ::before —— `::before` 已被上面的行间发丝线占用
+   （`.g-sidebar-rows .g-nav-row + .g-nav-row::before`），同一个伪元素画不了两件事。
+   设置页那边不冲突是因为它的发丝线只在右栏 `.gs-row` 上、左栏 `.gs-nav-item` 无线；
+   本侧栏行同时要线也要条，所以必须分两个伪元素。 */
+.g-nav-btn.g-nav-row.is-active::after {
   content: '';
   position: absolute;
   left: 2px;
@@ -934,6 +978,42 @@ const goHome = () => {
   margin-top: -8px;
   border-radius: 2px;
   background: var(--sidebar-primary, #0071e3);
+}
+
+/* 暗色：`--rail-pill-bg` 只挂在 .user-space-page（设置页宿主）上，
+   数据管理页没有这个变量 ⇒ 会退到我写的亮色 fallback，
+   在深底上就是一块看不见的近黑。这里按设置页暗色值（side-rail.css 的
+   rgba(255,255,255,0.12)）显式覆写，与那边保持同一口径。
+
+   ⚠️ 选择器必须用 `.data-management-page[data-theme='dark']`，**不是**
+      `[data-theme='dark']`：暗色真源是本页根元素上的自绑属性
+      （DataAdmin.vue 第 2 行 `:data-theme="currentTheme"`，见 base.css:107），
+      组件不读 html[data-theme]。写成 html 那一版在主题切换时可能不生效。 */
+.data-management-page[data-theme='dark'] .g-nav-btn.g-nav-row.is-active,
+.data-management-page[data-theme='dark'] .g-nav-btn.g-nav-row.is-active:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--liquid-text-primary, #f5f5f7);
+}
+
+/* 暗色卡片描边：--liquid-border 在暗色下已翻转，但玻璃底叠在深侧栏上
+   边界感会消失，所以给一档更清楚的描边。 */
+.data-management-page[data-theme='dark'] .g-sidebar-rows {
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+/* 行间发丝线（设置页 .gs-row + .gs-row::before 的同款）：
+   卡片里没有线时，行与行只是「白底上的几段字」，读起来不像一张列表 ——
+   实测截图就是这样（用户最初的截图也是这个观感）。
+   内缩量 = 行左内距 12px（本侧栏行没有 30px 图标槽，所以不用内缩到 61px）。 */
+.g-sidebar-rows .g-nav-row + .g-nav-row::before {
+  content: '';
+  position: absolute;
+  top: -1px;
+  left: 12px;
+  right: 12px;
+  height: 1px;
+  background: var(--liquid-border-hairline, var(--border));
+  pointer-events: none;
 }
 
 /* 子页行数：与 .g-nav-badge 同一位置语义（右侧），但用中性色 ——
@@ -968,9 +1048,12 @@ const goHome = () => {
 /* 子页缩进：与组图标的槽宽对齐（16px 槽 + 12px gap）。
    ⚠️ 「子页行」刻意不加图标 —— 加了一层 emoji 会让缩进层级反而看不清。 */
 .g-nav-child {
-  padding-left: calc(var(--spacing) * 7);
-  font-size: 0.8rem;
-  min-height: 32px;
+  /* 与父行同一左内距（12px）再缩进一级：设置页的子级条目同样是"同卡片内缩进"，
+     不靠大跳格区分层级。原来 spacing*7 ≈ 22px 显得太远，与卡片的 12px 基准脱节。 */
+  padding-left: 26px;
+  font-size: 13px;
+  line-height: 20px;
+  min-height: 36px;
 }
 
 /* 父级有选中子页时也淡染一下：否则「我展开了但其实在第三个子页」看不出来。
