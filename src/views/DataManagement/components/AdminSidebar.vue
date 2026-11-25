@@ -113,16 +113,16 @@
                   'has-children': hasChildren(row),
                   'is-open': isExpanded(row),
                   'is-descendant-active': isDescendantActive(row),
+                  'is-denied': !!row.denied,
                 },
               ]"
+              :aria-disabled="row.denied ? 'true' : undefined"
               :aria-expanded="hasChildren(row) ? isExpanded(row) : undefined"
-              :title="row.label"
+              :title="row.denied ? `${row.label}（当前角色无权限）` : row.label"
               @click="onRowClick(row)"
             >
-              <span v-if="iconFor(row)" class="g-nav-glyph g-nav-emoji" aria-hidden="true">{{
-                iconFor(row)
-              }}</span>
               <span class="g-nav-label">{{ row.label }}</span>
+              <Lock v-if="row.denied" :size="12" class="g-nav-lock" aria-hidden="true" />
               <!-- 子页行数：让人在点开前就知道里面有几项（设置页「当前值」那一列的等价物） -->
               <span v-if="hasChildren(row)" class="g-nav-count">{{ row.children.length }}</span>
               <ChevronDown
@@ -143,12 +143,14 @@
                   'g-nav-btn',
                   'g-nav-row',
                   'g-nav-child',
-                  { 'is-active': activeRowId === child.id },
+                  { 'is-active': activeRowId === child.id, 'is-denied': !!child.denied },
                 ]"
-                :title="child.label"
+                :aria-disabled="child.denied ? 'true' : undefined"
+                :title="child.denied ? `${child.label}（当前角色无权限）` : child.label"
                 @click="onRowClick(child)"
               >
                 <span class="g-nav-label">{{ child.label }}</span>
+                <Lock v-if="child.denied" :size="11" class="g-nav-lock" aria-hidden="true" />
               </button>
             </template>
           </template>
@@ -416,24 +418,17 @@ const toggleExpand = (row) => {
   expandedRowIds.value = next;
 };
 
-/**
- * 侧栏分组行的图标（emoji，一行一个，保证「一眼分辨」）。
- * ⚠️ 只用于**分组行**；叶子行不带图标 —— 8 组 × 每行一个 emoji 会让左栏变成
- *    一列花花绿绿的符号，反而更难扫（设置页左栏也是无图标的）。
- *    `NAV_GROUPS` 里的 `icon` 字段是 lucide 名（给别处用），这里不用它。
- */
-const GROUP_ICONS = {
-  users: '👤',
-  fulfillment: '📮',
-  lottery: '🎲',
-  community: '💬',
-  operations: '📣',
-  moderation: '🚩',
-  ai: '🤖',
-  tools: '🛠️',
-};
-
-const iconFor = (row) => (row?.isGroupRow ? GROUP_ICONS[row.groupId] || '' : '');
+/* 分组行不带图标（2026-11-25 复核后删掉）。
+ *
+ * 原本这里有一套 `GROUP_ICONS` + `iconFor(row)`，判的是 `row.isGroupRow` ——
+ * 但**全仓没有任何地方产出 `isGroupRow` 字段**（`nav-groups.js` 只挂 `groupId`），
+ * 所以它恒返回空串、从上线起就没有渲染过一个图标。这是「写了但没生效」的死代码。
+ *
+ * 删而不是补字段，因为设计上本来就不该有图标：这些 emoji 是按**分区**映射的
+ * （users→👤 / lottery→🎲…），而分区名就写在组头正上方，「👤 用户」等于把
+ * 同一个词说两遍。设置页左栏（`.gs-nav-item`）同样没有图标 —— 图标在内容区的
+ * `.gs-row` 上，不在导航里。叶子行更不该有：8 组 × 每行一个 emoji 会让左栏变成
+ * 一列花花绿绿的符号，反而更难扫。 */
 
 /** 分区待办角标：0 / 非法值一律不显示（0 个待办不该占一个位置）。
  *  返回 `true` 表示「只画圆点」（宿主只知道有、不知道几条）。 */
@@ -446,14 +441,20 @@ const groupBadge = (groupId) => {
 
 /**
  * 分组行点击：
- *   · 有子页 ⇒ 展开/收起（不导航，避免「点一下就跳走、看不见里面有什么」）
- *   · 叶子行 ⇒ 交给宿主（row-click），宿主自己决定 switchTab 还是跳路由
+ *   · 无权限的行 ⇒ 发 denied-click（与平铺分支同一个出口，提示文案不重复一遍）
+ *   · 有子页     ⇒ 展开/收起（不导航，避免「点一下就跳走、看不见里面有什么」）
+ *   · 叶子行     ⇒ 交给宿主（row-click），宿主自己决定 switchTab 还是跳路由
  *
  * ⚠️ 「有子页就只展开不导航」是刻意取舍：像「权益发放」这种组，进去哪一页都有歧义
  *    （积分还是订阅？），默认跳第一个等于替用户瞎猜。
+ * ⚠️ denied 判断放最前：否则无权限的父行点一下还能展开，看起来像「能进去」。
  */
 const onRowClick = (row) => {
   if (!row) return;
+  if (row.denied) {
+    emit('denied-click', { id: row.moduleId || row.tabId || row.id, label: row.label });
+    return;
+  }
   if (hasChildren(row)) {
     toggleExpand(row);
     return;
@@ -505,9 +506,45 @@ const scrollActiveRowIntoView = () => {
     el.scrollIntoView({ block: 'nearest' });
   }
 };
+
+/**
+ * 找出「哪个父级行包含这个子行」。
+ * 只有一层子页（结构守卫锁了不支持第三层），所以不用递归。
+ */
+const findParentRowIdOf = (childId) => {
+  if (!childId) return '';
+  for (const group of props.navGroups) {
+    for (const row of group.rows) {
+      if (hasChildren(row) && row.children.some((child) => child.id === childId)) return row.id;
+    }
+  }
+  return '';
+};
+
+/**
+ * 深链进入子页时**自动展开它的父级**（2026-11-25 复核补）。
+ *
+ * 没有这一步时：`?tab=points-grant` → `activeRowId = 'points-grant'`，
+ * 而它挂在默认折叠的「权益发放」下面 ⇒ 侧栏里**一个高亮都看不到**，
+ * 只有父级那行因为 `is-descendant-active` 淡染了一下（还要先展开才可见）。
+ * 表现得就像「这个页面在侧栏里不存在」。
+ *
+ * ⚠️ 只在**进入时**展开，不因为「用户手动折叠了父级」而反复弹开：
+ *    所以只依赖 `activeRowId`，不依赖 `expandedRowIds`
+ *    （否则用户折起来的那一下会立刻被这里重新展开，形成打不开的抽屉）。
+ */
 watch(
   () => props.activeRowId,
-  () => nextTick(scrollActiveRowIntoView),
+  (rowId) => {
+    const parentId = findParentRowIdOf(rowId);
+    if (parentId && !expandedRowIds.value.has(parentId)) {
+      const next = new Set(expandedRowIds.value);
+      next.add(parentId);
+      expandedRowIds.value = next;
+    }
+    nextTick(scrollActiveRowIntoView);
+  },
+  { immediate: true },
 );
 
 const onSearchInput = () => {
@@ -897,12 +934,6 @@ const goHome = () => {
   margin-top: -8px;
   border-radius: 2px;
   background: var(--sidebar-primary, #0071e3);
-}
-
-/* 分组行：图标是 emoji，需要比 lucide 的 16px 槽略宽一点才不会挤 */
-.g-nav-row .g-nav-emoji {
-  font-size: 0.92rem;
-  line-height: 1;
 }
 
 /* 子页行数：与 .g-nav-badge 同一位置语义（右侧），但用中性色 ——

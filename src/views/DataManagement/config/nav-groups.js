@@ -297,9 +297,6 @@ export const HIDDEN_TAB_IDS = [
   'anniversaryClaims', // 周年领取：只读，一次性活动已结束
 ];
 
-/** 侧栏全部可见行的扁平列表（不含 group 的 children） */
-export const NAV_TOP_ROWS = NAV_GROUPS.flatMap((group) => group.rows);
-
 /**
  * 给每个顶层行打上「我属于哪一组」的标记，供侧栏决定要不要渲染组图标。
  *
@@ -327,6 +324,25 @@ const buildRowIndex = () => {
 };
 
 export const NAV_ROW_BY_ID = buildRowIndex();
+
+/**
+ * 侧栏**真实给了独立行**的页签 id 集合。
+ *
+ * ⚠️ 与 `ROW_ID_BY_TAB_ID` 的区别必须分清，两者容易混：
+ *   · `ROW_ID_BY_TAB_ID`  = **高亮反查表**，含 `mergedFrom`（`points` → `users`），
+ *                           因为它要回答「深链进来时侧栏该亮哪一行」
+ *   · `LISTED_TAB_IDS`    = **是否留了位置**，只数 `kind === 'tab'` 的行，
+ *                           因为它要回答「内容区还要不要补一行」
+ *
+ * 用错会静默失效：`DataAdmin` 的 `unlistedModuleTabIds` 曾用前者，
+ * 于是 `points` / `shopOrders` / `gifts` 被当成「已列出」，该列表恒为空、
+ * `AdminTabList` 一次都没渲染（2026-11-25 复核发现）。
+ */
+export const LISTED_TAB_IDS = new Set(
+  [...NAV_ROW_BY_ID.values()]
+    .filter((row) => row.kind === 'tab' && row.tabId)
+    .map((row) => row.tabId),
+);
 
 /** tabId → 它出现在哪一行（含 children），用于「当前页签 → 侧栏高亮哪一行」 */
 export const ROW_ID_BY_TAB_ID = (() => {

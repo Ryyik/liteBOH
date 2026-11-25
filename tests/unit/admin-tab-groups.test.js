@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   HIDDEN_TAB_IDS,
+  LISTED_TAB_IDS,
   NAV_GROUPS,
   NAV_GROUPS_WITH_ROW_META,
   ROW_ID_BY_TAB_ID,
@@ -8,6 +9,7 @@ import {
   resolveNavRowIdForTab,
 } from '@/views/DataManagement/config/nav-groups.js';
 import { tabs, tabModules } from '@/views/DataManagement/config/tabs.js';
+import { canViewModule } from '@/views/DataManagement/config/rbac.js';
 
 /**
  * 后台侧栏「设置页式分组」的结构守卫（plans/048 期 2，2026-11-25）。
@@ -240,5 +242,93 @@ describe('侧栏分组结构 · 行元信息', () => {
     NAV_GROUPS.forEach((group) => {
       expect(String(group.label || '').trim()).not.toBe('');
     });
+  });
+});
+
+/**
+ * `LISTED_TAB_IDS` 与 `ROW_ID_BY_TAB_ID` 必须**不同**，混用会静默失效。
+ *
+ * 真事故（2026-11-25 复核发现）：`DataAdmin.unlistedModuleTabIds` 拿
+ * `ROW_ID_BY_TAB_ID.keys()` 当「侧栏已列出的页签」集合，但那张表刻意含
+ * `mergedFrom`（`points` → `users`）⇒ `points` / `shopOrders` / `gifts`
+ * 被当成「已列出」⇒ 该列表恒为空 ⇒ `AdminTabList` 一次都没渲染过。
+ *
+ * 这类错误不会报错、不会白屏，只是「新写的组件永远不出现」，
+ * 所以必须在配置层把两者的语义差锁死。
+ */
+describe('侧栏分组结构 · 「已列出」与「能反查到」是两件事', () => {
+  it('LISTED_TAB_IDS 只收真实行，不含 mergedFrom（这是它与反查表的关键区别）', () => {
+    // points / shopOrders / gifts 只有 mergedFrom 记账，没有自己的行
+    ['points', 'shopOrders', 'gifts'].forEach((tabId) => {
+      expect(LISTED_TAB_IDS.has(tabId), `${tabId} 不该被算作「侧栏已列出」`).toBe(false);
+      // 但它们必须能反查到行（否则深链打开时侧栏一个都不高亮）
+      expect(ROW_ID_BY_TAB_ID.has(tabId), `${tabId} 必须能反查到行`).toBe(true);
+    });
+  });
+
+  it('LISTED_TAB_IDS ⊆ ROW_ID_BY_TAB_ID（列出的行当然能反查）', () => {
+    const extra = [...LISTED_TAB_IDS].filter((id) => !ROW_ID_BY_TAB_ID.has(id));
+    expect(extra, `这些 id 被列为已列出、却反查不到行：${extra.join(', ')}`).toEqual([]);
+  });
+
+  it('两者确实不等（若相等，说明 mergedFrom 没生效或被误算进 LISTED）', () => {
+    // 有 mergedFrom 时必然不等；两者相等意味着「融合」这件事整个没发生
+    expect(LISTED_TAB_IDS.size).toBeLessThan(ROW_ID_BY_TAB_ID.size);
+  });
+
+  it('LISTED_TAB_IDS 里的每个 id 都是真实存在的页签', () => {
+    const known = new Set(allTabIds);
+    const bogus = [...LISTED_TAB_IDS].filter((id) => !known.has(id));
+    expect(bogus, `LISTED_TAB_IDS 里有不存在的页签：${bogus.join(', ')}`).toEqual([]);
+  });
+
+  it('每个可达页签要么在 LISTED 里、要么在某个 mergedFrom 里（不留第三种状态）', () => {
+    const merged = new Set(allRows().flatMap((row) => row.mergedFrom || []));
+    const stranded = [...reachableTabIds()].filter(
+      (id) => !LISTED_TAB_IDS.has(id) && !merged.has(id),
+    );
+    expect(stranded, `这些页签既没行、也没 mergedFrom 记账：${stranded.join(', ')}`).toEqual([]);
+  });
+});
+
+/**
+ * 侧栏里每一行都必须能被判「有没有权限」—— 分组模式下这是新增能力。
+ *
+ * 平铺分支靠 `filteredModules` 算 denied，分组分支完全没有那条路
+ * （2026-11-25 复核发现：换成分组后没权限的模块长得和能点的一样）。
+ * 宿主已经把 `denied` 算在 `navGroups` 里，这里锁「算得出来」这件事。
+ */
+describe('侧栏分组结构 · 权限判定可覆盖每一行', () => {
+  /** 页签 → 归属模块（权限单位），与 DataAdmin 的 TAB_OWNER_MODULE 同口径 */
+  const ownerOf = new Map(tabs.map((tab) => [tab.id, tab.module]));
+
+  it('每个 tab 行都能找到归属模块（找不到就永远判成「有权限」）', () => {
+    const missing = allRows()
+      .filter((row) => row.kind === 'tab' && row.tabId)
+      .filter((row) => !ownerOf.has(row.tabId))
+      .map((row) => row.tabId);
+    expect(missing, `这些页签查不到归属模块：${missing.join(', ')}`).toEqual([]);
+  });
+
+  it('每个 module 行的 id 都是 canViewModule 认识的模块', () => {
+    // canViewModule 对未知模块默认放行，所以这里查 tabModules 里是否真有这一项
+    const known = new Set(tabModules.map((mod) => mod.id));
+    const bogus = allRows()
+      .filter((row) => row.kind === 'module' && row.moduleId)
+      .filter((row) => !known.has(row.moduleId))
+      .map((row) => row.moduleId);
+    expect(bogus, `这些 module 行指向不存在的模块：${bogus.join(', ')}`).toEqual([]);
+  });
+
+  it('admin 角色下所有行都有权限（否则侧栏会大面积置灰）', () => {
+    const denied = allRows().filter((row) => {
+      if (row.kind === 'tab' && row.tabId) {
+        const owner = ownerOf.get(row.tabId);
+        return owner ? !canViewModule('admin', owner) : false;
+      }
+      if (row.kind === 'module' && row.moduleId) return !canViewModule('admin', row.moduleId);
+      return false;
+    });
+    expect(denied.map((row) => row.id)).toEqual([]);
   });
 });

@@ -2308,8 +2308,8 @@ import { createShortcutsCenter } from './composables/useDataAdminShortcuts.js';
 import { createNavigationCenter, ROUTE_MAP } from './composables/useDataAdminNavigation.js';
 import {
   HIDDEN_TAB_IDS,
+  LISTED_TAB_IDS,
   NAV_GROUPS_WITH_ROW_META,
-  ROW_ID_BY_TAB_ID,
   buildGroupBadges,
   resolveNavRowIdForModule,
   resolveNavRowIdForTab,
@@ -5702,34 +5702,74 @@ const handleDeniedModuleClick = (mod) => {
 
 // ==================== 设置页式分组导航（plans/048 期 2） ====================
 /**
+ * 页签 → 它所属的模块 id（权限判定的单位）。
+ * 页签自己不带权限位，权限挂在模块上（见 config/rbac.js 的 canViewModule）。
+ */
+const TAB_OWNER_MODULE = new Map(tabs.map((tab) => [tab.id, tab.module]));
+
+/**
  * 侧栏传下去的分组结构。
  *
  * ⚠️ 只在 `tabModules` 之上做**渲染映射**，不动 `tabModules` 本身：
  *    后者是落点注册表（每个 /admin/*-console 必须在里面有一席，
  *    见 tests/unit/admin-console-wiring.test.js），颗粒度与本结构不同。
+ *
+ * ── 为什么要在这里补 `denied`（2026-11-25 复核补）──────────────────
+ * 平铺分支靠 `filteredModules` 算 denied，**分组分支完全没有这条路** ——
+ * 换成分组渲染后，没权限的模块在侧栏看起来和能点的一模一样，
+ * 点下去才弹「无权访问」。先把「不能点」画出来。
+ *
+ * 判据：`tab` 行查它的归属模块；`module` / `section` 行查自身 id。
+ * `group` 行（子页容器）不置灰 —— 它只是个抽屉，里面可能一半有权限一半没有，
+ * 置灰反而会挡住能进的那几个。
  */
-const navGroups = computed(() => NAV_GROUPS_WITH_ROW_META);
+const navGroups = computed(() => {
+  const role = currentUserRole.value;
+  const isDenied = (row) => {
+    if (row.kind === 'tab' && row.tabId) {
+      const owner = TAB_OWNER_MODULE.get(row.tabId);
+      return owner ? !canViewModule(role, owner) : false;
+    }
+    if (row.kind === 'module' && row.moduleId) return !canViewModule(role, row.moduleId);
+    return false;
+  };
+  const mark = (row) => ({
+    ...row,
+    denied: isDenied(row),
+    ...(Array.isArray(row.children) ? { children: row.children.map(mark) } : {}),
+  });
+  return NAV_GROUPS_WITH_ROW_META.map((group) => ({ ...group, rows: group.rows.map(mark) }));
+});
 
 /**
- * 当前模块里**侧栏没有列出、但也不是刻意删除**的页签。
+ * 当前模块里**侧栏没有独立行、但也不是刻意删除**的页签。
  *
- * 三类页签要分清，否则这个列表会出现不该出现的行：
- *   ① 侧栏已列出（绝大多数）→ 不渲染，内容区不重复导航
- *   ② `HIDDEN_TAB_IDS`（明确删入口）→ 不渲染。它们只是旧深链还能打开，
- *      不该在「其它子表」里重新冒出来，那等于把刚删掉的入口又加回来
- *   ③ 被融合但仍在用（如 `points` 并进「用户」）→ 渲染。用户从旧书签进来时
- *      侧栏高亮的是「用户」，需要一行告诉他「你其实在积分页」
+ * ── 判据必须用「真行」而不是「能反查到行」─────────────────────────────
+ * `ROW_ID_BY_TAB_ID` 是**高亮反查表**，它刻意把 `mergedFrom` 也算了进去
+ * （`points` → `users`），因为深链打开时侧栏要有东西亮着。
+ * 但「能反查到行」≠「侧栏给它留了位置」：
+ *   · `points`   → 高亮落在「用户」行上，它自己**没有行**
+ *   · `shopOrders` / `gifts` → 同理落在「履约台」
+ * 所以判「是否已列出」必须只数 `kind === 'tab'` 的行（`LISTED_TAB_IDS`），
+ * 否则这三个页签会被当成「已列出」⇒ 本列表恒为空 ⇒ 内容区那行提示永不出现
+ * （2026-11-25 复核发现：用 `ROW_ID_BY_TAB_ID` 时 9 个模块全部算出 unlisted=[]，
+ *  AdminTabList 一次都没渲染过，成了死代码）。
  *
- * ⚠️ 不要用 `currentModuleTabIds.length > 1` 来判 —— 那是期 1 的写法，会让同一批
- *    入口在左右两栏各出现一次（2026-11-25 截图实测）。
+ * ── 什么时候才该渲染 ────────────────────────────────────────────────
+ * 现状下这里几乎恒为空 —— 因为侧栏已经覆盖所有页签。它的作用只有一个：
+ * 旧深链 `?tab=points` 进来时，侧栏高亮的是「用户」，用户需要一行确认
+ * 「我现在确实在积分管理页」，而不是「打开了一个侧栏里找不到的页面」。
+ *
+ * ⚠️ 不要退回 `currentModuleTabIds.length > 1` —— 那是期 1 的写法，
+ *    会让同一批入口在左右两栏各出现一次（2026-11-25 截图实测）。
  */
 const unlistedModuleTabIds = computed(() => {
-  const listed = new Set(ROW_ID_BY_TAB_ID.keys());
   const hidden = new Set(HIDDEN_TAB_IDS);
   const rest = currentModuleTabIds.value.filter(
-    (tabId) => !listed.has(tabId) && !hidden.has(tabId),
+    (tabId) => !LISTED_TAB_IDS.has(tabId) && !hidden.has(tabId),
   );
-  // 只有 1 个且就是当前页时不渲染：一行「你在积分管理」纯属占地方，标题已经说了
+  // 只有 1 个且就是当前页时不渲染：标题已经说了「积分管理」，
+  // 再补一行「你在积分管理」纯属占地方。
   if (rest.length === 1 && rest[0] === currentTab.value) return [];
   return rest;
 });
