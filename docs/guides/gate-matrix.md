@@ -342,3 +342,79 @@ npm run mail:health   # 一条命令回答「还活着吗」，异常 exit 1
 
 **已踩过的相邻结论别推翻**：`--static-delay-ms` 那条（新 SW 预缓存慢于接管窗口）走的是
 「超时 → 注销兜底」分支，与本次的「没有 pending worker」分支是两条不同的坏路径。
+
+---
+
+### C-11 后台侧栏「结构对 ≠ 视觉对」（2026-11-25）
+
+**症状**：侧栏分组改完了、8 组 32 行、子页可展开、守卫全绿 —— 但用户拿截图来问
+「这是你的改动吗」。看截图才发现：行直接铺在半透明玻璃上，观感是「一堆粗体白字」，
+不是设置页那种「一张卡里排着几行」。**卡片那一层整个没做。**
+
+**实测数据（补卡片前）**：行底色 `rgba(0,0,0,0)`、无 `border`、无 `box-shadow`、
+无行间分隔；而设置页左栏是 `.gs-nav` 白卡（`rgba(255,255,255,.84)` + 16px 圆角 +
+6px 内距 + 2px 间距）里排 `.gs-nav-item`（40px / `9px 12px` / 10px 圆角）。
+
+**为什么守卫没抓到**：期 2 的验收（8 组 / 32 行 / 子页可展开 / 深链高亮）**全是结构断言**，
+一条都不碰 computed style。这是 AGENTS.md 记过的第三次同类教训：
+`check-project-structure` 只过滤 `.js`（路由全 `.ts`，53 条一条没查）、
+`check:dark-tokens` 曾跑在观察模式（总量上升只打 ⚠️）。
+
+**门禁**：`node scripts/probes/probe-admin-sidebar-settings-style.mjs`（**51**，
+4 视口 = 390×844 / 1440×900 × 亮暗）。A 每分组一张卡 / B 卡片有底色（非 transparent）/
+C 有圆角描边 / D 首行无线其余行各一条 / E 选中淡染+蓝条+600 /
+F 行几何 = 设置页实测值 / G 暗色真源一致 / H 零 pageerror。
+
+**三条已实测的坑**：
+
+1. **左缘蓝条必须用 `::after`**。`::before` 已被行间发丝线
+   （`.g-sidebar-rows .g-nav-row + .g-nav-row::before`）占用，一个伪元素画不了两件事。
+   设置页不冲突是因为它的发丝线只在右栏 `.gs-row` 上、左栏 `.gs-nav-item` 无线；
+   侧栏行同时要线也要条，所以必须分两个伪元素。
+2. **暗色选择器必须写 `.data-management-page[data-theme='dark']`，不是 `[data-theme='dark']`**。
+   本页暗色真源是根元素自绑属性（`DataAdmin.vue:2` + `base.css:107`），不读 `html`。
+   而且 `--rail-pill-bg` 只挂在 `.user-space-page`（设置页宿主）上，数据管理页拿不到
+   ⇒ 暗色必须显式覆写；否则退回亮色 fallback `rgba(15,23,42,.075)`，
+   在深底上是一块看不见的近黑。
+3. **`line-height` 必须显式写 `20px`**。设置页写了；`.g-nav-btn` 是继承行高，
+   14px 落在继承行高上会撑到 **45px**（实测），比设置页高 5px，两屏并排立刻看得出。
+
+**反证**：卡片 `background: transparent` ⇒ 4 视口 B 项全红、`exit 1`；
+删 `line-height: 20px` ⇒ 8 项红（45px / 26.6px）、`exit 1`。
+
+**测试方法的坑**：测暗色时别自己往 `html` 注入 `data-theme` —— 本页由
+`.data-management-page[data-theme]` 驱动，注入错目标会拿到「侧栏浅色、卡片深色」的
+矛盾读数，误判成代码 bug。正确做法是点页面自己的主题按钮（走 `themeManager` 唯一写入点）。
+
+---
+
+### C-12 横屏左栏「发布会话」闸门（2026-10-11 / 10-18 / 2026-11-25 归位）
+
+**被测**：左栏「发布」的选中态；会话开着时切落点 / 点「搜索」必须先弹「保存草稿」确认再走，
+**不许遮罩残留**。两个宿主都要过：首页 `/` 与 `/user-space?tab=community`。
+**门禁**：`node scripts/probes/probe-composer-session-gate.mjs`（26）。
+
+四条已实测的坑：
+
+1. **「加了 class 但看不出选中」是假绿。** `.userspace-rail-item.active`
+   （`background: transparent`）与 `[data-rail-action="compose"]`（实心主操作蓝）
+   **同优先级**，后者在源序更靠后 ⇒ 光加 class 视觉零变化。选中态必须走独立通道
+   （现为 `box-shadow` 光晕），断言也要抓**视觉值**（基线 `none` → 选中非 `none`），
+   别只断言 class。
+2. **会话的关闭链是 `closeMobileComposer`（`ForumMain`）**，只有它会按
+   `hasUnsavedChanges()` 弹「保存草稿」；外层一律经 `closeComposer()` →
+   `dismissComposerSession()` 收口，且必须 `await` 完再导航（有脏内容时 Promise
+   挂到用户点完为止，极性是「先收会话再导航」）。
+3. **首页那条线的短路顺序是坑。** `handleBottomNavClick` 里「已在论坛就回顶部」的提前
+   return **必须在闸门之后** —— 首页的 `activeBottomNavId` 恒为 `community`，
+   而左栏「内容」那一席的 id 正好也是 `community` ⇒ 闸门写在短路后面等于永不生效
+   （用户报障「点内容不弹草稿确认、只看到一层遮罩盖着页面」的真因，2026-10-11）。
+   会话状态真源只有 `ForumMain` 的 `isMobileComposerOpen`
+   （`composer-state` 事件 → `ForumSectionShell` 透传 → 父层），**别在父层自己推状态**。
+4. **`closeMobileComposer` 必须先判 `isMobileComposerOpen`**（2026-10-18 用户报障
+   「点内容/点我的无故弹保存草稿」，编辑器根本没打开）：`hasUnsavedChanges()` 量的是
+   「编辑器里有没有字」，而 `restorePostDraft()` 会把上次草稿回填进 `newPost`
+   （mount / 登录 / 换账号都会跑）⇒ 只要存过草稿，`newPost` 就长期非空，每次导航都被
+   当成「正在离开编辑器」；选「保存」还会原样再存一次，永远解不掉。
+   `handleBeforeUnload` 里 `!isMobileComposerOpen.value ||` 那条短路就是正确写法，照它补。
+   探针 **G 组**专测这个洞（A–F 全都先点「发布」开会话，测不出来）。
