@@ -4,19 +4,39 @@
       <h3 v-if="section.label" class="detail-section-title">{{ section.label }}</h3>
       <div class="detail-section-card">
         <component
-          :is="item.action ? 'button' : 'div'"
+          :is="item.action || item.copyValue ? 'button' : 'div'"
           v-for="item in section.items"
           :key="item.key"
           class="detail-section-row"
-          :class="{ 'is-action': item.action }"
-          :type="item.action ? 'button' : undefined"
-          @click="onRowClick(item, section)"
+          :class="{ 'is-action': item.action || item.copyValue, 'is-editing': isEditable(item) }"
+          :type="item.action || item.copyValue ? 'button' : undefined"
+          @click="onRowClick(item, section, $event)"
         >
           <span class="detail-row-label">{{ labelFor(item) }}</span>
-          <span v-if="!item.hideValue" class="detail-row-value">
-            <span class="detail-row-text">{{ valueFor(item) }}</span>
+          <template v-if="isEditable(item)">
+            <input
+              v-if="item.custom === 'birthday'"
+              class="detail-inline-input"
+              :value="birthdayValue()"
+              inputmode="numeric"
+              placeholder="MM-DD"
+              @input="onBirthdayInput($event.target.value)"
+            />
+            <input
+              v-else
+              class="detail-inline-input"
+              :value="model?.[item.key] ?? ''"
+              @input="onTextInput(item, $event)"
+            />
+          </template>
+          <span v-else-if="!item.hideValue" class="detail-row-value">
+            <span class="detail-row-text" :class="{ 'is-chip': item.chip }">{{
+              valueFor(item)
+            }}</span>
+            <span v-if="item.copyValue" class="detail-row-copy">复制</span>
             <span v-if="item.action" class="detail-row-chevron" aria-hidden="true">›</span>
           </span>
+          <span v-else-if="item.copyValue" class="detail-row-copy">复制</span>
           <span v-else-if="item.action" class="detail-row-chevron" aria-hidden="true">›</span>
         </component>
       </div>
@@ -32,7 +52,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { formatDate, formatDateTime } from '../../composables/useDataAdminHelpers.js';
 
 const props = defineProps({
@@ -41,8 +61,11 @@ const props = defineProps({
   sections: { type: Array, default: null },
   // 合成值（订阅层级等不在 record 上的展示列）；键优先于 record
   overrides: { type: Object, default: () => ({}) },
+  // 详情页即编辑器（plans/050 期 5）：editable 行渲染输入框，值来自 model
+  editing: { type: Boolean, default: false },
+  model: { type: Object, default: null },
 });
-const emit = defineEmits(['field-action']);
+const emit = defineEmits(['field-action', 'update-field']);
 
 const labelMap = computed(() => {
   const map = {};
@@ -86,9 +109,56 @@ const valueFor = (item) => {
   return formatValue(raw);
 };
 
-const onRowClick = (item, section) => {
-  if (!item.action) return;
-  emit('field-action', { field: item, section, record: props.record });
+const onRowClick = (item, section, event) => {
+  if (!item.action && !item.copyValue) return;
+  const rect = event?.currentTarget?.getBoundingClientRect?.();
+  emit('field-action', {
+    field: item,
+    section,
+    record: props.record,
+    anchor: rect
+      ? { top: rect.top, bottom: rect.bottom, left: rect.left, right: rect.right }
+      : null,
+  });
+};
+
+// ---------- 详情页即编辑器（plans/050 期 5） ----------
+const isEditable = (item) => Boolean(props.editing && item.editable);
+
+const onTextInput = (item, event) => {
+  emit('update-field', { key: item.key, value: event?.target?.value });
+};
+
+const birthdayDraft = ref(null);
+watch(
+  () => [props.model?.birth_month, props.model?.birth_day],
+  () => {
+    birthdayDraft.value = null;
+  },
+);
+
+const birthdayValue = () => {
+  if (birthdayDraft.value !== null) return birthdayDraft.value;
+  const month = Number(props.model?.birth_month) || 0;
+  const day = Number(props.model?.birth_day) || 0;
+  if (month > 0 && day > 0) {
+    return `${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  }
+  return '';
+};
+
+// 单一「MM-DD」输入落到 birth_month / birth_day 两个真实列（校验仍走 saveData）
+const onBirthdayInput = (raw) => {
+  birthdayDraft.value = raw;
+  const match = String(raw || '')
+    .trim()
+    .match(/^(\d{1,2})\s*[-/.]\s*(\d{1,2})$/);
+  if (!match) return;
+  const month = Number(match[1]);
+  const day = Number(match[2]);
+  if (month < 1 || month > 12 || day < 1 || day > 31) return;
+  emit('update-field', { key: 'birth_month', value: month });
+  emit('update-field', { key: 'birth_day', value: day });
 };
 
 const formatValue = (val) => {
@@ -214,6 +284,27 @@ const formatValue = (val) => {
   line-height: 1;
   color: var(--muted-foreground);
   opacity: 0.5;
+}
+
+/* 行内输入（详情页即编辑器）：标签左 / 值右、只留下划线 */
+.detail-inline-input {
+  flex: 1 1 120px;
+  min-width: 0;
+  width: auto;
+  padding: 6px 0;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 14px;
+  color: var(--foreground);
+  text-align: right;
+}
+
+.detail-inline-input:focus {
+  outline: none;
+  border-bottom-color: var(--primary);
 }
 
 @media (max-width: 768px) {

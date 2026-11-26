@@ -23,17 +23,21 @@
     <template v-else>
       <div class="record-pane-layout">
         <div class="record-pane-main">
-          <!-- D2 升级：编辑态 = 完整抽屉表单 Teleport 进本槽位（全部字段类型可用），
-               只读视图与编辑表单互斥显示；槽位必须常驻（Teleport 目标） -->
+          <!-- 纯文字对象页（plans/050 期 5）：详情页本身即编辑器 ——
+               editable 行直接渲染输入框，底部一个「保存」，不再有「编辑」态；
+               非纯文字页仍是只读视图 + 嵌入抽屉（#detail-edit-slot）互斥 -->
           <DetailFields
-            v-show="!editing"
+            v-show="plain || !editing"
             :fields="fields"
             :record="record"
             :sections="sections"
             :overrides="overrides"
+            :editing="plain && editing"
+            :model="editModel"
             @field-action="$emit('field-action', $event)"
+            @update-field="$emit('update-field', $event)"
           />
-          <div id="detail-edit-slot" v-show="editing"></div>
+          <div id="detail-edit-slot" v-show="!plain && editing"></div>
         </div>
         <DetailAside
           v-if="!editing && !plain"
@@ -47,6 +51,7 @@
         :editing="editing"
         :plain="plain"
         :saving="saving"
+        :dirty="dirty"
         :can-edit="canEdit"
         @edit="$emit('edit', record)"
         @save="$emit('save')"
@@ -82,8 +87,11 @@ const props = defineProps({
   // editModel 即 DataAdmin 的 editingItem（保存管线直接消费）
   editing: { type: Boolean, default: false },
   saving: { type: Boolean, default: false },
+  dirty: { type: Boolean, default: false },
   canEdit: { type: Boolean, default: false },
   editModel: { type: Object, default: null },
+  // 标题字段（订单详情按草图 = 用户名 + 礼物内容）；为空时退回旧口径
+  titleKeys: { type: Array, default: null },
 });
 const emit = defineEmits([
   'back',
@@ -94,6 +102,7 @@ const emit = defineEmits([
   'cancel-edit',
   'open-drawer',
   'field-action',
+  'update-field',
   'loaded',
 ]);
 
@@ -102,9 +111,15 @@ const loading = ref(false);
 const notFound = ref(false);
 const error = ref('');
 
-const recordTitle = computed(
-  () => record.value?.title || record.value?.username || record.value?.name || props.recordId,
-);
+const recordTitle = computed(() => {
+  if (Array.isArray(props.titleKeys) && props.titleKeys.length > 0) {
+    const parts = props.titleKeys
+      .map((key) => String(record.value?.[key] ?? '').trim())
+      .filter(Boolean);
+    if (parts.length > 0) return parts.join(' · ');
+  }
+  return record.value?.title || record.value?.username || record.value?.name || props.recordId;
+});
 
 const crumbs = computed(() =>
   buildRecordBreadcrumb({

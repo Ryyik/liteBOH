@@ -31,6 +31,7 @@ const SYNTHETIC_KEYS = new Set([
   'birthday',
   '__copy_address',
   '__delete_record',
+  '__grant_token',
 ]);
 
 const flattenKeys = (sections) =>
@@ -80,12 +81,29 @@ describe('分段配置与表列一一对应', () => {
     }
   });
 
-  it('用户详情按草稿收敛为「身份 / 资产 / 操作」；订单详情含收货与进度', () => {
+  it('用户详情与订单详情是两套字段（草图 2026-11-26）：主字段平铺 + 操作段', () => {
     const userSections = DETAIL_SECTIONS.users.map((section) => section.id);
-    expect(userSections).toEqual(['identity', 'assets', 'actions']);
+    expect(userSections).toEqual(['main', 'actions']);
+    expect(DETAIL_SECTIONS.users[0].label).toBe('');
 
     const giftSections = DETAIL_SECTIONS.gifts.map((section) => section.id);
-    expect(giftSections).toEqual(['order', 'shipping', 'progress', 'actions']);
+    expect(giftSections).toEqual(['main', 'actions']);
+    // 订单详情按草图 = 用户名 / 下单日期 / 礼物内容 / 地址（可复制）/ 状态
+    expect(flattenKeys([DETAIL_SECTIONS.gifts[0]])).toEqual([
+      'username',
+      'created_at',
+      'gift_content',
+      'shipping_address',
+      'gift_status',
+    ]);
+    // 用户详情主字段 = 用户名 / 生日 / 积分 / 订阅层级 / 令牌
+    expect(flattenKeys([DETAIL_SECTIONS.users[0]])).toEqual([
+      'username',
+      'birthday',
+      'points',
+      'subscription_tier',
+      '__grant_token',
+    ]);
   });
 
   it('未配置的表没有条目（DetailFields 会退回旧平铺）', () => {
@@ -115,6 +133,7 @@ describe('每个 action 都有处理点', () => {
       'edit-points',
       'edit-status',
       'edit-tier',
+      'grant-token',
       'toggle-ban',
       'toggle-mute',
     ]);
@@ -153,7 +172,7 @@ describe('接线守卫（源码级）', () => {
 
   it('DataAdmin → RecordPane → DetailFields 三段都把 sections / overrides 传下去', () => {
     expect(adminSrc).toContain(':sections="detailSections"');
-    expect(adminSrc).toContain(':overrides="detailOverrides"');
+    expect(adminSrc).toContain(':overrides="detailFieldOverrides"');
     expect(recordPaneSrc).toContain(':sections="sections"');
     expect(recordPaneSrc).toContain(':overrides="overrides"');
     expect(recordPaneSrc).toContain('@field-action="$emit(\'field-action\', $event)"');
@@ -170,14 +189,19 @@ describe('接线守卫（源码级）', () => {
     expect(adminSrc).toContain('@loaded="onDetailRecordLoaded"');
   });
 
-  it('改造后仍是「页内展开」而不是浮层（延续 plans/049）', () => {
+  it('交互面板是浮层（草图 2026-11-26）：透明遮罩 + 锚定卡片，不用 Teleport', () => {
+    expect(adminSrc).toContain('detail-pop-backdrop');
+    expect(adminSrc).toContain('detailPopoverStyle');
     expect(quickSrc).not.toContain('<Teleport');
-    expect(quickSrc).not.toContain('position: fixed');
+    expect(stripComments(readSrc('src/views/DataManagement/styles/console.css'))).toContain(
+      '.detail-pop-backdrop',
+    );
   });
 
-  it('积分允许扣除（不再有 amount > 0 的纯 UI 硬校验）', () => {
+  it('积分支持发放 / 扣除 / 直接改值（直接改值换算成增减量）', () => {
     expect(quickSrc).toContain("pointsMode.value === 'deduct'");
-    expect(quickSrc).toMatch(/const signed =[\s\S]{0,120}-normalizedAmount/);
+    expect(quickSrc).toContain("pointsMode.value === 'set'");
+    expect(quickSrc).toMatch(/normalizedAmount\.value - currentPoints\.value/);
     expect(quickSrc).toContain('grantPoints({');
   });
 

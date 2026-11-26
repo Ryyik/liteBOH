@@ -67,6 +67,18 @@ const check = (viewport, name, pass, detail = '') => {
 };
 
 /** 等某条 toast 出现（toast 是队列制，直接读 .boh-toast__msg 会读到上一条） */
+// 保存走既有管线：有差异时会先弹「保存前差异预览」，确认后才落库
+const confirmSaveIfAsked = async (page) => {
+  const btn = page.locator('.confirm-btn.primary');
+  if (await btn.count()) {
+    await btn
+      .first()
+      .click()
+      .catch(() => {});
+    await page.waitForTimeout(300);
+  }
+};
+
 const waitToast = async (page, needle, timeout = 5000) => {
   try {
     await page.waitForFunction(
@@ -118,6 +130,16 @@ const mockRest = async (page) => {
           body: JSON.stringify(users.map((u) => ({ user_id: u.id, tier: 'pro' }))),
         });
       }
+      if (url.includes('admin_issue_login_token')) {
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          headers: { 'access-control-allow-origin': '*' },
+          body: JSON.stringify([
+            { code: '123456', expires_at: new Date(Date.now() + 15 * 60 * 1000).toISOString() },
+          ]),
+        });
+      }
       if (url.includes('get_user_subscription_tier')) {
         return route.fulfill({
           status: 200,
@@ -130,6 +152,31 @@ const mockRest = async (page) => {
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({ ok: true, users: 12, forum: 137, lotteries: 3 }),
+      });
+    }
+    // 写操作（保存）：PATCH 必须回「1 行」的表示，否则 saveData 判成「没有记录被更新」
+    if (route.request().method() === 'PATCH') {
+      if (url.includes('/user_gifts')) {
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          headers: {
+            'content-range': '0-0/1',
+            'access-control-allow-origin': '*',
+            'access-control-expose-headers': 'content-range',
+          },
+          body: JSON.stringify([gift]),
+        });
+      }
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        headers: {
+          'content-range': '0-0/1',
+          'access-control-allow-origin': '*',
+          'access-control-expose-headers': 'content-range',
+        },
+        body: JSON.stringify([users[0]]),
       });
     }
     // 礼品详情（plans/050）：单条取数/更新返回对象，列表返回数组
@@ -573,8 +620,8 @@ const runViewport = async (width, height) => {
   });
   check(
     vp,
-    '用户详情按草稿 3 段渲染',
-    userSections.count === 3,
+    '用户详情按草图：主字段平铺 + 操作段（2 段）',
+    userSections.count === 2 && userSections.titles[0] === '',
     `count=${userSections.count} | ${userSections.titles.join(' / ')}`,
   );
   check(
@@ -604,89 +651,103 @@ const runViewport = async (width, height) => {
     userSections.actionTexts.join(' | '),
   );
 
-  // 编辑页：与只读详情同一套极简文字（下划线输入、无分组卡片、一行一条、无展开收起）
-  await page.getByRole('button', { name: '编辑' }).click();
-  await page.waitForSelector('#detail-edit-slot .drawer.is-plain', { timeout: 8000 });
-  await page.waitForTimeout(500);
-  const plainForm = await page.evaluate(() => {
-    const drawer = document.querySelector('#detail-edit-slot .drawer.is-plain');
-    const input = document.querySelector('#detail-edit-slot .form-input');
-    const group = document.querySelector('#detail-edit-slot .field-group');
-    const toolbar = document.querySelector('#detail-edit-slot .field-groups-toolbar');
-    const formGroup = input
-      ? input.closest('.form-group')
-      : document.querySelector('#detail-edit-slot .form-group');
-    const label = formGroup ? formGroup.querySelector('.form-label') : null;
-    const ir = input ? input.getBoundingClientRect() : null;
+  // ── 期 5：详情页本身即编辑器（草图：无「编辑」态、底部一个「保存」） ──
+  const inline = await page.evaluate(() => {
+    const inputs = [...document.querySelectorAll('.detail-section-row .detail-inline-input')];
+    const first = inputs[0] || null;
+    const row = first ? first.closest('.detail-section-row') : null;
+    const label = row ? row.querySelector('.detail-row-label') : null;
+    const ir = first ? first.getBoundingClientRect() : null;
     const lr = label ? label.getBoundingClientRect() : null;
+    const bar = document.querySelector('.detail-action-bar.is-plain');
+    const saveBtn = [...(bar?.querySelectorAll('button') || [])].find(
+      (b) => b.textContent.trim() === '保存',
+    );
+    const editBtn = [...document.querySelectorAll('.record-pane button')].some(
+      (b) => b.textContent.trim() === '编辑',
+    );
     return {
-      hasInput: Boolean(input),
-      inputBg: input ? getComputedStyle(input).backgroundColor : '',
-      inputBorderBottom: input ? getComputedStyle(input).borderBottomWidth : '',
-      groupBg: group ? getComputedStyle(group).backgroundColor : '',
-      drawerBorderTop: drawer ? getComputedStyle(drawer).borderTopWidth : '',
-      drawerRadius: drawer ? getComputedStyle(drawer).borderRadius : '',
-      toolbarVisible: Boolean(toolbar && toolbar.offsetParent !== null),
-      // 一行一条：标签与控件的垂直中心应落在同一行（差值小于半行高）
+      inputs: inputs.length,
+      label: (label?.innerText || '').trim(),
       sameRow: Boolean(
         ir && lr && Math.abs(ir.top + ir.height / 2 - (lr.top + lr.height / 2)) < 18,
       ),
-      labelLeftOfInput: Boolean(ir && lr && lr.right <= ir.left + 1),
-      geo: `${lr ? Math.round(lr.top + lr.height / 2) : '-'} vs ${ir ? Math.round(ir.top + ir.height / 2) : '-'} | w ${lr ? Math.round(lr.width) : '-'}/${ir ? Math.round(ir.width) : '-'}`,
+      labelLeft: Boolean(ir && lr && lr.right <= ir.left + 1),
+      underline: first ? getComputedStyle(first).borderBottomWidth : '',
+      saveDisabled: saveBtn ? saveBtn.disabled : null,
+      hasEditBtn: editBtn,
     };
   });
   check(
     vp,
-    '编辑页同为极简文字（下划线输入 / 无卡片底）',
-    plainForm.hasInput &&
-      plainForm.inputBg === 'rgba(0, 0, 0, 0)' &&
-      plainForm.groupBg === 'rgba(0, 0, 0, 0)' &&
-      plainForm.inputBorderBottom !== '0px',
-    JSON.stringify(plainForm),
+    '详情页即编辑器（有行内输入、没有「编辑」按钮、有「保存」）',
+    inline.inputs > 0 && inline.hasEditBtn === false && inline.saveDisabled === true,
+    JSON.stringify(inline),
   );
   check(
     vp,
-    '编辑页无盒子边框（无边框 / 无圆角）',
-    plainForm.drawerBorderTop === '0px' &&
-      (plainForm.drawerRadius === '0px' || plainForm.drawerRadius === ''),
-    `border=${plainForm.drawerBorderTop} radius=${plainForm.drawerRadius}`,
-  );
-  check(vp, '编辑页无「展开/收起」工具条', !plainForm.toolbarVisible);
-  check(
-    vp,
-    '编辑页一行一条（标签在左、控件同行右对齐）',
-    plainForm.sameRow && plainForm.labelLeftOfInput,
-    `sameRow=${plainForm.sameRow} labelLeft=${plainForm.labelLeftOfInput} geo=${plainForm.geo}`,
+    '行内输入与标签同行（标签在左、输入右对齐、下划线）',
+    inline.sameRow && inline.labelLeft && inline.underline !== '0px',
+    `sameRow=${inline.sameRow} labelLeft=${inline.labelLeft} border=${inline.underline}`,
   );
   await page.screenshot({
     path: `debug-screenshots/portrait-${vp}-edit-plain.png`,
     fullPage: false,
   });
-  await page.getByRole('button', { name: '取消' }).click();
-  await page.waitForTimeout(500);
+
+  // 改一个值 → 「保存」才可用 → 点保存走既有管线
+  const usernameInput = page.locator('.detail-section-row .detail-inline-input').first();
+  await usernameInput.fill('user_1_renamed');
+  await page.waitForTimeout(300);
+  const saveEnabled = await page.evaluate(() => {
+    const bar = document.querySelector('.detail-action-bar.is-plain');
+    const btn = [...(bar?.querySelectorAll('button') || [])].find(
+      (b) => b.textContent.trim() === '保存',
+    );
+    return Boolean(btn && !btn.disabled);
+  });
+  check(vp, '有未保存修改时「保存」可用', saveEnabled);
+  await page.locator('.detail-action-bar.is-plain button', { hasText: '保存' }).click();
+  await confirmSaveIfAsked(page);
+  const saveToast = await waitToast(page, '数据更新成功');
+  check(vp, '详情页保存成功提示', Boolean(saveToast), saveToast || '（无 toast）');
+  await page.waitForTimeout(800);
+
+  // 一次性登录口令（草图：发放一次性令牌 → 生成 6 位口令）
+  await page.locator('.detail-section-row.is-action', { hasText: '发放一次性令牌' }).click();
+  await page.waitForSelector('.detail-pop-card', { timeout: 5000 });
+  await page.locator('.detail-pop-card .detail-pop-primary').click();
+  await page.waitForSelector('.detail-pop-token', { timeout: 5000 });
+  const tokenText = (await page.locator('.detail-pop-token').innerText()).trim();
+  check(vp, '发放一次性令牌：生成 6 位口令', /^\d{6}$/.test(tokenText), tokenText);
+  const tokenToast = await waitToast(page, '口令已生成并复制');
+  check(vp, '口令生成后自动复制', Boolean(tokenToast), tokenToast || '（无 toast）');
+  await page.locator('.detail-pop-close').click();
+  await page.waitForTimeout(300);
 
   // ── plans/050 期 3：积分就地扣除（差异确认 → RPC） ──
   await page.locator('.detail-section-row.is-action', { hasText: '积分' }).first().click();
-  await page.waitForSelector('.detail-quick-panel', { timeout: 5000 });
+  await page.waitForSelector('.detail-pop-card', { timeout: 5000 });
   const pointsPanel = await page.evaluate(() => {
-    const panel = document.querySelector('.detail-quick-panel');
-    const rect = panel.getBoundingClientRect();
+    const card = document.querySelector('.detail-pop-card');
+    const anchor = card?.parentElement;
+    const rect = card ? card.getBoundingClientRect() : null;
     return {
-      position: getComputedStyle(panel).position,
-      width: Math.round(rect.width),
-      innerWidth: window.innerWidth,
-      inViewport: rect.top >= 0 && rect.bottom <= window.innerHeight + 1,
+      position: anchor ? getComputedStyle(anchor).position : '',
+      hasBackdrop: Boolean(document.querySelector('.detail-pop-backdrop')),
+      width: rect ? Math.round(rect.width) : 0,
+      inViewport: Boolean(rect && rect.top >= 0 && rect.bottom <= window.innerHeight + 1),
     };
   });
   check(
     vp,
-    '积分面板就地展开（不是浮层）',
-    pointsPanel.position !== 'fixed' && pointsPanel.width <= pointsPanel.innerWidth,
-    `${pointsPanel.position} w=${pointsPanel.width}`,
+    '积分是浮层（透明遮罩 + 锚定卡片，且在视口内）',
+    pointsPanel.position === 'fixed' && pointsPanel.hasBackdrop && pointsPanel.inViewport,
+    `${pointsPanel.position} backdrop=${pointsPanel.hasBackdrop} w=${pointsPanel.width}`,
   );
-  await page.locator('.detail-quick-panel input[type="number"]').fill('30');
-  await page.locator('.detail-quick-panel .detail-quick-modes button', { hasText: '扣除' }).click();
-  await page.locator('.detail-quick-panel .detail-quick-primary').click();
+  await page.locator('.detail-pop-card input[type="number"]').fill('30');
+  await page.locator('.detail-pop-card .detail-pop-modes button', { hasText: '扣除' }).click();
+  await page.locator('.detail-pop-card .detail-pop-primary').click();
   await page.waitForSelector('.confirm-btn.primary', { timeout: 5000 });
   const confirmSnapshot = await page.evaluate(() => ({
     text: document.body.innerText.replace(/\s+/g, ' '),
@@ -695,7 +756,7 @@ const runViewport = async (width, height) => {
   check(
     vp,
     '扣除前弹出差异确认（100 → 70）',
-    confirmSnapshot.text.includes('确认扣除积分') && confirmSnapshot.text.includes('100 → 70'),
+    confirmSnapshot.text.includes('确认扣除') && confirmSnapshot.text.includes('100 → 70'),
     confirmSnapshot.primary,
   );
   await page.locator('.confirm-btn.primary').click();
@@ -719,25 +780,56 @@ const runViewport = async (width, height) => {
       ),
     };
   });
-  check(vp, '订单详情按 4 段渲染', giftSections.count === 4, giftSections.titles.join(' / '));
   check(
     vp,
-    '订单详情有一键复制收货信息',
-    giftSections.actionTexts.some((t) => t.includes('一键复制收货信息')),
-    giftSections.actionTexts.join(' | '),
+    '订单详情按草图：主字段平铺 + 操作段（2 段）',
+    giftSections.count === 2 && giftSections.titles[0] === '',
+    `count=${giftSections.count} | ${giftSections.titles.join(' / ')}`,
   );
-  await page.locator('.detail-section-row.is-action', { hasText: '一键复制收货信息' }).click();
+  const giftTitle = await page.evaluate(() =>
+    (document.querySelector('.detail-title')?.innerText || '').replace(/\s+/g, ' ').trim(),
+  );
+  check(
+    vp,
+    '订单详情标题 = 用户名 + 礼物内容',
+    giftTitle.includes('user_1') && giftTitle.includes('E2E 礼物'),
+    giftTitle,
+  );
+  const addressRow = page.locator('.detail-section-row', { hasText: '地址' }).first();
+  const addressCopyHint = await addressRow.evaluate((n) => (n.innerText || '').includes('复制'));
+  check(vp, '地址行带一键复制提示', addressCopyHint);
+  await addressRow.click();
   const copyToast = await waitToast(page, '收件信息已复制');
-  check(vp, '收货信息一键复制', Boolean(copyToast), copyToast || '（无 toast）');
+  check(vp, '地址一键复制', Boolean(copyToast), copyToast || '（无 toast）');
 
   await page.locator('.detail-section-row.is-action', { hasText: '状态' }).first().click();
-  await page.waitForSelector('.detail-quick-panel select', { timeout: 5000 });
-  const statusOptionCount = await page.locator('.detail-quick-panel select option').count();
-  check(vp, '状态就地点选四档', statusOptionCount === 4, `${statusOptionCount} 档`);
-  await page.locator('.detail-quick-panel select').selectOption('shipped');
-  await page.locator('.detail-quick-panel .detail-quick-primary').click();
-  const statusToast = await waitToast(page, '状态已更新');
-  check(vp, '状态保存成功', Boolean(statusToast), statusToast || '（无 toast）');
+  await page.waitForSelector('.detail-pop-card .detail-pop-option', { timeout: 5000 });
+  const statusOptionCount = await page.locator('.detail-pop-card .detail-pop-option').count();
+  check(
+    vp,
+    '状态浮层四档（取消/准备中/已发货/已完成）',
+    statusOptionCount === 4,
+    `${statusOptionCount} 档`,
+  );
+  await page.locator('.detail-pop-card .detail-pop-option', { hasText: '已发货' }).click();
+  await page.waitForTimeout(400);
+  const chipAfterPick = await page.evaluate(() => {
+    const row = [...document.querySelectorAll('.detail-section-row')].find((n) =>
+      (n.innerText || '').includes('状态'),
+    );
+    return (row?.innerText || '').replace(/\s+/g, ' ').trim();
+  });
+  check(
+    vp,
+    '点选状态后先暂存（chip 变「已发货」）',
+    chipAfterPick.includes('已发货'),
+    chipAfterPick,
+  );
+  await page.locator('.detail-action-bar.is-plain button', { hasText: '保存' }).click();
+  await confirmSaveIfAsked(page);
+  const statusToast = await waitToast(page, '数据更新成功');
+  check(vp, '状态随「保存」落库', Boolean(statusToast), statusToast || '（无 toast）');
+  await page.waitForTimeout(600);
   await page.screenshot({
     path: `debug-screenshots/portrait-${vp}-gift-detail.png`,
     fullPage: false,

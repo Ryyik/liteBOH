@@ -216,11 +216,13 @@
               :tab-label="detailTabLabel"
               :get-related-labels="getDetailRelatedLabels"
               :sections="detailSections"
-              :overrides="detailOverrides"
+              :overrides="detailFieldOverrides"
               :plain="isPlainRecordTab"
+              :title-keys="detailTitleKeys"
               :can-delete="canDeleteCurrentTab && !isModerationTab"
               :can-edit="canEditCurrentTab"
               :editing="detailEditing"
+              :dirty="detailDirty"
               :saving="isSaving"
               :edit-model="editingItem"
               @back="goBackToList"
@@ -231,16 +233,27 @@
               @cancel-edit="cancelDetailEdit"
               @loaded="onDetailRecordLoaded"
               @field-action="onDetailFieldAction"
+              @update-field="onDetailUpdateField"
             />
-            <DetailQuickActions
+            <!-- 浮层（草图：点击行出浮层）：透明遮罩接管外部点击关闭 -->
+            <div
               v-if="detailQuickAction"
-              :action="detailQuickAction"
-              :tab-id="recordTab"
-              :tier-label="detailOverrides.subscription_tier || ''"
-              @close="detailQuickAction = null"
-              @saved="onDetailQuickSaved"
-              @open-tab="onDetailOpenTab"
-            />
+              class="detail-pop-backdrop"
+              @click.self="detailQuickAction = null"
+            >
+              <div class="detail-pop-anchor" :style="detailPopoverStyle">
+                <DetailQuickActions
+                  :action="detailQuickAction"
+                  :tab-id="recordTab"
+                  :tier-label="detailOverrides.subscription_tier || ''"
+                  :current-status="editingItem?.gift_status || ''"
+                  @close="detailQuickAction = null"
+                  @saved="onDetailQuickSaved"
+                  @stage-status="onDetailStageStatus"
+                  @open-tab="onDetailOpenTab"
+                />
+              </div>
+            </div>
           </section>
           <section v-else-if="recordId" class="management-section">
             <div class="record-pane-state">记录不存在或已被删除。</div>
@@ -8181,9 +8194,10 @@ const saveData = async ({ keepOpen = false } = {}) => {
       lastRefreshedAt.value = new Date().toISOString();
     }
     await closeModal({ askDraft: false });
-    // D2：embedded 保存成功 → 退出页内编辑态并重取详情（只读视图立即反映新值）
+    // 保存成功 → 重取详情。纯文字对象页（期 5）没有「退出编辑态」：
+    // 保持页面即编辑器，重取会重新播种并归零脏状态。
     if (detailEditing.value) {
-      detailEditing.value = false;
+      if (!isPlainRecordTab.value) detailEditing.value = false;
       recordPaneRef.value?.fetchRecord?.();
     }
     return true;
@@ -8950,6 +8964,20 @@ const onDetailRecordLoaded = (record) => {
   detailRecord.value = record || null;
   detailQuickAction.value = null;
   detailTier.value = '';
+  // 纯文字对象页（期 5）：详情页本身即编辑器 —— 记录到位就播种 editingItem
+  // （复用 openEditModal 的字段预处理与 saveData 管线），抽屉不弹出。
+  // 锚定「预处理之后」的副本，否则日期列一进页就被判成「有未保存修改」。
+  if (isPlainRecordTab.value && record?.id) {
+    const expectedId = String(record.id);
+    detailEditing.value = false;
+    openEditModal(record, { embedded: true })
+      .then(() => {
+        if (String(detailRecord.value?.id || '') !== expectedId) return;
+        editingOriginalItem.value = cloneComparable(editingItem.value);
+        detailEditing.value = true;
+      })
+      .catch(() => {});
+  }
   if (!record || recordTab.value !== 'users') return;
   const userId = String(record.id || '').trim();
   if (!userId) return;
@@ -8964,7 +8992,7 @@ const onDetailRecordLoaded = (record) => {
     });
 };
 
-const onDetailFieldAction = ({ field, section, record }) => {
+const onDetailFieldAction = ({ field, section, record, anchor }) => {
   if (!field?.action) return;
   if (field.action === 'copy-address') {
     const content = [
@@ -9001,8 +9029,63 @@ const onDetailFieldAction = ({ field, section, record }) => {
       .catch(() => {});
     return;
   }
-  detailQuickAction.value = { field, section, record };
+  detailQuickAction.value = { field, section, record, anchor: anchor || null };
 };
+
+// 详情页即编辑器（期 5）：行内输入直接写 editingItem，底部「保存」走 saveData
+const onDetailUpdateField = ({ key, value }) => {
+  if (!key) return;
+  if (!editingItem.value) editingItem.value = {};
+  editingItem.value[key] = value;
+};
+
+// 状态点选只暂存（草图：选完再按底部「保存」）
+const onDetailStageStatus = (value) => {
+  if (!editingItem.value) return;
+  editingItem.value.gift_status = String(value || '');
+};
+
+const detailDirty = computed(() => {
+  if (!detailEditing.value || !editingItem.value) return false;
+  return JSON.stringify(editingItem.value) !== JSON.stringify(editingOriginalItem.value || {});
+});
+
+// 展示值：纯文字页优先反映暂存值（状态 chip / 生日），否则读详情记录
+const detailFieldOverrides = computed(() => {
+  const base = detailOverrides.value;
+  if (!isPlainRecordTab.value || !detailEditing.value) return base;
+  const model = editingItem.value || {};
+  const merged = { ...base };
+  if (recordTab.value === 'gifts') {
+    const meta = dataConfig.gifts?.cardView?.statusMeta || {};
+    const staged = String(model.gift_status || '');
+    if (staged) merged.gift_status = meta[staged]?.label || staged;
+  }
+  return merged;
+});
+
+// 标题：订单详情按草图 =「用户名+礼物内容」；其余仍是标题/用户名/名称
+const detailTitleKeys = computed(() =>
+  recordTab.value === 'gifts' ? ['username', 'gift_content'] : null,
+);
+
+// 浮层锚点：贴着被点的那一行展开，越界时贴近视口边缘
+const detailPopoverStyle = computed(() => {
+  const anchor = detailQuickAction.value?.anchor;
+  if (!anchor) return {};
+  const gap = 8;
+  const width = Math.min(300, window.innerWidth - 32);
+  const left = Math.min(Math.max(12, anchor.right - width), window.innerWidth - width - 12);
+  const fitsBelow = anchor.bottom + gap + 220 < window.innerHeight;
+  return {
+    position: 'fixed',
+    left: `${left}px`,
+    width: `${width}px`,
+    top: fitsBelow ? `${anchor.bottom + gap}px` : `${Math.max(12, anchor.top - 240)}px`,
+    maxHeight: `${Math.max(200, window.innerHeight - 24)}px`,
+    overflowY: 'auto',
+  };
+});
 
 const onDetailQuickSaved = () => {
   detailQuickAction.value = null;
@@ -9089,7 +9172,24 @@ const onEditRecord = (record) => {
   detailEditing.value = true;
 };
 
-const saveDetailEdit = async () => saveData();
+const saveDetailEdit = async () => {
+  if (!detailDirty.value) return false;
+  // 取消礼物有副作用（不可再推进、不退积分），提交前再确认一次
+  if (recordTab.value === 'gifts') {
+    const target = String(editingItem.value?.gift_status || '');
+    const original = String(editingOriginalItem.value?.gift_status || '');
+    if (target === 'cancelled' && original !== 'cancelled') {
+      const ok = await dialog.confirm({
+        title: '取消这份礼物？',
+        message: '取消后不可再从履约台推进，且不会自动退还积分。',
+        tone: 'warning',
+        confirmText: '取消礼物',
+      });
+      if (!ok) return false;
+    }
+  }
+  return saveData();
+};
 
 // 抽屉关闭：embedded（详情编辑）= 取消页内编辑；弹层 = 原关闭流程（含草稿确认）
 const onDrawerClose = () => {
@@ -9098,6 +9198,12 @@ const onDrawerClose = () => {
 };
 
 const cancelDetailEdit = () => {
+  // 纯文字对象页没有「退出编辑态」这一步：取消 = 把暂存值撤回原始值
+  if (isPlainRecordTab.value && detailEditing.value) {
+    editingItem.value = cloneComparable(editingOriginalItem.value || {});
+    clearFieldErrors();
+    return;
+  }
   detailEditing.value = false;
   isEditing.value = false;
   editingItem.value = {};

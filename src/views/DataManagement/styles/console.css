@@ -3104,3 +3104,35 @@
     max-width: 760px;
   }
 }
+
+/* 详情页即编辑器（plans/050 期 5）：行内输入沿用「标签左 / 值右」的几何，
+   只保留下划线；行本身不再变成按钮。 */
+.detail-section-row.is-editing {
+  cursor: default;
+}
+
+/* 地址行的一键复制提示（草图：地址支持一键复制） */
+.detail-row-copy {
+  flex: 0 0 auto;
+  font-size: 12.5px;
+  color: var(--primary);
+}
+
+.detail-row-text.is-chip {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--liquid-bg-subtle);
+  font-size: 12.5px;
+}
+
+/* 浮层：透明遮罩接管外部点击，卡片贴着被点的行展开（内联样式给坐标） */
+.detail-pop-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: transparent;
+}
+
+.detail-pop-anchor {
+  z-index: 61;
+}
