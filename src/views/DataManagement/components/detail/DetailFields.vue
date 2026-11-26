@@ -34,7 +34,12 @@
               valueFor(item)
             }}</span>
             <span v-if="item.copyValue" class="detail-row-copy">复制</span>
-            <span v-if="item.action" class="detail-row-chevron" aria-hidden="true">›</span>
+            <span
+              v-if="item.action && !item.copyValue"
+              class="detail-row-chevron"
+              aria-hidden="true"
+              >›</span
+            >
           </span>
           <span v-else-if="item.copyValue" class="detail-row-copy">复制</span>
           <span v-else-if="item.action" class="detail-row-chevron" aria-hidden="true">›</span>
@@ -284,6 +289,27 @@ const formatValue = (val) => {
   line-height: 1;
   color: var(--muted-foreground);
   opacity: 0.5;
+}
+
+/* 行本身不再变成按钮（页面即编辑器） */
+.detail-section-row.is-editing {
+  cursor: default;
+}
+
+/* 地址行的一键复制提示（草图：地址支持一键复制） */
+.detail-row-copy {
+  flex: 0 0 auto;
+  font-size: 12.5px;
+  color: var(--primary);
+}
+
+/* 状态 chip（草图：状态是一个可见的胶囊，不是一段文字） */
+.detail-row-text.is-chip {
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--muted);
+  font-size: 12.5px;
+  color: var(--foreground);
 }
 
 /* 行内输入（详情页即编辑器）：标签左 / 值右、只留下划线 */

@@ -52,24 +52,14 @@ export const DETAIL_SECTIONS = {
     {
       id: 'main',
       label: '',
+      // 草图（2026-11-26）：用户名 / 下单日期 / 礼物内容 / 地址（一键复制）/ 状态，
+      // 页面底部只有一个「保存」；删除记录走列表「选择 → 删除」，不在详情页另起一段。
       fields: [
         'username',
-        'created_at',
+        { key: 'created_at', label: '下单日期' },
         'gift_content',
         { key: 'shipping_address', label: '地址', action: 'copy-address', copyValue: true },
         { key: 'gift_status', label: '状态', action: 'edit-status', chip: true },
-      ],
-    },
-    {
-      id: 'actions',
-      label: '操作',
-      fields: [
-        {
-          key: '__delete_record',
-          label: '删除记录',
-          action: 'delete-record',
-          hideValue: true,
-        },
       ],
     },
   ],

@@ -321,7 +321,7 @@ export const DETAIL_SECTIONS = {
 | 积分 | 浮层：发放 / 扣除 / **改为某值**（RPC 只吃增减量，直接改算差值） | 竖屏探针「扣除前弹出差异确认（100 → 70）」 |
 | 订阅 | 浮层：档位 + **年 / 月 / 日** 时长发放；`修改现有订阅 ›` 跳订阅页签 | `grantSubscriptions` 的 `durationMonths/durationDays` |
 | 状态 | 浮层点选 = **暂存**，底部「保存」落库（取消礼物提交前再确认） | 探针「点选状态后先暂存（chip 变「已发货」）」「状态随「保存」落库」 |
-| 一次性令牌 | 浮层生成 6 位口令 + 自动复制；迁移 `2026112601` 建 `login_tokens`（只存 sha256(code:user_id)，15 分钟、一次性） | 探针「生成 6 位口令」「口令生成后自动复制」；线上 `admin_issue_login_token` 已生效（authenticated 可执行、anon 不可） |
+| 一次性令牌 | 详情页这一行**直接复用既有签发链路**（EF `admin-issue-login-token`，2026-11-21）：确认 → 原因必填写审计 → GoTrue `generateLink(recovery)` → token 直接进剪贴板；消费端在 `/reset-password` 粘贴即建会话 | 探针「发放令牌先弹安全确认（等同账号密码）」「令牌签发后直接进剪贴板」；`tests/unit/admin-issue-token.test.js` |
 
 ⚠️ **期 5 踩到的第三个「探针全绿、人眼一看就错」的坑（这次是事件全死）**：
 纯文字页把 Teleport 目标 `#detail-edit-slot` 从模板里用 `v-if="!plain"` **摘掉**了。
@@ -336,6 +336,10 @@ Vue 在渲染 Teleport 时找不到目标宿主，错误被全局边界捕获后
 `data-admin-detail-sections` 20 + `b-interactions` 5 + `date-quick-ranges` 15 全绿；
 `type-check` 通过、`check:dark-tokens:strict` 2408/2408、`check:important-budget` 603/603。
 
-**未完成（明确登记）**：口令的**兑换端**（登录页用口令换一次性会话）尚未接 —— 该入口落在
-Login/auth 文件，与正在进行的注册/登录改造冲突，等那批落地后再接（届时跑 `mail:verify` 之外的
-登录冒烟）。在兑换端上线前，口令只能生成、不能使用。
+**⚠️ 更正（同日，发现第二条真源）**：期 5 最初新建了 `login_tokens` 表 + `admin_issue_login_token`
+（6 位口令），但仓库里**早已有**完整的一次性登录机制（EF + `admin_issued_login_tokens` 台账 +
+`/reset-password` 消费端）。这套重复实现已在迁移 `2026112603` 中删除（线上已验证 `login_tokens`
+与函数均不存在），详情页改为复用既有 EF —— 兑换端**本来就有**，无需再接。
+
+教训（同一类）：动手前先搜「这个能力是否已存在」。`grep admin-issue-login-token` 一条命令就能发现，
+却被「草图里的新入口」当成「新能力」重做了一遍。

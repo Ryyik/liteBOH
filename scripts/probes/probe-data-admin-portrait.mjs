@@ -130,16 +130,6 @@ const mockRest = async (page) => {
           body: JSON.stringify(users.map((u) => ({ user_id: u.id, tier: 'pro' }))),
         });
       }
-      if (url.includes('admin_issue_login_token')) {
-        return route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          headers: { 'access-control-allow-origin': '*' },
-          body: JSON.stringify([
-            { code: '123456', expires_at: new Date(Date.now() + 15 * 60 * 1000).toISOString() },
-          ]),
-        });
-      }
       if (url.includes('get_user_subscription_tier')) {
         return route.fulfill({
           status: 200,
@@ -223,9 +213,22 @@ const mockRest = async (page) => {
       body: JSON.stringify(users),
     });
   });
-  await page.route('**/functions/v1/**', (route) =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":false}' }),
-  );
+  await page.route('**/functions/v1/**', (route) => {
+    const url = route.request().url();
+    if (url.includes('admin-issue-login-token')) {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        headers: { 'access-control-allow-origin': '*' },
+        body: JSON.stringify({ ok: true, token: 'tok_e2e_1a2b3c', username: 'user_1' }),
+      });
+    }
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: '{"ok":false}',
+    });
+  });
 };
 
 const runViewport = async (width, height) => {
@@ -713,17 +716,30 @@ const runViewport = async (width, height) => {
   check(vp, '详情页保存成功提示', Boolean(saveToast), saveToast || '（无 toast）');
   await page.waitForTimeout(800);
 
-  // 一次性登录口令（草图：发放一次性令牌 → 生成 6 位口令）
+  // 一次性登录令牌（草图：发放一次性令牌）—— 复用既有签发链路：
+  // 确认 → 原因必填（写审计）→ EF 签发 → token 直接进剪贴板（不渲染到页面）
   await page.locator('.detail-section-row.is-action', { hasText: '发放一次性令牌' }).click();
-  await page.waitForSelector('.detail-pop-card', { timeout: 5000 });
-  await page.locator('.detail-pop-card .detail-pop-primary').click();
-  await page.waitForSelector('.detail-pop-token', { timeout: 5000 });
-  const tokenText = (await page.locator('.detail-pop-token').innerText()).trim();
-  check(vp, '发放一次性令牌：生成 6 位口令', /^\d{6}$/.test(tokenText), tokenText);
-  const tokenToast = await waitToast(page, '口令已生成并复制');
-  check(vp, '口令生成后自动复制', Boolean(tokenToast), tokenToast || '（无 toast）');
-  await page.locator('.detail-pop-close').click();
-  await page.waitForTimeout(300);
+  await page.waitForSelector('.confirm-btn.primary', { timeout: 5000 });
+  const issueConfirm = await page.evaluate(() =>
+    (document.body.innerText || '').replace(/\s+/g, ' ').slice(0, 200),
+  );
+  check(
+    vp,
+    '发放令牌先弹安全确认（等同账号密码）',
+    issueConfirm.includes('签发一次性登录令牌') && issueConfirm.includes('等同账号密码'),
+    issueConfirm.slice(0, 80),
+  );
+  await page.locator('.confirm-btn.primary').click();
+  await page.waitForSelector('.confirm-input', { timeout: 5000 });
+  await page.locator('.confirm-input').fill('E2E：当面核实身份');
+  await page.locator('.confirm-btn.primary').click();
+  const tokenToast = await waitToast(page, '令牌已复制到剪贴板');
+  check(
+    vp,
+    '令牌签发后直接进剪贴板（不渲染到页面）',
+    Boolean(tokenToast),
+    tokenToast || '（无 toast）',
+  );
 
   // ── plans/050 期 3：积分就地扣除（差异确认 → RPC） ──
   await page.locator('.detail-section-row.is-action', { hasText: '积分' }).first().click();
@@ -782,9 +798,30 @@ const runViewport = async (width, height) => {
   });
   check(
     vp,
-    '订单详情按草图：主字段平铺 + 操作段（2 段）',
-    giftSections.count === 2 && giftSections.titles[0] === '',
+    '订单详情按草图：主字段平铺（1 段，无操作段）',
+    giftSections.count === 1 && giftSections.titles[0] === '',
     `count=${giftSections.count} | ${giftSections.titles.join(' / ')}`,
+  );
+  const giftRowLabels = await page.evaluate(() =>
+    [...document.querySelectorAll('.detail-row-label')].map((n) => n.innerText.trim()),
+  );
+  check(
+    vp,
+    '订单详情行 = 用户名 / 下单日期 / 礼物内容 / 地址 / 状态',
+    ['用户名', '下单日期', '礼物内容', '地址', '状态'].every((t) => giftRowLabels.includes(t)),
+    giftRowLabels.join(' / '),
+  );
+  const chipStyle = await page.evaluate(() => {
+    const chip = document.querySelector('.detail-row-text.is-chip');
+    if (!chip) return null;
+    const cs = getComputedStyle(chip);
+    return { radius: cs.borderRadius, bg: cs.backgroundColor, text: chip.innerText.trim() };
+  });
+  check(
+    vp,
+    '状态是胶囊 chip（不是一段裸文字）',
+    Boolean(chipStyle && parseFloat(chipStyle.radius) >= 10 && chipStyle.bg !== 'rgba(0, 0, 0, 0)'),
+    JSON.stringify(chipStyle),
   );
   const giftTitle = await page.evaluate(() =>
     (document.querySelector('.detail-title')?.innerText || '').replace(/\s+/g, ' ').trim(),

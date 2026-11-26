@@ -126,28 +126,6 @@
         </button>
       </div>
     </div>
-
-    <!-- 一次性登录口令：生成即复制；兑换入口在登录页，下一轮接入（见 plans/050 §11） -->
-    <div v-else-if="actionType === 'grant-token'" class="detail-pop-body">
-      <template v-if="tokenCode">
-        <p class="detail-pop-token" aria-live="polite">{{ tokenCode }}</p>
-        <p class="detail-pop-preview">有效期至 {{ tokenExpiry || '—' }}，仅可使用一次。</p>
-        <div class="detail-pop-actions">
-          <button type="button" class="detail-pop-text" @click="copyToken">复制口令</button>
-          <button type="button" class="detail-pop-primary" :disabled="saving" @click="issueToken">
-            重新生成
-          </button>
-        </div>
-      </template>
-      <template v-else>
-        <p class="detail-pop-preview">为该用户生成一次性登录口令（6 位数字，15 分钟内有效）。</p>
-        <div class="detail-pop-actions">
-          <button type="button" class="detail-pop-primary" :disabled="saving" @click="issueToken">
-            {{ saving ? '生成中…' : '生成口令' }}
-          </button>
-        </div>
-      </template>
-    </div>
   </div>
 </template>
 
@@ -157,7 +135,6 @@ import { useConfirmDialog } from '@/composables/useConfirmDialog.js';
 import { bohtoast } from '@/components/ui/boh-toast-controller.js';
 import { grantPoints } from '@/utils/api/points-admin-api.js';
 import { grantSubscriptions } from '@/utils/api/subscription-admin-api.js';
-import { issueLoginToken } from '@/utils/api/login-token-admin-api.js';
 import { dataConfig } from '../../config/tables.js';
 import { SUBSCRIPTION_PLAN_OPTIONS, SUBSCRIPTION_PLAN_NAMES } from '../../config/fields.js';
 
@@ -181,7 +158,6 @@ const panelTitle = computed(() => {
   if (actionType.value === 'edit-status') return '修改进度';
   if (actionType.value === 'edit-points') return '调整积分';
   if (actionType.value === 'edit-tier') return '订阅层级';
-  if (actionType.value === 'grant-token') return '发放一次性令牌';
   return '操作';
 });
 
@@ -321,49 +297,12 @@ const openTierTab = () => {
   });
 };
 
-/* ---------- 一次性登录口令 ---------- */
-const tokenCode = ref('');
-const tokenExpiry = ref('');
-
-const issueToken = async () => {
-  const userId = String(record.value?.id || '').trim();
-  if (!userId) return bohtoast.show('warning', '缺少用户 ID，无法生成口令');
-  saving.value = true;
-  try {
-    const result = await issueLoginToken(userId);
-    tokenCode.value = String(result?.code || '');
-    tokenExpiry.value = result?.expires_at
-      ? new Date(result.expires_at).toLocaleString('zh-CN', { hour12: false })
-      : '';
-    if (tokenCode.value) {
-      await copyToken({ silent: true });
-      bohtoast.show('success', '口令已生成并复制');
-    }
-  } catch (error) {
-    bohtoast.show('error', String(error?.message || '生成口令失败'));
-  } finally {
-    saving.value = false;
-  }
-};
-
-const copyToken = async ({ silent = false } = {}) => {
-  if (!tokenCode.value) return;
-  try {
-    await navigator.clipboard.writeText(tokenCode.value);
-    if (!silent) bohtoast.show('success', '口令已复制');
-  } catch {
-    if (!silent) bohtoast.show('error', '复制失败，请手动选择');
-  }
-};
-
 watch(
   () => props.action?.field?.key,
   () => {
     pointsMode.value = 'grant';
     pointsAmount.value = null;
     pointsRemark.value = '';
-    tokenCode.value = '';
-    tokenExpiry.value = '';
   },
 );
 </script>
@@ -506,16 +445,6 @@ watch(
   margin: 0;
   font-size: 12.5px;
   color: var(--muted-foreground);
-}
-
-.detail-pop-token {
-  margin: 4px 0 0;
-  font-size: 30px;
-  font-weight: 600;
-  letter-spacing: 0.2em;
-  text-align: center;
-  color: var(--foreground);
-  font-variant-numeric: tabular-nums;
 }
 
 .detail-pop-actions {

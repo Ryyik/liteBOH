@@ -86,8 +86,9 @@ describe('分段配置与表列一一对应', () => {
     expect(userSections).toEqual(['main', 'actions']);
     expect(DETAIL_SECTIONS.users[0].label).toBe('');
 
+    // 订单页草图（2026-11-26）：只有主字段一段（删除走列表「选择 → 删除」）
     const giftSections = DETAIL_SECTIONS.gifts.map((section) => section.id);
-    expect(giftSections).toEqual(['main', 'actions']);
+    expect(giftSections).toEqual(['main']);
     // 订单详情按草图 = 用户名 / 下单日期 / 礼物内容 / 地址（可复制）/ 状态
     expect(flattenKeys([DETAIL_SECTIONS.gifts[0]])).toEqual([
       'username',

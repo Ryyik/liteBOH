@@ -3260,9 +3260,8 @@ const compactRowMeta = (item) => {
     return tier ? `${tier} · ${points} 积分` : `${points} 积分`;
   }
   if (currentTab.value === 'gifts') {
-    const content = String(item?.gift_content || '').trim() || '—';
-    const date = item?.created_at ? formatDate(item.created_at) : '';
-    return date ? `${content} · ${date}` : content;
+    // 草图：用户名 + 内容 + 进度 tag（日期只在详情页的「下单日期」）
+    return String(item?.gift_content || '').trim() || '—';
   }
   return '';
 };
@@ -9012,6 +9011,12 @@ const onDetailFieldAction = ({ field, section, record, anchor }) => {
   // 只是入口从列表行搬到了详情页「操作」段。
   if (field.action === 'delete-record') {
     onDetailDangerDelete(record);
+    return;
+  }
+  // 一次性登录令牌：复用既有「签发登录令牌」链路（EF admin-issue-login-token：
+  // 确认 → 原因必填 → 审计 → token 直接进剪贴板），不在这里写第二份签发规则。
+  if (field.action === 'grant-token') {
+    issueLoginCode(detailRecord.value || record);
     return;
   }
   if (field.action === 'toggle-ban' || field.action === 'toggle-mute') {
