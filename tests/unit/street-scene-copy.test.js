@@ -3,14 +3,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {
   DEFAULT_GREETING_TEMPLATE,
-  DEFAULT_HINT_TEXT,
   resolveGreetingWord,
   resolveGreetingText,
-  resolveHintText,
 } from '../../src/utils/street-scene-copy.js';
 
 // ---------------------------------------------------------------------------
-// 2026-09-24：首屏街景问候语 / 底部提示改为可配（home_heroes.greeting_text / hint_text）
+// 2026-09-24：首屏街景问候语改为可配（home_heroes.greeting_text）
 //
 // 关键不变量：**留空必须等于「当前默认文案」** —— 否则改默认值会静默漂移；
 // 默认值本身有明确出处（2026-11-14 起为品牌固定句「这里不只有方块」），由本文件锁住。
@@ -72,19 +70,6 @@ describe('问候语：自定义', () => {
   });
 });
 
-describe('底部提示文案', () => {
-  it('留空回落「往下逛逛」', () => {
-    expect(DEFAULT_HINT_TEXT).toBe('往下逛逛');
-    for (const empty of [null, undefined, '', '  ']) {
-      expect(resolveHintText(empty)).toBe('往下逛逛');
-    }
-  });
-
-  it('自定义时 trim 后原样返回', () => {
-    expect(resolveHintText('  下滑看看  ')).toBe('下滑看看');
-  });
-});
-
 // ---------------------------------------------------------------------------
 // 接线守卫：两个消费方必须共用本模块，不得各自维护副本
 // （否则装修台预览与线上渲染会漂移 —— 这正是本次改动要消除的那类问题）
@@ -99,7 +84,7 @@ describe('接线守卫', () => {
     const src = read(HERO);
     expect(src).toContain("from '@/utils/street-scene-copy.js'");
     expect(src).toContain('resolveGreetingText(props.hero?.greeting_text');
-    expect(src).toContain('resolveHintText(props.hero?.hint_text)');
+    expect(src).not.toContain('street-hero-hint');
     // 硬编码的默认文案不得在组件内复现
     expect(src).not.toContain("'，欢迎回到方块街'");
     expect(src).not.toContain('`${greetingWord.value}，欢迎回到方块街`');
@@ -117,12 +102,12 @@ describe('接线守卫', () => {
     const src = read(CONSOLE);
     expect(src).toContain("from '@/utils/street-scene-copy.js'");
     expect(src).toContain('resolveGreetingText(draftHero.value?.greeting_text)');
-    expect(src).toContain('resolveHintText(draftHero.value?.hint_text)');
+    expect(src).not.toContain('street-scene-preview-hint');
   });
 
-  it('装修台保存 payload 带上两个文案字段，且仅 street-scene 模板生效', () => {
+  it('装修台保存 payload 只带当前仍生效的问候语字段', () => {
     const src = read(CONSOLE);
     expect(src).toContain("greeting_text: draft.template === 'street-scene'");
-    expect(src).toContain("hint_text: draft.template === 'street-scene'");
+    expect(src).not.toContain("hint_text: draft.template === 'street-scene'");
   });
 });

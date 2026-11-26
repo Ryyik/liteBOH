@@ -5,7 +5,7 @@ import { readGatePassed } from '@/utils/home-gate-storage.js';
  * 首页开场画（`.home-gate`）是否在场 —— **模块级单例**。
  *
  * 为什么需要它：导航栏在 App 级挂载（App.vue 的 `<UnifiedNavbar v-if>`），
- * 而「开屏是否还在」这个状态住在 Home 内部（useGatePull 的 `gateDismissed`）。
+ * 而「开屏是否还在」这个状态住在 Home 内部（useGateOverlay 的 `gateDismissed`）。
  * 两者没有共同祖先可 provide/inject，也不能各自复制一份判据（必然漂移）。
  *
  * 初始值必须**同步**算出来（不能等 Home 挂载后再写）：

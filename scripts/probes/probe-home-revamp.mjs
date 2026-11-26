@@ -1,15 +1,13 @@
 #!/usr/bin/env node
 /**
- * probe-home-revamp.mjs —— 首屏「一次性开场层 + 下滑直达方块论坛」验收探针
- *                    （2026-09-23 规格）
+ * probe-home-revamp.mjs —— 首屏「一次性遮罩 + 跳过 / 2 秒自动渐隐」验收探针
  *
  * 覆盖：
- *   A 默认进入：满屏街景开场画、问候 + 呼吸提示、无底栏、整页锁一屏
- *   B 下滑进入论坛：线性过渡（采样位移）、开场层卸载、论坛铺满、底栏从下方滑入
- *     ★ B6 上滑不回到开场画（单向入场）
+ *   A 默认进入：满屏遮罩、品牌问候、右下角跳过、无下拉提示
+ *   B 跳过进入论坛：纯 opacity 渐隐、论坛铺满、底栏从下方滑入
  *   C 分区七席 / 官方居首 / 默认最新 / 深链 ?view=official 渲染英雄区
- *   D UserSpace 底栏五席（方块 / 我的 / 资产 / 消息 / 设置）+ 各区高亮
- *   E 底栏「上滑显现 / 下滑隐藏」（useScrollDirectionHide）
+ *   D UserSpace 底栏五席
+ *   E 底栏「上滑显现 / 下滑隐藏」
  *   F 桌面首页不挂底栏
  *   G 无未捕获 pageerror
  *
@@ -159,14 +157,6 @@ const bottomNavHidden = (page) =>
 const bottomNavExists = (page) =>
   page.evaluate(() => Boolean(document.querySelector('.bottom-nav-glass')));
 const gateExists = (page) => page.evaluate(() => Boolean(document.querySelector('.home-gate')));
-const gateTransform = (page) =>
-  page.$eval('.home-gate', (el) => getComputedStyle(el).transform).catch(() => '');
-
-/** 用真实滚轮事件触发「往下逛」——监听在 window 上，wheel 是生产环境同一条路径 */
-const swipeDown = async (page, total = 160) => {
-  await page.mouse.move(PHONE.width / 2, PHONE.height / 2);
-  await page.mouse.wheel(0, total);
-};
 
 const main = async () => {
   if (SHOT) mkdirSync(OUT_DIR, { recursive: true });
@@ -214,10 +204,10 @@ const main = async () => {
     .catch(() => '');
   check('A2 首屏默认文案「这里不只有方块」', greeting === '这里不只有方块', greeting);
 
-  const hint = await page
-    .$eval('.street-hero-hint', (el) => el.textContent.replace(/\s+/g, ''))
+  const skipText = await page
+    .$eval('.home-gate-skip', (el) => el.textContent.trim())
     .catch(() => '');
-  check('A3 呼吸提示「往下逛逛 ↓」', hint.includes('往下逛逛') && hint.includes('↓'), hint);
+  check('A3 显示右下角「跳过」按钮', skipText === '跳过', skipText);
 
   check('A4 开场画阶段不挂底栏', (await bottomNavExists(page)) === false);
 
@@ -250,8 +240,7 @@ const main = async () => {
     JSON.stringify(heroImgAttrs || brandLogoAttrs),
   );
 
-  /* 开场层是 fixed 覆盖层：底层文档可以滚，但画面必须纹丝不动 ——
-     滚动只被当作「下滑意图」，真正进入由手势判定（index.vue 的 enterForum）。 */
+  /* 开场层是 fixed 覆盖层，完整展示 2 秒后自动渐隐。 */
   const gateCoverage = await page.evaluate(() => {
     window.scrollTo(0, 600);
     const gate = document.querySelector('.home-gate');
@@ -274,21 +263,23 @@ const main = async () => {
     })) === true,
   );
 
-  /* 2026-09-24 用户反馈「往下逛逛位置太靠下」：贴底会显得像被裁掉。
-     断言它落在下三分之一上方、且完整留在视口里。 */
-  const hintPosition = await page.evaluate(() => {
-    const hint = document.querySelector('.street-hero-hint');
-    if (!hint) return null;
-    const rect = hint.getBoundingClientRect();
+  const skipPosition = await page.evaluate(() => {
+    const skip = document.querySelector('.home-gate-skip');
+    if (!skip) return null;
+    const rect = skip.getBoundingClientRect();
     return {
+      rightGap: Math.round(window.innerWidth - rect.right),
       bottomGap: Math.round(window.innerHeight - rect.bottom),
-      visible: rect.bottom <= window.innerHeight + 1,
+      visible: rect.bottom <= window.innerHeight + 1 && rect.right <= window.innerWidth + 1,
     };
   });
   check(
-    'A9 「往下逛逛」不贴底（距底 ≥ 60px）且完整可见',
-    Boolean(hintPosition) && hintPosition.bottomGap >= 60 && hintPosition.visible,
-    JSON.stringify(hintPosition),
+    'A9 「跳过」贴右下角且完整可见',
+    Boolean(skipPosition) &&
+      skipPosition.rightGap <= 24 &&
+      skipPosition.bottomGap <= 24 &&
+      skipPosition.visible,
+    JSON.stringify(skipPosition),
   );
 
   /* 顶部避让同样吃导航栏实测高度（竖屏是居中胶囊，横屏是全宽横条）。
@@ -296,12 +287,12 @@ const main = async () => {
   const portraitNavOverlap = await page.evaluate(() => {
     const nav = document.getElementById('unified-nav-container');
     const greeting = document.querySelector('.street-hero-greeting');
-    if (!nav || !greeting) return null;
+    if (!nav) return { navMounted: false, ok: true };
+    if (!greeting) return { navMounted: true, ok: false };
     const navRect = nav.getBoundingClientRect();
     const greetingRect = greeting.getBoundingClientRect();
     return {
-      navBottom: Math.round(navRect.bottom),
-      greetingTop: Math.round(greetingRect.top),
+      navMounted: true,
       ok: greetingRect.top >= navRect.bottom - 2,
     };
   });
@@ -335,68 +326,44 @@ const main = async () => {
 
   if (SHOT) await page.screenshot({ path: path.join(OUT_DIR, '01-hero-portrait.png') });
 
-  // ---------- B. 下滑 → 线性过渡 → 论坛铺满、底栏滑入、不可回退 ----------
-  console.log('\n[B] 下滑进入论坛');
-  await swipeDown(page);
-  await page.waitForTimeout(120);
-
-  /* 用户要的是「封面离开时导航栏自然出现」，不是两边同时抢镜 ——
-     底栏挂载被刻意推迟到开场画退场后半段（BOTTOM_NAV_REVEAL_DELAY_MS）。
-     这里在手势刚触发的窗口内量一次：底栏必须还没出现。 */
-  const navRightAfterSwipe = await bottomNavExists(page);
+  // ---------- B. 跳过 → 渐隐 → 论坛铺满、底栏滑入、不可回退 ----------
+  console.log('\n[B] 跳过进入论坛');
+  const navRightAfterSkip = await bottomNavExists(page);
   check(
-    'B0 手势刚触发时底栏还没出现（不与封面同时起步）',
-    navRightAfterSwipe === false,
-    String(navRightAfterSwipe),
+    'B0 跳过刚触发时底栏还没出现（不与封面同时起步）',
+    navRightAfterSkip === false,
+    String(navRightAfterSkip),
   );
 
-  /* 采样：轮询等 transform 真的开始变，而不是拍一个固定 sleep ——
-     首帧/热更新抖动时 120ms 可能还停在 identity matrix，会假红。 */
-  const identity = 'matrix(1, 0, 0, 1, 0, 0)';
-  let midTransform = '';
-  const sampleStart = Date.now();
-  while (Date.now() - sampleStart < 800) {
-    const t = await gateTransform(page);
-    if (t && t !== 'none' && t !== identity) {
-      midTransform = t;
-      break;
-    }
-    await page.waitForTimeout(40);
-  }
-  await page.waitForTimeout(180);
-  const midTransform2 = await gateTransform(page);
+  await page.locator('.home-gate-skip').click();
+  await page.waitForSelector('.home-gate.is-leaving', { timeout: 1000 });
+  const fading = await page.evaluate(() => {
+    const gate = document.querySelector('.home-gate');
+    const animation = gate?.getAnimations?.()[0];
+    return {
+      opacity: gate ? Number(getComputedStyle(gate).opacity) : null,
+      transform: gate ? getComputedStyle(gate).transform : null,
+      animationName: animation?.animationName || null,
+    };
+  });
   check(
-    'B1 过渡中开场画正在位移（transform 两次采样不同）',
-    Boolean(midTransform) && midTransform !== midTransform2,
-    `${midTransform} → ${midTransform2}`,
+    'B1 跳过后播放 opacity 渐隐',
+    fading.animationName?.startsWith('homeGateExit'),
+    JSON.stringify(fading),
+  );
+  check(
+    'B2 渐隐不位移、不缩放',
+    fading.transform === 'none' && fading.opacity >= 0 && fading.opacity <= 1,
+    JSON.stringify(fading),
   );
 
-  const translateYOf = (t) => {
-    const m = /matrix\(([^)]+)\)/.exec(t || '');
-    if (!m) return null;
-    const parts = m[1].split(',').map((v) => parseFloat(v.trim()));
-    return Number.isFinite(parts[5]) ? parts[5] : null;
-  };
-  const y1 = translateYOf(midTransform);
-  const y2 = translateYOf(midTransform2);
-  check(
-    'B2 位移方向为向上退出（translateY 递减至负）',
-    y1 !== null && y2 !== null && y2 < y1,
-    `${y1} → ${y2}`,
-  );
-
-  // 等待要盖过完整过渡时长（index.vue 的 GATE_TRANSITION_MS = 880ms）+ 余量
-  await page.waitForTimeout(1800);
+  await page.waitForSelector('.home-gate', { state: 'detached', timeout: 3000 });
   check('B3 过渡结束开场画被卸载（单向入场）', (await gateExists(page)) === false);
 
   const stage = await page.$('.home-forum-stage');
   check('B4 论坛层存在', Boolean(stage));
   const labels = await sectionLabels(page);
-  check(
-    'B5 分区七席且官方居首',
-    labels.join('/') === '官方/最新/关注/新闻/活动/成员/印象',
-    labels.join('/'),
-  );
+  check('B5 分区五席且官方居首', labels.join('/') === '官方/最新/关注/资讯/成员', labels.join('/'));
   check(
     'B6 默认分区 = 最新',
     (await activeSectionLabel(page)) === '最新',
@@ -406,14 +373,14 @@ const main = async () => {
   const navLabelsAfterEnter = await bottomNavLabels(page);
   check(
     'B7 进入论坛后底栏五席出现',
-    navLabelsAfterEnter.join('/') === '方块/我的/资产/消息/设置',
+    navLabelsAfterEnter.join('/') === '内容/消息/周边/图库/我',
     navLabelsAfterEnter.join('/'),
   );
   check(
-    'B8 底栏「方块」高亮',
+    'B8 底栏「内容」高亮',
     (await page
       .$eval('.bottom-nav-glass .nav-item.active .nav-label', (el) => el.textContent.trim())
-      .catch(() => '')) === '方块',
+      .catch(() => '')) === '内容',
   );
 
   /* 首页把「更晚更慢的浮现」传给底栏（默认 760ms，首页 900ms）——
@@ -483,7 +450,7 @@ const main = async () => {
     }, label);
     await page.waitForTimeout(900);
   };
-  for (const label of ['关注', '新闻', '活动', '最新', '成员', '印象']) {
+  for (const label of ['关注', '资讯', '成员', '最新', '官方']) {
     await clickSection(label);
     const active = await activeSectionLabel(page);
     const broken = await page.evaluate(() => Boolean(document.querySelector('.geb-root')));
@@ -500,31 +467,31 @@ const main = async () => {
   await gotoRoute(page, '#/user-space?tab=posts', { settle: 2200 });
   const usLabels = await bottomNavLabels(page);
   check(
-    'D1 五席 = 方块/我的/资产/消息/设置',
-    usLabels.join('/') === '方块/我的/资产/消息/设置',
+    'D1 五席 = 内容/消息/周边/图库/我',
+    usLabels.join('/') === '内容/消息/周边/图库/我',
     usLabels.join('/'),
   );
   const usActive = await page
     .$eval('.bottom-nav-glass .nav-item.active .nav-label', (el) => el.textContent.trim())
     .catch(() => '');
-  check('D2 ?tab=posts 时「我的」高亮', usActive === '我的', usActive);
+  check('D2 ?tab=posts 时「我」高亮', usActive === '我', usActive);
   if (SHOT) await page.screenshot({ path: path.join(OUT_DIR, '04-userspace-nav.png') });
 
   await gotoRoute(page, '#/user-space?tab=assets', { settle: 2000 });
   const assetsActive = await page
     .$eval('.bottom-nav-glass .nav-item.active .nav-label', (el) => el.textContent.trim())
     .catch(() => '');
-  check('D3 ?tab=assets 时「资产」高亮', assetsActive === '资产', assetsActive);
+  check('D3 ?tab=assets 时仍由「我」席承载', assetsActive === '我', assetsActive);
 
   await gotoRoute(page, '#/user-space?tab=community', { settle: 2200 });
   const communityActive = await page
     .$eval('.bottom-nav-glass .nav-item.active .nav-label', (el) => el.textContent.trim())
     .catch(() => '');
-  check('D4 ?tab=community 时「方块」高亮', communityActive === '方块', communityActive);
+  check('D4 ?tab=community 时「内容」高亮', communityActive === '内容', communityActive);
   const usForumLabels = await sectionLabels(page);
   check(
-    'D5 方块分区在本页渲染论坛（七席）',
-    usForumLabels.join('/') === '官方/最新/关注/新闻/活动/成员/印象',
+    'D5 内容分区在本页渲染论坛（五席）',
+    usForumLabels.join('/') === '官方/最新/关注/资讯/成员',
     usForumLabels.join('/'),
   );
 
@@ -578,9 +545,9 @@ const main = async () => {
   });
   const desktopPage = await desktopContext.newPage();
   await installNetworkStubs(desktopPage);
-  await gotoRoute(desktopPage, '#/', { settle: 1800 });
-  await swipeDown(desktopPage, 200);
-  await desktopPage.waitForTimeout(900);
+  await gotoRoute(desktopPage, '#/', { settle: 300 });
+  await desktopPage.locator('.home-gate-skip').click();
+  await desktopPage.waitForSelector('.home-gate', { state: 'detached', timeout: 3000 });
   const desktopNavVisible = await desktopPage
     .$eval('.bottom-nav-glass', (el) => el.getBoundingClientRect().width > 0)
     .catch(() => false);
@@ -603,20 +570,21 @@ const main = async () => {
   });
   const landscapePage = await landscapeContext.newPage();
   await installNetworkStubs(landscapePage);
-  await gotoRoute(landscapePage, '#/', { settle: 1500 });
+  await gotoRoute(landscapePage, '#/', { settle: 300 });
   const landscapeHero = await landscapePage.evaluate(() => {
     const hero = document.querySelector('.street-hero');
-    if (!hero) return null;
-    const hint = document.querySelector('.street-hero-hint');
+    const skip = document.querySelector('.home-gate-skip');
     const greeting = document.querySelector('.street-hero-greeting');
-    const heroRect = hero.getBoundingClientRect();
-    const hintRect = hint ? hint.getBoundingClientRect() : null;
-    const greetingRect = greeting ? greeting.getBoundingClientRect() : null;
+    const heroRect = hero?.getBoundingClientRect();
+    const skipRect = skip?.getBoundingClientRect();
+    const greetingRect = greeting?.getBoundingClientRect();
     return {
-      heroH: Math.round(heroRect.height),
+      heroH: heroRect ? Math.round(heroRect.height) : null,
       viewportH: window.innerHeight,
-      hintBottomGap: hintRect ? Math.round(window.innerHeight - hintRect.bottom) : null,
-      hintVisible: hintRect ? hintRect.bottom <= window.innerHeight + 1 : false,
+      skipVisible: skipRect
+        ? skipRect.bottom <= window.innerHeight + 1 && skipRect.right <= window.innerWidth + 1
+        : false,
+      skipBottomGap: skipRect ? Math.round(window.innerHeight - skipRect.bottom) : null,
       greetingVisible: greetingRect
         ? greetingRect.top >= 0 && greetingRect.bottom <= window.innerHeight
         : false,
@@ -628,8 +596,8 @@ const main = async () => {
     JSON.stringify(landscapeHero),
   );
   check(
-    'H2 横屏提示完整可见且不贴底',
-    landscapeHero?.hintVisible === true && landscapeHero.hintBottomGap >= 30,
+    'H2 横屏跳过按钮完整可见且贴底',
+    landscapeHero?.skipVisible === true && landscapeHero.skipBottomGap <= 24,
     JSON.stringify(landscapeHero),
   );
   check(
@@ -643,12 +611,12 @@ const main = async () => {
   const landNavOverlap = await landscapePage.evaluate(() => {
     const nav = document.getElementById('unified-nav-container');
     const greeting = document.querySelector('.street-hero-greeting');
-    if (!nav || !greeting) return null;
+    if (!nav) return { navMounted: false, ok: true };
+    if (!greeting) return { navMounted: true, ok: false };
     const navRect = nav.getBoundingClientRect();
     const greetingRect = greeting.getBoundingClientRect();
     return {
-      navBottom: Math.round(navRect.bottom),
-      greetingTop: Math.round(greetingRect.top),
+      navMounted: true,
       ok: greetingRect.top >= navRect.bottom - 2,
     };
   });

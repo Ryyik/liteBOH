@@ -18,16 +18,9 @@
       <p v-if="config.subtitle" class="gsh-sub">{{ config.subtitle }}</p>
     </div>
 
-    <!-- 主 CTA：data-gate-cta 是给首页手势用的白名单标记 ——
-         .home-gate 上的 pointerdown 会跳过它，否则点按钮会被当成上滑起手。 -->
-    <button v-if="ctaText" class="gsh-cta" type="button" data-gate-cta @click.stop="$emit('cta')">
+    <button v-if="ctaText" class="gsh-cta" type="button" @click.stop="$emit('cta')">
       {{ ctaText }}<span class="gsh-cta-ar">→</span>
     </button>
-
-    <div class="gsh-hint" aria-hidden="true">
-      <span>{{ hintText }}</span>
-      <span class="gsh-ar">↓</span>
-    </div>
   </section>
 </template>
 
@@ -42,8 +35,7 @@ import {
 
 /* 万圣夜开屏（活动期临时形态）
    数据来自 home_gate_config 单行表，由 /admin/gate-console 管理。
-   本组件只负责「画」和「把 CTA 事件抛给宿主」，不碰路由、不碰手势 ——
-   拖拽进度 --gate-p 由首页 .home 注入，这里只消费（提示的淡出用它派生）。 */
+   本组件只负责「画」和「把 CTA 事件抛给宿主」，不碰路由、不碰交互。 */
 
 const props = defineProps({
   /** normalizeGateConfig() 的产物；缺字段一律按空处理 */
@@ -122,8 +114,6 @@ const titleStyle = computed(() => {
 });
 
 const ctaText = computed(() => String(props.config?.cta_text || '').trim());
-const hintText = computed(() => String(props.config?.hint_text || '').trim() || '或上滑进入方块街');
-
 onMounted(() => {
   measure();
   if (typeof ResizeObserver === 'function' && rootRef.value) {
@@ -159,7 +149,7 @@ onBeforeUnmount(() => {
 .gsh-scene {
   position: absolute;
   inset: 0;
-  /* 场景只是背景：手势必须穿到 .home-gate 上，否则跟手拖拽会断 */
+  /* 场景只是背景，不接收交互。 */
   pointer-events: none;
 }
 
@@ -273,40 +263,6 @@ onBeforeUnmount(() => {
   letter-spacing: 0;
 }
 
-.gsh-hint {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 40px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 7px;
-  font-size: 11px;
-  letter-spacing: 0.1em;
-  color: rgba(255, 241, 220, 0.58);
-  pointer-events: none;
-  /* 提示的淡出直接由跟手进度派生（p≈0.45 完全消失），不额外维护 JS 状态 */
-  opacity: calc(1 - var(--gate-p, 0) * 2.2);
-}
-
-.gsh-ar {
-  display: inline-block;
-  animation: gshBreath 2s steps(2, end) infinite;
-}
-
-@keyframes gshBreath {
-  0%,
-  100% {
-    transform: translateY(0);
-    opacity: 0.55;
-  }
-  50% {
-    transform: translateY(3px);
-    opacity: 1;
-  }
-}
-
 /* 横屏（按容器宽高比判定）：可用高度只有 390~430px，文案与按钮整体上收，标题降一档 */
 @container gatescene (min-aspect-ratio: 1/1) {
   .gsh-copy {
@@ -334,12 +290,6 @@ onBeforeUnmount(() => {
     bottom: 62px;
     height: 44px;
   }
-
-  .gsh-hint {
-    bottom: 26px;
-    justify-content: flex-start;
-    padding-left: 32px;
-  }
 }
 
 /* 矮容器（横屏手机 / 分屏）：同样收一档，规则与上面一致，只是触发条件不同 */
@@ -352,17 +302,9 @@ onBeforeUnmount(() => {
     bottom: 62px;
     height: 44px;
   }
-
-  .gsh-hint {
-    bottom: 26px;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .gsh-ar {
-    animation: none;
-  }
-
   .gsh-cta {
     transition: none;
   }

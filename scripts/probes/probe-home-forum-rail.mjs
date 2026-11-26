@@ -86,10 +86,9 @@ async function openHome(width, height, { skipGate = true, theme = 'light' } = {}
   const page = await context.newPage();
   page.on('pageerror', (e) => errors.push(String(e.message).slice(0, 160)));
   await page.goto(`${BASE}/#/`, { waitUntil: 'domcontentloaded' });
-  await injectAuth(page);
-  // 开场画阶段论坛层还没就位（stage 高度为 0），此时要等的是开场层本身
+  if (skipGate) await injectAuth(page);
   await page.waitForSelector(skipGate ? '.forum-section-shell' : '.home-gate', { timeout: 20000 });
-  await page.waitForTimeout(2200);
+  await page.waitForTimeout(skipGate ? 2200 : 200);
   return { context, page };
 }
 
@@ -119,8 +118,7 @@ const measure = (page) =>
       railW: getComputedStyle(document.body).getPropertyValue('--userspace-rail-w').trim(),
       rail: box(rail),
       railPosition: rail ? getComputedStyle(rail).position : null,
-      // 2026-09-27：首页左栏的「开场画期间不显」从 display:none 改成了 opacity 吃 --forum-p
-      // （display 不可动画，退场瞬间是硬闪）。所以判定要看透明度，不能只看尺寸。
+      // 左栏保持常态，遮罩以更高 z-index 完整覆盖它。
       railOpacity: rail ? Number(getComputedStyle(rail).opacity) : null,
       railItems: Array.from(document.querySelectorAll('.userspace-rail-item')).map((el) =>
         el.textContent.trim(),
@@ -134,7 +132,9 @@ const measure = (page) =>
       indicatorBg: getComputedStyle(document.querySelector('.userspace-rail-indicator'))
         .backgroundColor,
       // 2026-10-26 内嵌发帖器已废弃：页面里不该再有这块 DOM，量到就是回潮
-      inlineComposer: box(document.querySelector('.forum-page .forum-left-column > .post-creation-section')),
+      inlineComposer: box(
+        document.querySelector('.forum-page .forum-left-column > .post-creation-section'),
+      ),
       // 底栏槽位是 display:contents，自身 rect 恒为 0×0 —— 要量它里面真正的底栏
       bottomNav: box(document.querySelector('.home-bottom-nav-slot .bottom-nav-glass')),
       mobileComposeFab: box(document.querySelector('.forum-page .mobile-compose-fab')),
@@ -159,8 +159,8 @@ try {
        同时补上「更多」—— 它也是 .userspace-rail-item，旧文案漏在账外。
        当前真源 = src/config/bottom-nav.ts（内容/消息/AI/图库/我）+ 便捷组（发布/搜索）+ 工具组（首页）+ 更多。 */
     check(
-      'A3 左栏条目与 UserSpace 同源（5 主 + 发布/搜索 + 首页 + 更多）',
-      m.railItems.join('/') === '内容/消息/AI/图库/我/发布/搜索/首页/更多',
+      'A3 左栏条目与 UserSpace 同源（5 主 + 发布/资产 + 首页 + 更多）',
+      m.railItems.join('/') === '内容/消息/周边/图库/我/发布/资产/首页/更多',
       m.railItems.join('/'),
     );
 
@@ -275,19 +275,14 @@ try {
     const { context, page } = await openHome(1440, 900, { skipGate: false });
     const during = await measure(page);
     console.log('\n--- 开场画在场 1440×900 ---');
-    // 2026-09-27：隐藏形态改为「透明度吃转场进度」（可过渡、不瞬现），
-    // 所以判定要同时认「尺寸为 0」和「完全透明」两种形态。
     check(
-      'F1 开场画在场：左栏先不显（隐藏或全透明）',
-      during.gate &&
-        !during.gate.hidden &&
-        (!during.rail || during.rail.hidden || during.railOpacity === 0),
+      'F1 开场画在场：遮罩压住左栏',
+      during.gate && !during.gate.hidden && during.railOpacity === 1,
       `gate=${JSON.stringify(during.gate)} rail=${JSON.stringify(during.rail)} opacity=${during.railOpacity}`,
     );
     await page.screenshot({ path: `${OUT}/gate-open.png` });
-    // 下滑退场（跟手推满 → 释放提交 → 慢速长收尾）
-    await page.mouse.wheel(0, 1600);
-    await page.waitForTimeout(2600);
+    await page.locator('.home-gate-skip').click();
+    await page.waitForSelector('.home-gate', { state: 'detached', timeout: 3000 });
     const after = await measure(page);
     check(
       'F2 开场画退场后左栏出现且完全显影',

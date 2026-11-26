@@ -30,8 +30,8 @@
  *
  * ⚠️ 触发点迁到首屏解锁后，**探针必须显式解锁开场画**才能测到弹岛：
  *  每个场景都是新 browser context，`boh-home-gate-passed` 一定没落盘 → 开场画必播 →
- *  `gateSettled` 初始为 false。所以 A/B/C/F/G/H 都改成调 `unlockHomeGate(page)`（走键盘路径
- *  一次按键 commitGate），**不再点 `#nav-user-info`**。同时「加载岛是否出现过」的记录器
+ *  `gateSettled` 初始为 false。所以 A/B/C/F/G/H 都改成调 `unlockHomeGate(page)`（点「跳过」
+ *  或等待自动退场），**不再点 `#nav-user-info`**。同时「加载岛是否出现过」的记录器
  *  必须在解锁之前装好（拦截响应是瞬时的，加载岛只闪几毫秒）。E 场景要显式压掉触发
  *  （预置会话标记），避免它的摘要请求抢先落到 `captured.body` 上。
  *
@@ -184,18 +184,10 @@ const installIslandRecorder = (page) =>
 const readIslandRecorder = (page) =>
   page.evaluate(() => window.__islandSeen || { appeared: false, visible: false });
 
-/** 首屏解锁（＝进入论坛）：智能概览 2026-09-30 起的**唯一**自动触发点，见 views/Home/index.vue
- *  的 `watch([gateSettled, isLoggedIn])`。
- *  每个场景都是新 browser context → `boh-home-gate-passed` 一定没落盘 → 开场画必播，
- *  所以这里必须显式走一遍解锁。走键盘路径（useGatePull.handleGateKeydown：一次按键即 commitGate），
- *  比伪造 localStorage 稳：生产构建的 key 带构建指纹，探针不该知道它。
- *  ⚠️ 落定要等补间跑完（正常 pullMs = 1900ms），gateSettled 才置 true。 */
+/** 首屏解锁（＝进入论坛）：点击跳过，或等待自动退场完成。 */
 const unlockHomeGate = async (page) => {
-  await page.evaluate(() => {
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
-  });
-  // pullMs（1900）+ 余量；reduce 分支只 360ms，多等不会更糟
-  await page.waitForTimeout(2600);
+  await page.evaluate(() => document.querySelector('.home-gate-skip')?.click());
+  await page.waitForSelector('.home-forum-settled', { timeout: 5000 });
 };
 
 /** 等通知岛卡出现**目标文案**（导航栏始终有一个常驻占位卡，不能只等 .global-nav-status-card） */

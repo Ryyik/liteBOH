@@ -14,11 +14,11 @@
     {
       "glob": "src/views/Home/**",
       "run": [
-        "node scripts/probes/probe-home-gate-pull.mjs",
+        "node scripts/probes/probe-home-gate-overlay.mjs",
         "node scripts/probes/probe-home-forum-rail.mjs",
         "node scripts/probes/probe-overview-island-guards.mjs"
       ],
-      "why": "首屏拉动/落定动效 + 底栏布局 + 概览岛触发点（唯一触发点在首页 gateSettled）"
+      "why": "首页定时遮罩/渐隐落定 + 底栏布局 + 概览岛触发点（唯一触发点在首页 gateSettled）"
     },
     {
       "glob": "src/views/SmartOverview/**",

@@ -1,267 +1,139 @@
 /* ============================================
-   BOH Home - 首屏（开场画 → 论坛）
-   仅包含：首页基础、开场层与转场背板、论坛层（圆角卡片）、底栏槽位、响应式、reduce。
-   其余区块样式在 HomeHeroRow / HomeFooter / components/official-hero-stage.css。
-
-   2026-09-27 入场重构：从「阈值触发 + 一条写死的关键帧动画」改成「跟手进度派生」——
-   本文件里所有转场视觉都由 --gate-p / --forum-p 派生，时长与曲线不再出现在 CSS
-   （唯一真源是 index.vue 的 GATE_TIMINGS）。因此旧有的
-   --home-gate-duration / --home-gate-ease / --home-forum-duration / --home-forum-ease
-   一并删除：它们以前和 JS 的常量各写一份，正是「改一处要动两处」的典型，
-   而且已经漂移过（注释写 1320ms、变量是 980ms）。
+   BOH Home - 首屏（定时遮罩 → 论坛）
+   遮罩完整显示 2 秒后渐隐；跳过立即触发同一退场流程。
+   时长真源在 useGatePull.js 的 GATE_TIMINGS，CSS 只消费注入变量。
    ============================================ */
 
-/* ============================================
-   首页基础
-   ============================================ */
 .home {
-  /* 入场进度默认值：模板以 inline style 覆盖，这里只兜底。
-     取 0（= 开场画在场）与 .home-gate 的存在性一致，避免极端情况下论坛层先闪一下。 */
-  --gate-p: 0;
-  --forum-p: 0;
-  /* 论坛层「对焦」时长：由模板从 GATE_TIMINGS.focusMs 注入（reduce 下自动变短） */
-  --home-focus-duration: 760ms;
+  --home-gate-fade-duration: 560ms;
+  --home-focus-duration: 700ms;
 
   position: relative;
   width: 100%;
   overflow-x: hidden;
-  /* 页面底色走 token（纯白 #ffffff；暗色在 themes/dark-mode.css 覆写同一变量）。 */
   background-color: var(--boh-page-bg, #ffffff);
   color: #000000;
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, "Helvetica Neue", Arial, "Microsoft YaHei", "微软雅黑", sans-serif;
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, 'Helvetica Neue',
+    Arial, 'Microsoft YaHei', '微软雅黑', sans-serif;
   -webkit-overflow-scrolling: touch;
   padding: 0;
   display: flex;
   flex-direction: column;
-  /* 开场画顶格、论坛层紧接其后 */
   gap: 0;
 }
 
-/* ---------- 论坛层＝「桌面」----------
-   2026-09-27 三调：它不再从视口下方升上来（那是 push 新页面的语言），
-   而是**一直待在原位**，只做一次极轻的 scale 归位 —— 像是本来就铺在那儿，
-   刚刚被一张浮层盖着、现在被揭开。位移全部交给上面那张浮层。
-   幅度只有 2%（浮层是 10%），刻意小一个量级：读者看到的才是「一张纸被拿走」，
-   而不是「两张纸对撞」。
-   ⚠️ transform 会创建包含块，让内部 position:fixed 的子元素改为相对本层定位 ——
-   所以落定后必须显式回到 transform: none（见 .home-forum-settled），不能停在 scale(1)。 */
 .home-forum-stage {
   position: relative;
   z-index: 1;
   width: 100%;
   min-height: 100svh;
   background-color: #ffffff;
-  transform: scale(calc(1 + (1 - var(--forum-p)) * 0.02));
-  /* ⚠️ 刻意不覆盖 --segment-tabs-inset：分区页签用 SegmentTabs 的默认避让
-     （吃 --userspace-nav-h，即导航胶囊实测高度 + safe-area + 4px）。
-     2026-09-23 修：原先这里写死 18px，页签会被悬浮导航胶囊压住（新闻/活动两项被盖）。
-     导航岛含状态卡时高度会变，静态值必然一头空一头盖 —— 高度由 index.vue 的
-     ResizeObserver 实测写入（与 UserSpaceMain 同口径）。 */
 }
 
-/* ---------- 开场层（一次性）----------
-   fixed 而不是 absolute：与 .home 实际高度解耦 —— 首页文档流里有论坛层 + 归档区 + 页脚，
-   absolute inset:0 会被撑得比视口高，Hero 图（100svh）下方就会露出论坛。fixed 永远只覆盖视口。
-
-   2026-09-27 三调：改成「Apple 式揭开浮层」，不再让两页互相对滑。
-   · 旧观感：开场画上移一屏、论坛从视口下方 100vh 升上来 —— 那是 push 新页面的语言，
-     两头都在动、谁也不在原地，所以「不自然」。
-   · 新观感：论坛（＝桌面）**一直待在原位**，只做极轻的 scale 归位；
-     开场画是**盖在桌面上的一张浮层**，被手指推走 —— 上移 + 缩小 + 起圆角 + 变糊 + 淡出。
-     四周逐渐露出的就是那张一直在下面的桌面，观感与 iOS 上滑关闭 App / 锁屏一致。
-   ⚠️ 模糊刻意不在这里做：逐帧改 filter: blur() 的半径会让大面积图层每帧重新栅格化，
-   中低端机上直接掉到 20fps。模糊交给 StreetSceneHero 内部那张「静态模糊副本」，
-   用 opacity 交叉淡化实现（见该组件的 .street-hero-media-blur）。 */
 .home-gate {
   position: fixed;
   inset: 0;
   z-index: 1300;
-  /* 拦住底层滚动的第一道防线（第二道是 handleWheel / handleTouchMove 的 preventDefault）：
-     none 让浏览器一开始就不把这块上的手势当成滚动，touchmove 因此始终可取消。
-     本层内部没有可滚动内容，设为 none 零副作用。 */
-  touch-action: none;
-  /* 浮层被推走的三件事（全是合成器友好属性）：
-       · 上移 36%（2026-09-27 由 14% 上调）—— 手指推多少走多少。14% 时浮层只挪了一小截
-         就没了，谈不上「行程」；36% 才能看清它是一整层被推走、后面那张桌面一点点露出来；
-       · 缩到 0.90 —— 浮层被收走的纵深感（Apple 关闭 App 的同款语言）；
-       · 起圆角 —— 从满屏直角变成一张圆角卡片，四周露出下面的内容。
-     仍然不做满屏：走满一屏是「换页」（下一屏从屏外进来），缩着走才是「揭盖」。 */
-  transform: translateY(calc(var(--gate-p) * -42%)) scale(calc(1 - var(--gate-p) * 0.1));
-  border-radius: calc(var(--gate-p) * 32px);
-  /* 圆角要裁住内部的 hero 图，否则图片四角会溢出来 */
   overflow: hidden;
-  /* 淡出只留到最后一段（2026-09-27 五调，用户反馈：「滑到一半就半透明、能看到下面内容了，
-     但卡片还没走完」）。原来是线性 `1 - p*1.15` —— p≈0.87 就全透了，于是拖动中段整块浮层
-     变成磨砂玻璃，观感「没走完就漏了」。
-     现在用 clamp 做分段：p ≤ 0.8 恒为 1（完全不透明），只有最后 20% 才从 1 降到 0。
-     配合 easeOutExpo 的后段极缓，这段淡出本身也跑得从容，不会仓促。
-     ⚠️ 数值不要改回线性：线性淡出 = 拖到一半就能透视到底下，这是被明确否掉的观感。 */
-  opacity: clamp(0, calc((1 - var(--gate-p)) * 5), 1);
-  will-change: transform, opacity, border-radius;
+  touch-action: none;
+  opacity: 1;
 }
 
-/* 键盘 / 读屏用户的等价入口：视觉隐藏，聚焦时可见 */
-.home-gate-enter {
+.home-gate.is-leaving {
+  pointer-events: none;
+  animation: homeGateExit var(--home-gate-fade-duration)
+    var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)) both;
+}
+
+.home-gate-skip {
   position: absolute;
-  left: 50%;
-  bottom: 8px;
-  transform: translateX(-50%);
-  padding: 8px 16px;
+  z-index: 2;
+  left: auto;
+  right: max(20px, env(safe-area-inset-right));
+  bottom: max(20px, env(safe-area-inset-bottom));
+  transform: none;
+  min-width: 88px;
+  min-height: 44px;
+  padding: 10px 24px;
   border: 0;
   border-radius: 999px;
-  background: rgba(0, 0, 0, 0.55);
+  background: rgba(0, 0, 0, 0.58);
   color: #ffffff;
-  font-size: 13px;
-  letter-spacing: 0.04em;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
   cursor: pointer;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 200ms ease;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
-.home-gate-enter:focus-visible {
-  opacity: 1;
-  pointer-events: auto;
+.home-gate-skip:focus-visible {
   outline: 2px solid rgba(255, 255, 255, 0.9);
-  outline-offset: 2px;
+  outline-offset: 3px;
 }
 
-/* 只在转场期间提示合成器（落定后撤掉，不留常驻合成层开销） */
-.home:not(.home-forum-open) .home-forum-stage {
-  will-change: transform;
+@keyframes homeGateExit {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
 }
 
-/* 落定：解除 transform 的包含块、撤掉 will-change，回到干净的文档流 */
-.home-forum-settled .home-forum-stage {
-  transform: none;
-  will-change: auto;
-}
-
-/* ---------- 桌面 UI 的「浮上来」（2026-09-27 四调）----------
-   用户原话：「下滑之后 UI 组件浮上来的感觉」。
-   之前这些组件是**落定之后**才播一段一次性动画（挂在 .home-forum-entering 上），
-   于是跟手阶段它们纹丝不动、松手之后才突然开始动 —— 中间断了一拍，
-   这才是「不流畅」的真正来源（不是时长不够，是节奏不连续）。
-   现在改成**全程由 --forum-p 派生**：浮层被推走的同时，页签 / 工具栏 / 帖子卡
-   各自从下方浮起，幅度按层次递增（页签最浅 26px、帖子卡最深 44~60px），
-   读起来就是「一层层浮上来」，而不是「整块换掉」。
-
-   ⚠️ 三处刻意的写法：
-     1) 用 `:deep()` 穿透 —— 这些元素属于 ForumMain / ForumSectionShell 子组件；
-     2) 用 `.home:not(.home-forum-settled)` 而不是「落定后再写一条 transform: none」——
-        后者特异性会压住 PostCard 自带的 :hover transform（卡片从此不再有悬停反馈）；
-        这样写等于「落定后本规则整条不适用」，属性交还给元素自己。转场期间 hover 不动
-        是有意的（手指/指针都在推浮层，不该同时响应悬停）；
-     3) UserSpace 复用同一个论坛壳：那边没有 --forum-p（fallback 1）→ 位移恒为 0，零影响。 */
-.home:not(.home-forum-settled) .home-forum-stage :deep(.segment-tabs) {
-  transform: translateY(calc((1 - var(--forum-p, 1)) * 26px));
-}
-
-.home:not(.home-forum-settled) .home-forum-stage :deep(.forum-toolbar) {
-  transform: translateY(calc((1 - var(--forum-p, 1)) * 34px));
-}
-
-.home:not(.home-forum-settled) .home-forum-stage :deep(.forum-virtual-post .post-card-v2) {
-  transform: translateY(calc((1 - var(--forum-p, 1)) * 44px));
-}
-
-/* 前两张再多浮一点：层次靠幅度差给出来，不需要 animation-delay 那套时序 */
-.home:not(.home-forum-settled) .home-forum-stage :deep(.forum-virtual-post:nth-child(1) .post-card-v2) {
-  transform: translateY(calc((1 - var(--forum-p, 1)) * 60px));
-}
-
-.home:not(.home-forum-settled) .home-forum-stage :deep(.forum-virtual-post:nth-child(2) .post-card-v2) {
-  transform: translateY(calc((1 - var(--forum-p, 1)) * 52px));
-}
-
-/* 落定后的「对焦」：只改 opacity，绝不碰 transform ——
-   否则 keyframes 里的 transform 会盖掉上面由 --forum-p 派生的位移，卡片会瞬跳。
-
-   ⚠️ 2026-09-30：**移除这里的 filter: blur()**（原为 from blur(5px) → to blur(0)）。
-   两个原因，与用户报障「横屏划掉开场画后：先划不动一会 → 解锁后才出现模糊 → 才逐渐正常」逐条对上：
-     ① **视觉是反的**：跟手全程论坛层都是清晰的 —— 模糊由 StreetSceneHero 那张「静态模糊副本」
-        负责，它属于**浮层**（.home-gate）而不是**桌面**（.home-forum-stage）。落定瞬间才给
-        已经清晰的桌面加上 blur(5px) 再化开，用户看到的是「解锁之后突然糊一下」，不是「对焦」。
-        用户原话：「我是已经解锁完了才出现的模糊」。
-     ② **它违反本文件自己的性能原则**（见上方 .home-gate 那段注释）：对整块论坛层逐帧改
-        filter 半径会让大面积图层每帧重新栅格化。而落定瞬间**正好就是解锁瞬间**
-        （useGatePull.js 的 tween 回调里 forumEntering=true 与 unlockDocumentScroll() 相邻），
-        于是表现为「已经解锁了，但一时滑不动」——即用户感知的那段卡顿。
-   仅保留 opacity 收敛：它走合成器路径，不触发重栅格化。 */
 .home-forum-entering .home-forum-stage {
-  animation: homeForumFocus var(--home-focus-duration) var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)) both;
+  animation: homeForumFocus var(--home-focus-duration)
+    var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)) both;
 }
 
 @keyframes homeForumFocus {
-  from { opacity: 0.9; }
-  to { opacity: 1; }
+  from {
+    opacity: 0.9;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
-/* 底栏槽位：display:contents 让固定定位的底栏照常相对视口定位；
-   桌面 / 横屏整槽关掉（首页不挂底栏，顶部 UnifiedNavbar 足够） */
 .home-bottom-nav-slot {
   display: contents;
 }
 
-/* 边界 700：700–1023 竖屏（iPad mini 744 / iPad 768 起）已是完整顶部导航形态，
-   首页不再挂底栏，与 820/834 一致；≤699 才由底栏承担主导航。
-   边界必须与 unified-nav.css 的 max-width: 699px 同源，否则会出现
-   「744 顶部完整导航 + 底部又挂一条」的双导航。 */
 @media (min-width: 700px), (orientation: landscape) {
   .home-bottom-nav-slot {
     display: none;
   }
 }
 
-/* 折叠屏展开态 / 横屏窄档（2026-10-29）：上面那条按「横屏 = 桌面」关掉了整槽，
-   但 769–1023 这段既没有桌面顶部导航的完整版、也没有 ≥1024 的横向左栏
-   ⇒ 939×664（Pura X Max 展开）/ 951×585（iPhone Duo 内屏横）实测是
-   **整页零导航**。这里把槽位重新打开，底栏自身在该档变成贴右竖向胶囊
-   （见 bottom-nav.css 末尾「Duo 式竖向胶囊」）。
-   边界与那边完全一致：≤1023 才开，≥1024 仍然交给左栏。 */
 @media (orientation: landscape) and (max-width: 1023px) {
   .home-bottom-nav-slot {
     display: contents;
   }
 }
 
-/* ============================================
-   reduce：位移 / 缩放 / 模糊 / 圆角 / 阴影全砍，只留可感知的淡入淡出
-   ============================================ */
 @media (prefers-reduced-motion: reduce) {
-  /* 2026-09-24 晚修的口径延续：这段过渡是流程反馈（确实发生了「从开场画到论坛」这件事），
-     不是装饰，所以降级为纯 opacity 而不是直接 none。
-     ⚠️ 用后置覆盖而不是 !important —— !important 棘轮已有基线，新增会让 CI 变红。
-     ⚠️ JS 侧同时把时长表换成 GATE_TIMINGS.reduced：旧实现漏了这一步，
-     动画被压到 300ms 而计时器还是 880/980ms，用户看到的是「淡完了还盖着」的空窗。 */
-  .home-gate {
-    /* 位移、缩放、圆角全砍，只留一层纯 opacity 淡出（流程反馈仍可感知） */
-    transform: none;
-    border-radius: 0;
-    will-change: opacity;
-  }
-
-  .home-forum-stage {
-    transform: none;
-  }
-
-  /* 桌面 UI 的浮起编排在 reduce 下整组砍掉（它是进度驱动的，不是开关式的，
-     所以要在这儿显式抵掉；前缀与上面保持同特异性、靠位置在后取胜）。 */
-  .home:not(.home-forum-settled) .home-forum-stage :deep(.segment-tabs),
-  .home:not(.home-forum-settled) .home-forum-stage :deep(.forum-toolbar),
-  .home:not(.home-forum-settled) .home-forum-stage :deep(.forum-virtual-post .post-card-v2) {
-    transform: none;
+  .home-gate.is-leaving {
+    animation-name: homeGateExitReduced;
   }
 
   .home-forum-entering .home-forum-stage {
     animation: homeForumFocusReduced var(--home-focus-duration) ease both;
   }
+}
 
-  .home-gate-enter {
-    transition: none;
+@keyframes homeGateExitReduced {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
   }
 }
 
 @keyframes homeForumFocusReduced {
-  from { opacity: 0.9; }
+  from {
+    opacity: 0.9;
+  }
 }

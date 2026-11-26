@@ -1,8 +1,8 @@
 /**
  * 首屏街景（street-scene）文案 —— 单一真相源。
  *
- * 问候语与底部提示由 home_heroes 行的 greeting_text / hint_text 控制（2026-09-24 起可配），
- * 两者留空时一律回落这里的默认值，保证「未配置」与「文案可配上线前」逐字一致。
+ * 问候语由 home_heroes 行的 greeting_text 控制（2026-09-24 起可配），
+ * 留空时一律回落这里的默认值，保证「未配置」与「文案可配上线前」逐字一致。
  *
  * 消费方（两处必须同口径，因此共用本模块，不得各自维护副本）：
  *   - src/views/Home/components/StreetSceneHero.vue   线上渲染
@@ -17,7 +17,6 @@
  */
 
 export const DEFAULT_GREETING_TEMPLATE = '这里不只有方块';
-export const DEFAULT_HINT_TEXT = '往下逛逛';
 
 const GREETING_PLACEHOLDER_RE = /\{greeting\}/g;
 
@@ -42,6 +41,3 @@ export const resolveGreetingText = (template, wordOrDate = new Date()) => {
   const custom = String(template ?? '').trim();
   return (custom || DEFAULT_GREETING_TEMPLATE).replace(GREETING_PLACEHOLDER_RE, word);
 };
-
-/** 底部提示文案（「↓」箭头是组件的固定装饰，不落库、不可配） */
-export const resolveHintText = (hint) => String(hint ?? '').trim() || DEFAULT_HINT_TEXT;

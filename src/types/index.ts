@@ -219,7 +219,7 @@ export interface HomeHero {
    * 留空回落默认 '这里不只有方块'（2026-11-14 起为固定文案，不随时段变化）。
    */
   greeting_text?: string | null;
-  /** 仅 template='street-scene' 使用：首屏底部提示文案（↓ 箭头为组件固定装饰）；留空回落「往下逛逛」 */
+  /** 仅 template='street-scene' 使用：首屏底部提示文案（旧数据兼容，当前开场不展示） */
   hint_text?: string | null;
   label?: string | null;
   aria_label?: string | null;

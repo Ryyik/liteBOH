@@ -105,10 +105,6 @@
               <span>副标题</span>
               <input v-model="draft.subtitle" type="text" placeholder="万圣夜限定 · 糖果盒已备好" />
             </label>
-            <label class="gc-field">
-              <span>底部提示</span>
-              <input v-model="draft.hint_text" type="text" placeholder="或上滑进入方块街" />
-            </label>
           </div>
 
           <div class="gc-section">
@@ -193,7 +189,6 @@ const DEFAULTS = {
   eyebrow: 'HALLOWEEN · 10.31',
   title: '万圣节，来方块街有惊喜',
   subtitle: '万圣夜限定 · 糖果盒已备好',
-  hint_text: '或上滑进入方块街',
   cta_text: '看看有什么惊喜',
   cta_target_type: 'lottery',
   cta_lottery_id: '',

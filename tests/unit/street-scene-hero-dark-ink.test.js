@@ -34,7 +34,6 @@ const ruleOf = (css, selector) => {
 const CSS = stripCssComments(styleSection(SRC));
 
 const GREETING = '.street-hero.on-brand .street-hero-greeting';
-const HINT = '.street-hero.on-brand .street-hero-hint';
 const BRAND = '.street-hero.on-brand';
 
 describe('品牌兜底态：问候语墨色', () => {
@@ -49,19 +48,6 @@ describe('品牌兜底态：问候语墨色', () => {
     // 去掉 var(...) 之后还残留 color: #xxx 就是硬编码
     const withoutVar = rule.replace(/var\([^)]*\)/g, 'var()');
     expect(withoutVar).not.toMatch(/color:\s*#[0-9a-fA-F]{3,8}/);
-  });
-});
-
-describe('品牌兜底态：提示语墨色', () => {
-  it('从 --boh-text-primary 派生（color-mix），沿用主文字 token 的亮暗翻转', () => {
-    const rule = ruleOf(CSS, HINT);
-    expect(rule, `没找到 ${HINT} 的声明块`).not.toBe('');
-    expect(rule).toMatch(/color:\s*color-mix\(\s*in srgb,\s*var\(--boh-text-primary/);
-  });
-
-  it('不得直接用 --boh-text-secondary：它浅色档是 #86868b，白底只有 3.5:1', () => {
-    const rule = ruleOf(CSS, HINT);
-    expect(rule).not.toContain('--boh-text-secondary');
   });
 });
 

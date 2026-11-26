@@ -4,17 +4,18 @@ import { HOME_HERO_BASELINE } from '../../src/stores/homeHeroes.ts';
 describe('home hero baseline', () => {
   it('renders the published builtin heroes before the remote configuration returns', () => {
     expect(HOME_HERO_BASELINE.map((hero) => hero.builtin_key)).toEqual([
+      'christmas-xmas',
       'beta6-renewal',
       'mascot-new',
       'agent-preview',
       'birthday',
-      'christmas-xmas',
       'anniversary-8',
       'cloud-cafe',
       'fuzhou',
       'special-custom',
       'split-brand-letter',
     ]);
+    expect(HOME_HERO_BASELINE[0].sort_order).toBe(-20);
     expect(
       HOME_HERO_BASELINE.every(
         (hero) => hero.template === 'builtin' && hero.status === 'published' && !hero.is_archived,

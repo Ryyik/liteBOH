@@ -263,10 +263,6 @@
                     <div class="street-scene-preview-scrim" aria-hidden="true"></div>
                     <div class="street-scene-preview-content">
                       <p class="street-scene-preview-greeting">{{ previewGreeting }}</p>
-                      <p class="street-scene-preview-hint">
-                        <span>{{ previewHint }}</span
-                        ><span class="street-scene-preview-arrow">↓</span>
-                      </p>
                     </div>
                     <span v-if="!streetSceneHasImage" class="street-scene-preview-fallback"
                       >未上传本方向构图，首页回落品牌图</span
@@ -829,9 +825,9 @@
               </label>
             </details>
 
-            <!-- 首屏文案（2026-09-24 起可配）：留空一律回落组件默认，见 StreetSceneHero.vue -->
+            <!-- 首屏问候语：留空一律回落组件默认，见 StreetSceneHero.vue -->
             <details open class="image-config-group">
-              <summary>首屏文案（问候语 / 底部提示）</summary>
+              <summary>首屏问候语</summary>
               <label class="url-field">
                 <span>问候语（{greeting} 会按访问时段替换 · 留空回落默认）</span>
                 <input
@@ -839,16 +835,6 @@
                   type="text"
                   maxlength="60"
                   placeholder="这里不只有方块"
-                  @input="markDirty(selectedHero.id)"
-                />
-              </label>
-              <label class="url-field">
-                <span>底部提示文案（留空回落「往下逛逛」，↓ 箭头固定）</span>
-                <input
-                  v-model="draftHero.hint_text"
-                  type="text"
-                  maxlength="20"
-                  placeholder="往下逛逛"
                   @input="markDirty(selectedHero.id)"
                 />
               </label>
@@ -1360,7 +1346,7 @@ import {
 import { CLOUD_UPLOAD_MAX_IMAGE_SIZE_BYTES } from '@/utils/cloud-upload-guard.js';
 import { supabase } from '@/utils/supabase-client.js';
 import { logger } from '@/utils/logger.js';
-import { resolveGreetingText, resolveHintText } from '@/utils/street-scene-copy.js';
+import { resolveGreetingText } from '@/utils/street-scene-copy.js';
 
 const authStore = useAuthStore();
 const dialog = useConfirmDialog();
@@ -1823,7 +1809,6 @@ const streetScenePreviewSrc = computed(() =>
 
 // 首屏文案预览：与线上 StreetSceneHero 共用 utils/street-scene-copy.js，保证装修台所见即线上所得
 const previewGreeting = computed(() => resolveGreetingText(draftHero.value?.greeting_text));
-const previewHint = computed(() => resolveHintText(draftHero.value?.hint_text));
 
 // 单例语义：同一时刻只允许一条「已发布 + 未归档」的 street-scene。
 // DB 的 partial unique index 才是真防线，这里只做更好的提示。
@@ -2193,7 +2178,6 @@ async function saveCurrent() {
     image_landscape: draft.template === 'street-scene' ? draft.image_landscape || null : null,
     // 首屏文案：仅 street-scene 模板使用；切走该模板时清空，避免残留到别的模板上
     greeting_text: draft.template === 'street-scene' ? draft.greeting_text || null : null,
-    hint_text: draft.template === 'street-scene' ? draft.hint_text || null : null,
     label: draft.label || null,
     aria_label: draft.aria_label || null,
   };

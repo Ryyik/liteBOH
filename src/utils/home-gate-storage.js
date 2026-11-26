@@ -2,7 +2,7 @@
  * 首页开场画「看过一次」标记 —— **单一真源**。
  *
  * 为什么单独成文件（2026-11-15）：
- *   · 它同时被两处消费：`views/Home/composables/useGatePull.js`（开场画本体）
+ *   · 它同时被两处消费：`views/Home/composables/useGatePull.js`（开场遮罩本体）
  *     和 `composables/useHomeGate.js`（App 级导航挂载判定）；
  *   · 如果后者直接从 useGatePull 导入，会把**首页整条懒加载链**拉进主包
  *     （Home chunk 是路由级动态导入，主包不该碰）；

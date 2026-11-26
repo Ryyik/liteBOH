@@ -2,7 +2,7 @@
 /**
  * 首屏底栏浮现诊断：量化「位置偏移」到底偏在哪。
  *
- * 流程：新会话打开首页 → 滚轮触发进论坛 → 在底栏浮现动画的多个时刻采样
+ * 流程：新会话打开首页 → 点跳过进入论坛 → 在底栏浮现动画的多个时刻采样
  *   .bottom-nav-glass 的 rect / transform / 水平中心偏差 / 距底间隙，
  *   再与 UserSpace 页的同款底栏对照。
  * 用法：node scripts/probes/probe-gate-bottomnav.mjs
@@ -12,14 +12,13 @@ import { chromium } from 'playwright';
 const BASE = process.env.PROBE_BASE || 'http://localhost:5173';
 const browser = await chromium.launch({
   channel: 'chrome',
-  args: ['--no-proxy-server', '--proxy-server=direct://', '--proxy-bypass-list=*']
+  args: ['--no-proxy-server', '--proxy-server=direct://', '--proxy-bypass-list=*'],
 });
 const context = await browser.newContext({ viewport: { width: 430, height: 900 }, hasTouch: true });
 const page = await context.newPage();
 
 await page.goto(`${BASE}/#/`, { waitUntil: 'domcontentloaded', timeout: 60000 });
 await page.waitForSelector('.home-gate .street-hero', { timeout: 20000 });
-await page.waitForTimeout(2800);
 
 const sample = () =>
   page.evaluate(() => {
@@ -40,12 +39,12 @@ const sample = () =>
       transform: cs.transform,
       lift: cs.getPropertyValue('--bottom-nav-lift').trim(),
       vh: window.innerHeight,
-      vw: window.innerWidth
+      vw: window.innerWidth,
     };
   });
 
 const t0 = Date.now();
-await page.mouse.wheel(0, 240);
+await page.locator('.home-gate-skip').click();
 
 const samples = [];
 for (const at of [850, 1050, 1250, 1450, 1700, 2000, 2600, 3200]) {

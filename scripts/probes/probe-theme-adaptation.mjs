@@ -81,7 +81,7 @@ for (const [theme, expected] of Object.entries(THEMES)) {
       .catch(() => {});
     await page.waitForSelector(pageInfo.root, { timeout: 20000 }).catch(() => {});
     if (pageInfo.gate) {
-      await page.evaluate(() => document.querySelector('.home-gate-enter')?.click());
+      await page.evaluate(() => document.querySelector('.home-gate-skip')?.click());
       await page.waitForTimeout(2600);
     }
     await page.waitForTimeout(800);

@@ -43,24 +43,12 @@
       />
     </div>
 
-    <!-- 静态模糊副本（2026-09-27）：跟手时的「虚化」由它承担，而不是去动上面那层的 filter。
-         理由：逐帧改 filter: blur() 半径会让整屏图层每帧重新栅格化（中低端机直接掉帧）。
-         这里把 blur() 定格成一个常量，只让 opacity 跟着 --gate-p 走 —— 全程纯合成器路径。
-         同一 src 的第二张 img 走浏览器缓存，不会产生第二次网络请求。 -->
-    <div v-if="hasStreetImage && mediaVisible" class="street-hero-media-blur" aria-hidden="true">
-      <img class="street-hero-img-blur" :src="orientedSrc" alt="" decoding="async" />
-    </div>
-
     <!-- 浅 scrim：只在问候（上 22%）与提示（下 18%）两带渐晕，中段完全透明。
          仅照片形态渲染 —— 品牌兜底是纯白底，黑色渐晕会变成灰带。 -->
     <div v-if="hasStreetImage" class="street-hero-scrim" aria-hidden="true"></div>
 
     <div class="street-hero-content">
       <p class="street-hero-greeting">{{ greetingText }}</p>
-      <p class="street-hero-hint" aria-hidden="true">
-        <span class="street-hero-hint-text">{{ hintText }}</span>
-        <span class="street-hero-hint-arrow">↓</span>
-      </p>
     </div>
   </section>
 </template>
@@ -68,11 +56,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { getCloudinaryTransformedUrl } from '@/utils/cloudinary-client.js';
-import {
-  resolveGreetingText,
-  resolveGreetingWord,
-  resolveHintText,
-} from '@/utils/street-scene-copy.js';
+import { resolveGreetingText, resolveGreetingWord } from '@/utils/street-scene-copy.js';
 
 /* 首屏街景开场画（任务 A）
    规格来源：docs/reports/2026-09/2026-09-22-首页改版实施交付说明.md §2
@@ -155,15 +139,12 @@ const onBrandLogoError = () => {
 // 但自定义模板仍可写 {greeting} 占位符，所以时段词继续保留。
 // 时段词实现只在 utils/street-scene-copy.js 一处（此处不得另立副本）。
 const greetingWord = ref('');
-/* 问候语 / 提示文案：由 street-scene 行的 greeting_text / hint_text 控制（2026-09-24 起可配）。
+/* 问候语由 street-scene 行的 greeting_text 控制（2026-09-24 起可配）。
    留空一律回落默认值。口径与装修台实时预览共用 utils/street-scene-copy.js —— 勿在此另立副本。
    时段词沿用 greetingWord（onMounted 回填，避免首帧取时间的抖动）。 */
 const greetingText = computed(() =>
   resolveGreetingText(props.hero?.greeting_text, greetingWord.value),
 );
-
-/** 提示文案（「↓」箭头仍是组件的固定装饰，不落库） */
-const hintText = computed(() => resolveHintText(props.hero?.hint_text));
 
 // —— IO：完全离开视口后卸载图片解码，滚回恢复 ——
 let io = null;
@@ -180,13 +161,6 @@ const setupObserver = () => {
   );
   io.observe(rootRef.value);
 };
-
-/* —— 「往下逛逛」的呼吸提示：淡出改由进度驱动（2026-09-27）——
-   旧实现监听 window.scrollY > 24，但开场层是 fixed 覆盖层、跟手期间又由手势
-   preventDefault 拦住底层滚动 —— 文档根本不会滚，这条判定等于永远不触发；
-   而 24px 又与旧触发阈值 28px 几乎同时发生，用户在「提示刚淡出」和「整页开演」之间
-   只看到一次闪烁。现在直接由 --gate-p 派生 opacity（见样式里的 .street-hero-hint），
-   跟手多少就淡多少，既即时，也不会出现两套动画抢同一个元素。 */
 
 onMounted(() => {
   greetingWord.value = resolveGreetingWord();
@@ -244,29 +218,6 @@ onBeforeUnmount(() => {
   object-position: center;
 }
 
-/* ---------- 静态模糊副本（跟手「虚化」的唯一承担者，2026-09-27）----------
-   ⚠️ blur 半径必须是常量，绝不跟着进度变：逐帧改 filter 半径会让整屏图层每帧
-   重新栅格化，中低端机上跟手直接掉帧。定格成 14px，只让 opacity 跟着 --gate-p 走。
-   ⚠️ scale(1.08) 是必要的：blur 会让图像边缘出现透明羽化，放大一点把羽化顶出视口，
-   否则四周会露出暖色底。 */
-.street-hero-media-blur {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  opacity: calc(var(--gate-p, 0) * 1.15);
-  will-change: opacity;
-}
-
-.street-hero-img-blur {
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: center;
-  filter: blur(14px) saturate(1.06);
-  transform: scale(1.08);
-}
-
 .street-hero-scrim {
   position: absolute;
   inset: 0;
@@ -295,8 +246,7 @@ onBeforeUnmount(() => {
   align-items: center;
   /* 顶部避让吃 --userspace-nav-h（导航栏实测高度，由 Home 的 ResizeObserver 写入；
      拿不到时回退 78px）——竖屏是居中胶囊、横屏是全宽横条，写死必然一头空一头盖。
-     底部留白给足：2026-09-24 把「往下逛逛」从贴底（旧值 6svh ≈ 50px）上提到视觉下三分之一，
-     贴底既显得像被裁掉，也压住底栏安全区。 */
+     底部留白给右下角「跳过」按钮留出安全空间。 */
   padding: max(84px, calc(var(--userspace-nav-h, 78px) + 16px)) clamp(20px, 5vw, 56px)
     clamp(72px, 17svh, 152px);
   pointer-events: none;
@@ -316,14 +266,6 @@ onBeforeUnmount(() => {
     0 1px 3px rgba(0, 0, 0, 0.3);
 }
 
-/* ---------- 照片形态的入场编排（2026-09-27）----------
-   此前只有品牌兜底态（白底 + logo）有入场动画，配了街景图的默认形态是硬出现的 ——
-   文字、提示同时「啪」地出现。这里补上同一套节奏：问候先落，提示随后（120 / 260ms）。
-   ⚠️ 两组动画改的属性刻意不同：
-     · 问候语可以动 opacity + transform（它不参与任何后续过渡）；
-     · 提示只能动 transform —— 它的 opacity 由跟手进度派生，一旦被
-       animation-fill-mode: both 接管，那个派生值就永久失效了
-       （这是本项目踩过的老坑：both 会让属性在动画结束后仍由动画控制）。 */
 .street-hero:not(.on-brand) .street-hero-greeting {
   animation: streetHeroGreetingIn 760ms 120ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)) both;
 }
@@ -336,52 +278,6 @@ onBeforeUnmount(() => {
   to {
     opacity: 1;
     transform: translateY(0);
-  }
-}
-
-.street-hero:not(.on-brand) .street-hero-hint {
-  animation: streetHeroHintRise 640ms 260ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)) both;
-}
-
-@keyframes streetHeroHintRise {
-  from {
-    transform: translateY(12px);
-  }
-  to {
-    transform: translateY(0);
-  }
-}
-
-.street-hero-hint {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin: 0;
-  font-size: 14px;
-  font-weight: 500;
-  letter-spacing: 0.08em;
-  color: #ffffff;
-  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.45);
-  /* 提示的淡出直接由跟手进度派生（p≈0.45 完全消失）——
-     不再有 .is-dismissed 这类 JS 状态，也不需要 transition：
-     跟手时它应当即时跟随手指，而不是滞后 320ms。 */
-  opacity: calc(1 - var(--gate-p, 0) * 2.2);
-}
-
-.street-hero-hint-arrow {
-  display: inline-block;
-  animation: streetHeroBreath 2s ease-in-out infinite;
-}
-
-@keyframes streetHeroBreath {
-  0%,
-  100% {
-    transform: translateY(0);
-    opacity: 0.75;
-  }
-  50% {
-    transform: translateY(5px);
-    opacity: 1;
   }
 }
 
@@ -427,27 +323,10 @@ onBeforeUnmount(() => {
   }
 }
 
-/* 白底态：文字翻转为暖黑、去阴影；整组文案做一次轻入场（logo 先落，文字随后）
-   ⚠️ 2026-11-02 暗色修复：上面 .on-brand 的底色已在 2026-10-22 改走 --boh-page-bg，
-   但文字仍是硬编码暖黑 —— 暗色下底色 #16120e、问候语 #17130e，实测对比度 **1.01:1**
-   （整段开场白等于看不见），提示语 #52483c 也只有 2.09:1。
-   现在两处都从 --boh-text-primary 派生：它与 --boh-page-bg 定义在
-   themes/dark-mode.css 的同一份文件里，亮/暗永远同进同出，不会再出现
-   「底色翻黑了、文字没跟着翻」这种一半一半的组合。
-   浅色档渲染不变：dark-mode.css 不加载时走各自的暖色回退（问候 #17130e、
-   提示 #52483c 混 78%），加载过暗色再切回亮色时解析成 #1d1d1f（肉眼无差）。 */
+/* 白底态：文字翻转为暖黑、去阴影；整组文案做一次轻入场。
+   文字与底色都从同一套 --boh-* token 派生，暗色下不会一半翻黑、一半留在浅色。 */
 .street-hero.on-brand .street-hero-greeting {
   color: var(--boh-text-primary, #17130e);
-  text-shadow: none;
-}
-
-.street-hero.on-brand .street-hero-hint {
-  /* 次要文字从主文字派生，不直接用 --boh-text-secondary：后者一旦被 dark-mode.css
-     定义为浅色档 #86868b，压在白底上只有 3.5:1，会把目前达标的提示语拉到达标线下
-     （dark-mode.css 加载后常驻不卸载，「暗→亮」切换后这个浅色值照样在）。
-     78% 混合的实测值：浅色 4.86:1（原 #52483c 是 8.93:1，视觉上只淡一档但仍在 AA 内）、
-     暗色 10.61:1 —— 两档都过 AA，且都不依赖暗色块。 */
-  color: color-mix(in srgb, var(--boh-text-primary, #52483c) 78%, transparent);
   text-shadow: none;
 }
 
@@ -466,8 +345,8 @@ onBeforeUnmount(() => {
 
 /* ---------- 横屏 / 矮视口适配（2026-09-24） ----------
    横屏时可用高度常被压到 390~430px：
-   · min-height 放开，否则开场画被撑出视口、底部提示直接被裁；
-   · 上下留白改按 svh 收，同时保证提示仍落在下三分之一附近；
+   · min-height 放开，否则开场画被撑出视口；
+   · 上下留白改按 svh 收；
    · 问候语收窄到半屏内（横屏一行太长会横跨整屏、压住主体构图）。 */
 @media (orientation: landscape), (max-height: 560px) {
   .street-hero {
@@ -485,10 +364,6 @@ onBeforeUnmount(() => {
     font-size: clamp(19px, 2.4vw, 26px);
   }
 
-  .street-hero-hint {
-    font-size: 13px;
-  }
-
   /* 横屏可用高度小，logo 按高度约束收一档，始终完整居中 */
   .street-hero-brand-logo {
     height: clamp(96px, 32svh, 176px);
@@ -496,22 +371,13 @@ onBeforeUnmount(() => {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .street-hero-hint-arrow {
-    animation: none;
-  }
   /* 照片形态的分层入场一并砍掉：reduce 用户不该看到「逐渐显现」 */
-  .street-hero:not(.on-brand) .street-hero-greeting,
-  .street-hero:not(.on-brand) .street-hero-hint {
+  .street-hero:not(.on-brand) .street-hero-greeting {
     animation: none;
   }
   .street-hero-brand-logo,
   .street-hero.on-brand .street-hero-content {
     animation: none;
-  }
-  /* 静态模糊副本整层撤掉：reduce 下没有「跟手变糊」，
-     视觉只剩开场层的纯 opacity 淡出（时长由 index.vue 的 reduce 时长表控制）。 */
-  .street-hero-media-blur {
-    display: none;
   }
 }
 </style>

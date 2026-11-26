@@ -1,8 +1,4 @@
 <template>
-  <!-- --gate-p / --forum-p 是整段入场的唯一进度真源（0~1，2026-09-27 起）：
-       跟手阶段由手势推进、释放阶段由补间推进，视觉全部由 CSS 从这两个变量派生。
-       放在元素 style 上而不是文档级样式表 —— 既不碰 !important 棘轮，
-       也保证首帧（含已通过开场画的会话）就是正确值，不会闪一下。 -->
   <div
     ref="homeRootRef"
     class="home"
@@ -12,42 +8,24 @@
       'home-forum-settled': gateSettled,
     }"
     :style="{
-      '--gate-p': pullProgress,
-      '--forum-p': forumP,
+      '--home-gate-fade-duration': `${fadeDurationMs}ms`,
       '--home-focus-duration': `${focusDurationMs}ms`,
     }"
   >
-    <!-- 1. 开场层：满屏街景画（一次性）。
-         跟手拖拽：手指把整段入场当成一条 0~1 的进度推着走。
-         释放时按进度 / 速度决策「提交（补间到 1）」或「回弹（补间到 0）」——
-         一次滚轮 / 一次正常滑动就够（0.10 × 0.85 屏 ≈ 68px），只轻轻拨一下才弹回。
-         过渡期锁底层滚动；落位后开场层卸载，交还干净的文档流滚动。
-         ⚠️ wheel / touch 绑在本层元素上（不是 window）：window 上的 preventDefault
-         是全局副作用，一旦监听泄漏（HMR / 异常卸载）整站就永久滚不动了。
-         CSS 侧另有 touch-action: none 兜底，双保险拦住底层滚动。 -->
     <div
       v-if="!gateDismissed"
       class="home-gate"
-      @wheel="handleGateWheel"
-      @touchstart="handleGateTouchStart"
-      @touchmove="handleGateTouchMove"
-      @touchend="handleGateTouchEnd"
-      @touchcancel="handleGateTouchEnd"
+      :class="{ 'is-leaving': gateLeaving }"
+      role="dialog"
+      aria-modal="true"
+      aria-label="方块之家开场"
     >
-      <!-- 开屏形态二选一：
-           ① home_gate_config 生效中且主题不是 default → 活动版（像素场景 + 可配文案 + CTA）
-           ② 其余情况 → 现有的街景/品牌兜底（红苹果 + 时段问候），一行都不改 -->
       <GateSceneHero v-if="gateSceneActive" :config="gateConfig" @cta="handleGateCta" />
       <StreetSceneHero v-else :hero="streetSceneHero" />
-      <!-- 键盘 / 读屏用户的等价入口：视觉隐藏、聚焦时可见（一次触发即完成） -->
-      <button class="home-gate-enter" type="button" @click="commitGate">进入方块论坛</button>
+      <button class="home-gate-skip" type="button" @click="commitGate">跳过</button>
     </div>
 
-    <!-- 2. 论坛层＝「桌面」：方块（论坛）分区壳（官方 / 最新 / 关注 / 新闻 / 活动 / 成员 / 印象）
-         与 UserSpace 的「方块」分区共用同一份组件；归档区 + 页脚接在论坛流末尾。
-         它一直待在原位，转场期间只做一次极轻的 scale 归位（由 --forum-p 派生）——
-         真正被推走的是上面那张开场画浮层，这才是「浮层盖在桌屏上」的观感。 -->
-    <div class="home-forum-stage">
+    <div class="home-forum-stage" :inert="!gateDismissed">
       <ForumSectionShell
         ref="forumShellRef"
         v-model:section="forumSection"
@@ -66,9 +44,10 @@
             与底栏「方块」都指 `/?view=latest`），没有左栏就会出现「换个入口进论坛，
             左右栏结构就没了」。可见性由 side-rail.css 的媒体查询决定（竖屏 / 窄窗零副作用），
             内容让位与 fixed 定位见 landscape-rail.css 的 body.page-home 段。
-            首次进入的街景开场层是 fixed 覆盖层，左栏浮在其上，退场后自然落到论坛左侧。 -->
+            首次进入的街景遮罩是 fixed 覆盖层，退场后自然落到论坛左侧。 -->
     <UserSpaceSideRail
       :nav-items="BOTTOM_NAV_ITEMS"
+      :inert="!gateDismissed"
       :current-tab="activeBottomNavId"
       :active-action="composerOpen ? 'compose' : ''"
       :has-unread-messages="hasUnreadMessages"
@@ -79,9 +58,7 @@
       @action="handleRailAction"
     />
 
-    <!-- 4. 移动端底栏：开场画退掉大半后才从下方浮上来（v-if 由 bottomNavReady 控制，
-            不是 forumOpen —— 早挂载就会和封面同时抢镜）；此后随滚动方向隐藏 / 显现。
-         桌面 / 横屏整槽关掉（顶部 UnifiedNavbar + 横屏左栏足够）。 -->
+    <!-- 4. 移动端底栏：开场遮罩卸载后再挂载，随后随滚动方向隐藏 / 显现。 -->
     <div v-if="bottomNavReady" class="home-bottom-nav-slot">
       <UserSpaceBottomNav
         :visible="true"
@@ -107,18 +84,12 @@
 </template>
 
 <script setup>
-/* 首页（2026-09-23 结构定型 / 2026-09-27 入场改为「跟手揭开浮层」）
-   结构：满屏街景开场画（一次性）→ 跟手转场 → 方块论坛铺满 → 归档区 + 页脚 → 底栏。
+/* 首页（2026-09-23 结构定型 / 2026-11-26 开场改为定时遮罩）
+   结构：满屏品牌遮罩（一次性）→ 渐隐 → 方块论坛铺满 → 归档区 + 页脚 → 底栏。
 
-   ⚠️ 找代码的指引（这套入场被刻意切成三块，别再把它们混回来）：
-     · 逻辑（跟手参数 / 释放决策 / 补间 / 滚动锁 / reduce 分身）→ ./composables/useGatePull.js
-     · 观感（位移 / 缩放 / 圆角 / 模糊 / 淡出）→ ./style.scoped.css，且只由 CSS 变量派生
-     · 本文件 → 只做接线：把进度绑到根元素 style、把手势绑到开场层元素、调生命周期
-   改门槛或时长去 composable，改观感去 CSS —— 两边都不会互相踩。
-   - 开场画不是可滚动的第一屏，而是「过了就不再回来」的入场。整段入场是一条 0~1 的进度。
-   - 论坛本体与 UserSpace 的「方块」分区共用 ForumSectionShell（单源），
-     分区七席、30s 轮询、分区过渡动画全部原样。
-   - 底栏四席来自 @/config/bottom-nav，进度过半时从下方浮入，随后由滚动方向驱动显隐。 */
+   开场层显示 2 秒后自动淡出；「跳过」立即触发同一流程。
+   计时、滚动锁、reduce 降级与落定状态由 ./composables/useGatePull.js 收口，
+   视觉由 ./style.scoped.css 负责。 */
 import { computed, onActivated, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { createPanelAsync } from '@/utils/async-component.js';
 import { storeToRefs } from 'pinia';
@@ -133,7 +104,7 @@ import {
   GATE_CONFIG_FALLBACK,
 } from '@/utils/api/gate-config-api.js';
 import HomeFooter from './components/HomeFooter.vue';
-import { useGatePull } from './composables/useGatePull.js';
+import { useGateOverlay } from './composables/useGatePull.js';
 import { setHomeGateScreening } from '@/composables/useHomeGate.js';
 import ForumSectionShell from '@/views/user-center/UserSpace/components/ForumSectionShell.vue';
 import UserSpaceBottomNav from '@/views/user-center/UserSpace/components/UserSpaceBottomNav.vue';
@@ -172,34 +143,21 @@ const route = useRoute();
 const authStore = useAuthStore();
 const { isLoggedIn } = storeToRefs(authStore);
 
-// ============================================
-// 开场画「跟手揭开浮层」：逻辑全部在 composables/useGatePull.js
-// ============================================
-/* 这里只做接线。2026-09-27 抽离：这套入场逻辑（跟手进度 / 释放决策 / 补间 /
-   滚动锁三保险 / reduce 分身）曾经把本文件撑到 700+ 行，和论坛分区、底栏、
-   横屏左栏、导航高度探测混在一起，改一个门槛要翻半屏无关代码。
-   现在这里只剩：
-     · 进度（--gate-p / --forum-p）绑到根元素 style，以及几个开关类；
-     · wheel / touch 绑在开场层元素上（⚠️ 不是 window —— 见 composable 内的说明）；
-     · 键盘与 reduce 偏好由 mounted() 挂、unmounted() 清。 */
+// 开场遮罩：自动退场与跳过共用同一套状态。
 const {
-  pullProgress,
-  forumP,
   gateDismissed,
+  gateLeaving,
   forumOpen,
   forumEntering,
   gateSettled,
   bottomNavReady,
+  fadeDurationMs,
   bottomNavEnterMs,
   focusDurationMs,
-  handleWheel,
-  handleTouchStart,
-  handleTouchMove,
-  handleTouchEnd,
   commitGate,
-  mounted: mountGatePull,
-  unmounted: unmountGatePull,
-} = useGatePull();
+  mounted: mountGateOverlay,
+  unmounted: unmountGateOverlay,
+} = useGateOverlay();
 
 /* 开屏在场 = 导航栏不挂载（App.vue 的 v-if 经 global-navbar-visibility 读这个单例）。
    immediate 是必要的：进站时 gate 就是开着的，导航必须从**首帧**起就不存在，
@@ -215,58 +173,26 @@ watch(gateDismissed, (dismissed) => setHomeGateScreening(!dismissed), { immediat
    网络回来后再覆盖。没有缓存 / 表不存在 / 网络失败 → 回落到活动快照（GATE_CONFIG_FALLBACK），
    快照也过期了（活动已结束）才走现有默认开屏。
    ⚠️ 三级而不是两级：无缓存用户（新设备 / 清了站点数据 / 换了构建指纹）直接回落 null 时，
-   首帧会播默认开屏、网络回来再切成活动版 —— 而这段时间用户往往已经上滑进站，
+   首帧会播默认开屏、网络回来再切成活动版 —— 而这段时间用户往往已经跳过或等开场自动结束，
    活动版的 CTA 就永远没被看见（2026-10-31 用户报障的正是这个）。 */
 const gateConfig = ref(readGateConfigCache() || GATE_CONFIG_FALLBACK);
 const gateSceneActive = computed(() => isGateConfigActive(gateConfig.value));
 const gateCtaTarget = computed(() => resolveGateCtaTarget(gateConfig.value));
 
-/* 远端配置的落点：只在「用户还没开始滑」时直接应用。
-   已经在拖 / 正在收尾时暂存，等进度回到 0 再换 —— 滑到一半把开屏图换掉是肉眼可见的突变
-   （两张画完全不同）。浮层已卸载（gateDismissed）时应用也无害，不必特判。
-   正常路径下远端值与快照一致，这里其实是个空操作；只有运营改了文案 / 主题才会走到暂存。 */
+/* 远端配置在开场层可见时暂存，退场后再应用，避免展示中突然换画。 */
 let pendingGateConfig = null;
 const applyGateConfig = (config) => {
-  if (pullProgress.value > 0 && !gateDismissed.value) {
+  if (!gateDismissed.value) {
     pendingGateConfig = config;
     return;
   }
   gateConfig.value = config;
 };
-watch(pullProgress, (next) => {
-  if (next > 0 || !pendingGateConfig) return;
+watch(gateDismissed, (dismissed) => {
+  if (!dismissed || !pendingGateConfig) return;
   gateConfig.value = pendingGateConfig;
   pendingGateConfig = null;
 });
-
-/* CTA 是浮层里唯一的可点区域：手势必须跳过它，否则点按钮会被当成上滑起手，
-   touchend 的回弹补间会和 commit 补间抢同一个 rAF（按钮点了没反应）。 */
-let gateCtaTouch = false;
-const isGateCtaTarget = (event) => Boolean(event?.target?.closest?.('[data-gate-cta]'));
-
-const handleGateWheel = (event) => {
-  if (isGateCtaTarget(event)) return;
-  handleWheel(event);
-};
-
-const handleGateTouchStart = (event) => {
-  gateCtaTouch = isGateCtaTarget(event);
-  if (gateCtaTouch) return;
-  handleTouchStart(event);
-};
-
-const handleGateTouchMove = (event) => {
-  if (gateCtaTouch) return;
-  handleTouchMove(event);
-};
-
-const handleGateTouchEnd = () => {
-  if (gateCtaTouch) {
-    gateCtaTouch = false;
-    return;
-  }
-  handleTouchEnd();
-};
 
 const handleGateCta = () => {
   const target = gateCtaTarget.value;
@@ -285,7 +211,7 @@ const handleGateCta = () => {
 /* 2026-09-30 口径：从「登录 / 进站即弹」改为「进论坛即弹」——用户希望弹点跟「开始看内容」
    这个动作绑定，而不是跟「打开站点」绑定（后者像一条登录欢迎弹窗，随时会打断人）。
    gateSettled 是首屏解锁的落定信号，两条路径都覆盖：
-     · 首次访问 / 超过 24h 重播：跟手揭开浮层落定后（约 1.9s）为 true；
+     · 首次访问 / 超过 24h 重播：开场遮罩淡出并卸载后为 true；
      · 24h 内回访（gateAlreadyPassed）：开场画本来就不播、论坛即首屏 → setup 时就是 true。
    登录态由 auth 异步解析，与 gateSettled 谁后到位都可能，所以两者任一变化都要再判一次
    （immediate 覆盖「已登录 + 首屏已解锁」的冷启动）。
@@ -490,8 +416,7 @@ const handleIslandMessage = (payload = {}) => {
 // ============================================
 // 导航胶囊实测高度 → --userspace-nav-h
 // ============================================
-/* 根元素 ref：进度变量（--gate-p / --forum-p）由模板直接绑在它的 style 上，
-   这里只用来写 --userspace-nav-h（与入场逻辑无关，所以没跟着搬进 useGatePull）。 */
+/* 根元素 ref 只用来写 --userspace-nav-h。 */
 const homeRootRef = ref(null);
 
 /* 分区页签（SegmentTabs）的顶部避让吃这个变量；导航岛含状态卡时高度会变
@@ -556,8 +481,8 @@ defineOptions({ name: 'HomePage' });
 
 onMounted(async () => {
   document.body.classList.add('is-loaded');
-  /* 开场画：键盘手势 + reduce 偏好监听 + 底栏浮现的进度联动，全部在 useGatePull 里 */
-  mountGatePull();
+  /* 开场画：2 秒自动渐隐，跳过按钮立即触发同一退场流程。 */
+  mountGateOverlay();
 
   void ensureNotificationStore();
   setupNavIslandProbe();
@@ -597,9 +522,8 @@ onActivated(() => {
 
 onBeforeUnmount(() => {
   themeManager.removeListener(handleThemeChange);
-  /* 开场画的全部收尾：键盘监听、wheel/touch 计时器、补间、reduce 监听，
-     以及滚动锁的兜底解锁（路由跳走时计时器已被清掉，不清会把文档永久锁死）。 */
-  unmountGatePull();
+  /* 开场遮罩的计时器、键盘监听、reduce 监听与滚动锁兜底。 */
+  unmountGateOverlay();
   if (navProbeTimer) {
     window.clearTimeout(navProbeTimer);
     navProbeTimer = null;

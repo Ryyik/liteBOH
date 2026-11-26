@@ -3,8 +3,8 @@
  * 首屏文案可配 ── 端到端探针（不写库，靠 mock home_heroes 响应驱动）
  *
  * 两个场景：
- *   A 配了 greeting_text / hint_text  → 首屏显示自定义文案，{greeting} 替换为时段词
- *   B 两字段留空（含 DB 里压根没有 street-scene 行的现状）→ 回落默认，与可配上线前逐字一致
+ *   A 配了 greeting_text → 首屏显示自定义问候，{greeting} 替换为时段词
+ *   B 字段留空（含 DB 里压根没有 street-scene 行的现状）→ 回落默认
  *
  * 用法：node scripts/probes/probe-street-scene-copy.mjs
  */
@@ -78,22 +78,26 @@ const runScenario = async (name, rows, expect) => {
 
   await page.goto(`${BASE}/#/`, { waitUntil: 'domcontentloaded', timeout: 60000 });
   await page.waitForSelector('.home-gate .street-hero', { timeout: 20000 }).catch(() => {});
-  await page.waitForTimeout(3500); // 等 hero store 异步拉取 + 问候词回填
+  await page
+    .waitForFunction(
+      () =>
+        (document.querySelector('.home-gate .street-hero-greeting')?.textContent || '').trim()
+          .length > 0,
+      null,
+      { timeout: 5000 },
+    )
+    .catch(() => {});
 
   const text = await page
     .locator('.home-gate .street-hero-greeting')
-    .textContent({ timeout: 8000 })
+    .textContent({ timeout: 3000 })
     .catch(() => '');
-  const hint = await page
-    .locator('.home-gate .street-hero-hint-text')
-    .textContent({ timeout: 8000 })
-    .catch(() => '');
+  const hintCount = await page.locator('.home-gate .street-hero-hint').count();
 
   const greeting = (text || '').trim();
-  const hintText = (hint || '').trim();
 
   check(`${name} · 问候语`, expect.greeting(greeting), `实际「${greeting}」`);
-  check(`${name} · 底部提示`, expect.hint(hintText), `实际「${hintText}」`);
+  check(`${name} · 不显示下拉提示`, hintCount === 0, `hintCount=${hintCount}`);
   check(`${name} · 无运行时错误`, errs.length === 0, errs.slice(0, 2).join(' | '));
 
   await page.screenshot({ path: `${OUT}/street-scene-copy-${name}.png` });
@@ -101,25 +105,18 @@ const runScenario = async (name, rows, expect) => {
 };
 
 // ── A. 配了自定义文案 ──
-await runScenario(
-  'A-自定义',
-  [baseHero({ greeting_text: '{greeting}，这里是自定义问候', hint_text: '下滑探索' })],
-  {
-    greeting: (t) => /这里是自定义问候$/.test(t) && /^(早上好|中午好|下午好|晚上好)，/.test(t),
-    hint: (t) => t === '下滑探索',
-  },
-);
+await runScenario('A-自定义', [baseHero({ greeting_text: '{greeting}，这里是自定义问候' })], {
+  greeting: (t) => /这里是自定义问候$/.test(t) && /^(早上好|中午好|下午好|晚上好)，/.test(t),
+});
 
 // ── B. 留空 → 回落默认（等价于 DB 里没有 street-scene 行的现状）──
 await runScenario('B-回落默认', [baseHero()], {
   greeting: (t) => t === '这里不只有方块',
-  hint: (t) => t === '往下逛逛',
 });
 
 // ── C. 完全没有 street-scene 行（当前线上真实状态）──
 await runScenario('C-无行', [], {
   greeting: (t) => t === '这里不只有方块',
-  hint: (t) => t === '往下逛逛',
 });
 
 console.log('\n' + '='.repeat(72));

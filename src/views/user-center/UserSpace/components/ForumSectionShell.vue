@@ -180,13 +180,6 @@ onBeforeUnmount(() => {
   }
 }
 
-/* 首页「进论坛」的落定编排（2026-09-27 改成进度驱动后已搬走）
-   原先这里是「落定之后播一段一次性动画」（页签 → 首帖带过冲的 spot → 第 2/3 张卡）。
-   问题：跟手阶段这些组件纹丝不动、松手之后才突然开始动，中间断了一拍 ——
-   用户的原话是「还是不够流畅」，症结就在这个断层，而不是时长不够。
-   现在它们统一由 Home/style.scoped.css 里那组「桌面 UI 的浮上来」按 --forum-p 全程驱动，
-   所以本文件不再需要任何首页专有动画（UserSpace 路径自然也不受影响）。 */
-
 @media (prefers-reduced-motion: reduce) {
   .forum-section-shell.feed-switching .forum-section-feed {
     animation: none;

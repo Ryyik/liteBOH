@@ -4,7 +4,7 @@
  * 分层：
  *   - 真相源是 DB 单行表（id=1），管理台 GateConsole 写、首页开屏读；
  *   - 首屏必须在「首帧」就决定渲染哪种开屏，所以另有一份 localStorage 缓存，
- *     同步读、网络回来后覆盖（与 useGatePull 读 gate-passed 同性质）；
+ *     同步读、网络回来后覆盖（与首页遮罩读 gate-passed 同性质）；
  *   - 生效判定（enabled + 时间窗）放在本模块，管理台预览与线上渲染共用同一份，
  *     否则「后台显示启用中、线上却没播」这类问题会各写一套判断。
  */
@@ -26,7 +26,7 @@ export const GATE_CTA_TYPES = [
 ];
 
 const COLUMNS =
-  'id,enabled,theme,eyebrow,title,subtitle,hint_text,cta_text,cta_target_type,cta_lottery_id,cta_route,starts_at,ends_at,updated_at';
+  'id,enabled,theme,eyebrow,title,subtitle,cta_text,cta_target_type,cta_lottery_id,cta_route,starts_at,ends_at,updated_at';
 
 const str = (value, fallback = '') => {
   const text = value === null || value === undefined ? '' : String(value);
@@ -50,7 +50,6 @@ export function normalizeGateConfig(row = {}) {
     eyebrow: str(row.eyebrow),
     title: str(row.title),
     subtitle: str(row.subtitle),
-    hint_text: str(row.hint_text),
     cta_text: str(row.cta_text),
     cta_target_type: ['none', 'lottery', 'route'].includes(targetType) ? targetType : 'none',
     cta_lottery_id: str(row.cta_lottery_id) || null,
@@ -66,7 +65,7 @@ export function normalizeGateConfig(row = {}) {
  *
  * 为什么必须有它：首帧只能同步决定「播哪种开屏」，无缓存用户（新设备 / 清了站点数据 /
  * 换了构建指纹）拿不到任何信息 ⇒ 先渲染默认开屏、网络回来再切成活动版。
- * 而这段窗口里用户往往已经上滑进站了，活动版的 CTA（广告）就永远没被看见。
+ * 而这段窗口里用户往往已经跳过或等开场自动结束，活动版的 CTA（广告）就永远没被看见。
  *
  * 口径：
  *   · 只做「首帧占位」，网络回来一律以 DB 为准（见 Home/index.vue 的 applyGateConfig）；
@@ -83,7 +82,6 @@ export const GATE_CONFIG_FALLBACK = normalizeGateConfig({
   eyebrow: 'HALLOWEEN · 10.31',
   title: '万圣节，来方块街有惊喜',
   subtitle: '万圣夜限定 · 糖果盒已备好',
-  hint_text: '或上滑进入方块街',
   cta_text: '看看有什么惊喜',
   cta_target_type: 'lottery',
   cta_lottery_id: 'c81ff93d-cbdb-47f4-bc16-219c24f4523b',
@@ -178,7 +176,6 @@ export async function saveGateConfig(patch) {
     eyebrow: str(patch.eyebrow),
     title: str(patch.title),
     subtitle: str(patch.subtitle),
-    hint_text: str(patch.hint_text),
     cta_text: str(patch.cta_text),
     cta_target_type: ['none', 'lottery', 'route'].includes(patch.cta_target_type)
       ? patch.cta_target_type

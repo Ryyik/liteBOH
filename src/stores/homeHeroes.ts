@@ -58,13 +58,13 @@ const createBuiltinFallback = (
 // 内置区块迁入数据库后，首次访问不能再以网络请求作为首屏渲染前提。
 // 远端配置到达后会覆盖此基线，管理员的排序与显隐设置仍然是最终来源。
 export const HOME_HERO_BASELINE: HomeHero[] = [
+  // 圣诞交换礼物（2026-12）：节日强时效内容，固定在英雄区最前。
+  // ⚠️ 节后请到 Hero Console 归档这条配置；这里只是远端不可达时的兜底基线。
+  createBuiltinFallback('christmas-xmas', -20, '把头像挂上树', '圣诞交换礼物'),
   createBuiltinFallback('beta6-renewal', -10, '焕然一新，即刻相见', 'BOHLITE Beta 6 焕新体验'),
   createBuiltinFallback('mascot-new', 10, '全新吉祥物现已上线', '全新吉祥物现已上线'),
   createBuiltinFallback('agent-preview', 20, 'BOH Agent Preview', 'BOH Agent Preview'),
   createBuiltinFallback('birthday', 30, '今日生日', '今日生日'),
-  // 圣诞交换礼物（2026-12）：节日强时效内容，排在周年之前。
-  // ⚠️ 节后请到 Hero Console 归档这条配置；这里只是远端不可达时的兜底基线。
-  createBuiltinFallback('christmas-xmas', 50, '把头像挂上树', '圣诞交换礼物'),
   // 'block-wall'（方块墙 hero）已于 2026-10-19 随功能退场删除；
   // 线上 home_heroes 表若有同名配置行，请到管理后台 Hero Console 归档。
   createBuiltinFallback('anniversary-8', 60, '八周年庆典', '方块之家八周年'),

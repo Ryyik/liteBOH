@@ -64,7 +64,7 @@ const measure = async (browser, { viewport, heroRows, tag }) => {
 
   await page.goto(`${BASE}/#/`, { waitUntil: 'domcontentloaded', timeout: 60000 });
   await page.waitForSelector('.home-gate .street-hero', { timeout: 20000 });
-  await page.waitForTimeout(3000); // 等 hero store 拉取 + 入场动画结束
+  await page.waitForTimeout(300);
 
   const m = await page.evaluate(() => {
     const root = document.querySelector('.home-gate .street-hero');
@@ -74,7 +74,6 @@ const measure = async (browser, { viewport, heroRows, tag }) => {
       return el ? getComputedStyle(el) : null;
     };
     const rect = (sel) => root.querySelector(sel)?.getBoundingClientRect() ?? null;
-    const brand = rect('.street-hero-brand');
     const logo = rect('.street-hero-brand-logo');
     const vw = window.innerWidth;
     const vh = window.innerHeight;
@@ -82,7 +81,6 @@ const measure = async (browser, { viewport, heroRows, tag }) => {
     const logoSrc = root.querySelector('.street-hero-brand-logo')?.getAttribute('src') ?? '';
     const imgSrc = root.querySelector('.street-hero-img')?.getAttribute('src') ?? '';
     const greeting = cs('.street-hero-greeting');
-    const hint = cs('.street-hero-hint');
     const scrim = root.querySelector('.street-hero-scrim');
     // logo 中心与视口中心的偏差
     const logoCenter = logo
@@ -103,8 +101,6 @@ const measure = async (browser, { viewport, heroRows, tag }) => {
         : false,
       greetingColor: greeting?.color ?? '',
       greetingShadow: greeting?.textShadow ?? '',
-      hintColor: hint?.color ?? '',
-      hintShadow: hint?.textShadow ?? '',
       hasScrim: Boolean(scrim),
       scrimOpacity: scrim ? getComputedStyle(scrim).opacity : '',
     };
@@ -144,11 +140,6 @@ const browser = await chromium.launch({
     'A6 问候语为黑色且无阴影',
     m.greetingColor === 'rgb(23, 19, 14)' && m.greetingShadow === 'none',
     `${m.greetingColor} / shadow=${m.greetingShadow}`,
-  );
-  check(
-    'A7 提示为主文字色 78% 混合（2026-11-02 起 token 派生）且无阴影',
-    m.hintColor === 'color(srgb 0.321569 0.282353 0.235294 / 0.78)' && m.hintShadow === 'none',
-    `${m.hintColor} / shadow=${m.hintShadow}`,
   );
   check('A8 无黑色渐晕（scrim 不渲染）', m.hasScrim === false);
   check('A9 无运行时错误', m.errs.length === 0, m.errs.slice(0, 2).join(' | '));

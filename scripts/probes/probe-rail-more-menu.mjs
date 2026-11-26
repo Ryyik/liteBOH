@@ -262,7 +262,7 @@ const measureMenu = (page) =>
 }
 
 // ───────── 档 5：首页论坛层（body.page-home，左栏 fixed + 开场画 opacity） ─────────
-//   首页的左栏是 fixed + `opacity: var(--forum-p)`，层级与 UserSpace 不同，
+//   首页左栏是 fixed，遮罩期间被高层级覆盖层挡住；
 //   窄栏下浮层要越出 88px 栏压到论坛层上，必须单独验「不被内容遮挡」。
 {
   const context = await browser.newContext({ viewport: { width: 1100, height: 800 } });
@@ -299,7 +299,7 @@ const measureMenu = (page) =>
   if (!railOk) {
     check('H1 首页窄栏浮层完整可见', false, '未找到 .userspace-rail-more');
   } else {
-    // 等左栏显影（opacity 吃 --forum-p）再点，否则测得的是开场画期间的状态
+    // 预置 gate-passed，等左栏与页面稳定后再点。
     await page
       .waitForFunction(
         () => Number(getComputedStyle(document.querySelector('.userspace-rail')).opacity) > 0.9,

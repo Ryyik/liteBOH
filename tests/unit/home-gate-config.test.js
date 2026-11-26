@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import {
@@ -8,7 +8,16 @@ import {
   resolveGateCtaTarget,
 } from '../../src/utils/api/gate-config-api.js';
 import { buildHalloweenSceneSvg } from '../../src/views/Home/components/halloween-scene.js';
+import { useGateOverlay } from '../../src/views/Home/composables/useGatePull.js';
 import { flattenSource, scriptSection, stripComments } from '../helpers/source.js';
+
+const gateStorage = vi.hoisted(() => ({ passed: false, marks: 0 }));
+vi.mock('@/utils/home-gate-storage.js', () => ({
+  readGatePassed: () => gateStorage.passed,
+  markGatePassed: () => {
+    gateStorage.marks += 1;
+  },
+}));
 
 const root = resolve(import.meta.dirname, '../..');
 const read = (rel) => readFileSync(resolve(root, rel), 'utf8');
@@ -194,5 +203,154 @@ describe('buildHalloweenSceneSvg', () => {
     classes.forEach((value) => {
       value.split(/\s+/).forEach((name) => expect(name.startsWith('gs-')).toBe(true));
     });
+  });
+});
+
+const createGateHarness = ({ passed = false, reduced = false } = {}) => {
+  gateStorage.passed = passed;
+  gateStorage.marks = 0;
+
+  const properties = new Map();
+  const style = {
+    setProperty: (name, value) => properties.set(name, value),
+    removeProperty: (name) => properties.delete(name),
+  };
+  const mediaListeners = new Set();
+  const mediaQuery = {
+    matches: reduced,
+    addEventListener: (_type, listener) => mediaListeners.add(listener),
+    removeEventListener: (_type, listener) => mediaListeners.delete(listener),
+  };
+  let keydownHandler = null;
+  const windowStub = {
+    matchMedia: () => mediaQuery,
+    setTimeout,
+    clearTimeout,
+    scrollTo: vi.fn(),
+    addEventListener: (type, handler) => {
+      if (type === 'keydown') keydownHandler = handler;
+    },
+    removeEventListener: (type, handler) => {
+      if (type === 'keydown' && keydownHandler === handler) keydownHandler = null;
+    },
+  };
+
+  vi.stubGlobal('window', windowStub);
+  vi.stubGlobal('document', { documentElement: { style }, body: { style } });
+
+  const gate = useGateOverlay();
+  return { gate, properties, getKeydownHandler: () => keydownHandler };
+};
+
+describe('首页定时遮罩', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  it('完整显示 2 秒后才开始退场，渐隐结束后才卸载', () => {
+    const { gate, properties } = createGateHarness();
+    gate.mounted();
+
+    expect(properties.get('overflow')).toBe('hidden');
+    expect(gate.fadeDurationMs.value).toBe(560);
+
+    vi.advanceTimersByTime(1999);
+    expect(gate.gateLeaving.value).toBe(false);
+    expect(gateStorage.marks).toBe(0);
+
+    vi.advanceTimersByTime(1);
+    expect(gate.gateLeaving.value).toBe(true);
+    expect(gate.gateDismissed.value).toBe(false);
+    expect(gateStorage.marks).toBe(1);
+
+    vi.advanceTimersByTime(559);
+    expect(gate.gateDismissed.value).toBe(false);
+    expect(properties.get('overflow')).toBe('hidden');
+
+    vi.advanceTimersByTime(81);
+    expect(gate.gateDismissed.value).toBe(true);
+    expect(gate.gateSettled.value).toBe(true);
+    expect(gate.bottomNavReady.value).toBe(true);
+    expect(properties.has('overflow')).toBe(false);
+
+    gate.unmounted();
+  });
+
+  it('跳过立即开始渐隐，并取消自动退场计时器', () => {
+    const { gate } = createGateHarness();
+    gate.mounted();
+    vi.advanceTimersByTime(500);
+
+    gate.commitGate();
+    expect(gate.gateLeaving.value).toBe(true);
+    expect(gateStorage.marks).toBe(1);
+
+    vi.advanceTimersByTime(500);
+    expect(gate.gateDismissed.value).toBe(false);
+
+    vi.advanceTimersByTime(5000);
+    expect(gateStorage.marks).toBe(1);
+    gate.unmounted();
+  });
+
+  it('已通过 24h 标记的会话不渲染遮罩、不锁滚动、不写标记', () => {
+    const { gate, properties } = createGateHarness({ passed: true });
+    expect(gate.gateDismissed.value).toBe(true);
+    expect(gate.gateSettled.value).toBe(true);
+    expect(gate.bottomNavReady.value).toBe(true);
+
+    gate.mounted();
+    vi.advanceTimersByTime(5000);
+
+    expect(properties.size).toBe(0);
+    expect(gateStorage.marks).toBe(0);
+    gate.unmounted();
+  });
+
+  it('减少动态效果只缩短渐隐，不缩短 2 秒完整展示', () => {
+    const { gate } = createGateHarness({ reduced: true });
+    gate.mounted();
+    expect(gate.fadeDurationMs.value).toBe(300);
+
+    vi.advanceTimersByTime(2000);
+    expect(gate.gateLeaving.value).toBe(true);
+    expect(gate.gateDismissed.value).toBe(false);
+
+    vi.advanceTimersByTime(380);
+    expect(gate.gateDismissed.value).toBe(true);
+    expect(gate.focusDurationMs.value).toBe(300);
+    gate.unmounted();
+  });
+
+  it('卸载时清理计时器和键盘监听，并解除滚动锁', () => {
+    const { gate, properties, getKeydownHandler } = createGateHarness();
+    gate.mounted();
+    expect(getKeydownHandler()).toBeTypeOf('function');
+
+    gate.unmounted();
+    expect(getKeydownHandler()).toBeNull();
+    expect(properties.size).toBe(0);
+
+    vi.advanceTimersByTime(5000);
+    expect(gateStorage.marks).toBe(0);
+    expect(gate.gateDismissed.value).toBe(false);
+  });
+
+  it('键盘跳过与按钮共用同一条退场路径', () => {
+    const { gate, getKeydownHandler } = createGateHarness();
+    gate.mounted();
+    const preventDefault = vi.fn();
+
+    getKeydownHandler()({ key: 'ArrowDown', preventDefault });
+
+    expect(preventDefault).toHaveBeenCalledOnce();
+    expect(gate.gateLeaving.value).toBe(true);
+    expect(getKeydownHandler()).toBeNull();
+    gate.unmounted();
   });
 });
