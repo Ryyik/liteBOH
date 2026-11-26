@@ -25,14 +25,16 @@ const props = defineProps({
   goPoints: { type: Function, default: null },
   goSubscription: { type: Function, default: null },
   openLogin: { type: Function, default: null },
-  retry: { type: Function, default: null }
+  retry: { type: Function, default: null },
 });
 
 const expanded = ref(false);
 
 const losses = computed(() => Number(props.status?.consecutiveLosses || 0));
 const threshold = computed(() => Number(props.status?.threshold || 0));
-const remaining = computed(() => Math.max(0, Number(props.status?.remainingLosses ?? threshold.value - losses.value)));
+const remaining = computed(() =>
+  Math.max(0, Number(props.status?.remainingLosses ?? threshold.value - losses.value)),
+);
 const percent = computed(() => {
   if (!props.status?.eligible || !threshold.value) return 0;
   return Math.min(100, Math.round((losses.value / threshold.value) * 100));
@@ -52,25 +54,38 @@ const hasDetail = computed(() => variant.value === 'progress' || variant.value =
 
 const compactAria = computed(() => {
   switch (variant.value) {
-    case 'loading': return '正在读取保底进度';
-    case 'guest': return '登录查看保底进度';
-    case 'error': return '保底进度暂不可用，点击重试';
-    case 'free': return '订阅后开启保底进度';
-    case 'due': return `保底已可兑现，当前 ${losses.value}/${threshold.value} 场`;
-    default: return `保底进度 ${losses.value}/${threshold.value} 场，还差 ${remaining.value} 场`;
+    case 'loading':
+      return '正在读取保底进度';
+    case 'guest':
+      return '登录查看保底进度';
+    case 'error':
+      return '保底进度暂不可用，点击重试';
+    case 'free':
+      return '订阅后开启保底进度';
+    case 'due':
+      return `保底已可兑现，当前 ${losses.value}/${threshold.value} 场`;
+    default:
+      return `保底进度 ${losses.value}/${threshold.value} 场，还差 ${remaining.value} 场`;
   }
 });
 
 const primaryAction = () => {
   switch (variant.value) {
-    case 'guest': props.openLogin?.(); break;
-    case 'error': props.retry?.(); break;
-    case 'free': props.goSubscription?.(); break;
+    case 'guest':
+      props.openLogin?.();
+      break;
+    case 'error':
+      props.retry?.();
+      break;
+    case 'free':
+      props.goSubscription?.();
+      break;
     case 'progress':
     case 'due':
       expanded.value = !expanded.value;
       break;
-    default: break;
+    default:
+      break;
   }
 };
 
@@ -89,7 +104,10 @@ watch(hasDetail, (val) => {
 </script>
 
 <template>
-  <div class="pity-island-card" :class="[`is-${variant}`, { 'is-expanded': hasDetail && expanded }]">
+  <div
+    class="pity-island-card"
+    :class="[`is-${variant}`, { 'is-expanded': hasDetail && expanded }]"
+  >
     <!-- 紧凑行：常驻态 -->
     <button
       type="button"
@@ -120,16 +138,27 @@ watch(hasDetail, (val) => {
           <Ticket :size="13" :stroke-width="2.1" aria-hidden="true" />
           保底进度
         </span>
-        <span class="pi-detail-num">{{ losses }}<i>/{{ threshold }} 场</i></span>
+        <span class="pi-detail-num"
+          >{{ losses }}<i>/{{ threshold }} 场</i></span
+        >
         <span class="pi-detail-pct">{{ percent }}%</span>
       </div>
-      <div class="pi-detail-track" role="progressbar" :aria-valuenow="losses" aria-valuemin="0" :aria-valuemax="threshold" aria-label="保底进度">
+      <div
+        class="pi-detail-track"
+        role="progressbar"
+        :aria-valuenow="losses"
+        aria-valuemin="0"
+        :aria-valuemax="threshold"
+        aria-label="保底进度"
+      >
         <span class="pi-detail-fill" :style="{ width: percent + '%' }"></span>
       </div>
       <p class="pi-detail-rule">
-        <template v-if="variant === 'due'">保底已就绪 · 参与「计入并兑现」活动即可领取保底礼</template>
+        <template v-if="variant === 'due'"
+          >保底已就绪 · 参与「计入并兑现」活动即可领取保底礼</template
+        >
         <template v-else>还差 {{ remaining }} 场到保底 · 中奖后清零</template>
-        <span class="pi-detail-threshold">阈值 Plus 24 · Pro 18 · Max 12 · Ultra 8</span>
+        <span class="pi-detail-threshold">阈值 Pro 18 · Max 12 · Ultra 8</span>
       </p>
       <div class="pi-detail-actions">
         <span v-if="pointsDisplay" class="pi-detail-points">当前 {{ pointsDisplay }} 积分</span>
@@ -153,7 +182,8 @@ watch(hasDetail, (val) => {
   display: flex;
   flex-direction: column;
   padding: 0 10px 4px;
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Segoe UI", sans-serif;
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'PingFang SC', 'Segoe UI', sans-serif;
 }
 
 /* ---- 紧凑行 ---- */
@@ -173,9 +203,16 @@ watch(hasDetail, (val) => {
   -webkit-tap-highlight-color: transparent;
 }
 
-.pi-compact:hover { background: rgba(15, 23, 42, 0.045); }
-.pi-compact:active { background: rgba(15, 23, 42, 0.07); }
-.pi-compact:focus-visible { outline: 2px solid #94a3b8; outline-offset: 1px; }
+.pi-compact:hover {
+  background: rgba(15, 23, 42, 0.045);
+}
+.pi-compact:active {
+  background: rgba(15, 23, 42, 0.07);
+}
+.pi-compact:focus-visible {
+  outline: 2px solid #94a3b8;
+  outline-offset: 1px;
+}
 
 .pi-dot {
   flex: 0 0 auto;
@@ -185,14 +222,30 @@ watch(hasDetail, (val) => {
   background: #aeaeb2;
 }
 
-.is-progress .pi-dot { background: #1d1d1f; }
-.is-due .pi-dot { background: #b7791f; box-shadow: 0 0 8px rgba(183, 121, 31, 0.35); }
-.is-error .pi-dot { background: #ff3b30; }
-.is-loading .pi-dot { animation: pi-dot-pulse 1.2s ease-in-out infinite; }
+.is-progress .pi-dot {
+  background: #1d1d1f;
+}
+.is-due .pi-dot {
+  background: #b7791f;
+  box-shadow: 0 0 8px rgba(183, 121, 31, 0.35);
+}
+.is-error .pi-dot {
+  background: #ff3b30;
+}
+.is-loading .pi-dot {
+  animation: pi-dot-pulse 1.2s ease-in-out infinite;
+}
 
 @keyframes pi-dot-pulse {
-  0%, 100% { opacity: 0.45; transform: scale(1); }
-  50% { opacity: 1; transform: scale(1.08); }
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
 }
 
 .pi-label {
@@ -221,8 +274,13 @@ watch(hasDetail, (val) => {
   transition: width 0.5s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.is-due .pi-track { background: rgba(183, 121, 31, 0.14); }
-.is-due .pi-fill { background: linear-gradient(90deg, #b7791f 0%, #d4a017 100%); box-shadow: 0 0 8px rgba(183, 121, 31, 0.3); }
+.is-due .pi-track {
+  background: rgba(183, 121, 31, 0.14);
+}
+.is-due .pi-fill {
+  background: linear-gradient(90deg, #b7791f 0%, #d4a017 100%);
+  box-shadow: 0 0 8px rgba(183, 121, 31, 0.3);
+}
 
 .pi-count {
   flex: 0 0 auto;
@@ -261,7 +319,9 @@ watch(hasDetail, (val) => {
   transition: transform 0.24s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.is-expanded .pi-chevron { transform: rotate(180deg); }
+.is-expanded .pi-chevron {
+  transform: rotate(180deg);
+}
 
 /* ---- 展开区 ---- */
 .pi-detail {
@@ -272,8 +332,14 @@ watch(hasDetail, (val) => {
 }
 
 @keyframes pi-expand {
-  from { opacity: 0; transform: translateY(-5px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(-5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .pi-detail-head {
@@ -332,8 +398,13 @@ watch(hasDetail, (val) => {
   transition: width 0.5s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.is-due .pi-detail-track { background: rgba(183, 121, 31, 0.14); }
-.is-due .pi-detail-fill { background: linear-gradient(90deg, #b7791f 0%, #d4a017 100%); box-shadow: 0 0 8px rgba(183, 121, 31, 0.3); }
+.is-due .pi-detail-track {
+  background: rgba(183, 121, 31, 0.14);
+}
+.is-due .pi-detail-fill {
+  background: linear-gradient(90deg, #b7791f 0%, #d4a017 100%);
+  box-shadow: 0 0 8px rgba(183, 121, 31, 0.3);
+}
 
 .pi-detail-rule {
   margin: 0;
@@ -383,13 +454,22 @@ watch(hasDetail, (val) => {
   font-size: 12px;
   font-weight: 650;
   cursor: pointer;
-  transition: background-color 0.18s ease, transform 0.18s ease;
+  transition:
+    background-color 0.18s ease,
+    transform 0.18s ease;
   -webkit-tap-highlight-color: transparent;
 }
 
-.pi-btn:hover { background: rgba(15, 23, 42, 0.05); }
-.pi-btn:active { transform: scale(0.97); }
-.pi-btn:focus-visible { outline: 2px solid #94a3b8; outline-offset: 1px; }
+.pi-btn:hover {
+  background: rgba(15, 23, 42, 0.05);
+}
+.pi-btn:active {
+  transform: scale(0.97);
+}
+.pi-btn:focus-visible {
+  outline: 2px solid #94a3b8;
+  outline-offset: 1px;
+}
 
 .pi-btn-primary {
   border-color: transparent;
@@ -397,53 +477,132 @@ watch(hasDetail, (val) => {
   color: #fff;
 }
 
-.pi-btn-primary:hover { background: #0062c4; }
+.pi-btn-primary:hover {
+  background: #0062c4;
+}
 
 /* ---------- 暗色（整条 :global 前缀，逐条独立写） ---------- */
-:global(#unified-nav-container[data-theme="dark"] .pity-island-card .pi-compact:hover) { background: rgba(255, 255, 255, 0.06); }
-:global(#unified-nav-container[data-theme="dark"] .pity-island-card .pi-compact:active) { background: rgba(255, 255, 255, 0.1); }
-:global(#unified-nav-container[data-theme="dark"] .pity-island-card .pi-label) { color: #f5f5f7; }
-:global(#unified-nav-container[data-theme="dark"] .pity-island-card .pi-track) { background: rgba(255, 255, 255, 0.14); }
-:global(#unified-nav-container[data-theme="dark"] .pity-island-card .pi-fill) { background: linear-gradient(90deg, #f5f5f7 0%, #e5e5ea 100%); }
-:global(#unified-nav-container[data-theme="dark"] .pity-island-card.is-due .pi-dot) { background: #e0a23a; box-shadow: 0 0 8px rgba(224, 162, 58, 0.35); }
-:global(#unified-nav-container[data-theme="dark"] .pity-island-card.is-due .pi-track) { background: rgba(224, 162, 58, 0.18); }
-:global(#unified-nav-container[data-theme="dark"] .pity-island-card.is-due .pi-fill) { background: linear-gradient(90deg, #e0a23a 0%, #f0c040 100%); }
-:global(#unified-nav-container[data-theme="dark"] .pity-island-card.is-progress .pi-dot) { background: #f5f5f7; }
-:global(#unified-nav-container[data-theme="dark"] .pity-island-card.is-error .pi-dot) { background: #ff453a; }
-:global(#unified-nav-container[data-theme="dark"] .pity-island-card .pi-count) { color: #d1d1d6; }
-:global(#unified-nav-container[data-theme="dark"] .pity-island-card .pi-due-badge) { background: rgba(224, 162, 58, 0.16); color: #f0c040; }
-:global(#unified-nav-container[data-theme="dark"] .pity-island-card .pi-sub) { color: #a1a1a6; }
-:global(#unified-nav-container[data-theme="dark"] .pity-island-card .pi-chevron) { color: #a1a1a6; }
-:global(#unified-nav-container[data-theme="dark"] .pity-island-card .pi-detail-title) { color: #a1a1a6; }
-:global(#unified-nav-container[data-theme="dark"] .pity-island-card .pi-detail-num) { color: #f5f5f7; }
-:global(#unified-nav-container[data-theme="dark"] .pity-island-card .pi-detail-num i) { color: #a1a1a6; }
-:global(#unified-nav-container[data-theme="dark"] .pity-island-card .pi-detail-pct) { color: #a1a1a6; }
-:global(#unified-nav-container[data-theme="dark"] .pity-island-card .pi-detail-track) { background: rgba(255, 255, 255, 0.14); }
-:global(#unified-nav-container[data-theme="dark"] .pity-island-card .pi-detail-fill) { background: linear-gradient(90deg, #f5f5f7 0%, #e5e5ea 100%); }
-:global(#unified-nav-container[data-theme="dark"] .pity-island-card.is-due .pi-detail-track) { background: rgba(224, 162, 58, 0.18); }
-:global(#unified-nav-container[data-theme="dark"] .pity-island-card.is-due .pi-detail-fill) { background: linear-gradient(90deg, #e0a23a 0%, #f0c040 100%); }
-:global(#unified-nav-container[data-theme="dark"] .pity-island-card .pi-detail-rule) { color: #a1a1a6; }
-:global(#unified-nav-container[data-theme="dark"] .pity-island-card .pi-detail-threshold) { color: rgba(161, 161, 166, 0.8); }
-:global(#unified-nav-container[data-theme="dark"] .pity-island-card .pi-detail-points) { color: #a1a1a6; }
-:global(#unified-nav-container[data-theme="dark"] .pity-island-card .pi-btn) { border-color: rgba(255, 255, 255, 0.16); color: #d1d1d6; }
-:global(#unified-nav-container[data-theme="dark"] .pity-island-card .pi-btn:hover) { background: rgba(255, 255, 255, 0.08); }
-:global(#unified-nav-container[data-theme="dark"] .pity-island-card .pi-btn-primary) { background: #0071e3; color: #fff; }
-:global(#unified-nav-container[data-theme="dark"] .pity-island-card .pi-btn-primary:hover) { background: #0062c4; }
+:global(#unified-nav-container[data-theme='dark'] .pity-island-card .pi-compact:hover) {
+  background: rgba(255, 255, 255, 0.06);
+}
+:global(#unified-nav-container[data-theme='dark'] .pity-island-card .pi-compact:active) {
+  background: rgba(255, 255, 255, 0.1);
+}
+:global(#unified-nav-container[data-theme='dark'] .pity-island-card .pi-label) {
+  color: #f5f5f7;
+}
+:global(#unified-nav-container[data-theme='dark'] .pity-island-card .pi-track) {
+  background: rgba(255, 255, 255, 0.14);
+}
+:global(#unified-nav-container[data-theme='dark'] .pity-island-card .pi-fill) {
+  background: linear-gradient(90deg, #f5f5f7 0%, #e5e5ea 100%);
+}
+:global(#unified-nav-container[data-theme='dark'] .pity-island-card.is-due .pi-dot) {
+  background: #e0a23a;
+  box-shadow: 0 0 8px rgba(224, 162, 58, 0.35);
+}
+:global(#unified-nav-container[data-theme='dark'] .pity-island-card.is-due .pi-track) {
+  background: rgba(224, 162, 58, 0.18);
+}
+:global(#unified-nav-container[data-theme='dark'] .pity-island-card.is-due .pi-fill) {
+  background: linear-gradient(90deg, #e0a23a 0%, #f0c040 100%);
+}
+:global(#unified-nav-container[data-theme='dark'] .pity-island-card.is-progress .pi-dot) {
+  background: #f5f5f7;
+}
+:global(#unified-nav-container[data-theme='dark'] .pity-island-card.is-error .pi-dot) {
+  background: #ff453a;
+}
+:global(#unified-nav-container[data-theme='dark'] .pity-island-card .pi-count) {
+  color: #d1d1d6;
+}
+:global(#unified-nav-container[data-theme='dark'] .pity-island-card .pi-due-badge) {
+  background: rgba(224, 162, 58, 0.16);
+  color: #f0c040;
+}
+:global(#unified-nav-container[data-theme='dark'] .pity-island-card .pi-sub) {
+  color: #a1a1a6;
+}
+:global(#unified-nav-container[data-theme='dark'] .pity-island-card .pi-chevron) {
+  color: #a1a1a6;
+}
+:global(#unified-nav-container[data-theme='dark'] .pity-island-card .pi-detail-title) {
+  color: #a1a1a6;
+}
+:global(#unified-nav-container[data-theme='dark'] .pity-island-card .pi-detail-num) {
+  color: #f5f5f7;
+}
+:global(#unified-nav-container[data-theme='dark'] .pity-island-card .pi-detail-num i) {
+  color: #a1a1a6;
+}
+:global(#unified-nav-container[data-theme='dark'] .pity-island-card .pi-detail-pct) {
+  color: #a1a1a6;
+}
+:global(#unified-nav-container[data-theme='dark'] .pity-island-card .pi-detail-track) {
+  background: rgba(255, 255, 255, 0.14);
+}
+:global(#unified-nav-container[data-theme='dark'] .pity-island-card .pi-detail-fill) {
+  background: linear-gradient(90deg, #f5f5f7 0%, #e5e5ea 100%);
+}
+:global(#unified-nav-container[data-theme='dark'] .pity-island-card.is-due .pi-detail-track) {
+  background: rgba(224, 162, 58, 0.18);
+}
+:global(#unified-nav-container[data-theme='dark'] .pity-island-card.is-due .pi-detail-fill) {
+  background: linear-gradient(90deg, #e0a23a 0%, #f0c040 100%);
+}
+:global(#unified-nav-container[data-theme='dark'] .pity-island-card .pi-detail-rule) {
+  color: #a1a1a6;
+}
+:global(#unified-nav-container[data-theme='dark'] .pity-island-card .pi-detail-threshold) {
+  color: rgba(161, 161, 166, 0.8);
+}
+:global(#unified-nav-container[data-theme='dark'] .pity-island-card .pi-detail-points) {
+  color: #a1a1a6;
+}
+:global(#unified-nav-container[data-theme='dark'] .pity-island-card .pi-btn) {
+  border-color: rgba(255, 255, 255, 0.16);
+  color: #d1d1d6;
+}
+:global(#unified-nav-container[data-theme='dark'] .pity-island-card .pi-btn:hover) {
+  background: rgba(255, 255, 255, 0.08);
+}
+:global(#unified-nav-container[data-theme='dark'] .pity-island-card .pi-btn-primary) {
+  background: #0071e3;
+  color: #fff;
+}
+:global(#unified-nav-container[data-theme='dark'] .pity-island-card .pi-btn-primary:hover) {
+  background: #0062c4;
+}
 
 /* ---------- 横竖屏适配 ---------- */
 @media (max-width: 480px) {
-  .pi-sub { display: none; }
-  .pi-compact { gap: 7px; padding: 0 6px; }
-  .pi-detail-rule { font-size: 11.5px; }
-  .pi-detail-threshold { font-size: 10.5px; }
+  .pi-sub {
+    display: none;
+  }
+  .pi-compact {
+    gap: 7px;
+    padding: 0 6px;
+  }
+  .pi-detail-rule {
+    font-size: 11.5px;
+  }
+  .pi-detail-threshold {
+    font-size: 10.5px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .pi-compact,
   .pi-fill,
   .pi-detail-fill,
-  .pi-chevron { transition: none; }
-  .pi-detail { animation: none; }
-  .is-loading .pi-dot { animation: none; }
+  .pi-chevron {
+    transition: none;
+  }
+  .pi-detail {
+    animation: none;
+  }
+  .is-loading .pi-dot {
+    animation: none;
+  }
 }
 </style>

@@ -1,15 +1,15 @@
 {
-  "total": 2412,
+  "total": 2408,
   "perFile": {
     "src/styles/themes/bolek-dark.css": 225,
     "src/styles/themes/forum-dark.css": 178,
-    "src/styles/themes/user-space-dark.css": 153,
+    "src/styles/themes/user-space-dark.css": 151,
     "src/styles/themes/post-detail-dark.css": 120,
     "src/views/Newsroom/style.scoped.css": 103,
-    "src/views/user-center/Messages/style.scoped.css": 100,
+    "src/views/user-center/Messages/style.scoped.css": 98,
     "src/views/user-center/UserSpace/components/AssetsHubPanel.css": 91,
     "src/views/user-center/UserSpace/styles/shell-community.css": 90,
-    "src/styles/themes/messages-dark.css": 79,
+    "src/styles/themes/messages-dark.css": 81,
     "src/styles/themes/dark-mode.css": 70,
     "src/components/UnifiedNavbar/style.scoped.css": 66,
     "src/components/SubscriptionPlans.vue": 58,
@@ -18,11 +18,11 @@
     "src/views/DataManagement/styles/responsive.css": 44,
     "src/components/UnifiedNavbar/ShareIsland.vue": 42,
     "src/styles/themes/user-center-dark.css": 42,
-    "src/views/user-center/UserSpace/styles/settings-glass.css": 41,
+    "src/views/user-center/UserSpace/styles/settings-glass.css": 40,
+    "src/styles/common/tokens.css": 39,
     "src/views/CommunityLotteries/style.scoped.css": 38,
-    "src/views/Profile/style.scoped.css": 38,
-    "src/styles/common/tokens.css": 37,
     "src/views/CommunityLotteries/PityIslandCard.vue": 37,
+    "src/views/Profile/style.scoped.css": 36,
     "src/components/AdminContentPublishModal.vue": 34,
     "src/views/AlertStyleEditor/style.scoped.css": 32,
     "src/views/user-center/UserSpace/components/bottom-nav.css": 27,
@@ -45,9 +45,9 @@
     "src/components/AccountBindPrompt/index.vue": 12,
     "src/views/user-center/UserSpace/components/AccountSecurityPanel.vue": 12,
     "src/views/Forum/components/ForumToolbar.vue": 10,
-    "src/views/Forum/styles/feed.css": 10,
     "src/views/Shop/ShopAccountPanel.vue": 10,
     "src/views/activities/ActivitiesList.vue": 10,
+    "src/views/Forum/styles/feed.css": 9,
     "src/views/Home/components/BirthdayHero.vue": 9,
     "src/views/Home/components/HomeFooter.vue": 9,
     "src/views/ResetPassword/index.vue": 9,
@@ -91,5 +91,5 @@
     "src/views/user-center/UserSpace/components/ShippingAddressPanel.vue": 1,
     "src/views/user-center/UserSpace/styles/profile-panels.css": 1
   },
-  "updatedAt": "2026-11-23"
+  "updatedAt": "2026-11-25"
 }

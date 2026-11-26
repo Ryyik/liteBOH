@@ -27,11 +27,27 @@ import {
   watch,
 } from 'vue';
 import { useGlobalAiPreferences } from '@/composables/useGlobalAiPreferences.js';
-import { createAvatarEngine, DEFAULT_STATE, STAGE_STATE } from './activity-avatar-engine.js';
+import {
+  createAvatarEngine,
+  AVATAR_STATES,
+  DEFAULT_STATE,
+  STAGE_STATE,
+} from './activity-avatar-engine.js';
 
 const props = defineProps({
   /** BOH 活动阶段（activityStage），映射真源见 STAGE_STATE */
   stage: { type: String, default: '' },
+  /**
+   * 画布边长（px）。默认 32 = 活动行实尺。
+   *
+   * ⚠️ 这里给的是 **canvas 边长**，不是「方块头看起来多大」—— 引擎里
+   * `R = size * 0.42`、方块头 `S = R * 1.8`，头只占画布 65% 左右，
+   * 四周留白是给浮空位移与破裂粒子的。想在版面上呈现 N px 的头，
+   * 传 `size ≈ N / 0.65`（登录页 96px 的头 ⇒ size 148）。
+   */
+  size: { type: Number, default: 32 },
+  /** 固定状态（不跟随 stage）：登录页这类没有 BOH 阶段机的宿主用它钉住表情 */
+  fixedState: { type: String, default: '' },
 });
 
 const canvasRef = ref(null);
@@ -47,18 +63,24 @@ const onMediaChange = () => {
   systemReduced.value = Boolean(media?.matches);
 };
 
+/** 状态真源优先级：fixedState（宿主钉死）> STAGE_STATE 映射 > idle */
+const resolveState = (stage) => {
+  if (props.fixedState && AVATAR_STATES[props.fixedState]) return props.fixedState;
+  return STAGE_STATE[stage] || DEFAULT_STATE;
+};
+
 const mountEngine = async () => {
   await nextTick(); // v-if 翻真后这一拍 canvas 才在 DOM 里
   const el = canvasRef.value;
   if (!el || engine) return;
   engine = createAvatarEngine({
     canvas: el,
-    size: 32, // 2026-11-22 用户报「看不到表情」：28px 上眼/嘴格子太小，32px + 整格表情
+    size: props.size, // 2026-11-22 用户报「看不到表情」：28px 上眼/嘴格子太小，32px + 整格表情
     onState: (s) => {
       state.value = s; // 探针经 data-avatar-state 读
     },
   });
-  engine.setState(STAGE_STATE[props.stage] || DEFAULT_STATE);
+  engine.setState(resolveState(props.stage));
 };
 
 const unmountEngine = () => {
@@ -68,7 +90,7 @@ const unmountEngine = () => {
 
 const onMediaChangeHandler = () => onMediaChange();
 const onStageChange = (stage) => {
-  engine?.setState(STAGE_STATE[stage] || DEFAULT_STATE);
+  engine?.setState(resolveState(stage));
 };
 
 onMounted(() => {
@@ -86,6 +108,24 @@ watch(reduced, (next) => {
 watch(
   () => props.stage,
   (stage) => onStageChange(stage),
+);
+
+/* size 变化要重建引擎 —— canvas 的 width/height 是引擎在构造时一次性写死的，
+   改 CSS 尺寸只会把已有像素拉伸（方块头会糊成马赛克而不是变大）。
+   登录页在不同断点传不同 size（桌面 148 / 窄屏 116），必须走重建。 */
+watch(
+  () => props.size,
+  () => {
+    unmountEngine();
+    if (!reduced.value) mountEngine();
+  },
+);
+
+watch(
+  () => props.fixedState,
+  (fs) => {
+    if (fs) engine?.setState(resolveState(props.stage));
+  },
 );
 
 /* BOH 页是 keep-alive 路由：切走时组件只是失活、不会卸载 —— 必须显式停 rAF，切回再续。

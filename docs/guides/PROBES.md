@@ -14,7 +14,7 @@
 | 首页布局 / 左栏 / 底栏 | `probe-home-forum-rail.mjs` | 21 |
 | 横屏左栏落位 | `probe-rail-landing.mjs` | 45 |
 | **横屏左栏「更多」浮层**（窄栏 88px 下主题 / 退出登录不被滚动容器裁成半个字、不被内容层遮挡；含反证自检） | `probe-rail-more-menu.mjs` | 16 |
-| 首屏拉动入场动效 | `probe-home-gate-pull.mjs` | 50 |
+| 首页定时遮罩 / 渐隐落定 | `probe-home-gate-overlay.mjs` | 33 |
 | 论坛搜索 | `probe-forum-search.mjs` | 39 |
 | **论坛/详情「从哪来、回哪去」空间连续性**（图片查看器从缩略图 rect 起、关闭缩回同一张；详情正文卡从列表卡片 rect 形变入场；返程克隆层末帧落回入口卡片矩形；落定后 `transform: none`；reduce 下形变全跳过） | `probe-forum-motion.mjs` | 22 |
 | **帖子列表大图浏览**（翻页左箭头不被 stage/图片盖住；点空白关闭、点图片不关闭、拖拽不误关；开合动效逐帧采样 + reduce 口径） | `probe-forum-image-viewer.mjs` | 27 |
@@ -72,7 +72,7 @@
 | `probe-forum-search.mjs` | — | 探针：论坛搜索体验增强（清除按钮 / ⌘K 聚焦 / 最近搜索 / 结果计数 / 无结果引导 / 2026-11-22 问博莱克内联回答卡片——不弹岛、卡片位置、原句回显、SSE 流式、换词收卡、点卡片跳 /ai-chat 交接），网络全程 mock（AI 链路 = SSE fetch 包装逐块重放，抄 probe-bolek-keepalive-stream） |
 | `probe-forum-motion.mjs` | — | 探针：空间连续性（plans/035）—— 来源 rect 对齐 / 落点回归 / 落定 transform 归零 / 克隆层无残留 / reduce 降级 |
 | `probe-home-forum-rail.mjs` | — | 探针：首页（论坛层）横屏左栏 —— 修复「换个入口进论坛，左右栏结构就没了」 |
-| `probe-home-gate-pull.mjs` | — | 探针：首页开场画「跟手拖拽」入场（2026-09-27 由阈值触发改为 progress 派生） |
+| `probe-home-gate-overlay.mjs` | — | 探针：首页普通遮罩完整显示 2 秒 → 纯 opacity 渐隐；右下角跳过立即退场 |
 | `probe-rail-landing.mjs` | — | 探针：横屏左栏改造落地验收（plans/011 B 组 + C1/C2） |
 | `probe-route-switch.mjs` | `npm run probe:route-switch` | probe-route-switch.mjs — 路由级切换巡检（逐路由，不抽样） |
 | `probe-subscription-benefits.mjs` | — | 探针：订阅页（/user-space/subscriptions）· 权益单源对齐回归。**2026-11-24（plans/046）四档制**：Plus 并入 Pro，卡 3 张 / 表 4 列（Standard 不进卡），AI 百分比基准 plus→pro（100/250/500）。⚠️ 同批新增 **A1b 布局守卫** —— `.cards` 曾写死 `repeat(4)`，付费卡减到 3 张后右空 294px，而 A1/A2 全是读文字断言、**全绿**；A1b 的量法是「最右卡右沿到容器右沿的留白」，因为它直接反映「有没有空列」，而 grid 计算列数读不到（`gridTemplateColumns` 只给 px 列表）。**反证**：`repeat(3)` 改回 `repeat(4)` → A1b FAIL（右留白 294），其余 39 条仍绿 |
@@ -223,11 +223,10 @@ F5 后不得掉回整页详情：A 横屏刷新仍是弹窗 / B 仍是同一帖 
 | `probe-cloud-composer.mjs` | — | **Cloud+ 发布面板（65 断言，2026-10-18 新增，同日第二轮扩到 65）**：五档视口（390×844 / 844×390 / 740×320 / 1024×768 / 1440×900）各跑 11 条 —— A 常驻按钮 ≤4（关闭/图片/心情/发布，改造前 12）；B「发布」在视口内；C 遮罩层自身不滚动（滚动只发生在 `.composer-body`）；D 面板不超出视口；E 遮罩半透明（alpha∈(0,1)，旧版是不透明白底全屏）；F 面板材质为液态玻璃（blur + 半透明底）；G 心情抽屉默认收起；H 正文多字扩展生效（或已被 CSS 上限封顶）；I 正文高度不超 CSS 上限；J 展开 9 个情绪胶囊后「发布」仍在视口内；K 零页面错误。竖屏另跑 L–P：L 有草稿点「×」先弹「放弃这次编辑？」、M 选「继续编辑」后面板与正文都在、N Esc 走同一条确认路径、O 选「放弃」面板关闭、P 暗色下面板变深且标题变浅（材质走 `--liquid-*`）。第二轮（用户报障「为啥还有图片上传失败 / 不显示原因 / 有过渡动画吗」）追加 Q–U 五条：Q 上传失败时面板渲染**文件名 + 真实原因**（`role="alert"`，把 Cloudinary 端点整个打桩回 400 带可识别文案，不依赖外网与真实配额）；R 上传走 Cloud+ 专属标记（签名网关 body 含 `"source":"cloud_plus"` + `"folder":"boh-cloud-plus"`，改造前落到 `generic` 桶、与装修台共用限流计数）；S 心情抽屉开合带过渡（读瞬时类，animationName 含 `cpTrayHeight`、duration>0.1s）；T 重试成功后缩略图出现且失败清单消失；U 整条链路无页面报错。⚠️ 四条实测坑：① 长正文用 `type` 而不是 `fill`（auto-grow 监听 input，逐字输入才覆盖组字分支）；② 判「发布按钮在视口内」必须读 `rect.bottom <= innerHeight`，`offsetTop` 是相对滚动容器的；③ 宽屏 672px 下 150 字只占 3~4 行、不到 `rows=5` 的初始高度 —— 用 ×3 会让 H 在 1024/1440 假红，必须 ×6；④ 读「失败清单消失」必须等节点真摘掉（`waitForFunction`）—— 它走 cp-status 退场动画，`waitForSelector('.upload-card')` 一满足就去读会读到 leaving 节点（本地实测踩到）。**反证已做（五条）**：A 把 `{{ failed.error }}` 改空串 → Q 当场红；B 删上传调用的 `pendingSource` → R 当场红（body 变 `"source":"generic"`）；C 把 `.cp-tray-enter-active` 的 animation 改 none → S 当场红；D 短路 `closeComposer` 的 `hasComposerDraft` → L/M/N 红；E 遮罩改 `transparent` → E 断言五档全红。**两条没做成的，如实记录**：① 只删 `folder:` 参数时 R 仍绿 —— cloudinary-client 的 `DEFAULT_FOLDER` 也是同一个目录，请求体看不出区别（能区分的是 source，所以原先那条「folder 出现即算对齐」的断言已删，别再加回来）；② 只删 `.composer-panel` 的 `max-height` 时 B/C/D/J 仍绿 —— 新布局足够紧凑，收敛实际由 `.composer-body{overflow-y:auto}` + 面板 `overflow:hidden` 承担；那四条锁的是**报障现象**（旧版 844×390 下发布按钮 y=818、overlay 可滚），不是某一条 CSS |
 | `probe-aichat-landscape-rail.mjs` | — | **BOH AI 整页横屏左栏（14 断言，2026-10-03 新增）**：两档视口 1440×900 / 390×844。横屏断言：`body.page-aichat` 类名 / 左栏渲染且 `display:flex` / `position: fixed` 且 `left: 0` / 宽 88px（**不随 ≥1280 升 240px**）/ 高亮项 `data-tab="ai"` / 整页 `padding-left: 88px` / 聊天区起点 ≥ 左栏右缘 / AI 自带会话侧栏 `left: 88px`（接在左栏右侧、两块面板不叠）/ 顶部导航岛心 == 内容区中心 / 点左栏「内容」能跳走 / 零 pageerror；竖屏断言左栏 `display:none` 且整页不右移。⚠️ 两条实测坑：① 页面级规则在 `UserSpace/styles/landscape-rail.css`，该文件**按页引入** —— `BolekMain` 不写 `<style src=...>` 时左栏照样渲染，但 position / 让位 / 会话侧栏左移全不生效（实测 `absolute` + `padding-left:0` + `left:0`）；② 导航岛是「`margin: 0 auto` 居中 + `left` 相对偏移」，判据必须写成「岛心 == 内容区中心」 |
 | `probe-impressions-ui.mjs` | — | 探针：我的印象面板液态玻璃重设计 |
-| `probe-join-audit.mjs` | — | 探针：注册页（/#/join）现状取证 —— 截图 + 关键计算样式实测 |
-| `probe-join-mobile-metrics.mjs` | — | 探针：注册页移动端横向溢出 / 触控目标 / 对比度实测（为改版方案提供数据依据） |
-| `probe-join-real-layout.mjs` | — | （无头部说明） |
-| `probe-join-real.mjs` | — | 探针：真实注册页（src/views/Join/index.vue，路由 /#/join）验收 |
-| `probe-join-wizard-demo.mjs` | — | 探针：注册页方案 B（三步向导）demo 的行为验收 |
+| `probe-join-audit.mjs` | — | 探针：注册页（/#/join）样式取证 —— 竖屏桌面/横屏手机 × 六屏截图 + 计算样式与对比度实测（无断言，供评审看数） |
+| `probe-join-mobile-metrics.mjs` | — | 探针：注册页四档视口的横向溢出 / 触控目标（≥44px）/ 对比度实测 |
+| `probe-join-real.mjs` | — | 探针：真实注册页七屏「邮箱优先」全链路验收（103 条断言，9 场景；写操作全拦为合成响应） |
+| `probe-join-wizard-demo.mjs` | — | 探针：注册页方案 demo（docs/demos/join-wizard-demo.html，离线三步向导）的行为验收 |
 | `probe-lottery-join-rpc.py` | — | （无头部说明） |
 | `probe-passkey-login.mjs` | `npm run probe:passkey` | probe-passkey-login.mjs — 登录页通行密钥入口 E2E 探针 |
 | `probe-profile-impressions.mjs` | — | 探针：他人空间（/profile/:username）印象 tab 液态玻璃重设计 |
@@ -238,6 +237,7 @@ F5 后不得掉回整页详情：A 横屏刷新仍是弹窗 / B 仍是同一帖 
 | `probe-user-space-perf.mjs` | — | 探针：User Space 系统性性能审查 v2（索引切阶段 + 定时器堆栈归因） |
 | `probe-userspace-pages.mjs` | `npm run probe:userspace-pages` | probe-userspace-pages.mjs — UserSpace **全页面**切换审计（逐页，不抽样） |
 | `probe-userspace-switch.mjs` | `npm run probe:userspace-switch` | probe-userspace-switch.mjs — UserSpace 分区切换流畅度实测 |
+| `repro-join-real.mjs` | — | 反证：注册页主探针的 8 处断言逐条改回缺陷版本，确认每条真的变红（2026-11-25 实测 8/8 成立，源码自动还原） |
 | `repro-join-wizard-demo.mjs` | — | 反证：把每处修复改回缺陷版本，确认对应断言真的变红。 |
 
 ### 订阅 / 抽奖 / 积分 / 台账（7）
