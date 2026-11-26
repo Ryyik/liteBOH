@@ -6,8 +6,8 @@
 ## 0. 项目一句话
 
 Vue 3 + Vite 7 + Supabase 的 SPA，hash 路由，产品名「方块之家 BOH」，迭代代号 Beta 2.5 / Beta 6。
-`src/` 733 个源文件（.vue/.js/.ts），327 个脚本（`scripts/*.mjs` 65 + `scripts/probes/*.mjs` 262），415 个单元测试文件。
-（2026-11-25 对齐；这三个数由 `npm run check:doc-truth` 实时对账，写错会被 verify 拦下——别手改估计值。）
+`src/` 737 个源文件（.vue/.js/.ts），329 个脚本（`scripts/*.mjs` 65 + `scripts/probes/*.mjs` 264），417 个单元测试文件。
+（2026-11-26 对齐；这三个数由 `npm run check:doc-truth` 实时对账，写错会被 verify 拦下——别手改估计值。）
 
 三条最高纲领：
 
@@ -99,7 +99,7 @@ Vue 3 + Vite 7 + Supabase 的 SPA，hash 路由，产品名「方块之家 BOH�
 | `vite.config.js` 依赖别名 / optimizeDeps | `node scripts/probes/probe-vite-dep-scan.mjs`（6） |
 | 权限策略 / 归档 SQL | `npm run security:anon-check`（棘轮，红了说明新增了 anon EXECUTE） |
 | 暗色主题样式（新增裸色值） | 已在 verify 链内跑 `check:dark-tokens:strict`（棘轮，总量上升即红）。确需新增 token：写进 `src/styles/themes/dark-mode.css` 的 token 块再引用；只有「存量搬迁/新页面早期形态」才允许 `npm run check:dark-tokens:update` 登记，并在 commit message 里说明理由 |
-| **在 `src/views`、`src/components`、`src/composables` 里写 `supabase.from/rpc/functions.invoke`** | 已在 verify 链内跑 `check:layering`（棘轮，基线 **132** 处 / 28 文件，**新文件违规即红**；2026-11-20 实测对账为 132（此前 133，删减后下调）。改法：复用 `src/utils/api/*` 已有封装，没有就在那儿新增一个模块收口。会话内省请用 `authStore` 而不是 `supabase.auth.getUser()`。清单：`npm run check:layering:list` |
+| **在 `src/views`、`src/components`、`src/composables` 里写 `supabase.from/rpc/functions.invoke`** | 已在 verify 链内跑 `check:layering`（棘轮，基线 **131** 处 / 27 文件，**新文件违规即红**；2026-11-26 对账 131（Join 直连收口后下调）。改法：复用 `src/utils/api/*` 已有封装，没有就在那儿新增一个模块收口。会话内省请用 `authStore` 而不是 `supabase.auth.getUser()`。清单：`npm run check:layering:list` |
 | SW 预缓存改动上线前（**专项，没进自动化链**） | `npm run check:sw-upgrade`（对比 `dist` 与 `dist-check` 两份产物，CI 上没有 `dist-check` 所以只能在本地跑）；`npm run check:route-css-runtime` 还要先手工起 `npx vite preview --outDir dist-check --port 4180 --strictPort`，它是独立起服务的浏览器验收 |
 | **首屏 / 加载性能**（改图片管线、SW 预缓存、首屏请求收敛之后） | `node scripts/probes/probe-perf-baseline.mjs`（4 断言；只读打线上冷首访 + 产物闭包 + DB RTT，**不进 verify 主链**；`--json` 落盘做前后对照。基线与口径源自 `docs/reports/2026-09/2026-09-29-加载速度与提速全面评测报告.md`） |
 | RPC / 触发器静默失败 | 审计表取 code → `DO` 块分步复现 → 修完把 `sqlstate` 落进审计 message |
@@ -199,7 +199,7 @@ Vue 3 + Vite 7 + Supabase 的 SPA，hash 路由，产品名「方块之家 BOH�
     `cp scripts/git-hooks/pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit`
   - 没用 husky 是刻意的：husky 会接管 `core.hooksPath`，而现有 `.git/hooks/post-commit` 是 Qoder 的 tracker，接管后它会静默失效。
 - **MCP**：`~/.workbuddy/mcp.json` 配了三个 —— supabase（`--read-only`，project ref `nplnlefdwfgtyimfkyih`）、playwright（`--browser chrome`）、github。首次启用要在连接器管理页点「信任」。Supabase 那一个是只读档，写操作照旧走 migration SQL。
-- **测试**：`npm run test` 覆盖 **415 个测试文件**（口径 `find tests -name '*.test.js' | wc -l`），跑满约 3 分钟。`pool: forks` + `maxWorkers: 2` 是定数**别调高**（CPU 密集任务抢不到时间片，只会互相拖累）。⚠️ `maxForks` 是 vitest 5 的**未知选项、被静默忽略**，曾致 project-structure 每次全量撞 45s 超时——2026-10-15 已修正名并合并 src 双读（17s→9.1s），对照实验与教训见 `vitest.config.js` 注释。
+- **测试**：`npm run test` 覆盖 **417 个测试文件**（口径 `find tests -name '*.test.js' | wc -l`），跑满约 3 分钟。`pool: forks` + `maxWorkers: 2` 是定数**别调高**（CPU 密集任务抢不到时间片，只会互相拖累）。⚠️ `maxForks` 是 vitest 5 的**未知选项、被静默忽略**，曾致 project-structure 每次全量撞 45s 超时——2026-10-15 已修正名并合并 src 双读（17s→9.1s），对照实验与教训见 `vitest.config.js` 注释。
 - **截图产物轮转**：`npm run clean:screenshots --keep-days=7 -- --apply`（不加 `--apply` 是 dry-run；上限 200，超了需 `--max-delete`）。`debug-screenshots/` 只会涨（轮转前 2485 个 / 589MB）。
 
 ## 6. 不要做的事
