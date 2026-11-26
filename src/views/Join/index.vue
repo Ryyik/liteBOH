@@ -99,12 +99,12 @@
                     :inert="currentStep !== 1 || undefined"
                     aria-label="邮箱"
                   >
-                    <h2>连接到 BOH 社区</h2>
-                    <p class="join-lead">先验证你的邮箱。验证通过后才会创建账户。</p>
+                    <h2>注册 BOH 账户</h2>
+                    <p class="join-lead">注册需验证邮箱。</p>
 
                     <div class="join-fld" :class="fieldClass('email')" data-field="email">
                       <label class="join-label" for="joinEmail"
-                        >电子邮件<span class="join-tag join-tag-req">必填</span></label
+                        >邮箱<span class="join-tag join-tag-req">必填</span></label
                       >
                       <div class="join-ctrl">
                         <input
@@ -114,7 +114,7 @@
                           name="email"
                           autocomplete="email"
                           placeholder="you@example.com"
-                          aria-describedby="joinMsgEmail joinHintEmail"
+                          aria-describedby="joinMsgEmail"
                           :aria-invalid="!!fieldMsg.email"
                           @input="onEmailInput"
                           @blur="validateEmailField"
@@ -127,12 +127,6 @@
                         >
                       </div>
                       <p id="joinMsgEmail" class="join-msg">{{ fieldMsg.email }}</p>
-                      <!-- 原来这里写「用于登录与找回密码，不会出现在你的公开主页上」——
-                           和上面引导句是同一件事的两种说法，属于同屏重复。现在只留
-                           那条引导句；这里改说「谁会看到」，是真正补充的信息。 -->
-                      <p id="joinHintEmail" class="join-hint">
-                        仅你本人可见，不会出现在公开主页上。
-                      </p>
                     </div>
 
                     <!-- 协议：这一屏的必选项。两个链接都可点开。
@@ -142,10 +136,11 @@
                       <label class="join-consent-row">
                         <input v-model="formData.agreedToTerms" type="checkbox" />
                         <span class="join-consent-text">
-                          我已阅读并同意
-                          <a href="#" @click.prevent="openAgreementModal('user')">用户服务协议</a>
-                          和
-                          <a href="#" @click.prevent="openAgreementModal('privacy')">隐私政策</a>
+                          我已阅读并同意《<a href="#" @click.prevent="openAgreementModal('user')"
+                            >用户服务协议</a
+                          >》与《<a href="#" @click.prevent="openAgreementModal('privacy')"
+                            >隐私政策</a
+                          >》
                         </span>
                       </label>
                     </div>
@@ -162,10 +157,10 @@
                     :inert="currentStep !== 2 || undefined"
                     aria-label="验证邮箱"
                   >
-                    <h2>验证你的邮箱</h2>
+                    <h2>验证邮箱</h2>
                     <p class="join-lead">
-                      我们已向 <strong class="join-email-em">{{ formData.email }}</strong> 发送了
-                      {{ OTP_LENGTH }} 位验证码，请查收后填入下方。
+                      验证码已发送至 <strong class="join-email-em">{{ formData.email }}</strong
+                      >。
                     </p>
 
                     <div class="join-fld" :class="{ 'is-err': !!otpError }" data-field="otp">
@@ -183,7 +178,7 @@
                       />
                       <p class="join-msg" :class="{ 'is-warn-on': !!otpError }">{{ otpError }}</p>
                       <p class="join-hint">
-                        验证码 {{ OTP_TTL_MINUTES }} 分钟内有效，仅可使用一次。
+                        {{ OTP_LENGTH }} 位数字，{{ OTP_TTL_MINUTES }} 分钟内有效，仅可使用一次。
                       </p>
                     </div>
 
@@ -202,16 +197,6 @@
                               : '没收到？重新发送'
                         }}
                       </button>
-                      <!-- 这一屏是唯一允许回退的地方：账号还没建，改邮箱零代价。
-                           第 ③ 屏之后账号已经存在，回退会造出孤儿账号。 -->
-                      <button
-                        type="button"
-                        class="join-mini join-mini-quiet"
-                        :disabled="isSubmitting || isResending"
-                        @click="backToEditEmail"
-                      >
-                        邮箱填错了
-                      </button>
                     </div>
                   </section>
 
@@ -226,7 +211,7 @@
                     :inert="currentStep !== 3 || undefined"
                     aria-label="确认建号"
                   >
-                    <h2>创建你的 BOH ID</h2>
+                    <h2>创建你的方块 ID</h2>
 
                     <!-- 已验证邮箱（只读）—— 给「账号是拿哪个邮箱建的」一个明确交代 -->
                     <div class="join-verified">
@@ -263,7 +248,7 @@
                         >
                       </div>
                       <div v-if="accountSuggestions.length" class="join-suggest">
-                        <span>已被占用，试试：</span>
+                        <span>该 ID 已被占用，可选：</span>
                         <button
                           v-for="s in accountSuggestions"
                           :key="s"
@@ -275,7 +260,7 @@
                       </div>
                       <p id="joinMsgAccount" class="join-msg">{{ fieldMsg.account }}</p>
                       <p id="joinHintAccount" class="join-hint">
-                        3–20 个字符，支持中英文、数字、下划线和连字符。之后可以改。
+                        3–20 个字符，支持中英文、数字、下划线与连字符；注册后可修改。
                       </p>
                     </div>
 
@@ -303,10 +288,12 @@
                           {{ showPassword ? '隐藏' : '显示' }}
                         </button>
                       </div>
-                      <div class="join-meter" :data-level="passwordLevel">
-                        <i></i><i></i><i></i>
-                      </div>
-                      <div class="join-meter-label">强度：{{ passwordLevelText }}</div>
+                      <template v-if="formData.password">
+                        <div class="join-meter" :data-level="passwordLevel">
+                          <i></i><i></i><i></i>
+                        </div>
+                        <div class="join-meter-label">强度：{{ passwordLevelText }}</div>
+                      </template>
                       <ul id="joinPwRules" class="join-rules">
                         <li
                           v-for="rule in passwordRules"
@@ -345,7 +332,11 @@
                           @verified="handleAltchaVerified"
                           @expired="handleAltchaExpired"
                         />
-                        <p class="join-altcha-status" :class="{ 'is-error': !!altchaError }">
+                        <p
+                          v-if="altchaError || altchaStatusMessage"
+                          class="join-altcha-status"
+                          :class="{ 'is-error': !!altchaError }"
+                        >
                           {{ altchaError || altchaStatusMessage }}
                         </p>
                         <button
@@ -368,9 +359,8 @@
                     aria-label="生日"
                   >
                     <h2>生日</h2>
-                    <p class="join-lead">只用于生日祝福，不会公开展示。</p>
 
-                    <div class="join-fld" :class="fieldClass('birth')" data-field="birth">
+                    <div class="join-fld" data-field="birth">
                       <label class="join-label" for="joinBirthMonth"
                         >生日<span class="join-tag join-tag-opt">选填</span></label
                       >
@@ -396,12 +386,6 @@
                           </option>
                         </select>
                       </div>
-                      <p class="join-msg" :class="{ 'is-warn-on': !!fieldMsg.birth }">
-                        {{ fieldMsg.birth }}
-                      </p>
-                      <!-- 这里原本还有一条 .join-hint「只用于生日祝福，不会公开展示。」
-                           与上面第 ④ 屏的 .join-lead 一字不差 —— 同一句话在一屏里
-                           出现两次，第一次读是信息、第二次读就是噪音。已删。 -->
                     </div>
                   </section>
 
@@ -413,7 +397,7 @@
                     :inert="currentStep !== 5 || undefined"
                     aria-label="头像"
                   >
-                    <h2>挑一个头像</h2>
+                    <h2>设置你的头像</h2>
 
                     <div class="join-fld" data-field="avatar">
                       <span class="join-label"
@@ -455,7 +439,6 @@
                               移除
                             </button>
                           </div>
-                          <p class="join-hint">选好后会弹出裁切框，拖动即可定圆心。</p>
                         </div>
                       </div>
                       <p class="join-msg">{{ avatarError }}</p>
@@ -472,11 +455,8 @@
                     :inert="currentStep !== 6 || undefined"
                     aria-label="通行密钥"
                   >
-                    <h2>在这台设备上快速登录</h2>
-                    <p class="join-lead">
-                      通行密钥让你下次登录不用输密码，直接用指纹或面容。密钥只保存在这台设备上，BOH
-                      只拿到公钥。
-                    </p>
+                    <h2>为你的账户添加通行密钥</h2>
+                    <p class="join-lead">通行密钥可让你像解锁手机一样连接到 BOH。</p>
 
                     <div v-if="passkeySupported" class="join-fld" data-field="passkey">
                       <label class="join-switch-row">
@@ -491,19 +471,16 @@
                           ><span class="join-switch-knob"></span
                         ></span>
                         <span class="join-switch-copy">
-                          <span class="join-switch-title">为这台设备添加通行密钥</span>
-                          <span class="join-switch-desc"
-                            >开启后，下一次登录会直接调用本机的指纹 / 面容验证。</span
-                          >
+                          <span class="join-switch-desc">使用本机指纹或面容验证。</span>
                         </span>
                       </label>
                       <p id="joinPasskeyHint" class="join-hint">
-                        也可以稍后在 设置 → 账户安全 里添加或删除。
+                        之后可在 设置 → 账户安全 中管理。
                       </p>
                     </div>
 
                     <p v-else class="join-lead join-passkey-unsupported">
-                      这台设备不支持通行密钥，跳过即可。
+                      此设备不支持通行密钥，可跳过。
                     </p>
                   </section>
                 </div>
@@ -553,10 +530,10 @@
           <div v-else class="join-done">
             <div class="join-done-mark" aria-hidden="true"></div>
             <template v-if="signupNeedsEmailConfirmation">
-              <h2>注册成功，还差一步</h2>
+              <h2>邮箱待验证</h2>
               <p>
                 验证邮件已发送至 <strong>{{ formData.email }}</strong
-                >，请查收并点击邮件里的确认链接，然后回来登录。
+                >，请点击邮件中的链接完成验证后登录。
               </p>
               <div class="join-done-actions">
                 <button
@@ -570,26 +547,22 @@
                       ? '正在重发…'
                       : resendRemainingSeconds > 0
                         ? `重新发送（${resendRemainingSeconds}s）`
-                        : '没收到？重新发送验证邮件'
+                        : '重新发送验证邮件'
                   }}
                 </button>
                 <router-link to="/login" class="join-btn join-btn-primary">去登录</router-link>
               </div>
               <p v-if="resendStatus === 'sent'" class="join-resend-note is-ok">
-                已重新发送，请查收（注意垃圾箱）。
+                已重新发送，请查收（含垃圾邮件箱）。
               </p>
               <p v-else-if="resendStatus === 'error'" class="join-resend-note is-err">
                 {{ resendErrorMessage }}
-              </p>
-              <p v-if="passkeySupported" class="join-passkey-deferred">
-                邮箱验证完成后，可以在这台设备上添加通行密钥，之后免密码登录（设置 → 账户安全）。
               </p>
             </template>
             <template v-else>
               <h2>注册成功</h2>
               <p>
-                欢迎加入方块之家！你的 BOH 身份
-                <strong>{{ formData.account }}</strong> 已创建完成，现在可以直接登录。
+                你的方块 ID <strong>{{ formData.account }}</strong> 已创建，现在可以登录。
               </p>
 
               <div v-if="showPasskeyCard" class="join-passkey-card">
@@ -597,10 +570,7 @@
                   <span class="join-passkey-ico" aria-hidden="true"></span>
                   <div>
                     <strong class="join-passkey-title">为这台设备添加通行密钥</strong>
-                    <p class="join-passkey-desc">
-                      这样下次登录不用输密码 —— 直接用指纹 / 面容。密钥只保存在本机，BOH
-                      拿不到你的指纹数据。
-                    </p>
+                    <p class="join-passkey-desc">通行密钥可让你像解锁手机一样连接到 BOH。</p>
                   </div>
                 </div>
                 <div v-if="passkeyState !== 'ok'" class="join-passkey-actions">
@@ -615,7 +585,7 @@
                         ? '请在设备上完成验证…'
                         : passkeyState === 'error'
                           ? '重试'
-                          : '用指纹 / 面容添加'
+                          : '使用指纹或面容添加'
                     }}
                   </button>
                   <button
@@ -624,12 +594,12 @@
                     :disabled="passkeyState === 'running'"
                     @click="showPasskeyCard = false"
                   >
-                    以后再说
+                    暂不添加
                   </button>
                 </div>
                 <div v-else class="join-passkey-ok" aria-live="polite">
                   <span class="join-tick" aria-hidden="true"></span
-                  ><span>已添加，下次可以直接用指纹 / 面容登录。</span>
+                  ><span>已添加。下次登录可使用指纹或面容。</span>
                 </div>
                 <p class="join-passkey-state" aria-live="polite">{{ passkeyError }}</p>
               </div>
@@ -740,7 +710,7 @@ const showPassword = ref(false);
 /* 提交本身失败（网络 / 收尾写库异常）才用这一行 —— 本地校验不往这里写，
    它由主按钮禁用表达（用户口径 2026-11-26：「没写好或者没同意就不给下一步」）。 */
 const submitError = ref('');
-const fieldMsg = reactive({ account: '', email: '', password: '', birth: '' });
+const fieldMsg = reactive({ account: '', email: '', password: '' });
 
 /* ---------------- 管理员跳步预览（仅生产环境） ----------------
  *
@@ -923,7 +893,7 @@ const accountSuggestions = ref([]);
 const avatarError = ref('');
 
 const fieldClass = (name) => ({
-  'is-invalid': ['account', 'email', 'password', 'birth'].includes(name) && !!fieldMsg[name],
+  'is-invalid': ['account', 'email', 'password'].includes(name) && !!fieldMsg[name],
   'is-valid':
     (name === 'account' && accountState.value === 'ok') ||
     // 邮箱的「已确认可用」必须来自真实查询结果 —— 原来是
@@ -1012,7 +982,7 @@ const checkAccountAvailability = async (immediate = false) => {
         return;
       }
       accountState.value = 'err';
-      fieldMsg.account = '这个方块 ID 已经有人用了，换一个或者点下面的候选。';
+      fieldMsg.account = '该 ID 已被占用，可从下方候选选择。';
       accountSuggestions.value = suggestNames(value);
     },
     immediate ? 0 : ACCOUNT_DEBOUNCE_MS,
@@ -1076,7 +1046,7 @@ const checkEmailRegisteredState = (immediate = false) => {
       }
       if (registered) {
         emailState.value = 'err';
-        fieldMsg.email = '这个邮箱已经注册过了。请直接用密码登录 —— 忘了密码可以在登录页重置。';
+        fieldMsg.email = '该邮箱已注册，请直接登录；忘记密码可在登录页重置。';
         return;
       }
       emailState.value = 'ok';
@@ -1144,7 +1114,6 @@ const refreshBirthDays = () => {
 };
 const onBirthMonthChange = () => {
   refreshBirthDays();
-  clearFieldError('birth');
 };
 
 /* ---------------- 人机验证：点击后才挂载，不再「进页面即解题」 ---------------- */
@@ -1158,7 +1127,8 @@ const altchaError = ref('');
 
 const altchaStatusMessage = computed(() => {
   if (!altchaEnabled.value) return '';
-  if (altchaState.value === 'verified') return '人机验证已完成。';
+  // 成功态不配文案：打勾本身就是结论，写一行「已完成」只是噪音
+  if (altchaState.value === 'verified') return '';
   if (altchaState.value === 'verifying') return '人机验证进行中…';
   if (altchaState.value === 'expired') return '人机验证已过期，请重新完成。';
   if (altchaState.value === 'error') return '人机验证加载失败，请重试。';
@@ -1411,13 +1381,7 @@ const validateStep = (step) => {
       ok = false;
     }
   }
-  if (step === 4) {
-    // 生日是选填：填一半就整项跳过 —— 给软提示，不做硬拦截
-    const month = String(formData.birth_month || '');
-    const day = String(formData.birth_day || '');
-    fieldMsg.birth =
-      (month || day) && !(month && day) ? '月日没填全，这项会先跳过（之后可在用户中心补）。' : '';
-  }
+  /* 生日是选填：填一半就整项跳过，不再给软提示（用户口径 2026-11-26）。 */
   return ok;
 };
 
@@ -1531,7 +1495,7 @@ const verifyOtpAndContinue = async () => {
   if (isVerifying.value) return;
   const code = String(otpCode.value || '').replace(/\D/g, '');
   if (code.length !== OTP_LENGTH) {
-    otpError.value = `请输入完整的 ${OTP_LENGTH} 位验证码`;
+    otpError.value = `请输入 ${OTP_LENGTH} 位验证码`;
     otpInputRef.value?.focus();
     return;
   }
@@ -1561,7 +1525,7 @@ const verifyOtpAndContinue = async () => {
        宁可让极少数老用户多填一屏，也不要让正常新用户卡死在这里。 */
     const state = await checkSignupState();
     if (state.ok && state.incomplete === false) {
-      otpError.value = '这个邮箱已经注册过了。请直接用密码登录 —— 如果忘了密码，可以在登录页重置。';
+      otpError.value = '该邮箱已注册，请直接登录；忘记密码可在登录页重置。';
       otpCode.value = '';
       // 立刻退掉这个会话：留着它等于「以老用户身份登录着却在注册页」，
       // 后续任何写入都会作用到那个老账号上。
@@ -1601,18 +1565,6 @@ const handleResendOtp = async () => {
   } finally {
     isResending.value = false;
   }
-};
-
-/** 邮箱填错：回第 1 步。同时清掉「已发码」标记，避免改完邮箱后跳过 signUp */
-const backToEditEmail = () => {
-  otpSentAt.value = 0;
-  otpSentTo.value = '';
-  otpCode.value = '';
-  otpError.value = '';
-  goStep(1);
-  nextTick(() => {
-    document.getElementById('joinEmail')?.focus();
-  });
 };
 
 /** 「跳过」：第 ④⑤⑥ 屏各自的可选项清掉，直接进欢迎页。
@@ -1656,7 +1608,7 @@ const finishAfterVerification = async () => {
     const uid = sessionData?.user?.id;
     if (!uid) {
       // 走到这里说明会话丢了（换标签页、清了 storage）。不能假装成功。
-      fieldMsg.email = '登录状态已失效，请重新验证邮箱。';
+      fieldMsg.email = '登录状态已失效，请重新验证。';
       otpCode.value = '';
       goStep(2);
       return;
@@ -2502,19 +2454,6 @@ watch(currentStep, () => {
   gap: 10px;
   margin-top: 20px;
 }
-/* 「邮箱填错了」是纠正操作，不是主路径 —— 去掉描边，只留文字 */
-.join-mini-quiet {
-  border-color: transparent;
-  background: transparent;
-  color: var(--j-ink-3);
-}
-.join-mini-quiet:hover:not(:disabled) {
-  border-color: transparent;
-  background: transparent;
-  color: var(--j-ink);
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
 /* 第 3 步的字段容器留出与其它步骤一致的间距 */
 .join-step[aria-label='验证邮箱'] .join-fld {
   margin-top: 24px;
@@ -2582,10 +2521,6 @@ watch(currentStep, () => {
   flex-direction: column;
   gap: 4px;
   min-width: 0;
-}
-.join-switch-title {
-  font-size: var(--j-fs-sm);
-  font-weight: var(--j-fw-medium);
 }
 .join-switch-desc {
   font-size: var(--j-fs-sm);
@@ -2892,13 +2827,6 @@ watch(currentStep, () => {
 .join-resend-note.is-err {
   color: var(--j-ink-2);
 }
-.join-passkey-deferred {
-  margin-top: 20px;
-  font-size: var(--j-fs-sm);
-  line-height: 1.65;
-  color: var(--j-ink-3);
-}
-
 .join-passkey-card {
   margin-top: 24px;
   width: 100%;

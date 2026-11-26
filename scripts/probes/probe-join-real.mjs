@@ -141,7 +141,7 @@ const browser = await chromium.launch({ channel: 'chrome', args: CHROME_ARGS });
   check('只有第 1 步处于 active', s.activeSteps === 1);
   check('非当前步全部 inert（不可聚焦/不可点）', s.inertCount === 5, String(s.inertCount));
   check('进度与步号一致（视觉是 1/6，语义在 data-step）', s.progress === '1/6', s.progress);
-  check('首屏标题是邮箱屏', s.title.includes('BOH 社区'), s.title);
+  check('首屏标题是邮箱屏', s.title.includes('注册 BOH 账户'), s.title);
 
   // 触控目标：勾选行 ≥44px（WCAG 2.5.5 / iOS HIG）
   check('协议勾选行可点区 ≥44px', s.consentRowH >= 44, `${s.consentRowH}px`);
@@ -306,7 +306,7 @@ const browser = await chromium.launch({ channel: 'chrome', args: CHROME_ARGS });
   );
   check(
     '邮箱格式错 → 字段下方给一行提示，按钮仍禁用、不弹汇总卡',
-    badState.emailMsg.includes('有效的邮箱') &&
+    badState.emailMsg.includes('邮箱格式') &&
       badState.disabled === true &&
       badState.alertCards === 0,
     JSON.stringify(badState),
@@ -324,7 +324,7 @@ const browser = await chromium.launch({ channel: 'chrome', args: CHROME_ARGS });
   );
   check(
     '邮箱已被注册 → 提示去登录而不是继续说可用',
-    takenMsg.includes('已经注册') && takenMsg.includes('登录'),
+    takenMsg.includes('已注册') && takenMsg.includes('登录'),
     takenMsg.slice(0, 50),
   );
 
@@ -377,10 +377,10 @@ const browser = await chromium.launch({ channel: 'chrome', args: CHROME_ARGS });
     otpMounted: Boolean(document.querySelector('.otp-native')),
     emailEcho: document.querySelector('.join-email-em')?.textContent?.trim() || '',
     resend: document.querySelector('.join-otp-actions .join-mini')?.textContent?.trim() || '',
-    canBack: [...document.querySelectorAll('.join-otp-actions button')].some((b) =>
-      b.textContent.includes('邮箱填错了'),
+    canBack: [...document.querySelectorAll('.join-actions button')].some(
+      (b) => b.textContent.trim() === '上一步',
     ),
-    // 第 2 步不该有「上一步」——回退入口刻意做成「邮箱填错了」这个具体动作
+    // 第 2 步的回退入口只剩「上一步」（2026-11-26 删掉「邮箱填错了」这个小按钮）
     ghostBack: Boolean(document.querySelector('.join-actions .join-btn-ghost')),
   }));
   check(
@@ -391,10 +391,10 @@ const browser = await chromium.launch({ channel: 'chrome', args: CHROME_ARGS });
   check('验证码组件已挂载真实输入框', step2.otpMounted === true);
   check('第 2 步回显邮箱', step2.emailEcho === FAKE.email, step2.emailEcho);
   check('第 2 步有重发入口', step2.resend.length > 0, step2.resend);
-  check('第 2 步提供「邮箱填错了」回退入口', step2.canBack === true);
+  check('第 2 步提供「上一步」回退入口', step2.canBack === true && step2.ghostBack === true);
 
-  // 「邮箱填错了」→ 回第 1 步，且清掉「已发码」标记
-  await clickByText(page, '.join-otp-actions button', '邮箱填错了');
+  // 「上一步」→ 回第 1 步，邮箱值保留、焦点落回邮箱框
+  await clickByText(page, '.join-actions button', '上一步');
   await waitStep(page, 1);
   const backTo1 = await page.evaluate(() => ({
     email: document.getElementById('joinEmail').value,
@@ -425,8 +425,8 @@ const browser = await chromium.launch({ channel: 'chrome', args: CHROME_ARGS });
   check('第 3 步只读回显「邮箱已验证」', step3.verified.includes(FAKE.email), step3.verified);
   check('第 3 步不给「上一步」（账号已按该邮箱建好）', step3.backBtn === false);
   check(
-    '第 3 步标题是「创建你的 BOH ID」而不是「设置密码」',
-    step3.title.includes('BOH ID'),
+    '第 3 步标题是「创建你的方块 ID」而不是「设置密码」',
+    step3.title.includes('方块 ID'),
     step3.title,
   );
   check('第 3 步主按钮文案是「创建账户」', step3.mainLabel === '创建账户', step3.mainLabel);
@@ -548,7 +548,7 @@ const browser = await chromium.launch({ channel: 'chrome', args: CHROME_ARGS });
   check('已注册邮箱 → 停在第 2 步，不进第 3 步', blocked.step === '2/6', blocked.step);
   check(
     '已注册邮箱 → 提示去登录（而不是"密码错误"）',
-    blocked.otpMsg.includes('已经注册') && blocked.otpMsg.includes('登录'),
+    blocked.otpMsg.includes('已注册') && blocked.otpMsg.includes('登录'),
     blocked.otpMsg.slice(0, 60),
   );
   check('已注册邮箱 → 清空验证码，逼用户重输', blocked.otpValue === '', blocked.otpValue);
@@ -669,7 +669,7 @@ const browser = await chromium.launch({ channel: 'chrome', args: CHROME_ARGS });
   }));
   check(
     '第 6 步是通行密钥，主按钮文案是「完成」',
-    step6.title.includes('快速登录') && step6.mainLabel === '完成',
+    step6.title.includes('通行密钥') && step6.mainLabel === '完成',
     `${step6.title} / ${step6.mainLabel}`,
   );
   check('第 6 步必须能跳过（无认证器的设备不能卡死）', step6.skipBtn === true);
@@ -686,7 +686,7 @@ const browser = await chromium.launch({ channel: 'chrome', args: CHROME_ARGS });
   }));
   check('走完 6 步 → 进入欢迎页', done.exists === true, done.title);
   check('欢迎页不再显示进度条（完成态不是第 7 步）', done.progressGone === true);
-  check('欢迎页带出本机的 BOH ID', done.body.includes(FAKE.account), done.body.slice(0, 60));
+  check('欢迎页带出本机的方块 ID', done.body.includes(FAKE.account), done.body.slice(0, 60));
   check('欢迎页有「去登录」出口', done.loginBtn === true);
   await page.screenshot({ path: `${OUT}/join-real-done.png` });
 
@@ -750,7 +750,7 @@ const browser = await chromium.launch({ channel: 'chrome', args: CHROME_ARGS });
   }));
   check('勾选 + 有会话 → 欢迎页出现通行密钥卡片', card.exists === true, JSON.stringify(card));
   check(
-    '卡片有「添加」与「以后再说」两条出路',
+    '卡片有「添加」与「暂不添加」两条出路',
     card.addText.includes('添加') && card.skipCount === 1,
     `${card.addText} / ${card.skipCount}`,
   );
@@ -776,7 +776,7 @@ const browser = await chromium.launch({ channel: 'chrome', args: CHROME_ARGS });
   await page.click('.join-passkey-actions .join-btn-ghost');
   await page.waitForTimeout(300);
   check(
-    '「以后再说」静默收起卡片',
+    '「暂不添加」静默收起卡片',
     (await page.evaluate(() => !document.querySelector('.join-passkey-card'))) === true,
   );
 

@@ -62,7 +62,7 @@ export const validateEmail = (email) => {
     .toLowerCase();
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRegex.test(safeEmail)) {
-    return '请输入有效的邮箱地址';
+    return '邮箱格式不正确';
   }
   return '';
 };

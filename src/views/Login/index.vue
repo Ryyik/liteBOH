@@ -760,7 +760,7 @@ onUnmounted(() => {
                 {{ forgotCooldownLeft > 0 ? `${forgotCooldownLeft} 秒后可重试` : '忘记密码？' }}
               </a>
               <a href="#" @click.prevent="tokenPanelOpen = !tokenPanelOpen">令牌登录</a>
-              <a href="/join" @click.prevent="handleRegister">注册 BOH ID</a>
+              <a href="/join" @click.prevent="handleRegister">注册 BOH 账户</a>
             </div>
           </div>
 
@@ -820,7 +820,7 @@ onUnmounted(() => {
             <div class="login-form-header">
               <div class="boh-login-logo"></div>
               <h2>欢迎回来</h2>
-              <p>登录你的 BOH ID</p>
+              <p>登录 BOH 账户</p>
               <div v-if="!mobileFormOpen" class="mobile-login-entry" aria-label="BOH 账户入口">
                 <button type="button" class="mobile-login-primary" @click="openMobileLogin">
                   <span class="mobile-login-pill-mark" aria-hidden="true"></span>
@@ -952,7 +952,7 @@ onUnmounted(() => {
                   <a href="#" @click.prevent="tokenPanelOpen = !tokenPanelOpen">令牌登录</a>
                   <!-- 与模态框那份对齐（2026-11-16）：此前只有弹窗里有「注册 BOH ID」，
                        独立登录页缺这一条 —— 两份模板已经漂移过一次，见文件头说明。 -->
-                  <a href="/join" @click.prevent="handleRegister">注册 BOH ID</a>
+                  <a href="/join" @click.prevent="handleRegister">注册 BOH 账户</a>
                 </div>
               </div>
 

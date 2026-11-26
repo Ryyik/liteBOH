@@ -90,7 +90,11 @@ const measure = async (label, ctxOpts) => {
           })
           .filter(Boolean),
         fontSize: {
-          hint: getComputedStyle(document.querySelector('.join-hint') || document.body).fontSize,
+          hint: getComputedStyle(
+            document.querySelector('.join-hint') ||
+              document.querySelector('.join-msg') ||
+              document.body,
+          ).fontSize,
           label: getComputedStyle(document.querySelector('.join-label') || document.body).fontSize,
           // ≥16px 是 iOS Safari 聚焦不缩放页面的门槛
           emailInput: getComputedStyle(document.getElementById('joinEmail')).fontSize,
