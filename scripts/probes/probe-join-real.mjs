@@ -1039,12 +1039,190 @@ for (const vp of [
   );
   check(`桌面横屏（${vp.label}）：内容不用滚就能看到主按钮`, d.innerScrollable === false);
   await page.screenshot({ path: `${OUT}/join-real-desktop-${vp.width}.png` });
+
+  // 暗色：岛与导航必须同底色（两半拼一张岛的前提），主按钮反相
+  await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'));
+  await page.waitForTimeout(400);
+  const dark = await page.evaluate(() => ({
+    navBg: getComputedStyle(document.querySelector('.unified-nav-surface')).backgroundColor,
+    cardBg: getComputedStyle(document.querySelector('.join-card')).backgroundColor,
+    btnBg: getComputedStyle(document.querySelector('.join-btn-primary')).backgroundColor,
+  }));
+  check(
+    `桌面横屏（${vp.label}）：暗色下岛与导航同底色`,
+    dark.navBg === dark.cardBg,
+    `${dark.navBg} vs ${dark.cardBg}`,
+  );
+  check(
+    `桌面横屏（${vp.label}）：暗色下主按钮反相（浅底）`,
+    /rgba?\(\s*2[0-9]{2}/.test(dark.btnBg),
+    dark.btnBg,
+  );
+  await page.evaluate(() => document.documentElement.removeAttribute('data-theme'));
+
   check(
     `桌面横屏（${vp.label}）：无 JS 异常`,
     pageErrors.length === 0,
     pageErrors.slice(0, 2).join(' | '),
   );
   await context.close();
+}
+
+/* ══════════════════ 场景 8c：岛上的兼容性（预览条 / 旋转 / 内容溢出 / 键盘顶起）══════════════════
+   岛形态放大到所有横屏之后，有四类东西会「把岛撑破」或「把按钮推出视野」，
+   每类都在这里锁死（2026-11-26 实测清单）：
+     · 管理员预览条曾插在导航与卡片之间 → 岛形裂 42px；
+     · 竖→横旋转时 matchMedia 不更新 → 导航留在竖屏形态；
+     · 第③屏内容最多，矮横屏必须能滚到主按钮；
+     · 键盘顶起（视口高度骤减）时同理。 */
+{
+  /* ① 预览条 = 岛上的一条横带（不是岛外的浮条） */
+  for (const vp of [
+    { label: '1024×768', width: 1024, height: 768 },
+    { label: '844×390', width: 844, height: 390, isMobile: true, hasTouch: true },
+  ]) {
+    const { context, page } = await boot(browser, {
+      preview: true,
+      viewport: { width: vp.width, height: vp.height },
+      ...(vp.isMobile ? { isMobile: true, hasTouch: true } : {}),
+    });
+    const m = await page.evaluate(() => {
+      const r = (sel) => {
+        const el = document.querySelector(sel);
+        if (!el) return null;
+        const b = el.getBoundingClientRect();
+        return {
+          x: Math.round(b.x),
+          y: Math.round(b.y),
+          w: Math.round(b.width),
+          bottom: Math.round(b.bottom),
+          bg: getComputedStyle(el).backgroundColor,
+        };
+      };
+      return {
+        nav: r('.unified-nav-surface'),
+        band: r('.join-admin-preview'),
+        card: r('.join-card'),
+      };
+    });
+    check(
+      `岛上预览条（${vp.label}）：上接导航、下接卡片（不撕缝）`,
+      m.band && m.card && m.band.y - m.nav.bottom <= 0 && m.card.y - m.band.bottom <= 0,
+      `nav.bottom=${m.nav.bottom} band=${m.band.y}..${m.band.bottom} card.y=${m.card.y}`,
+    );
+    check(
+      `岛上预览条（${vp.label}）：与卡片同底同宽（读作同一张岛）`,
+      m.band.w === m.card.w && m.band.x === m.card.x && m.band.bg === m.card.bg,
+      `band=${m.band.x}+${m.band.w}/${m.band.bg} card=${m.card.x}+${m.card.w}/${m.card.bg}`,
+    );
+
+    /* ② 第③屏是内容最多的一屏：滚到底后主按钮必须进视口（不靠「看不见的滚动」） */
+    await clickByText(page, '.join-admin-preview-btn', '③ 建号');
+    await page.waitForTimeout(500);
+    const before = await page.evaluate(() => {
+      const inner = document.querySelector('.join-inner');
+      return { scrollable: inner.scrollHeight > inner.clientHeight + 1 };
+    });
+    await page.evaluate(() => {
+      const inner = document.querySelector('.join-inner');
+      inner.scrollTop = inner.scrollHeight;
+    });
+    await page.waitForTimeout(250);
+    const after = await page.evaluate(() => {
+      const btn = document.querySelector('.join-actions .join-btn-primary');
+      return {
+        step: document.querySelector('.join-progress-text')?.dataset.step,
+        btnBottom: Math.round(btn.getBoundingClientRect().bottom),
+        vh: window.innerHeight,
+      };
+    });
+    check(
+      `第③屏（${vp.label}）：滚到底后主按钮进视口`,
+      after.step === '3' && after.btnBottom <= after.vh + 1,
+      `step=${after.step} primary.bottom=${after.btnBottom}/${after.vh} scrollable=${before.scrollable}`,
+    );
+    await page.screenshot({ path: `${OUT}/join-real-island-step3-${vp.width}.png` });
+
+    /* ③ 完成态（欢迎页）也在岛上：内容最长，但「去登录」必须可达 */
+    await clickByText(page, '.join-admin-preview-btn', '⑦ 欢迎');
+    await page.waitForTimeout(500);
+    const done = await page.evaluate(() => {
+      const link = document.querySelector('.join-done .join-btn-primary');
+      const box = document.querySelector('.join-done');
+      if (!link) return null;
+      // 完成态自己可滚（overflow:auto）—— 先滚到底再量，避免「看起来在屏外」
+      if (box) box.scrollTop = box.scrollHeight;
+      const b = link.getBoundingClientRect();
+      return {
+        exists: true,
+        linkBottom: Math.round(b.bottom),
+        vh: window.innerHeight,
+        scrollable: box ? box.scrollHeight > box.clientHeight + 1 : null,
+      };
+    });
+    check(
+      `欢迎页（${vp.label}）：去登录入口在岛内可达`,
+      done?.exists === true && done.linkBottom <= done.vh + 1,
+      JSON.stringify(done),
+    );
+    await context.close();
+  }
+
+  /* ③ 竖 → 横旋转：导航必须立刻切到岛形态（matchMedia 的 change 监听） */
+  {
+    const { context, page } = await boot(browser, { viewport: { width: 390, height: 844 } });
+    await page.setViewportSize({ width: 844, height: 390 });
+    await page.waitForTimeout(700);
+    const r = await page.evaluate(() => {
+      const nav = document.querySelector('.unified-nav-surface');
+      const card = document.querySelector('.join-card');
+      const nb = nav.getBoundingClientRect();
+      const cb = card.getBoundingClientRect();
+      return {
+        hasLoginCard: nav.classList.contains('has-login-card'),
+        gap: Math.round(cb.y - nb.bottom),
+        cardW: Math.round(cb.width),
+        navW: Math.round(nb.width),
+      };
+    });
+    check(
+      '竖→横旋转：导航即时切岛、卡片接住（不沿用竖屏形态）',
+      r.hasLoginCard === true && r.gap <= 0 && Math.abs(r.cardW - r.navW) <= 2,
+      JSON.stringify(r),
+    );
+    await context.close();
+  }
+
+  /* ④ 键盘顶起：视口高度骤减到 260，滚到底后主按钮仍可达 */
+  {
+    const { context, page } = await boot(browser, {
+      viewport: { width: 844, height: 390 },
+      isMobile: true,
+      hasTouch: true,
+    });
+    await page.setViewportSize({ width: 844, height: 260 });
+    await page.waitForTimeout(500);
+    await page.evaluate(() => {
+      const inner = document.querySelector('.join-inner');
+      inner.scrollTop = inner.scrollHeight;
+    });
+    await page.waitForTimeout(250);
+    const k = await page.evaluate(() => {
+      const inner = document.querySelector('.join-inner');
+      const btn = document.querySelector('.join-actions .join-btn-primary');
+      return {
+        scrollable: inner.scrollHeight > inner.clientHeight + 1,
+        btnBottom: Math.round(btn.getBoundingClientRect().bottom),
+        vh: window.innerHeight,
+      };
+    });
+    check(
+      '键盘顶起（844×260）：内容可滚、主按钮可达',
+      k.scrollable === true && k.btnBottom <= k.vh + 1,
+      JSON.stringify(k),
+    );
+    await context.close();
+  }
 }
 
 /* ══════════════════ 场景 9：能力不可用（微信/QQ 内置浏览器）══════════════════ */

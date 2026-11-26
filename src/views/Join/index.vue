@@ -3072,11 +3072,21 @@ watch(currentStep, () => {
     min-height: 0;
   }
 
-  /* 预览条在横屏会占掉宝贵的高度（390-72=318 可用），压成一行更小的 */
+  /* 管理员预览条（生产 + admin）：让它成为岛上的**一条横带**，而不是插在
+     导航与卡片之间的浮条 —— 旧写法在那里占 38px 流内高度，岛形当场裂开
+     42px（2026-11-26 实测 1024×768 与 844×390 同为 gap=42）。
+     现在给它岛的底色 + 左右发丝线、去掉上下边框与圆角：上接导航底边、
+     下接卡片顶边，整体仍读作一张岛。只有 admin 预览会渲染这条。 */
   .join-admin-preview {
     flex: 0 0 auto;
-    margin-bottom: 8px;
-    padding: 3px;
+    margin: 0;
+    padding: 2px 26px;
+    border: 1px solid var(--liquid-border-hairline);
+    border-top: 0;
+    border-bottom: 0;
+    border-radius: 0;
+    background: var(--boh-login-island-bg);
+    justify-content: flex-end;
   }
   .join-admin-preview-label {
     display: none;
