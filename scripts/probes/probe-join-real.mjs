@@ -113,22 +113,18 @@ const browser = await chromium.launch({ channel: 'chrome', args: CHROME_ARGS });
         const el = document.querySelector('.join-progress-text');
         return el ? `${el.dataset.step}/${el.dataset.total}` : '';
       })(),
-      // 协议勾选行：可点外框 vs 紧随其后的说明文字。
-      // 该行靠 min-height + 负外边距把命中区向下扩到 44px —— 如果说明文字
-      // 的 margin-top 没同步让过这 12px，文字的盒会盖住命中区底部，
-      // 名义 44px 实际点不到（2026-11-25 实测压了 5px）。
+      // 协议勾选行：可点区靠 min-height 撑到 44px。
+      // 2026-11-26 起说明文字已删，负外边距只留上方 —— 若有人把下沿也拉进去，
+      // 这 12px 会落到 .join-viewport（overflow:hidden）之外被裁掉。
       consentRowH: (() => {
         const el = document.querySelector('.join-consent-row');
         return el ? Math.round(el.getBoundingClientRect().height) : null;
       })(),
-      consentOverlap: (() => {
-        const row = document.querySelector('.join-consent-row');
-        const note = document.querySelector('.join-consent-note');
-        if (!row || !note) return null;
-        const rb = row.getBoundingClientRect();
-        const nb = note.getBoundingClientRect();
-        return Math.round(rb.bottom - nb.top); // >0 即说明文字压在命中区上
-      })(),
+      // 放行规则与「文案瘦身」的守卫：没填对/没勾协议 ⇒ 按钮禁用；
+      // 汇总卡（.join-alerts）与协议说明文字（.join-consent-note）不许回潮。
+      primaryDisabled: document.querySelector('.join-btn-primary')?.disabled ?? null,
+      alertCards: document.querySelectorAll('.join-alerts').length,
+      consentNotes: document.querySelectorAll('.join-consent-note').length,
     };
   });
 
@@ -147,12 +143,17 @@ const browser = await chromium.launch({ channel: 'chrome', args: CHROME_ARGS });
   check('进度与步号一致（视觉是 1/6，语义在 data-step）', s.progress === '1/6', s.progress);
   check('首屏标题是邮箱屏', s.title.includes('BOH 社区'), s.title);
 
-  // 触控目标：勾选行 ≥44px（WCAG 2.5.5 / iOS HIG），且不被下方说明文字盖住
+  // 触控目标：勾选行 ≥44px（WCAG 2.5.5 / iOS HIG）
   check('协议勾选行可点区 ≥44px', s.consentRowH >= 44, `${s.consentRowH}px`);
   check(
-    '协议勾选行的命中区未被说明文字遮挡',
-    s.consentOverlap !== null && s.consentOverlap <= 0,
-    `row.bottom - note.top = ${s.consentOverlap}px（>0 即重叠）`,
+    '初始状态：空邮箱 + 未勾协议 ⇒ 主按钮禁用（「不给下一步」）',
+    s.primaryDisabled === true,
+    String(s.primaryDisabled),
+  );
+  check(
+    '文案瘦身：错误汇总卡与协议说明文字都不在页面上',
+    s.alertCards === 0 && s.consentNotes === 0,
+    `alerts=${s.alertCards} notes=${s.consentNotes}`,
   );
 
   check('极简纪律：整页无图片', s.imgs === 0, String(s.imgs));
@@ -256,20 +257,27 @@ const browser = await chromium.launch({ channel: 'chrome', args: CHROME_ARGS });
 {
   const { context, page, pageErrors, consoleErrors } = await boot(browser);
 
-  // 空提交：邮箱 + 协议两条错误
-  await clickPrimary(page);
-  await page.waitForTimeout(400);
-  const empty = await page.evaluate(() => ({
-    alerts: [...document.querySelectorAll('.join-alerts li')].map((li) => li.textContent.trim()),
-    emailMsg: document.getElementById('joinMsgEmail').textContent.trim(),
-    termsInvalid: document.querySelector('.join-consent')?.classList.contains('is-invalid'),
-    termsFocus: document.activeElement === document.querySelector('.join-consent input'),
-    step: (() => {
+  /* 第 ① 屏的放行规则（用户口径 2026-11-26）：「没写好或者没同意就不给下一步」。
+     表达方式是**主按钮禁用**，不再弹汇总卡 —— 所以这里不点按钮
+     （Playwright 会一直等 disabled 变 enabled 直到超时），直接断言状态。 */
+  const stateOf = async () =>
+    page.evaluate(() => {
+      const btn = document.querySelector('.join-btn-primary');
       const el = document.querySelector('.join-progress-text');
-      return el ? `${el.dataset.step}/${el.dataset.total}` : '';
-    })(),
-  }));
-  check('空提交：字段级错误贴在字段下方', empty.emailMsg.length > 0, empty.emailMsg);
+      return {
+        disabled: btn ? btn.disabled : null,
+        step: el ? `${el.dataset.step}/${el.dataset.total}` : '',
+        emailMsg: document.getElementById('joinMsgEmail')?.textContent.trim() || '',
+        alertCards: document.querySelectorAll('.join-alerts').length,
+      };
+    });
+
+  const initial = await stateOf();
+  check(
+    '初始：主按钮禁用、停在第 1 步',
+    initial.disabled === true && initial.step === '1/6',
+    JSON.stringify(initial),
+  );
 
   /* ── 邮箱「可用」徽标必须是真实判定 ──
      用户口径（2026-11-26）：「注册的邮箱可用判定是什么？怎么我输入什么都可以判定可用？」
@@ -285,14 +293,23 @@ const browser = await chromium.launch({ channel: 'chrome', args: CHROME_ARGS });
     };
   };
 
-  // ① 格式不合法：不该出现任何徽标（既不能说「可用」也不能说「已注册」）
+  // ① 格式不合法：不该出现任何徽标（既不能说「可用」也不能说「已注册」），
+  //    错误只落在字段下方那一行，按钮保持禁用
   await fill(page, '#joinEmail', 'abc');
   await page.waitForTimeout(900);
   const badBadge = await badgeOf();
+  const badState = await stateOf();
   check(
     '邮箱格式错 → 不显示任何可用性徽标（不冒充可用）',
     badBadge.text === '',
     `${badBadge.text} / ${badBadge.cls}`,
+  );
+  check(
+    '邮箱格式错 → 字段下方给一行提示，按钮仍禁用、不弹汇总卡',
+    badState.emailMsg.includes('有效的邮箱') &&
+      badState.disabled === true &&
+      badState.alertCards === 0,
+    JSON.stringify(badState),
   );
 
   // ② 真实存在的老账号：必须报「已注册」，且提示去登录
@@ -320,32 +337,31 @@ const browser = await chromium.launch({ channel: 'chrome', args: CHROME_ARGS });
     freeBadge.text === '可用' && freeBadge.cls.includes('is-ok'),
     `${freeBadge.text} / ${freeBadge.cls}`,
   );
-  check('空提交：摘要两条（邮箱 + 协议）', empty.alerts.length === 2, JSON.stringify(empty.alerts));
-  check('空提交：协议块高亮', empty.termsInvalid === true);
-  check('空提交：仍停在第 1 步', empty.step === '1/6', empty.step);
-
-  // 只填邮箱不勾协议 → 仍被拦
-  await fill(page, '#joinEmail', FAKE.email);
-  await clickPrimary(page);
-  await page.waitForTimeout(400);
-  const noTerms = await page.evaluate(() => ({
-    step: (() => {
-      const el = document.querySelector('.join-progress-text');
-      return el ? `${el.dataset.step}/${el.dataset.total}` : '';
-    })(),
-    alerts: [...document.querySelectorAll('.join-alerts li')].map((li) => li.textContent.trim()),
-  }));
+  // 邮箱合法但没勾协议 → 仍然不放行（协议在账户创建之前）
+  const noTerms = await stateOf();
   check(
-    '不勾协议不放行（协议在账户创建之前）',
-    noTerms.step === '1/6' && noTerms.alerts.some((a) => a.includes('协议')),
-    JSON.stringify(noTerms.alerts),
+    '邮箱合法但未勾协议 → 按钮禁用、停在第 1 步',
+    noTerms.disabled === true && noTerms.step === '1/6',
+    JSON.stringify(noTerms),
   );
+
+  // 勾上协议 → 立刻放行；取消 → 立刻收回（状态机是实时的，不靠提交时才判）
+  await page.check('.join-consent input[type="checkbox"]');
+  await page.waitForTimeout(200);
+  const ready = await stateOf();
+  check('邮箱合法 + 已勾协议 → 主按钮放行', ready.disabled === false, String(ready.disabled));
+  await page.uncheck('.join-consent input[type="checkbox"]');
+  await page.waitForTimeout(150);
+  check('取消勾选 → 立即收回放行', (await stateOf()).disabled === true);
+  await page.check('.join-consent input[type="checkbox"]');
+  await page.waitForTimeout(150);
+
   check(
     '协议勾选不写 localStorage',
     (await page.evaluate(() => window.localStorage.getItem('boh_agreed_to_terms'))) === null,
   );
 
-  await page.screenshot({ path: `${OUT}/join-real-step1-invalid.png` });
+  await page.screenshot({ path: `${OUT}/join-real-step1-ready.png` });
 
   // 发码 → 第 2 步（POST 被合成，不会真发信）
   const toStep2 = await submitEmailStep(page);
@@ -457,9 +473,8 @@ const browser = await chromium.launch({ channel: 'chrome', args: CHROME_ARGS });
   );
   check('可用 ID → 标「可用」', free === '可用', free);
 
-  // 密码：7 位被拒（下限 8）
+  // 密码：7 位被拒（下限 8）—— 按钮保持禁用，错误写在字段下方
   await fill(page, '#joinPassword', 'Abcdef1');
-  await clickPrimary(page);
   await page.waitForTimeout(400);
   const pw7 = await page.evaluate(() => ({
     msg: document.getElementById('joinMsgPassword').textContent.trim(),
@@ -467,8 +482,13 @@ const browser = await chromium.launch({ channel: 'chrome', args: CHROME_ARGS });
       const el = document.querySelector('.join-progress-text');
       return el ? `${el.dataset.step}/${el.dataset.total}` : '';
     })(),
+    disabled: document.querySelector('.join-btn-primary')?.disabled,
   }));
-  check('7 位密码被拒（下限 8）', pw7.msg.includes('8') && pw7.step === '3/6', pw7.msg);
+  check(
+    '7 位密码被拒（下限 8）：按钮禁用、停在第 3 步',
+    pw7.msg.includes('8') && pw7.step === '3/6' && pw7.disabled === true,
+    JSON.stringify(pw7),
+  );
 
   await fill(page, '#joinPassword', FAKE.password);
   await page.waitForTimeout(300);
@@ -920,6 +940,8 @@ const browser = await chromium.launch({ channel: 'chrome', args: CHROME_ARGS });
   await page.screenshot({ path: `${OUT}/join-real-landscape.png` });
 
   // 暗色横屏：岛必须与导航同色拼接，按钮反相
+  // （空表单下按钮是禁用态，但禁用只压 opacity —— 底色仍跟 --j-ink 反相，
+  //   比色断言照常成立，不需要先填表把它解锁。）
   await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'));
   await page.waitForTimeout(400);
   const darkIsland = await page.evaluate(() => ({

@@ -81,15 +81,6 @@
                 </div>
               </div>
 
-              <div v-if="alerts.length" class="join-alerts" role="alert">
-                <p>还有几处需要处理</p>
-                <ul>
-                  <li v-for="(item, i) in alerts" :key="i">
-                    <button type="button" @click="focusField(item.field)">· {{ item.text }}</button>
-                  </li>
-                </ul>
-              </div>
-
               <form autocomplete="on" novalidate @submit.prevent="handleNext">
                 <div
                   ref="viewportRef"
@@ -144,14 +135,12 @@
                       </p>
                     </div>
 
-                    <!-- 协议：这一屏的必选项。两个链接都可点开 -->
-                    <div class="join-consent" :class="{ 'is-invalid': termsInvalid }">
+                    <!-- 协议：这一屏的必选项。两个链接都可点开。
+                         未勾选时主按钮保持禁用（「不勾 → 没有下一步」），
+                         不再配说明文字 —— 勾选框本身已经是这一屏唯一剩下的待办。 -->
+                    <div class="join-consent">
                       <label class="join-consent-row">
-                        <input
-                          v-model="formData.agreedToTerms"
-                          type="checkbox"
-                          @change="onAgreeChange"
-                        />
+                        <input v-model="formData.agreedToTerms" type="checkbox" />
                         <span class="join-consent-text">
                           我已阅读并同意
                           <a href="#" @click.prevent="openAgreementModal('user')">用户服务协议</a>
@@ -159,7 +148,6 @@
                           <a href="#" @click.prevent="openAgreementModal('privacy')">隐私政策</a>
                         </span>
                       </label>
-                      <p class="join-consent-note">{{ termsNote }}</p>
                     </div>
                   </section>
 
@@ -520,6 +508,10 @@
                   </section>
                 </div>
 
+                <!-- 只在提交本身失败时出一行（网络 / 收尾写库异常）。
+                     本地校验不在这里说话 —— 没填对或没勾协议时主按钮直接禁用。 -->
+                <p v-if="submitError" class="join-msg" role="alert">{{ submitError }}</p>
+
                 <div class="join-actions">
                   <!-- 返回规则（结构决定的，不是随意取舍）：
                        ② 可回 ①（账号还没建，改邮箱零代价，也最需要）
@@ -533,7 +525,11 @@
                   >
                     上一步
                   </button>
-                  <button type="submit" class="join-btn join-btn-primary" :disabled="isSubmitting">
+                  <button
+                    type="submit"
+                    class="join-btn join-btn-primary"
+                    :disabled="isSubmitting || !canAdvance"
+                  >
                     {{ nextLabel }}
                   </button>
                   <button
@@ -741,7 +737,9 @@ const currentStep = ref(1);
 const isDone = ref(false);
 const isSubmitting = ref(false);
 const showPassword = ref(false);
-const alerts = ref([]);
+/* 提交本身失败（网络 / 收尾写库异常）才用这一行 —— 本地校验不往这里写，
+   它由主按钮禁用表达（用户口径 2026-11-26：「没写好或者没同意就不给下一步」）。 */
+const submitError = ref('');
 const fieldMsg = reactive({ account: '', email: '', password: '', birth: '' });
 
 /* ---------------- 管理员跳步预览（仅生产环境） ----------------
@@ -816,7 +814,7 @@ const probeAdmin = async () => {
 const adminPreviewJump = (step) => {
   if (!isAdminPreviewReady.value) return;
   adminPreviewStep.value = step;
-  alerts.value = [];
+  submitError.value = '';
   // 预览时把关键字段填成示例值，否则第 ② 屏会渲染成
   // 「我们已向 发送了 8 位验证码」，中间空一格，看着像 bug；
   // 第 ③ 屏的 ID 输入框空着也看不出「可用」徽标长什么样。
@@ -886,6 +884,24 @@ const nextLabel = computed(() => {
    ② 可回 ①；③ 不可回（账号已按邮箱建好）；④⑤⑥ 可回上一步。 */
 const canGoBack = computed(() => currentStep.value >= 4 || currentStep.value === 2);
 
+/* 主按钮的放行条件：这一步的必填项都成立才可点。
+   用户口径（2026-11-26）：「没写好或者没同意就不给下一步」——
+   所以本地校验不再生成汇总文案，由禁用态直接表达。
+   ⚠️ 只判**本地**条件（格式/勾选/位数）；ID 是否被占用、邮箱是否已注册
+      仍要等服务端结论 —— 那些结果继续落在字段下方那一行。 */
+const canAdvance = computed(() => {
+  if (isSubmitting.value || isVerifying.value) return false;
+  if (currentStep.value === 1)
+    return !validateEmail(String(formData.email || '').trim()) && formData.agreedToTerms;
+  if (currentStep.value === 2) return String(otpCode.value || '').length === OTP_LENGTH;
+  if (currentStep.value === 3)
+    return (
+      !validateUsername(String(formData.account || '').trim()) &&
+      !validatePassword(formData.password)
+    );
+  return true;
+});
+
 /* ---------------- 滑屏高度：ResizeObserver 兜住「内容变高被裁掉」 ---------------- */
 const viewportRef = ref(null);
 const viewportHeight = ref(320);
@@ -938,7 +954,6 @@ const emailStateText = computed(
 
 const clearFieldError = (name) => {
   fieldMsg[name] = '';
-  alerts.value = alerts.value.filter((a) => a.field !== name);
 };
 
 let accountTimer = null;
@@ -1005,7 +1020,6 @@ const checkAccountAvailability = async (immediate = false) => {
 };
 
 const onAccountInput = () => {
-  alerts.value = alerts.value.filter((a) => a.field !== 'account');
   void checkAccountAvailability();
 };
 const onAccountBlur = () => {
@@ -1116,7 +1130,6 @@ const passwordLevel = computed(() => {
 });
 const passwordLevelText = computed(() => ['待评估', '弱', '中', '强'][passwordLevel.value]);
 const onPasswordInput = () => {
-  alerts.value = alerts.value.filter((a) => a.field !== 'password');
   const value = formData.password || '';
   fieldMsg.password = value ? validatePassword(value) : '';
 };
@@ -1275,9 +1288,6 @@ const deleteAvatarFromSupabase = async (filePath) => {
 /* ---------------- 协议（不再写 localStorage，避免与登录页互相影响） ---------------- */
 const showAgreementModal = ref(false);
 const agreementModalType = ref('user');
-const termsInvalid = ref(false);
-const TERMS_NOTE = '本次勾选只对当前这次注册有效，不会被带到其它页面。';
-const termsNote = ref(TERMS_NOTE);
 const agreementModalTitle = computed(() =>
   agreementModalType.value === 'user' ? '方块之家用户服务协议' : '方块之家隐私政策',
 );
@@ -1292,12 +1302,6 @@ const openAgreementModal = (type) => {
 };
 const closeAgreementModal = () => {
   showAgreementModal.value = false;
-};
-const onAgreeChange = () => {
-  if (formData.agreedToTerms) {
-    termsInvalid.value = false;
-    termsNote.value = TERMS_NOTE;
-  }
 };
 
 /* ---------------- 完成页 / 重发验证邮件 ---------------- */
@@ -1355,11 +1359,6 @@ const mainRef = ref(null);
 /* 注：原来还有 termsRef —— 协议条常驻卡底时用它滚动到勾选框。
    协议移到第 ① 屏后不再需要，已删。 */
 
-const focusField = (name) => {
-  document
-    .querySelector(`.join-fld[data-field="${name}"] input, .join-fld[data-field="${name}"] select`)
-    ?.focus();
-};
 /* 步进方向：前进 / 后退要往相反方向滑，否则「按上一步」会像又往前走了一次。
    只给 CSS 用（.join-page[data-dir='back']），不参与任何业务判断。 */
 const stepDir = ref('fwd');
@@ -1378,23 +1377,22 @@ const goStep = (next) => {
   });
 };
 const goBack = () => {
-  alerts.value = [];
+  submitError.value = '';
   goStep(currentStep.value - 1);
 };
 
+/* 提交前的兜底校验：主按钮正常情况下已被 canAdvance 禁用，走到这里只会出现在
+   「状态在点击瞬间变了」（如回退后立刻回车）这类缝隙里。结论只写字段下方那一行，
+   不再生成汇总列表。返回是否通过。 */
 const validateStep = (step) => {
-  const errs = [];
+  let ok = true;
   if (step === 1) {
     const emailMsg = validateEmail(String(formData.email || '').trim());
     if (emailMsg) {
       fieldMsg.email = emailMsg;
-      errs.push({ field: 'email', text: `电子邮件：${emailMsg}` });
+      ok = false;
     }
-    if (!formData.agreedToTerms) {
-      termsInvalid.value = true;
-      termsNote.value = '需要先勾选协议才能继续 —— 账号会在这个邮箱验证通过时创建。';
-      errs.push({ field: 'email', text: '协议：请勾选用户服务协议和隐私政策' });
-    }
+    if (!formData.agreedToTerms) ok = false;
   }
   if (step === 3) {
     const account = String(formData.account || '').trim();
@@ -1405,12 +1403,12 @@ const validateStep = (step) => {
       // 由 fieldMsg 说明具体哪里不对（截图里出现过空字段 + 红字「不可用」）。
       accountState.value = '';
       fieldMsg.account = accountMsg;
-      errs.push({ field: 'account', text: `方块 ID：${accountMsg}` });
+      ok = false;
     }
     const passwordMsg = validatePassword(formData.password);
     if (passwordMsg) {
       fieldMsg.password = passwordMsg;
-      errs.push({ field: 'password', text: `密码：${passwordMsg}` });
+      ok = false;
     }
   }
   if (step === 4) {
@@ -1420,21 +1418,16 @@ const validateStep = (step) => {
     fieldMsg.birth =
       (month || day) && !(month && day) ? '月日没填全，这项会先跳过（之后可在用户中心补）。' : '';
   }
-  return errs;
+  return ok;
 };
 
 const handleNext = async () => {
   if (isSubmitting.value || isVerifying.value) return;
+  submitError.value = '';
 
   // ① 第 1 屏：邮箱 + 协议。纯本地校验，但**会真的发出一封邮件**。
   if (currentStep.value === 1) {
-    const errs = validateStep(1);
-    if (errs.length) {
-      alerts.value = errs;
-      return;
-    }
-    alerts.value = [];
-    termsInvalid.value = false;
+    if (!validateStep(1)) return;
     // 同一邮箱已经发过码就直接进第 ② 屏，不要重复发信：
     // 重复调用会撞 429 发信额度（线上每小时只有 15 封），
     // 而且用户会收到两封内容不同的邮件、分不清该用哪个码。
@@ -1460,12 +1453,7 @@ const handleNext = async () => {
 
   // ④⑤⑥ 第 4~6 屏：资料 / 头像 / 通行密钥。都可跳过，逐屏推进。
   if (currentStep.value < TOTAL_STEPS) {
-    const errs = validateStep(currentStep.value);
-    if (errs.length) {
-      alerts.value = errs;
-      return;
-    }
-    alerts.value = [];
+    if (!validateStep(currentStep.value)) return;
     // 从第 ⑤ 屏（头像）进第 ⑥ 屏时，把头像真正传上去 —— 此刻会话在，storage 才允许写
     if (currentStep.value === 5) await flushPendingAvatar();
     goStep(currentStep.value + 1);
@@ -1668,7 +1656,7 @@ const finishAfterVerification = async () => {
     const uid = sessionData?.user?.id;
     if (!uid) {
       // 走到这里说明会话丢了（换标签页、清了 storage）。不能假装成功。
-      alerts.value = [{ field: 'email', text: '登录状态已失效，请重新验证邮箱。' }];
+      fieldMsg.email = '登录状态已失效，请重新验证邮箱。';
       otpCode.value = '';
       goStep(2);
       return;
@@ -1698,7 +1686,7 @@ const finishAfterVerification = async () => {
     mainRef.value?.scrollTo({ top: 0 });
   } catch (err) {
     logger.error('join', '收尾失败:', err);
-    alerts.value = [{ field: 'account', text: '保存失败，请稍后重试。' }];
+    submitError.value = '保存失败，请稍后重试。';
   } finally {
     isSubmitting.value = false;
   }
@@ -1722,7 +1710,7 @@ const sendOtpForSignup = async () => {
 
   // honeypot：机器人填了这个隐藏字段就直接静默失败，不告诉它哪里露了馅
   if (String(formData.website || '').trim()) {
-    alerts.value = [{ field: 'email', text: '注册请求异常，请稍后重试。' }];
+    fieldMsg.email = '注册请求异常，请稍后重试。';
     return;
   }
 
@@ -1738,12 +1726,7 @@ const sendOtpForSignup = async () => {
       // （账号建了、密码没设），那种情况必须允许继续。
       // 分辨靠 `checkSignupState`，但那时还没有会话 —— 所以先发码，
       // 等第 ② 屏验证通过拿到会话后再判（见 verifyOtpAndContinue）。
-      alerts.value = [
-        {
-          field: 'email',
-          text: `电子邮件：${error?.message || '发送失败，请稍后重试。'}`,
-        },
-      ];
+      fieldMsg.email = error?.message || '发送失败，请稍后重试。';
       if (retryAfterSeconds > 0) startOtpCooldown(retryAfterSeconds);
       return;
     }
@@ -1757,7 +1740,7 @@ const sendOtpForSignup = async () => {
     goStep(2);
   } catch (err) {
     logger.warn('join', '发送注册验证码异常:', err);
-    alerts.value = [{ field: 'email', text: '发送失败，请检查网络后重试。' }];
+    fieldMsg.email = '发送失败，请检查网络后重试。';
   } finally {
     isSubmitting.value = false;
   }
@@ -1775,14 +1758,11 @@ const sendOtpForSignup = async () => {
 const completeIdentity = async () => {
   if (isSubmitting.value) return;
 
-  const errs = validateStep(3);
-  if (errs.length) {
-    alerts.value = errs;
+  if (!validateStep(3)) {
     // ID 出错时顺手刷一次字段态与候选（防抖可能还没跑完就被点了提交）。
-    // ⚠️ 必须判断「有值」：checkAccountAvailability 在空值时会把字段错误
-    //    和摘要一起清掉（它认为空值等于「还没填，不用报错」），
-    //    于是空提交时 ID 的错误会被自己刚刚设的校验擦掉。
-    if (String(formData.account || '').trim() && errs.some((e) => e.field === 'account')) {
+    // ⚠️ 必须判断「有值」：checkAccountAvailability 在空值时会把字段错误清掉
+    //    （它认为空值等于「还没填，不用报错」），于是空提交时 ID 的错误会被擦掉。
+    if (String(formData.account || '').trim() && fieldMsg.account && !accountState.value) {
       void checkAccountAvailability(true);
     }
     return;
@@ -1792,11 +1772,10 @@ const completeIdentity = async () => {
   // 放在这一屏而不是第 ① 屏，是因为第 ① 屏只发信、失败代价低；
   // 而这一屏会往 profiles 写真实数据。
   if (altchaEnabled.value && altchaState.value !== 'verified') {
-    alerts.value = [{ field: 'account', text: '人机验证：请先完成「我不是机器人」验证。' }];
+    fieldMsg.account = '请先完成「我不是机器人」验证。';
     return;
   }
 
-  alerts.value = [];
   isSubmitting.value = true;
   try {
     const { ok, error, step } = await completeSignupIdentity({
@@ -1810,23 +1789,21 @@ const completeIdentity = async () => {
       const message = error?.message || '保存失败，请重试。';
       if (step === 'username') {
         fieldMsg.account = message;
-        alerts.value = [{ field: 'account', text: `方块 ID：${message}` }];
         if (error?.code === 'USERNAME_TAKEN') {
           accountState.value = 'err';
           accountSuggestions.value = suggestNames(String(formData.account || '').trim());
         }
       } else if (step === 'password') {
         fieldMsg.password = message;
-        alerts.value = [{ field: 'password', text: `密码：${message}` }];
       } else if (step === 'session') {
         // 会话丢了（换标签页 / 清了 storage / 验证码已用过）：只能回第 ② 屏重验。
         // 不能假装成功 —— 用户会以为自己注册好了，其实密码还是空的。
         otpCode.value = '';
         otpError.value = '';
-        alerts.value = [{ field: 'email', text: message }];
+        fieldMsg.email = message;
         goStep(2);
       } else {
-        alerts.value = [{ field: 'account', text: message }];
+        fieldMsg.account = message;
       }
       return;
     }
@@ -1835,7 +1812,7 @@ const completeIdentity = async () => {
     goStep(4);
   } catch (err) {
     logger.error('join', '创建账户异常:', err);
-    alerts.value = [{ field: 'account', text: '保存失败，请稍后重试。' }];
+    fieldMsg.account = '保存失败，请稍后重试。';
   } finally {
     isSubmitting.value = false;
   }
@@ -2113,48 +2090,6 @@ watch(currentStep, () => {
 .join-progress-total {
   color: var(--j-ink-3);
   font-weight: var(--j-fw-normal);
-}
-
-/* ---------------- 错误汇总 ----------------
-   没有红色：1.5px 满墨描边 + 满墨文字，本身就是页面上对比最强的元素。
-   刻意不加底色 —— 极简页里一块浅色底会被读成"另一个区块"。 */
-.join-alerts {
-  margin-bottom: 20px;
-  padding: 12px 14px;
-  border: 1.5px solid var(--j-ink);
-  border-radius: var(--j-radius-input);
-}
-.join-alerts p {
-  margin: 0 0 8px;
-  font-size: var(--j-fs-sm);
-  font-weight: var(--j-fw-medium);
-  letter-spacing: 0.01em;
-}
-.join-alerts ul {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-.join-alerts button {
-  border: 0;
-  background: transparent;
-  padding: 0;
-  font: inherit;
-  font-size: var(--j-fs-sm);
-  line-height: 1.5;
-  color: var(--j-ink-2);
-  text-align: left;
-  cursor: pointer;
-  text-decoration: underline;
-  text-decoration-color: var(--j-line-strong);
-  text-underline-offset: 3px;
-}
-.join-alerts button:hover {
-  color: var(--j-ink);
-  text-decoration-color: var(--j-ink);
 }
 
 /* ---------------- 步骤切换 ---------------- */
@@ -2781,19 +2716,18 @@ watch(currentStep, () => {
   user-select: none;
   /* 触控目标：勾选框本身只有 16px、整行原本 20px 高，都够不着
      WCAG 2.5.8 的 24px 底线（手机点起来经常误触到旁边的链接）。
-     把可点区撑到 44px，再用等量负外边距抵消 —— 视觉位置与行高都不变，
+     把可点区撑到 44px，再用负外边距抵消上方多出的 12px —— 视觉位置不变，
      扩的只是命中区。
      ⚠️ 用 min-height 而不是只靠 padding：横屏那一档字号被压小
      （12.5 → 更小），同样 12px 内距只有 42px —— 差 2px 就又掉到线下。
-     ⚠️ 外框向下多出的 12px 会压住 `.join-consent-note` —— 实测
-     row.bottom=467.1 / note.top=462.1，那 5px 被说明文字盖住，
-     名义 44px 实际只有 39px 可点。所以下面那条 margin 同步放到 12px，
-     让说明文字从外框底部之后才开始（视觉间距只多 5px，肉眼无感）。
+     ⚠️ 负外边距**只给上方**（2026-11-26）：这一行下面原来的说明文字已删，
+       若继续 `-12px 0` 把下沿也拉进去，这 12px 命中区会落到
+       `.join-viewport`（overflow:hidden）之外被裁掉 —— 看着 44px、实际点不到底部。
      （`probe-join-mobile-metrics.mjs` 量 `.join-consent-row` 的实物尺寸，
       这条就是它报出来的 20px。） */
   min-height: 44px;
   padding: 12px 0;
-  margin: -12px 0;
+  margin: -12px 0 0;
   box-sizing: border-box;
 }
 .join-consent-row input {
@@ -2819,30 +2753,8 @@ watch(currentStep, () => {
 .join-consent-text a:hover {
   text-decoration-color: var(--j-ink);
 }
-.join-consent-note {
-  /* 12px 而不是 7px：.join-consent-row 用负外边距把 44px 命中区向下延了
-     12px，这里要让过那 12px，否则说明文字会盖住命中区底部（实测 5px）。 */
-  margin: 12px 0 0;
-  /* 与勾选框文字左对齐：勾选框 16px + gap 9px */
-  padding-left: 25px;
-  font-size: var(--j-fs-sm);
-  line-height: 1.6;
-  color: var(--j-ink-3);
-}
-/* 未勾选被拦下：文字加深加粗 + 勾选框描一圈墨色。
-   不用红色的理由见文件头 —— 纯黑白表达不依赖色相。 */
-.join-consent.is-invalid .join-consent-text,
-.join-consent.is-invalid .join-consent-note {
-  color: var(--j-ink);
-}
-.join-consent.is-invalid .join-consent-text {
-  font-weight: var(--j-fw-normal);
-}
-.join-consent.is-invalid .join-consent-row input {
-  outline: 2px solid var(--j-ink);
-  outline-offset: 1px;
-  border-radius: 3px;
-}
+/* 「未勾选」不再有红色 / 加粗态（2026-11-26）：主按钮在未勾选时就是禁用的，
+   勾选框本身已是这一屏唯一剩下的待办，不再补第二层提示。 */
 
 /* ---------------- 第 ③ 屏：已验证邮箱（只读）----------------
    这一行承担的是「账号是拿哪个邮箱建的」这个交代 ——
@@ -3387,14 +3299,14 @@ watch(currentStep, () => {
     font-size: var(--j-fs-sm);
     line-height: 1.45;
   }
+  /* ≤430 高这一档只有 ~309px 可用：协议行改成只向上扩命中区后，
+     它下方不再有说明文字吃掉 12px，这一档必须把这 11px 让回去，
+     否则 .join-inner 溢出 9px（probe-join-real 场景 8 实测）。 */
   .join-consent {
-    padding-top: 11px;
+    padding-top: 0;
   }
   .join-consent-text {
     font-size: var(--j-fs-sm);
-  }
-  .join-consent-note {
-    display: none;
   }
   .join-actions {
     padding: 12px 0 0;
