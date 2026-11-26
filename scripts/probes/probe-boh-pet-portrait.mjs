@@ -38,12 +38,15 @@ await page.route('**/rest/v1/rpc/**', (r) =>
 );
 
 /* 探针自己会把 petEnabled 写成 false（F 段验隐藏），必须保证每次从「开着」起步，
-   否则上跑残留的 false 会让整个探针在 A1 就挂掉。 */
+   否则上跑残留的 false 会让整个探针在 A1 就挂掉。
+   ⚠️ 2026-11-24 起小方**默认关** + 带一次性迁移（代次小 ⇒ 强制关），
+      只写 petEnabled: true 会被迁移当场改回 false ⇒ 必须同时盖代次章。 */
 await page.addInitScript(() => {
   try {
     const k = 'boh_global_ai_preferences_v1';
     const v = JSON.parse(localStorage.getItem(k) || '{}');
     v.petEnabled = true;
+    v.petDefaultOffVersion = 2;
     localStorage.setItem(k, JSON.stringify(v));
   } catch {
     /* 隐私模式忽略 */

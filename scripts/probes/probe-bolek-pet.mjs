@@ -65,6 +65,22 @@ await page.route('**/rest/v1/rpc/**', (route) => {
   return route.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
 });
 
+/* 小方自 2026-11-24 起**默认关**（用户口径：「默认为用户关闭」）⇒
+   本探针测的是「开着时的行为」，必须显式从「开着」起步，
+   否则整个探针在 P1 就挂（挂件压根不会渲染）。 */
+await page.addInitScript(() => {
+  try {
+    const k = 'boh_global_ai_preferences_v1';
+    const v = JSON.parse(localStorage.getItem(k) || '{}');
+    v.petEnabled = true;
+    /* 顺手盖章：不盖的话迁移逻辑（代次更小 ⇒ 强制关）会把上面那行改回来 */
+    v.petDefaultOffVersion = 2;
+    localStorage.setItem(k, JSON.stringify(v));
+  } catch {
+    /* 隐私模式忽略 */
+  }
+});
+
 await page.goto(`${BASE}/#/user-space`, { waitUntil: 'load' });
 await page.waitForFunction(() => document.querySelector('#app')?.__vue_app__, null, {
   timeout: 30000,

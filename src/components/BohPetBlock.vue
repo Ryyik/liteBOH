@@ -150,8 +150,14 @@ const reduced = computed(
     typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches,
 );
 
-/* 隐藏口径与 BohIsland canOpen 同构：/ai-chat 有活动行本体；开场画层叠会错位 */
-const visible = computed(() => route.name !== 'AiChat' && !homeGate.value);
+/* 隐藏口径与 BohIsland canOpen 同构：/ai-chat 有活动行本体；开场画层叠会错位。
+   ⚠️ /login 也排除（2026-11-24）：登录页重做后**自己把博莱克摆在页面正中**
+   （`.login-gate-avatar`，同一个引擎的另一个实例）。挂件不排除的话，一张
+   纯色页上会同时出现两个博莱克 —— 一个在正中当主角、一个贴着右缘当挂件，
+   读起来像是渲染出了两份，而且挂件还带着拖拽/贴边/睡眠那套交互噪音。 */
+const visible = computed(
+  () => route.name !== 'AiChat' && route.path !== '/login' && !homeGate.value,
+);
 
 /* ── 几何 ─────────────────────────────────────────────────────── */
 const peekW = computed(() => Math.round((SIZE / 2) * (portrait.value ? 0.8 : 1)));
