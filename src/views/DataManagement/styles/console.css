@@ -3095,3 +3095,12 @@
   border-radius: 0;
   background: transparent;
 }
+
+/* 纯文字对象页（详情 / 页内编辑）在宽屏下收成一列阅读宽度：
+   不然标签在左、值被推到约 1100px 外的右缘，一行读下来要横扫整个屏。
+   只收详情 section（`.record-section`），列表仍铺满。 */
+@media (min-width: 900px) {
+  .management-section.record-section.is-plain-object-list {
+    max-width: 760px;
+  }
+}

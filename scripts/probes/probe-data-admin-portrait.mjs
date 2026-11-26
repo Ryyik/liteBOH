@@ -206,18 +206,69 @@ const runViewport = async (width, height) => {
   await page.waitForSelector('.data-management-page', { timeout: 30000 });
   await page.waitForTimeout(2500);
 
-  // plans/050 §6：列表卡片按构思图定字段（标题已是用户名）
-  const userCardText = await page.evaluate(() => {
-    const card = document.querySelector('.mobile-card');
-    return (card?.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 120);
+  // plans/050 §6：用户列表改成草图式紧凑行（不是大卡片）
+  await page.waitForSelector('.mobile-row', { timeout: 30000 });
+  await page.waitForTimeout(1200);
+  const compact = await page.evaluate(() => {
+    const rows = [...document.querySelectorAll('.mobile-row')];
+    return {
+      count: rows.length,
+      firstText: (rows[0]?.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 120),
+      hasCheckbox: Boolean(document.querySelector('.mobile-row .checkbox-wrapper')),
+      hasRowButtons: Boolean(
+        document.querySelector('.mobile-row .review-btn, .mobile-row .mobile-action-btn'),
+      ),
+      tableVisible: Boolean(
+        document.querySelector('.g-table-sheet') &&
+        document.querySelector('.g-table-sheet').getBoundingClientRect().height > 0,
+      ),
+    };
   });
   check(
     vp,
-    '用户卡片显示「订阅层级 + 积分」',
-    /Pro/.test(userCardText) && /积分/.test(userCardText),
-    userCardText,
+    '用户列表为紧凑行（常规态无勾选 / 无行内按钮）',
+    compact.count > 0 && !compact.hasCheckbox && !compact.hasRowButtons && !compact.tableVisible,
+    `rows=${compact.count} checkbox=${compact.hasCheckbox} buttons=${compact.hasRowButtons}`,
+  );
+  check(
+    vp,
+    '用户行显示「订阅层级 · 积分」',
+    /Pro/.test(compact.firstText) && /积分/.test(compact.firstText),
+    compact.firstText,
   );
   await page.screenshot({ path: `debug-screenshots/portrait-${vp}-list.png`, fullPage: false });
+
+  // 「选择」模式才出现勾选，选两行出批量条
+  await page.locator('.select-mode-toggle').click();
+  await page.waitForTimeout(300);
+  const selectModeBoxes = await page.locator('.mobile-row .checkbox-wrapper').count();
+  check(vp, '「选择」模式才出现勾选', selectModeBoxes > 0, `checkboxes=${selectModeBoxes}`);
+  await page.locator('.mobile-row').nth(0).click();
+  await page.locator('.mobile-row').nth(1).click();
+  await page.waitForTimeout(400);
+  const bulkText = await page.evaluate(() =>
+    (document.querySelector('.bulk-bar')?.innerText || '').replace(/\s+/g, ' ').trim(),
+  );
+  check(vp, '选择模式可批量选行', bulkText.includes('已选 2'), bulkText.slice(0, 60));
+  await page.locator('.select-mode-toggle').click();
+  await page.waitForTimeout(300);
+
+  // 点整行 → 详情全屏页（草图：点进去进入一个详情全屏页）
+  await page.locator('.mobile-row').first().click();
+  await page.waitForTimeout(1200);
+  const rowTap = await page.evaluate(() => ({
+    url: location.hash,
+    hasDetail: Boolean(document.querySelector('.detail-sections')),
+  }));
+  check(vp, '点整行进入详情全屏页', rowTap.url.includes('/users/') && rowTap.hasDetail, rowTap.url);
+
+  // 其余通用卡片断言放到未改形态的页签（forum）上跑，避免两套口径混在一起
+  await page.goto(`${BASE}/#/admin/data-management?section=data&tab=subscriptions`, {
+    waitUntil: 'domcontentloaded',
+    timeout: 60000,
+  });
+  await page.waitForSelector('.mobile-card', { timeout: 30000 });
+  await page.waitForTimeout(1500);
 
   const base = await page.evaluate(() => {
     const q = (sel) => document.querySelector(sel);
@@ -466,7 +517,7 @@ const runViewport = async (width, height) => {
   await page.waitForTimeout(2200);
   const detail = await page.evaluate(() => {
     const back = document.querySelector(
-      '.detail-header-row .btn, .record-pane .back-btn, .record-back',
+      '.detail-header-row .btn, .detail-back-plain, .record-pane .back-btn, .record-back',
     );
     const pane = document.querySelector('.record-pane');
     let backBox = null;
@@ -520,7 +571,12 @@ const runViewport = async (width, height) => {
       ),
     };
   });
-  check(vp, '用户详情按 5 段渲染', userSections.count === 5, userSections.titles.join(' / '));
+  check(
+    vp,
+    '用户详情按草稿 3 段渲染',
+    userSections.count === 3,
+    `count=${userSections.count} | ${userSections.titles.join(' / ')}`,
+  );
   check(
     vp,
     '详情分段行高 ≥44px',
@@ -540,6 +596,74 @@ const runViewport = async (width, height) => {
     userSections.actionTexts.some((t) => t.includes('订阅层级') && t.includes('Pro')),
     userSections.actionTexts.join(' | '),
   );
+  check(
+    vp,
+    '「操作」段含封禁 / 禁言入口（从列表行搬来）',
+    userSections.actionTexts.some((t) => t.includes('封禁状态')) &&
+      userSections.actionTexts.some((t) => t.includes('禁言状态')),
+    userSections.actionTexts.join(' | '),
+  );
+
+  // 编辑页：与只读详情同一套极简文字（下划线输入、无分组卡片、一行一条、无展开收起）
+  await page.getByRole('button', { name: '编辑' }).click();
+  await page.waitForSelector('#detail-edit-slot .drawer.is-plain', { timeout: 8000 });
+  await page.waitForTimeout(500);
+  const plainForm = await page.evaluate(() => {
+    const drawer = document.querySelector('#detail-edit-slot .drawer.is-plain');
+    const input = document.querySelector('#detail-edit-slot .form-input');
+    const group = document.querySelector('#detail-edit-slot .field-group');
+    const toolbar = document.querySelector('#detail-edit-slot .field-groups-toolbar');
+    const formGroup = input
+      ? input.closest('.form-group')
+      : document.querySelector('#detail-edit-slot .form-group');
+    const label = formGroup ? formGroup.querySelector('.form-label') : null;
+    const ir = input ? input.getBoundingClientRect() : null;
+    const lr = label ? label.getBoundingClientRect() : null;
+    return {
+      hasInput: Boolean(input),
+      inputBg: input ? getComputedStyle(input).backgroundColor : '',
+      inputBorderBottom: input ? getComputedStyle(input).borderBottomWidth : '',
+      groupBg: group ? getComputedStyle(group).backgroundColor : '',
+      drawerBorderTop: drawer ? getComputedStyle(drawer).borderTopWidth : '',
+      drawerRadius: drawer ? getComputedStyle(drawer).borderRadius : '',
+      toolbarVisible: Boolean(toolbar && toolbar.offsetParent !== null),
+      // 一行一条：标签与控件的垂直中心应落在同一行（差值小于半行高）
+      sameRow: Boolean(
+        ir && lr && Math.abs(ir.top + ir.height / 2 - (lr.top + lr.height / 2)) < 18,
+      ),
+      labelLeftOfInput: Boolean(ir && lr && lr.right <= ir.left + 1),
+      geo: `${lr ? Math.round(lr.top + lr.height / 2) : '-'} vs ${ir ? Math.round(ir.top + ir.height / 2) : '-'} | w ${lr ? Math.round(lr.width) : '-'}/${ir ? Math.round(ir.width) : '-'}`,
+    };
+  });
+  check(
+    vp,
+    '编辑页同为极简文字（下划线输入 / 无卡片底）',
+    plainForm.hasInput &&
+      plainForm.inputBg === 'rgba(0, 0, 0, 0)' &&
+      plainForm.groupBg === 'rgba(0, 0, 0, 0)' &&
+      plainForm.inputBorderBottom !== '0px',
+    JSON.stringify(plainForm),
+  );
+  check(
+    vp,
+    '编辑页无盒子边框（无边框 / 无圆角）',
+    plainForm.drawerBorderTop === '0px' &&
+      (plainForm.drawerRadius === '0px' || plainForm.drawerRadius === ''),
+    `border=${plainForm.drawerBorderTop} radius=${plainForm.drawerRadius}`,
+  );
+  check(vp, '编辑页无「展开/收起」工具条', !plainForm.toolbarVisible);
+  check(
+    vp,
+    '编辑页一行一条（标签在左、控件同行右对齐）',
+    plainForm.sameRow && plainForm.labelLeftOfInput,
+    `sameRow=${plainForm.sameRow} labelLeft=${plainForm.labelLeftOfInput} geo=${plainForm.geo}`,
+  );
+  await page.screenshot({
+    path: `debug-screenshots/portrait-${vp}-edit-plain.png`,
+    fullPage: false,
+  });
+  await page.getByRole('button', { name: '取消' }).click();
+  await page.waitForTimeout(500);
 
   // ── plans/050 期 3：积分就地扣除（差异确认 → RPC） ──
   await page.locator('.detail-section-row.is-action', { hasText: '积分' }).first().click();
@@ -619,22 +743,23 @@ const runViewport = async (width, height) => {
     fullPage: false,
   });
 
-  // 礼品列表卡片：用户名（标题）+ 内容 + 进度
+  // 礼品列表也是紧凑行：内容 + 进度 tag
   await page.goto(`${BASE}/#/admin/data-management?section=data&tab=gifts`, {
     waitUntil: 'domcontentloaded',
     timeout: 60000,
   });
-  await page.waitForSelector('.mobile-card', { timeout: 30000 });
+  await page.waitForSelector('.mobile-row', { timeout: 30000 });
   await page.waitForTimeout(1200);
-  const giftCardText = await page.evaluate(() => {
-    const card = document.querySelector('.mobile-card');
-    return (card?.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 120);
+  const giftRowText = await page.evaluate(() => {
+    const row = document.querySelector('.mobile-row');
+    return (row?.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 120);
   });
+  const giftTagCount = await page.locator('.mobile-row-tag').count();
   check(
     vp,
-    '礼品卡片显示「内容 + 进度」',
-    /E2E 礼物/.test(giftCardText) && /准备中/.test(giftCardText),
-    giftCardText,
+    '礼品行显示「内容 + 进度 tag」',
+    /E2E 礼物/.test(giftRowText) && /准备中/.test(giftRowText) && giftTagCount > 0,
+    `${giftRowText} | tags=${giftTagCount}`,
   );
   await page.screenshot({
     path: `debug-screenshots/portrait-${vp}-gift-list.png`,

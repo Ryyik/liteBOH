@@ -1389,13 +1389,15 @@
 }
 
 /* 控件有的是裸 input/select，有的包在 .user-picker-field / .product-picker-field 里，
-   一律占满标签右侧；说明文字（.field-hint）单独换行铺满。 */
-.drawer.is-plain .form-group > :not(.form-label):not(.field-hint) {
+   一律占满标签右侧；说明文字（.field-hint / .input-hint）单独换行铺满。
+   ⚠️ 两种提示类是不同组件写的（.field-hint = <p>，.input-hint = <span>），漏一个就会被当成控件。 */
+.drawer.is-plain .form-group > :not(.form-label):not(.field-hint):not(.input-hint) {
   flex: 1 1 200px;
   min-width: 0;
 }
 
-.drawer.is-plain .form-group > .field-hint {
+.drawer.is-plain .form-group > .field-hint,
+.drawer.is-plain .form-group > .input-hint {
   flex: 1 0 100%;
   margin: 0;
 }

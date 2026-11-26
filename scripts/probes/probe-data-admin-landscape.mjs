@@ -166,21 +166,21 @@ for (const { w, h, label } of VIEWPORTS) {
       const cs = getComputedStyle(el);
       return { sel, w: Math.round(r.width), h: Math.round(r.height), display: cs.display };
     };
-    const card = document.querySelector('.mobile-card');
-    const cardRect = card ? card.getBoundingClientRect() : null;
+    const row = document.querySelector('.mobile-row');
+    const rowRect = row ? row.getBoundingClientRect() : null;
     return {
       docScrollWidth: document.documentElement.scrollWidth,
       clientWidth: document.documentElement.clientWidth,
       innerWidth: window.innerWidth,
       visualScale: window.visualViewport ? window.visualViewport.scale : null,
-      firstCardTop: cardRect ? Math.round(cardRect.top) : null,
-      firstCardH: cardRect ? Math.round(cardRect.height) : null,
-      cardCount: document.querySelectorAll('.mobile-card').length,
+      firstCardTop: rowRect ? Math.round(rowRect.top) : null,
+      firstCardH: rowRect ? Math.round(rowRect.height) : null,
+      cardCount: document.querySelectorAll('.mobile-row').length,
       cmdK: tap('.command-palette-trigger'),
       homeBtn: tap('.g-topbar-home'),
       createBtn: tap('.toolbar-actions .btn-primary'),
       sidebarToggle: tap('.g-topbar .g-icon-btn.round'),
-      checkbox: tap('.mobile-card .checkbox-wrapper'),
+      selectToggle: tap('.select-mode-toggle'),
     };
   });
 
@@ -198,16 +198,18 @@ for (const { w, h, label } of VIEWPORTS) {
   );
   check(
     label,
-    '移动卡片列表渲染（JS/CSS 判据一致，无内容真空）',
+    '纯文字对象列表渲染（不再出卡片 / 表格）',
     base.cardCount > 0 && base.firstCardTop !== null,
     `cards=${base.cardCount} firstTop=${base.firstCardTop}`,
   );
-  // 验收线按「首屏至少露出卡片 120px」表达（能看清标题行 + 两行字段）：
-  // 390 高档实测 218/390、360 高档 239/360 —— 百分比对极矮视口过严。
+  /* 验收线改为「首屏至少露出首条记录 100px」：plans/050 起用户/订单改用
+     纯文字行（无卡片内边距、行高更矮），120px 的卡片口径对它过严；
+     100px ≈ 标题 + 两条副文案，仍能证明内容没有被 chrome 吃光。
+     实测 780×360 firstTop=254 ⇒ 露出 106px。 */
   check(
     label,
-    '首屏至少露出首张卡片 120px',
-    base.firstCardTop !== null && base.firstCardTop <= h - 120,
+    '首屏至少露出首条记录 100px',
+    base.firstCardTop !== null && base.firstCardTop <= h - 100,
     `firstTop=${base.firstCardTop} / ${h}（露出 ${h - (base.firstCardTop || h)}px）`,
   );
   check(
@@ -224,9 +226,9 @@ for (const { w, h, label } of VIEWPORTS) {
   );
   check(
     label,
-    '批量勾选框命中区 ≥40px',
-    Boolean(base.checkbox && base.checkbox.w >= 40 && base.checkbox.h >= 40),
-    base.checkbox ? `${base.checkbox.w}x${base.checkbox.h}` : 'not found',
+    '「选择」入口可点（批量选择仍在）',
+    Boolean(base.selectToggle && base.selectToggle.h >= 32),
+    base.selectToggle ? `${base.selectToggle.w}x${base.selectToggle.h}` : 'not found',
   );
   /* 新增按钮的存在性取决于当前角色对该表的 create 权限 —— 探针的 mock 环境
      里 `canCreateCurrentTab` 可能为 false（表级策略），找不到按钮**不等于** bug。

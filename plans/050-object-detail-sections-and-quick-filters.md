@@ -292,3 +292,13 @@ export const DETAIL_SECTIONS = {
 后台单测 `data-admin-detail-sections`(20) + `data-admin-date-quick-ranges`(15) 全绿；
 `check:dark-tokens:strict` 2408/2408、`check:important-budget` 603/603、
 `check:doc-truth` 通过、`type-check` 通过、`npm run lint` 89 警告（上限 90）。
+
+**续做（同日，宽屏与人眼复核）**：
+
+- 宽屏下详情 / 页内编辑收成 760px 阅读列（`.record-section.is-plain-object-list`，
+  只在 ≥900px 生效，列表仍铺满）—— 否则标签在左、值被推到约 1100px 外的右缘。
+- 提示文字有两种类：`.field-hint`（`<p>`）与 `.input-hint`（`<span>`），
+  「一行一条」选择器漏掉后者就会把它当控件塞在输入框右侧（收窄到 760px 才暴露）。
+- 源码守卫 `data-admin-b-interactions` 的 Shift 区间断言是「恰好 3 处勾选框宿主」，
+  新增纯文字行 = 第 4 处；改成 4（新宿主必须一起登记，这不是放宽断言，是登记新接线）。
+- 宽屏人眼复核：`debug-screenshots/desktop-{list,detail,edit-plain}.png`（1440×900，mock 数据）。

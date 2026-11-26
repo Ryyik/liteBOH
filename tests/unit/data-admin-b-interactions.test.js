@@ -25,11 +25,12 @@ describe('batch B interactions wiring', () => {
     expect(withCopyable.length).toBe(idEmailCols.length);
   });
 
-  it('4.2 Shift 区间选择：三处勾选框（桌面表格/移动卡片/卡片视图）都走 onRowCheckboxChange', () => {
+  it('4.2 Shift 区间选择：四处勾选框（桌面表格/移动卡片/卡片视图/纯文字行）都走 onRowCheckboxChange', () => {
     expect(view).toContain('lastSelectedIndex');
     expect(view).toMatch(/const onRowCheckboxChange = \(item, event\) =>/);
     const bindings = view.match(/@click="onRowCheckboxChange\(item, \$event\)"/g) || [];
-    expect(bindings.length).toBe(3);
+    // 第 4 处是 plans/050 期4 的纯文字对象行（.mobile-row 分支），新增宿主必须一起登记
+    expect(bindings.length).toBe(4);
     // ⚠️ 必须挂 @click：change 是普通 Event 不带 shiftKey（探针实测）
     expect(view).not.toContain('@change="onRowCheckboxChange');
     expect(view).not.toContain('@change="toggleSelect(item)"');
