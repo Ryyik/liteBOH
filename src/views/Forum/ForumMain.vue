@@ -51,6 +51,7 @@ import {
   isDraftInSyncWithEditor,
 } from './composables/useForumPostDraftStorage.js';
 import { useForumVirtualFeed } from './composables/useForumVirtualFeed.js';
+import { useForumPullToRefresh } from './composables/useForumPullToRefresh.js';
 import { useForumDraftImagePipelines } from './composables/useForumDraftImagePipelines.js';
 import { useForumFeedQuery } from './composables/useForumFeedQuery.js';
 import { useForumPublishQueue } from './composables/useForumPublishQueue.js';
@@ -335,6 +336,7 @@ const forumWeeklyReport = ref(null);
 const isWeeklyReportLoading = ref(false);
 const isWeeklyReportOpen = ref(false);
 const forumPageRef = ref(null);
+const forumContainerRef = ref(null);
 const { clearForumImageModerationPreloadTask, scheduleForumImageModerationPreload } =
   useForumImageModerationPreload(preloadForumImageModeration);
 
@@ -1397,9 +1399,11 @@ if (typeof window !== 'undefined') {
 const isRouteInstanceActive = ref(true);
 onActivated(() => {
   isRouteInstanceActive.value = true;
+  setupForumPullToRefresh();
 });
 onDeactivated(() => {
   isRouteInstanceActive.value = false;
+  cleanupForumPullToRefresh();
 });
 
 const isForumComposerFabVisible = computed(() => {
@@ -1559,7 +1563,8 @@ const handleThemeChange = (
 };
 
 // 处理刷新请求：重置状态并重新加载论坛数据
-const handleForumRefreshRequest = () => {
+const handleForumRefreshRequest = async () => {
+  if (!isRouteInstanceActive.value) return;
   // 重置页码和状态
   currentPage.value = 1;
   nextPageCursor.value = '';
@@ -1572,11 +1577,41 @@ const handleForumRefreshRequest = () => {
      查询条件没变就等于「同一个请求」。不失效的话，用户点「我的方块」刷新时
      30 秒内会直接吃旧缓存，表现为「点了刷新没反应 / 新帖不出现」 */
   invalidateByTags(['posts']);
-  // 重新加载论坛数据
-  fetchForumData();
   // 滚动到顶部
   scrollForumTo(0);
+  await fetchForumData();
 };
+
+const {
+  isActive: isForumPullActive,
+  isRefreshing: isForumPullRefreshing,
+  attach: setupForumPullToRefresh,
+  detach: cleanupForumPullToRefresh,
+} = useForumPullToRefresh({
+  contentRef: forumContainerRef,
+  getScrollContainer: () => {
+    const declared = getForumScrollContainer();
+    if (declared && declared !== window) return declared;
+    let element = forumContainerRef.value?.parentElement;
+    while (element && element !== document.body) {
+      const style = window.getComputedStyle(element);
+      if (
+        ['auto', 'scroll', 'overlay'].includes(style.overflowY) &&
+        element.scrollHeight > element.clientHeight + 24
+      ) {
+        return element;
+      }
+      element = element.parentElement;
+    }
+    return window;
+  },
+  isEnabled: () =>
+    isRouteInstanceActive.value &&
+    !isMobileComposerOpen.value &&
+    !!forumPageRef.value &&
+    forumPageRef.value.offsetParent !== null,
+  onRefresh: handleForumRefreshRequest,
+});
 
 const handleForumPostDeleted = (event) => {
   const postId = String(event?.detail?.postId || '').trim();
@@ -1632,6 +1667,7 @@ onMounted(() => {
   currentTheme.value = readActiveForumTheme();
   currentUiStyle.value = themeManager.getUiStyle?.() || 'glass';
   themeManager.addListener(handleThemeChange);
+  setupForumPullToRefresh();
   if (forumPageRef.value && typeof IntersectionObserver !== 'undefined') {
     anniversaryObserver = new IntersectionObserver(
       (entries) => {
@@ -1756,6 +1792,7 @@ onDeactivated(() => {
 });
 
 onUnmounted(() => {
+  cleanupForumPullToRefresh();
   cancelIdleReplyPrefetch();
   cancelDeferredSidebarLoad?.();
   cancelDeferredSidebarLoad = null;
@@ -3672,7 +3709,11 @@ const {
   <div
     ref="forumPageRef"
     class="forum-page"
-    :class="{ 'embedded-mode': embedded }"
+    :class="{
+      'embedded-mode': embedded,
+      'is-pull-active': isForumPullActive,
+      'is-refreshing': isForumPullRefreshing,
+    }"
     :data-theme="currentTheme"
     :data-ui-style="currentUiStyle"
     :data-anniversary-skin="isAnniversaryMcTheme ? 'active' : 'off'"
@@ -3681,7 +3722,11 @@ const {
     <link rel="preconnect" :href="cdnDeliveryBase" crossorigin />
     <link rel="dns-prefetch" :href="cdnDeliveryBase" />
 
-    <div class="forum-container" :class="{ 'no-header': !showHeader }">
+    <div v-if="isForumPullActive" class="forum-pull-indicator" aria-hidden="true">
+      <RotateCw :size="20" :stroke-width="2.2" />
+    </div>
+
+    <div ref="forumContainerRef" class="forum-container" :class="{ 'no-header': !showHeader }">
       <!-- 头部区域 -->
       <header v-if="showHeader" class="forum-header fade-in-up">
         <div class="header-content">
