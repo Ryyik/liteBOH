@@ -1976,39 +1976,45 @@ const navigateDetail = (delta) => {
 };
 
 /**
- * 详情内归档 → auto-advance:成功(行已移出列表)后同一位置即原「下一条」;
- * 失败(行还在)或没有下一条 → 维持旧行为收详情。
- * ⚠️ 直接赋值 selectedMessage 会进其 watcher 的移动端滚动锁——那里已有「已锁不重锁」
- * 守卫配合本流程,别删。
+ * 详情内的归档/取消归档都会让当前条目离开本列表，随后自动前移到「下一条」。
+ *
+ * ⚠️ 回复草稿按当前通知绑定，**不能跟到下一条** —— 否则用户给 A 写的回复会留在
+ * 输入框里、发到 B 的发送者手上（2026-11-26 实测发现的串号路径）。所以：
+ *   ① 动作前先问一次（与切换通知同一套 confirmDiscardReply）；
+ *   ② 真的前进时才清空输入态，别把 showReplyInput/replyContent 带过去。
  */
+async function advanceAfterDetailRemoval(nextMessage) {
+  if (nextMessage) {
+    showReplyInput.value = false;
+    replyContent.value = '';
+    detailMoreOpen.value = false;
+    selectedMessage.value = nextMessage;
+    await nextTick();
+    focusDetailTitle();
+    return;
+  }
+  closeDetail();
+}
+
 const archiveMessageFromDetail = async () => {
   if (!selectedMessage.value) return;
+  // 先问再删：取消时 **不归档**，避免「草稿被清掉但消息已经进了归档」
+  if (!(await confirmDiscardReply())) return;
   const idx = filteredMessages.value.findIndex((m) => m.id === selectedMessage.value.id);
   const nextMessage = idx >= 0 ? filteredMessages.value[idx + 1] : null;
   const archived = await archiveMessage(selectedMessage.value);
   if (!archived) return;
-  if (nextMessage) {
-    selectedMessage.value = nextMessage;
-    await nextTick();
-    focusDetailTitle();
-    return;
-  }
-  closeDetail();
+  await advanceAfterDetailRemoval(nextMessage);
 };
 
 const unarchiveMessageFromDetail = async () => {
   if (!selectedMessage.value) return;
+  if (!(await confirmDiscardReply())) return;
   const idx = filteredMessages.value.findIndex((m) => m.id === selectedMessage.value.id);
   const nextMessage = idx >= 0 ? filteredMessages.value[idx + 1] : null;
   const unarchived = await unarchiveMessage(selectedMessage.value);
   if (!unarchived) return;
-  if (nextMessage) {
-    selectedMessage.value = nextMessage;
-    await nextTick();
-    focusDetailTitle();
-    return;
-  }
-  closeDetail();
+  await advanceAfterDetailRemoval(nextMessage);
 };
 
 // 监听弹窗状态，控制 body 滚动（iOS 安全锁定）+ 管理 Teleport overlay 显隐

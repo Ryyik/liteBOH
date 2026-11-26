@@ -208,12 +208,24 @@ if (STAGED && htmlFiles.length + scratchFiles.length === 0) {
   process.exit(0);
 }
 
+if (STAGED) {
+  /* 暂存区模式下列表只是「本次提交涉及的根目录文件」，与全量基线不可比：
+     用它对基线算 saved 会得到假结论（例如只暂存了 3 个存量允许文件之一，
+     就被算成「已削减 2 个」），而提示会诱导人真的去 --update —— 那会把基线
+     按暂存子集重写，后半段的门禁全失效。所以这里只报「没增长」，不给下调暗示。 */
+  console.log(
+    `✅ 本次提交的根目录沙盒未增长：html ${htmlFiles.length} + 临时脚本 ${scratchFiles.length}` +
+      `（仅本次暂存；全量现状与基线请跑 npm run check:root-clean）`,
+  );
+  process.exit(0);
+}
+
 const saved =
   allow(baseline.html).size +
   allow(baseline.scratch).size -
   (htmlFiles.length + scratchFiles.length);
 console.log(
-  `${STAGED ? '✅ 本次提交的根目录沙盒未增长' : '✅ 根目录沙盒未增长'}：html ${htmlFiles.length}（基线 ${baseline.html.length}）+ ` +
+  `✅ 根目录沙盒未增长：html ${htmlFiles.length}（基线 ${baseline.html.length}）+ ` +
     `临时脚本 ${scratchFiles.length}（基线 ${baseline.scratch.length}）` +
     (saved > 0 ? `（已削减 ${saved}，记得 --update 下调基线）` : ''),
 );

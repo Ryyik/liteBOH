@@ -233,6 +233,12 @@ const SHELL_CHUNKS = [
   // 该懒加载，这两条本来就该在壳里。补名单是正确修法。
   'useHomeGate',
   'bottom-nav',
+  // 2026-11-26：UI Kit 阶段 1/2 的壳层接入把两个模块带进入口静态 import 图
+  //（App.vue 静态引 BohToastHost → boh-toast-controller；设置沉浸态经 useSettingsChrome
+  //  广播给 App 级导航判据）。rollup 把它们各拆成独立 chunk —— 缺预缓存时弱网/离线
+  //  会「应用壳缺模块 → 整站白屏」。由 check:shell-precache 断言 B 实测报红后补入。
+  'useSettingsChrome',
+  'boh-toast-controller',
 ];
 // 入口 chunk 的产物名由 entryFileNames 固定为 app-[hash].js
 const SHELL_CHUNKS_WITH_ENTRY = ['app', ...SHELL_CHUNKS];
@@ -283,7 +289,23 @@ function bohShellCssScopePlugin() {
 
       const allow = new Set();
       for (const chunk of chunks) {
-        if (!shellJs.has(chunk.fileName.split('/').pop())) continue;
+        const base = chunk.fileName.split('/').pop();
+        /* 入口 chunk（app-*.js）的 CSS 同样是壳样式：它承载 main.js 的全局 import。
+           ⚠️ 只按 SHELL_CHUNKS 的 importedCss 收集会漏掉「被 Vite 拆成独立样式表」
+           的那些（如 motion.css：main.js 直接 import ⇒ 生成单独的 <link>），
+           离线首屏就「有 HTML 无样式」。2026-11-26 check:shell-precache 断言 A
+           实测报红后补上入口 chunk 这一路来源。 */
+        const isEntryChunk = /^app-.*\.js$/.test(base);
+        /* 「纯 CSS chunk」：没有任何 JS 代码、只有 importedCss。
+           Vite 会把「入口与异步 chunk 共享的样式」拆成这种伪 chunk（motion.css 实测
+           code 长度为 1、imports 为空）。必须再区分两种来源，否则会把整站 15 个路由
+           主题 CSS 一起拖进预缓存（实测 raw +194KB）：
+             · 静态 import（main.js → motion.css）：isDynamicEntry=false、无 facade
+               ⇒ 只经 index.html 到达 ⇒ 壳样式，必须预缓存；
+             · 动态 import（theme-css-loader → dark-mode.css …）：isDynamicEntry=true
+               ⇒ 由路由/运行时按需加载 ⇒ 保持原策略，交给 CacheFirst 兜底。 */
+        const isStaticCssChunk = !String(chunk.code || '').trim() && !chunk.isDynamicEntry;
+        if (!shellJs.has(base) && !isEntryChunk && !isStaticCssChunk) continue;
         const importedCss = chunk.viteMetadata?.importedCss;
         if (importedCss) for (const href of importedCss) allow.add(href.split('/').pop());
       }

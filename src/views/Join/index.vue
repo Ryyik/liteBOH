@@ -1566,7 +1566,7 @@ const verifyOtpAndContinue = async () => {
        还是「一个已经建完的老账号」。
        signInWithOtp 对已注册邮箱的语义是**登录** —— 如果放行，第 ③ 屏会把
        老用户的方块 ID 和密码整个改写掉，而用户完全不会察觉。
-       判据是 profiles.signup_completed_at（迁移 2026112503）：
+       判据是 profiles.signup_completed_at（迁移 2026112506）：
          为 NULL     ⇒ 上次停在半路，允许继续（否则他的邮箱永久失效：没密码也登不进来）
          非 NULL     ⇒ 真老用户，挡回去登录
        checkSignupState 拿不到数据时返回 incomplete:true（fail-open）——
@@ -1877,6 +1877,8 @@ onUnmounted(() => {
   navObserver = null;
   window.removeEventListener('resize', syncHeight);
   if (accountTimer) window.clearTimeout(accountTimer);
+  // 邮箱的防抖计时器也要摘：留着会在离开页面后仍发一次 is_email_registered RPC
+  if (emailTimer) window.clearTimeout(emailTimer);
   clearResendCooldownTimer();
   if (otpResendTimer) {
     clearInterval(otpResendTimer);

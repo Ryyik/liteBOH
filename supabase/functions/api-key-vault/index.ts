@@ -2250,7 +2250,19 @@ async function resolveUserTier(
   return 'free';
 }
 
-const normalizeTier = (tier: string) => (TIER_RANK[tier] === undefined ? 'free' : tier);
+/* 归一化「模型要求的最低档位」（来自 DB 的 min_tier）。
+   ⚠️ 未知值回落 free 是历史口径；但落回之前**必须**先过订阅别名表：
+      四档制后 `plus` 已不在 TIER_RANK 里（历史行/手工改库仍可能出现），
+      直接回落会让 `tierAllows('free', 'free')` 成立 ⇒ 任何登录用户都能用
+      “plus 专属”模型。别名把它折成 pro（与前端 PLAN_CODE_ALIASES、DB
+      boh_tier_alias 同语义），闸门才不会被一次静默降级打开。 */
+const normalizeTier = (tier: string) => {
+  const key = String(tier || '')
+    .trim()
+    .toLowerCase();
+  const aliased = SUBSCRIPTION_PLAN_ALIASES[key] || key;
+  return TIER_RANK[aliased] === undefined ? 'free' : aliased;
+};
 
 const tierAllows = (tier: string, requiredTier: string) =>
   (TIER_RANK[normalizeTier(tier)] || 0) >= (TIER_RANK[normalizeTier(requiredTier)] || 0);

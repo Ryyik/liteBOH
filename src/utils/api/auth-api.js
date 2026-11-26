@@ -109,7 +109,7 @@ export const OTP_TTL_SECONDS = 600;
  * 当前生效的用户协议 / 隐私政策版本号。
  *
  * 为什么需要一个显式版本号：注册第 ① 屏的勾选会随 `raw_user_meta_data` 落进
- * `profiles.terms_version`（迁移 2026112501）。只存一个「已同意」的布尔值是不够的 ——
+ * `profiles.terms_version`（迁移 2026112504）。只存一个「已同意」的布尔值是不够的 ——
  * 协议内容改过之后再举证，你没法说明用户同意的是哪一版。
  *
  * 升版时机：`用户服务协议` 或 `隐私政策` 的**实质条款**有变动时改这里（改完新注册
@@ -975,7 +975,7 @@ export async function resendSignupConfirmation(email) {
    这条路的**代价**，写在这里免得下一轮又发现一遍：
      · auth.users 会在「用户还没设密码」时就存在 ⇒ 中途放弃会留下半成品账号。
        它们**登不进来**（密码为空、登录页只收密码），所以不构成安全风险，
-       但会占着邮箱。清理策略见 `2026112503_prune_abandoned_signups` 的注释。
+       但会占着邮箱。清理策略见 `2026112507_cleanup_abandoned_signups` 的注释。
      · 已注册邮箱走的是 signInWithOtp 的「登录」语义 ⇒ 验证码通过后就进了一个
        **已有账号**。见 `sendSignupOtp` 里对 created_at 的说明。
    ════════════════════════════════════════════════════════════════════ */
@@ -1058,7 +1058,7 @@ export async function sendSignupOtp(email, { termsAcceptedAt } = {}) {
  *   ② 上次放弃的半成品账号 → 也继续走注册（signup_completed_at 为 NULL）
  *   ③ 真正的老用户误用注册页 → 必须挡住，否则第 ③ 屏会改写他的 ID 和密码
  *
- * `signup_completed_at` 正好把 ①② 与 ③ 分开（迁移 2026112503）。
+ * `signup_completed_at` 正好把 ①② 与 ③ 分开（迁移 2026112506）。
  * 拿不到时 fail-open（返回 incomplete: true）是**故意**的：宁可让极少数老用户
  * 看到第 ③ 屏（他们改回自己的 ID 就没事），也不要让正常新用户在第 ② 屏卡死 ——
  * 前者的代价是"多填一屏"，后者的代价是"根本注册不了"。
@@ -1097,11 +1097,15 @@ export async function checkSignupState() {
  * 第 ③ 屏：账号已由第 ① 屏建好、会话已在第 ② 屏拿到。
  * 这一屏要落三样东西：密码（auth.users）+ BOH ID / 生日（profiles）。
  *
- * 顺序讲究：**先写 profiles 再设密码**。
+ * 顺序讲究：**profiles（ID/生日）→ 密码 → 建完标记**。
  *   · profiles update 失败（ID 被抢 / RLS 拒）时，用户还能在本屏重试，密码仍是空的，
  *     下次进来还是同一条路；
  *   · 反过来先设密码的话，ID 失败时用户已经「能登录但没有 ID」—— 登录态下没有 ID
  *     的账号在本项目里是坏死状态（社区全链路依赖 username），只能靠后台补。
+ *   · **`signup_completed_at` 必须等密码成功之后才写**（见步骤 ④）：它同时是
+ *     「允许同邮箱继续注册」的开关与「老用户」的判据。先盖章再设密码的话，密码一旦
+ *     失败（网络 / 服务端强度策略 / 限流）而用户关掉页面，账号就变成「已建完但登不进去、
+ *     也不允许重新注册」——邮箱被永久锁死。盖章放最后，失败时最多退回「未建完」。
  *
  * 生日是可选的：留空就不写，不要写空串（`profiles.birth_month/day` 是 text 且允许 NULL，
  * 空串会污染「生日是否已填」的判断）。
@@ -1152,11 +1156,9 @@ export async function completeSignupIdentity({ username, password, birthMonth, b
     };
   }
 
-  // ② 写 profiles（ID / 生日 / 「建完了」标记）
-  // signup_completed_at 是整套「邮箱优先」流程的安全阀：为 NULL 表示账号没建完，
-  // 下次同一邮箱再来允许继续注册；非 NULL 才是真正的老用户。
-  // 不写它的话，「放弃后回来」的用户会被当成老用户挡在门外，而他根本没有密码。
-  const patch = { username: safeUsername, signup_completed_at: new Date().toISOString() };
+  // ② 写 profiles（ID / 生日）。
+  // ⚠️ 「建完了」标记不在这一步 —— 它必须等密码成功后再写（见步骤 ④）。
+  const patch = { username: safeUsername };
   const m = birthMonth === '' || birthMonth == null ? NaN : Number(birthMonth);
   const d = birthDay === '' || birthDay == null ? NaN : Number(birthDay);
   if (Number.isFinite(m) && Number.isFinite(d)) {
@@ -1179,10 +1181,21 @@ export async function completeSignupIdentity({ username, password, birthMonth, b
     };
   }
 
-  // ③ 最后设密码。失败时 ID 已经写好了，重试这一屏不会重复写（update 幂等）。
+  // ③ 设密码。失败时 ID 已经写好了，重试这一屏不会重复写（update 幂等）。
   const { error: passwordError } = await supabase.auth.updateUser({ password: safePassword });
   if (passwordError) {
     return { ok: false, step: 'password', error: normalizeDbError(passwordError) };
+  }
+
+  // ④ 最后才盖「建完了」的章。顺序不能提前（原因见函数头）：
+  //    此处失败也不把注册判红 —— 账号此刻已完全可用（密码+ID 都在），
+  //    最坏结果只是下次同邮箱再进来时被允许继续走一遍注册（可改回自己的 ID）。
+  const { error: completedError } = await supabase
+    .from('profiles')
+    .update({ signup_completed_at: new Date().toISOString() })
+    .eq('id', userId);
+  if (completedError) {
+    logger.warn('auth-api', '注册完成标记写入失败（账号已可用，不阻断）', completedError);
   }
 
   return { ok: true, step: 'done', userId, error: null };

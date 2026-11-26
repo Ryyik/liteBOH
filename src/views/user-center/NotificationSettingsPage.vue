@@ -28,7 +28,7 @@
  *    对外名（页面标题、入口文案、组件名）已全部改成「通知设置」，路径属于兼容层，
  *    与 `router/routes/compat.ts` 里的 `/pushplus` 旧链同性质。
  */
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import NotificationSettings from '@/components/NotificationSettings/index.vue';
 import SettingsSubpageHeader from './UserSpace/components/SettingsSubpageHeader.vue';
@@ -58,10 +58,24 @@ const syncNavTopOffset = () => {
 const immersive = computed(() => !settingsWideViewport.value);
 const shellTop = computed(() => (immersive.value ? 0 : navTopOffset.value));
 
+/* 沉浸态必须随视口翻转**实时**更新：
+   · 只在 onMounted 设一次的话，竖屏 → 横屏后 settingsImmersive 会停在 true，
+     而导航岛要重新出现（横屏规则放行），状态与屏幕对不上；
+   · 横屏侧同一轮 resize 里量 navTopOffset 时，导航岛还没被 Vue 渲染出来 ⇒
+     读不到元素记成 0，页头会被浮岛压住。所以等 nextTick 后再补量一次。
+   immediate 保证深链直达时首帧就是正确档位，不会先挂一帧岛再消失。 */
+watch(
+  immersive,
+  (value) => {
+    setSettingsImmersive(value);
+    void nextTick(syncNavTopOffset);
+  },
+  { immediate: true },
+);
+
 onMounted(() => {
   syncNavTopOffset();
   window.addEventListener('resize', syncNavTopOffset, { passive: true });
-  setSettingsImmersive(immersive.value);
 });
 onBeforeUnmount(() => {
   window.removeEventListener('resize', syncNavTopOffset);

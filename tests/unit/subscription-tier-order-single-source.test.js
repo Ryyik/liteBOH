@@ -115,4 +115,18 @@ describe('档位序单一真源（plans/046 P1）', () => {
     expect(block[1]).not.toMatch(/:\s*'plus'/);
     expect(block[1]).toMatch(/plus:\s*'pro'/);
   });
+
+  it('EF 的 min_tier 闸门先过别名表（plus 不能回落成 free 放行）', () => {
+    const src = readSrc('supabase/functions/api-key-vault/index.ts');
+    const start = src.indexOf('const normalizeTier');
+    const end = src.indexOf('const tierAllows', start);
+    expect(start, 'EF 里找不到 normalizeTier 定义').toBeGreaterThan(-1);
+    expect(end, 'EF 里找不到 tierAllows 定义').toBeGreaterThan(start);
+    const block = src.slice(start, end);
+    /* 反例（2026-11-26 之前）：`TIER_RANK[tier] === undefined ? 'free' : tier` ——
+       plus 合并后不在 TIER_RANK 里，要求值 'plus' 被降级成 'free'，
+       于是 free 用户也能过 tierAllows。必须先把 plus/boh-* 折成 pro 再判。 */
+    expect(block).toContain('SUBSCRIPTION_PLAN_ALIASES');
+    expect(block).toMatch(/TIER_RANK\[aliased\]/);
+  });
 });
