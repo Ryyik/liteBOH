@@ -23,11 +23,12 @@ const secondsAgo = (seconds) => Math.floor((Date.now() - seconds * 1000) / 1000)
 
 // 源码守卫断言一律跑在「剥离注释后」的源码上：注释里的设计说明会让
 // indexOf 定位与「不包含」断言失真。
-const strip = (source) => source
-  .replace(/\/\*[\s\S]*?\*\//g, '')
-  .split('\n')
-  .map((l) => l.replace(/(^|[^:])\/\/.*$/, '$1'))
-  .join('\n');
+const strip = (source) =>
+  source
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .split('\n')
+    .map((l) => l.replace(/(^|[^:])\/\/.*$/, '$1'))
+    .join('\n');
 
 // 提取单个箭头函数体（起于 `const <name>`，止于其后的第一个 `\n};`）。
 // 不能用「下一个函数的起点」做终点 —— 函数定义顺序不定，终点小于起点时
@@ -53,7 +54,13 @@ describe('recovery-access：isRecentTokenLogin 判定', () => {
   });
 
   it('宽限窗内（5 分钟前 otp 登录）→ true', () => {
-    const jwt = makeJwt({ sub: 'u1', amr: [{ method: 'password', timestamp: secondsAgo(3600) }, { method: 'otp', timestamp: secondsAgo(300) }] });
+    const jwt = makeJwt({
+      sub: 'u1',
+      amr: [
+        { method: 'password', timestamp: secondsAgo(3600) },
+        { method: 'otp', timestamp: secondsAgo(300) },
+      ],
+    });
     expect(mod.isRecentTokenLogin(jwt)).toBe(true);
   });
 
@@ -75,12 +82,21 @@ describe('recovery-access：isRecentTokenLogin 判定', () => {
   });
 
   it('取 amr 中最近一次 token 类登录的时间戳（先 password 后 otp 仍成立）', () => {
-    const jwt = makeJwt({ sub: 'u1', amr: [{ method: 'otp', timestamp: secondsAgo(120) }, { method: 'password', timestamp: secondsAgo(60) }] });
+    const jwt = makeJwt({
+      sub: 'u1',
+      amr: [
+        { method: 'otp', timestamp: secondsAgo(120) },
+        { method: 'password', timestamp: secondsAgo(60) },
+      ],
+    });
     expect(mod.isRecentTokenLogin(jwt)).toBe(true);
   });
 
   it('未来时间戳（时钟偏差）→ false（不把 elapsed<0 当作窗内）', () => {
-    const jwt = makeJwt({ sub: 'u1', amr: [{ method: 'otp', timestamp: Math.floor(Date.now() / 1000) + 600 }] });
+    const jwt = makeJwt({
+      sub: 'u1',
+      amr: [{ method: 'otp', timestamp: Math.floor(Date.now() / 1000) + 600 }],
+    });
     expect(mod.isRecentTokenLogin(jwt)).toBe(false);
   });
 
@@ -92,7 +108,9 @@ describe('recovery-access：isRecentTokenLogin 判定', () => {
   });
 
   it('接受 supabase session 对象（取 access_token）', () => {
-    const session = { access_token: makeJwt({ sub: 'u1', amr: [{ method: 'otp', timestamp: secondsAgo(60) }] }) };
+    const session = {
+      access_token: makeJwt({ sub: 'u1', amr: [{ method: 'otp', timestamp: secondsAgo(60) }] }),
+    };
     expect(mod.isRecentTokenLogin(session)).toBe(true);
   });
 
@@ -126,7 +144,13 @@ describe('recovery-access：readClipboardText（一键粘贴）', () => {
   });
 
   it('权限被拒 / 读取抛错 → null（不向调用方抛错）', async () => {
-    vi.stubGlobal('navigator', { clipboard: { readText: vi.fn(async () => { throw new Error('NotAllowedError'); }) } });
+    vi.stubGlobal('navigator', {
+      clipboard: {
+        readText: vi.fn(async () => {
+          throw new Error('NotAllowedError');
+        }),
+      },
+    });
     await expect(mod.readClipboardText()).resolves.toBeNull();
   });
 
@@ -158,8 +182,12 @@ describe('AccountSecurity：token 登录宽限窗接入（源码守卫）', () =
     // 当前密码校验必须仍然落在 !tokenLoginActive.value 的守卫之内。
     // 这里刻意不锚定具体的比较写法（原先锚的是 `currentPassword.length < 6`）——
     // 长度口径已改为走共用的 validateCurrentPassword，锚死写法会在重构时误报。
-    expect(code).toMatch(/if\s*\(!tokenLoginActive\.value\)\s*\{[\s\S]{0,200}?validateCurrentPassword\(currentPassword\)/);
-    expect(code).toMatch(/tokenLoginActive\.value\s*\n?\s*\?\s*await authStore\.updatePassword\(passwordForm\.newPassword\)/);
+    expect(code).toMatch(
+      /if\s*\(!tokenLoginActive\.value\)\s*\{[\s\S]{0,200}?validateCurrentPassword\(currentPassword\)/,
+    );
+    expect(code).toMatch(
+      /tokenLoginActive\.value\s*\n?\s*\?\s*await authStore\.updatePassword\(passwordForm\.newPassword\)/,
+    );
   });
 
   it('当前密码输入框仅在非宽限窗渲染', () => {
@@ -214,6 +242,8 @@ describe('ResetPassword：粘贴 token 通道（源码守卫）', () => {
 });
 
 describe('Login：token 登录入口（源码守卫）', () => {
+  /* 两套外壳各一份：模态框（isModal）与独立页。2026-11-24 页面模式由
+     「左图 + 右表单」重做成单列极简入口，但**仍然是一份完整表单** ⇒ 入口数不变。 */
   it('登录页两套布局（移动浮层 + 桌面分栏）各有入口，面板各渲染一次', async () => {
     const code = strip(await readFile(LOGIN_VIEW, 'utf-8'));
     expect((code.match(/令牌登录/g) || []).length).toBe(2);

@@ -92,6 +92,32 @@ const EDGE_FUNCTION_UNAVAILABLE_STATUSES = new Set([0, 404, 501]);
 const LOGIN_INVOKE_TIMEOUT_MS = 10000;
 const LOGIN_TIMEOUT_SENTINEL = Symbol('auth-login-timeout');
 
+/**
+ * 注册验证码位数 —— 与线上 `mailer_otp_length` 一一对应（2026-11-25 实测为 **8**）。
+ *
+ * ⚠️ 不是 6。Supabase 后台默认常被写成 6，而这个项目线上是 8；
+ * 照着「常见产品都是 6 位」去写输入框，会让用户输满 6 格就被判长度不对，
+ * 或者输到第 7 位被截断 —— 症状是「验证码看着没错但永远不匹配」。
+ * 改这个值之前先 `GET /v1/projects/{ref}/config/auth` 复核，别凭印象。
+ */
+export const OTP_LENGTH = 8;
+
+/** 验证码有效期（秒）—— 与线上 `mailer_otp_exp` 一致，界面倒计时与文案都从这里取 */
+export const OTP_TTL_SECONDS = 600;
+
+/**
+ * 当前生效的用户协议 / 隐私政策版本号。
+ *
+ * 为什么需要一个显式版本号：注册第 ① 屏的勾选会随 `raw_user_meta_data` 落进
+ * `profiles.terms_version`（迁移 2026112501）。只存一个「已同意」的布尔值是不够的 ——
+ * 协议内容改过之后再举证，你没法说明用户同意的是哪一版。
+ *
+ * 升版时机：`用户服务协议` 或 `隐私政策` 的**实质条款**有变动时改这里（改完新注册
+ * 用户带新版本号，老用户保留他们当时同意的版本，不做追认）。
+ * 纯错别字、排版调整不用动 —— 版本号换得太勤会让「同意记录」失去区分度。
+ */
+export const TERMS_VERSION = '2026-11';
+
 const invokeWithTimeout = (promise, timeoutMs, sentinel) => {
   let timer = null;
   return Promise.race([
@@ -223,6 +249,41 @@ export async function isUsernameAvailable(username) {
   } catch (error) {
     logger.warn('auth-api', 'Username availability check threw', error);
     return { ok: false, available: null };
+  }
+}
+
+/**
+ * 这个邮箱是否已被注册（注册页第 ① 屏的真实判定）。
+ *
+ * 为什么必须单独有它：改版前第 ① 屏右侧那个「可用」徽标只看
+ * 「已填 + 本机格式合法」，**从没问过服务端** —— 随便输入一个
+ * zzzz@example.com 也显示「可用」，直到第 ② 屏发码才被挡回来
+ * （signInWithOtp 对已注册邮箱是登录语义）。用户看到的是
+ * 「它说可用，怎么又不行」。
+ *
+ * 走 RPC 而不是查表：邮箱在 auth.users，profiles 根本没有 email 列；
+ * 而 auth schema 对 anon 不可读。RPC 只回布尔，不回邮箱明文 ——
+ * 拿不到明文就没法批量探测「这个邮箱是谁」。
+ *
+ * 返回 { ok, registered }：
+ *   ok=false 查询本身失败（网络断 / RPC 未部署）⇒ registered=null，
+ *   调用方**不要**冒充「可用」也不要冒充「已注册」，直接不显示徽标。
+ */
+export async function isEmailRegistered(email) {
+  const safeEmail = normalizeEmail(email);
+  if (!safeEmail || !safeEmail.includes('@')) return { ok: false, registered: null };
+  try {
+    const { data, error } = await supabase.rpc('is_email_registered', {
+      p_email: safeEmail,
+    });
+    if (error) {
+      logger.warn('auth-api', 'Email registered check failed', error);
+      return { ok: false, registered: null };
+    }
+    return { ok: true, registered: data === true };
+  } catch (error) {
+    logger.warn('auth-api', 'Email registered check threw', error);
+    return { ok: false, registered: null };
   }
 }
 
@@ -710,6 +771,130 @@ export async function verifyEmailTokenHash(tokenHash, type = 'signup') {
   return { ok: !error, data, error: normalizeDbError(error) };
 }
 
+/**
+ * 邮箱验证码校验（2026-11-25：注册改走「8 位验证码」而非确认链接）。
+ *
+ * 为什么是验证码而不是链接：
+ *   链接模式下 emailRedirectTo 只能落到站点根路径，成功与否在落地页之外，
+ *   用户点完链接回到站点时「注册」这件事已经消失了，没有任何容器能显示
+ *   「成功连接 BOH」。验证码把验证留在当前页，第五步自然就是一次状态切换。
+ *
+ * 两个与线上配置绑死的常量（改动必须同步查 Management API config/auth）：
+ *   · mailer_otp_length = 8 —— 不是常见的 6 位，输入框必须按 8 格设计
+ *   · mailer_otp_exp    = 600 —— 10 分钟，界面文案必须与此一致
+ *
+ * type 用 'signup' 而不是文档里的 'email'：两者 GoTrue 都接受（实测返回同样的
+ * `otp_expired`），但 'signup' 与 signUp() 产出的 OTP 类型同源，重发时也用同一个值
+ * （resendSignupConfirmation 里的 type 同为 'signup'），不会出现「验的是 A 类、
+ * 重发的是 B 类」这种错配。
+ */
+export async function verifySignupOtp(email, token) {
+  const safeEmail = normalizeEmail(email);
+  const safeToken = String(token || '')
+    .replace(/\s+/g, '')
+    .trim();
+
+  const emailValidationMessage = validateEmail(safeEmail);
+  if (emailValidationMessage) {
+    return {
+      ok: false,
+      data: null,
+      error: normalizeDbError({ message: emailValidationMessage, code: 'INVALID_EMAIL' }),
+    };
+  }
+
+  if (!safeToken) {
+    return {
+      ok: false,
+      data: null,
+      error: normalizeDbError({ message: '请输入验证码', code: 'EMPTY_OTP' }),
+    };
+  }
+
+  // 长度按线上 mailer_otp_length 校验。故意不写成硬编码的 6 —— 6 是绝大多数
+  // 产品的习惯值，照抄会让用户「输入的位数看着对、服务端永远说不匹配」。
+  if (safeToken.length !== OTP_LENGTH) {
+    return {
+      ok: false,
+      data: null,
+      error: normalizeDbError({
+        message: `验证码是 ${OTP_LENGTH} 位数字`,
+        code: 'INVALID_OTP_LENGTH',
+      }),
+    };
+  }
+
+  if (!/^\d+$/.test(safeToken)) {
+    return {
+      ok: false,
+      data: null,
+      error: normalizeDbError({ message: '验证码只包含数字', code: 'INVALID_OTP_FORMAT' }),
+    };
+  }
+
+  const { data, error } = await supabase.auth.verifyOtp({
+    email: safeEmail,
+    token: safeToken,
+    type: 'signup',
+  });
+
+  if (error) {
+    const normalized = String(error.message || '').toLowerCase();
+    const errorCode = String(error.error_code || error.code || '').toLowerCase();
+    // 过期/已用过是 GoTrue 最常见的两种拒绝，且文案对用户毫无信息量
+    // （"Token has expired or is invalid"）。分开说，因为处置动作不同：
+    // 过期 → 重发；用过 → 直接去登录（它其实已经生效过一次）。
+    if (errorCode === 'otp_expired' || normalized.includes('expired')) {
+      return {
+        ok: false,
+        data,
+        error: normalizeDbError({
+          ...error,
+          code: 'OTP_EXPIRED',
+          message: '验证码已过期，请重新获取。',
+        }),
+      };
+    }
+    if (normalized.includes('invalid') && !normalized.includes('expired')) {
+      return {
+        ok: false,
+        data,
+        error: normalizeDbError({
+          ...error,
+          code: 'OTP_INVALID',
+          message: '验证码不正确，请检查后重试。',
+        }),
+      };
+    }
+    return { ok: false, data, error: normalizeDbError(error) };
+  }
+
+  // 验证成功后 supabase-js 自动保存会话并广播 SIGNED_IN，
+  // auth store 的事件处理器接管本地状态 —— 这里不重复写 session。
+
+  /**
+   * 「这个账号是不是刚建的」—— 注册流程必须靠它区分两件事：
+   *
+   *   `signInWithOtp` 对**已存在**的邮箱语义是登录。用户以为自己在注册，
+   *   实际验证通过后进入的是一个老账号。如果继续走完第 ③ 屏（写 ID、设密码），
+   *   就会把这个老账号的方块 ID 改成新的、密码换成新的 —— 一次**静默的账户改写**。
+   *
+   * 判据用 `created_at` 而不是别的：本次注册的第 ① 屏和第 ② 屏之间正常不超过
+   * 10 分钟（验证码有效期），所以「创建于 15 分钟内」必然是本次这一轮建的。
+   * 取 15 而不是 10，是为了容忍用户在第 ① 屏停留一阵才去收信。
+   *
+   * 拿不到 created_at 时返回 `null`（未知），调用方按「不确定」处理 ——
+   * 不能默认当成新账号，否则就退回到上面那个静默改写。
+   */
+  const createdAtRaw = data?.user?.created_at || null;
+  const createdAtMs = createdAtRaw ? Date.parse(createdAtRaw) : NaN;
+  const wasCreatedRecently = Number.isFinite(createdAtMs)
+    ? Date.now() - createdAtMs < 15 * 60 * 1000
+    : null;
+
+  return { ok: true, data, error: null, wasCreatedRecently };
+}
+
 export async function resendSignupConfirmation(email) {
   const safeEmail = normalizeEmail(email);
   const emailValidationMessage = validateEmail(safeEmail);
@@ -729,7 +914,40 @@ export async function resendSignupConfirmation(email) {
     },
   });
 
-  return { ok: !error, data, error: normalizeDbError(error) };
+  // 429 拆成两种「等多久」，处置动作完全不同（2026-11-25）：
+  //   · over_email_send_rate_limit —— 项目级每小时发信额度（线上 rate_limit_email_sent=15）
+  //     或同一地址 60 秒间隔（smtp_max_frequency=60）。这是**整站**的额度，
+  //     用户点再多次都没用，只能等；必须给出明确秒数，否则他会当成页面坏了。
+  //   · over_request_rate_limit —— 请求频率，通常几十秒内自解。
+  // 不区分就只会甩出英文 "email rate limit exceeded"，用户读不懂也做不了任何事。
+  if (error) {
+    const normalized = String(error.message || '').toLowerCase();
+    const code = String(error.code || error.error_code || '').toLowerCase();
+    const matched = normalized.match(/after\s+(\d+)\s+seconds?/i);
+    const isEmailQuota =
+      code === 'over_email_send_rate_limit' ||
+      normalized.includes('email rate limit') ||
+      normalized.includes('over_email_send_rate_limit');
+    const isRequestLimit = code === 'over_request_rate_limit' || normalized.includes('rate limit');
+
+    if (isEmailQuota || isRequestLimit || Number(error.status) === 429) {
+      const retryAfterSeconds = Number(matched?.[1] || 0) || (isEmailQuota ? 3600 : 60);
+      return {
+        ok: false,
+        data: null,
+        retryAfterSeconds,
+        error: normalizeDbError({
+          ...error,
+          code: isEmailQuota ? 'EMAIL_QUOTA_EXCEEDED' : 'EMAIL_RATE_LIMIT',
+          message: isEmailQuota
+            ? `发信额度已用完，请 ${Math.ceil(retryAfterSeconds / 60)} 分钟后再试。`
+            : `请求过于频繁，请 ${retryAfterSeconds} 秒后再试。`,
+        }),
+      };
+    }
+  }
+
+  return { ok: !error, data, error: normalizeDbError(error), retryAfterSeconds: 0 };
 }
 
 /**
@@ -744,6 +962,231 @@ export async function resendSignupConfirmation(email) {
  *      留着只会让下一个人以为「开箱即用」。
  * 将来若要启用：先定风控口径（是否并入 auth-login），再补首登引导与回跳落地，别只加两个按钮。
  */
+
+/* ════════════════════════════════════════════════════════════════════
+   「邮箱优先」注册三件套（2026-11-25）
+   ────────────────────────────────────────────────────────────────────
+   流程：① 邮箱+同意协议 → ② 验证码 → ③ BOH ID + 密码 → ④ 生日 → ⑤ 头像 → ⑥ passkey → ⑦ 欢迎
+
+   为什么不是 signUp 一次搞定：signUp 是原子的，必须邮箱+密码+ID 一起提交，
+   而新流程在第 ① 屏还拿不到后两项。所以第 ① 屏用 `signInWithOtp` 只建账号，
+   第 ③ 屏拿到会话后再补密码（`updateUser`）和 ID（`profiles` update）。
+
+   这条路的**代价**，写在这里免得下一轮又发现一遍：
+     · auth.users 会在「用户还没设密码」时就存在 ⇒ 中途放弃会留下半成品账号。
+       它们**登不进来**（密码为空、登录页只收密码），所以不构成安全风险，
+       但会占着邮箱。清理策略见 `2026112503_prune_abandoned_signups` 的注释。
+     · 已注册邮箱走的是 signInWithOtp 的「登录」语义 ⇒ 验证码通过后就进了一个
+       **已有账号**。见 `sendSignupOtp` 里对 created_at 的说明。
+   ════════════════════════════════════════════════════════════════════ */
+
+/**
+ * 第 ① 屏：只凭邮箱创建（或识别）账号，并发送 8 位验证码。
+ *
+ * `options.data` 会写进 `auth.users.raw_user_meta_data`，然后被 auth.users 上的
+ * 触发器一次性写进 `profiles.terms_accepted_at` / `terms_version` ——
+ * 也就是说「同意协议」和「账号建立」在同一次事务里，不依赖前端事后补写
+ * （补写会漏：用户验证完就关页面的话，那次补写永远不会发生）。
+ *
+ * ⚠️ 已注册邮箱的行为差异：`signInWithOtp` 遇到已存在的邮箱时语义是**登录**，
+ *    GoTrue 会改用 `magic_link` 那封信（默认模板带的是 `{{ .ConfirmationURL }}`，
+ *    不是验证码）。用户会收到一封「Your Magic Link」而不是「你的 BOH 验证码」。
+ *    调用方拿到 `ok:true` 也无法从返回值区分这两种情况，所以**必须**用
+ *    `wasCreatedRecently`（验证通过后看 created_at）来兜住，见 verifySignupOtp 的第二个返回值。
+ */
+export async function sendSignupOtp(email, { termsAcceptedAt } = {}) {
+  const safeEmail = normalizeEmail(email);
+  const emailValidationMessage = validateEmail(safeEmail);
+  if (emailValidationMessage) {
+    return {
+      ok: false,
+      data: null,
+      error: normalizeDbError({ message: emailValidationMessage, code: 'INVALID_EMAIL' }),
+    };
+  }
+
+  const { data, error } = await supabase.auth.signInWithOtp({
+    email: safeEmail,
+    options: {
+      // 第 ① 屏本来就是要「建号」，所以允许自动注册
+      shouldCreateUser: true,
+      data: {
+        terms_accepted_at: termsAcceptedAt || new Date().toISOString(),
+        terms_version: TERMS_VERSION,
+      },
+    },
+  });
+
+  if (!error) return { ok: true, data, error: null, retryAfterSeconds: 0 };
+
+  // 频控与 signUp / resend 同一套口径（三条路径的 429 文案必须一致，
+  // 否则用户在不同步骤看到三种措辞会以为遇到了不同故障）
+  const normalized = String(error.message || '').toLowerCase();
+  const code = String(error.code || error.error_code || '').toLowerCase();
+  const matched = normalized.match(/after\s+(\d+)\s+seconds?/i);
+  const isEmailQuota =
+    code === 'over_email_send_rate_limit' ||
+    normalized.includes('email rate limit') ||
+    normalized.includes('over_email_send_rate_limit');
+  const isRequestLimit = code === 'over_request_rate_limit' || normalized.includes('rate limit');
+
+  if (isEmailQuota || isRequestLimit || Number(error.status) === 429) {
+    const retryAfterSeconds = Number(matched?.[1] || 0) || (isEmailQuota ? 3600 : 60);
+    return {
+      ok: false,
+      data: null,
+      retryAfterSeconds,
+      error: normalizeDbError({
+        ...error,
+        code: isEmailQuota ? 'EMAIL_QUOTA_EXCEEDED' : 'EMAIL_RATE_LIMIT',
+        message: isEmailQuota
+          ? `发信额度已用完，请 ${Math.ceil(retryAfterSeconds / 60)} 分钟后再试。`
+          : `请求过于频繁，请 ${retryAfterSeconds} 秒后再试。`,
+      }),
+    };
+  }
+
+  return { ok: false, data: null, error: normalizeDbError(error), retryAfterSeconds: 0 };
+}
+
+/**
+ * 第 ② 屏验证通过后：判断这个会话对应的账号**是不是还没建完**。
+ *
+ * 为什么必须有这一步：`signInWithOtp` 对已注册邮箱的语义是登录。
+ * 验证码一过就拿到会话，但会话背后可能是：
+ *   ① 本次刚建的空壳账号   → 继续走注册（正常路径）
+ *   ② 上次放弃的半成品账号 → 也继续走注册（signup_completed_at 为 NULL）
+ *   ③ 真正的老用户误用注册页 → 必须挡住，否则第 ③ 屏会改写他的 ID 和密码
+ *
+ * `signup_completed_at` 正好把 ①② 与 ③ 分开（迁移 2026112503）。
+ * 拿不到时 fail-open（返回 incomplete: true）是**故意**的：宁可让极少数老用户
+ * 看到第 ③ 屏（他们改回自己的 ID 就没事），也不要让正常新用户在第 ② 屏卡死 ——
+ * 前者的代价是"多填一屏"，后者的代价是"根本注册不了"。
+ */
+export async function checkSignupState() {
+  try {
+    const { data: authData } = await supabase.auth.getUser();
+    const userId = authData?.user?.id;
+    if (!userId) return { ok: false, incomplete: true, error: null };
+
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('signup_completed_at, username')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (error) {
+      logger.warn('auth-api', 'checkSignupState failed', error);
+      return { ok: false, incomplete: true, error: normalizeDbError(error) };
+    }
+
+    return {
+      ok: true,
+      // 没有行也算未建完（理论上触发器保证有行，但别让缺行把用户锁死）
+      incomplete: !data?.signup_completed_at,
+      username: data?.username || '',
+      error: null,
+    };
+  } catch (err) {
+    logger.warn('auth-api', 'checkSignupState threw', err);
+    return { ok: false, incomplete: true, error: null };
+  }
+}
+
+/**
+ * 第 ③ 屏：账号已由第 ① 屏建好、会话已在第 ② 屏拿到。
+ * 这一屏要落三样东西：密码（auth.users）+ BOH ID / 生日（profiles）。
+ *
+ * 顺序讲究：**先写 profiles 再设密码**。
+ *   · profiles update 失败（ID 被抢 / RLS 拒）时，用户还能在本屏重试，密码仍是空的，
+ *     下次进来还是同一条路；
+ *   · 反过来先设密码的话，ID 失败时用户已经「能登录但没有 ID」—— 登录态下没有 ID
+ *     的账号在本项目里是坏死状态（社区全链路依赖 username），只能靠后台补。
+ *
+ * 生日是可选的：留空就不写，不要写空串（`profiles.birth_month/day` 是 text 且允许 NULL，
+ * 空串会污染「生日是否已填」的判断）。
+ */
+export async function completeSignupIdentity({ username, password, birthMonth, birthDay }) {
+  const safeUsername = String(username || '').trim();
+  const safePassword = String(password || '');
+
+  const usernameValidationMessage = validateUsername(safeUsername);
+  if (usernameValidationMessage) {
+    return {
+      ok: false,
+      step: 'username',
+      error: normalizeDbError({ message: usernameValidationMessage, code: 'INVALID_USERNAME' }),
+    };
+  }
+
+  const passwordValidationMessage = validatePassword(safePassword);
+  if (passwordValidationMessage) {
+    return {
+      ok: false,
+      step: 'password',
+      error: normalizeDbError({ message: passwordValidationMessage, code: 'INVALID_PASSWORD' }),
+    };
+  }
+
+  // 会话是第 ② 屏验证建立的；这里只读不写。没有会话说明用户跳步或会话已失效。
+  const { data: authData, error: authError } = await supabase.auth.getUser();
+  const userId = authData?.user?.id;
+  if (authError || !userId) {
+    return {
+      ok: false,
+      step: 'session',
+      error: normalizeDbError({
+        message: '验证状态已失效，请重新验证邮箱。',
+        code: 'NO_SESSION',
+      }),
+    };
+  }
+
+  // ① 先查重：给用户一句人话，而不是让 DB 抛 23505 再翻译
+  const availability = await isUsernameAvailable(safeUsername);
+  if (availability.ok && availability.available === false) {
+    return {
+      ok: false,
+      step: 'username',
+      error: normalizeDbError({ message: '该方块 ID 已被使用', code: 'USERNAME_TAKEN' }),
+    };
+  }
+
+  // ② 写 profiles（ID / 生日 / 「建完了」标记）
+  // signup_completed_at 是整套「邮箱优先」流程的安全阀：为 NULL 表示账号没建完，
+  // 下次同一邮箱再来允许继续注册；非 NULL 才是真正的老用户。
+  // 不写它的话，「放弃后回来」的用户会被当成老用户挡在门外，而他根本没有密码。
+  const patch = { username: safeUsername, signup_completed_at: new Date().toISOString() };
+  const m = birthMonth === '' || birthMonth == null ? NaN : Number(birthMonth);
+  const d = birthDay === '' || birthDay == null ? NaN : Number(birthDay);
+  if (Number.isFinite(m) && Number.isFinite(d)) {
+    patch.birth_month = String(m);
+    patch.birth_day = String(d);
+  }
+
+  const { error: profileError } = await supabase.from('profiles').update(patch).eq('id', userId);
+
+  if (profileError) {
+    const isTaken = String(profileError.code || '') === '23505';
+    return {
+      ok: false,
+      step: 'username',
+      error: normalizeDbError({
+        ...profileError,
+        code: isTaken ? 'USERNAME_TAKEN' : profileError.code,
+        message: isTaken ? '该方块 ID 已被使用' : '资料保存失败，请重试。',
+      }),
+    };
+  }
+
+  // ③ 最后设密码。失败时 ID 已经写好了，重试这一屏不会重复写（update 幂等）。
+  const { error: passwordError } = await supabase.auth.updateUser({ password: safePassword });
+  if (passwordError) {
+    return { ok: false, step: 'password', error: normalizeDbError(passwordError) };
+  }
+
+  return { ok: true, step: 'done', userId, error: null };
+}
 
 export async function resetPassword(email) {
   const redirectBase = `${window.location.origin}/#/reset-password`;

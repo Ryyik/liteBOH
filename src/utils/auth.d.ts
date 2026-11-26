@@ -33,6 +33,65 @@ export function signUp(
 
 export function resendSignupConfirmation(email: string): Promise<AuthApiResult>;
 
+/** 注册验证码位数，与线上 mailer_otp_length 一致（实测为 8，不是常见的 6） */
+export const OTP_LENGTH: number;
+/** 验证码有效期（秒），与线上 mailer_otp_exp 一致 */
+export const OTP_TTL_SECONDS: number;
+
+/** 当前生效的用户协议版本号，随注册写入 profiles.terms_version */
+export const TERMS_VERSION: string;
+
+/**
+ * 校验注册邮箱验证码（验证码模式，替代确认链接）。
+ * 成功后 supabase-js 自动建会话并广播 SIGNED_IN。
+ *
+ * `wasCreatedRecently` 用于区分「本次新建的账号」与「已存在的老账号」：
+ * signInWithOtp 对已注册邮箱的语义是登录，拿到老账号却继续走注册流程
+ * 会静默改写它的 ID 与密码。`null` 表示无法判断（拿不到 created_at）。
+ */
+export function verifySignupOtp(
+  email: string,
+  token: string,
+): Promise<AuthApiResult & { retryAfterSeconds?: number; wasCreatedRecently?: boolean | null }>;
+
+/**
+ * 「邮箱优先」注册第 ① 屏：只凭邮箱创建账号并发验证码。
+ * 协议同意随 options.data 一次性落库，不依赖前端事后补写。
+ */
+export function sendSignupOtp(
+  email: string,
+  options?: { termsAcceptedAt?: string },
+): Promise<AuthApiResult & { retryAfterSeconds?: number }>;
+
+/**
+ * 第 ① 屏：这个邮箱是否已被注册（真实查询，不是本机格式校验）。
+ * ok=false 表示查询失败 ⇒ registered=null，此时**不要**显示「可用」。
+ */
+export function isEmailRegistered(
+  email: string,
+): Promise<AuthApiResult & { registered: boolean | null }>;
+
+/**
+ * 第 ② 屏验证通过后判断账号是否「还没建完」。
+ * incomplete=false 表示这是真正的老用户，应挡住并提示去登录。
+ */
+export function checkSignupState(): Promise<
+  AuthApiResult & { incomplete: boolean; username?: string }
+>;
+
+/**
+ * 「邮箱优先」注册第 ③ 屏：会话已建立后补 BOH ID / 生日 / 密码。
+ * 内部顺序是先写 profiles 再设密码 —— 见实现处注释。
+ */
+export function completeSignupIdentity(payload: {
+  username: string;
+  password: string;
+  birthMonth?: string;
+  birthDay?: string;
+}): Promise<
+  AuthApiResult & { step?: 'username' | 'password' | 'session' | 'done'; userId?: string }
+>;
+
 /** 登录风控上下文：服务端按风险决定是否校验 altcha（见 auth-login EF 闸门②） */
 export interface SignInSecurityContext {
   altchaPayload?: string;

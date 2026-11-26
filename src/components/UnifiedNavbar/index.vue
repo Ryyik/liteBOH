@@ -16,7 +16,14 @@
       :class="{
         'has-status-card': statusCardItem.visible,
         'has-long-status-card': statusCardItem.visible && statusCardItem.isLong,
-        'has-login-card': showLoginModal,
+        /* 注册页横屏也走「导航长成岛」这一形态：注册卡从导航底边延展出来，
+           两半拼成一张岛（用户口径「横屏用岛注册」）。
+           刻意复用 has-login-card 而不是新造一个类 —— 它表达的语义是
+           「导航收成 720 宽的岛、把下面的卡片接住」，与具体是登录还是注册无关。
+           新造类等于把宽度/圆角/材质/与 mini 的让位规则整份复制一遍，
+           两处判定必然漂移（style.scoped.css 里已记过 `:not(.has-login-card)`
+           那类补丁的教训）。 */
+        'has-login-card': showLoginModal || isJoinLandscape,
         'has-task-card': isTaskCardShown,
         'has-custom-card': !!islandCustomSlot.component,
         // BOH 岛停靠：必须由 Vue 绑定（而不是只靠 BohIsland 的 classList.add）——
@@ -230,7 +237,7 @@
           </button>
           <template v-if="isLoggedIn">
             <router-link
-              to="/user-space"
+              :to="myBlockTarget"
               class="nav-user-info nav-user-profile"
               id="nav-user-info"
               title="进入我的方块"
@@ -929,6 +936,14 @@ const unreadCount = computed(() => notificationStoreRef.value?.unreadCount || 0)
 // ============================================
 
 const route = useRoute();
+const isForumContext = computed(() => {
+  const isHomeForum = route.path === '/' && String(route.query.view || '') !== '';
+  const userSpaceTab = String(route.query.tab || '');
+  const isUserSpaceCommunity =
+    route.path === '/user-space' && (userSpaceTab === '' || userSpaceTab === 'community');
+  return isHomeForum || isUserSpaceCommunity;
+});
+const myBlockTarget = computed(() => (isForumContext.value ? route.fullPath : '/user-space'));
 
 const isActive = (path) => {
   // 2026-09-22 首页社区化改版：论坛迁到首页（下滑直达），顶栏「论坛」与「首页」同指 `/`，
@@ -943,13 +958,11 @@ const isActive = (path) => {
   return route.path === path || route.path.startsWith(path + '/');
 };
 
-// 处理"我的方块"按钮点击：如果在论坛页（2026-09-22 起论坛在首页），刷新并滚动到顶部
+// 处理"我的方块"按钮点击：论坛分区内刷新并滚动到顶部
 const handleMyBlockClick = (event) => {
   // mini 形态下头像保留直达，不冒泡到 surface 的展开热区（plans/009）
   event.stopPropagation();
-  // 首页带 view = 用户此刻在论坛分区（见 isActive 的口径）
-  const isAlreadyInForum = route.path === '/' && String(route.query.view || '') !== '';
-  if (isAlreadyInForum) {
+  if (isForumContext.value) {
     // 阻止路由跳转，触发刷新和滚动到顶部
     event.preventDefault();
     // 发送自定义事件，通知论坛组件刷新
@@ -1481,6 +1494,34 @@ const handlePortraitMiniChange = () => syncNavMini();
 const immersiveNav = computed(() => route.meta.immersiveNav === true);
 const immersiveExpanded = ref(false);
 
+/**
+ * 注册页（/join）+ 横屏 = 「导航长成岛」形态（用户口径「横屏用岛注册」）。
+ *
+ * 为什么需要这个判据：横屏 844×390 实测，导航是 180 宽的 mini 胶囊，
+ * 而注册卡如果按岛做就是 720 宽 —— 中间悬空、左右各差 270px，两个岛根本不接。
+ * 这与 2026-11-16 登录浮层踩的是**同一个坑**（见 isExpandedLooking 的注释）。
+ *
+ * 判据用 JS 的 matchMedia 而不是 CSS：形态能不能成立取决于「横屏 + 够宽」，
+ * 而 mini 的资格判定本来就在 JS 里（DESKTOP_MINI_QUERY，唯一真源）——
+ * 在 CSS 里再写一份 media query 就是第二份判定。
+ *
+ * 🔴 必须带 `max-height` —— 只写 orientation: landscape 时**每一块桌面屏都命中**
+ * （1280×900 / 1440×960 / iPad 横屏 1024×768 全是 landscape），导航会收成手机
+ * 横屏胶囊而注册页主体还是桌面形态，岛形当场断裂。620 与
+ * `views/Join/index.vue` 那段媒体查询的 max-height 是**同一个数**，改一处必须改两处。
+ * 真正的手机横屏最高 430，620 足够覆盖且不会误伤矮桌面。
+ */
+const joinLandscapeQuery = window.matchMedia(
+  '(orientation: landscape) and (min-width: 769px) and (max-height: 620px)',
+);
+/* matchMedia().matches 不是响应式的 —— 手机旋转后 computed 不会重算，
+   结果是「横屏转竖屏了，导航还挂在岛形态上」。用 ref 跟一次 change 事件。 */
+const joinLandscapeMatches = ref(joinLandscapeQuery.matches);
+joinLandscapeQuery.addEventListener('change', (e) => {
+  joinLandscapeMatches.value = e.matches;
+});
+const isJoinLandscape = computed(() => route.name === 'Join' && joinLandscapeMatches.value);
+
 watch(immersiveNav, (immersive) => {
   immersiveExpanded.value = false;
   if (!immersive) {
@@ -1751,7 +1792,10 @@ const isExpandedLooking = computed(() =>
          两者都属于「岛要长出来接内容」 ⇒ 必须让 mini 让位，不要在 CSS 里补
          `:not(.has-login-card)` 那种第二份判定（两处必然漂移）。 */
       showLoginModal.value ||
-      bohIsland.isOpen.value,
+      bohIsland.isOpen.value ||
+      /* 注册页横屏：与 showLoginModal 同一条理由 —— 导航要做上半岛，
+         mini 会让它只有 180 宽，与 720 的注册岛接不上。 */
+      isJoinLandscape.value,
 );
 
 /* 「球态」写到 body 上供页面侧消费 —— 目前只有 AI 页用：
