@@ -1188,6 +1188,31 @@ export async function completeSignupIdentity({ username, password, birthMonth, b
   return { ok: true, step: 'done', userId, error: null };
 }
 
+/**
+ * 按字段更新自己的 profiles 行（注册流程的零散小写：头像 URL / 生日）。
+ * 收口到这里而不是让 Join 页直连 .from('profiles') —— 分层棘轮（check:layering）
+ * 只认「视图层零直连」，散写字段与 completeSignupIdentity 的整段写走同一条路。
+ * 只写调用方给到的列，不动其他字段；错误原样返回，由调用方决定是否致命。
+ */
+export async function updateProfileFields(userId, patch) {
+  const { error } = await supabase.from('profiles').update(patch).eq('id', userId);
+  return { ok: !error, error: error || null };
+}
+
+/**
+ * 读某用户的角色（注册页管理员预览入口用，只取 role 一列）。
+ * RLS 保证查得到的是自己那一行；出错时 role 回空串（探测失败 = 入口不可用）。
+ */
+export async function getProfileRole(userId) {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', userId)
+    .maybeSingle();
+  if (error) return { role: '', error };
+  return { role: String(data?.role || ''), error: null };
+}
+
 export async function resetPassword(email) {
   const redirectBase = `${window.location.origin}/#/reset-password`;
   const { data, error } = await supabase.auth.resetPasswordForEmail(email, {

@@ -684,6 +684,8 @@ import {
   OTP_TTL_SECONDS,
   isUsernameAvailable,
   isEmailRegistered,
+  getProfileRole,
+  updateProfileFields,
   isPasskeySupported,
   registerPasskey,
   toPasskeyRegisterMessage,
@@ -798,15 +800,11 @@ const probeAdmin = async () => {
   try {
     const { data: authData } = await supabase.auth.getUser();
     if (!authData?.user?.id) return;
-    // 只查自己那一行（RLS 保证），不做全表扫描
-    const { data: profile, error } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', authData.user.id)
-      .maybeSingle();
+    // 只查自己那一行（RLS 保证），不做全表扫描；查询收口在 auth-api（分层棘轮）
+    const { role } = await getProfileRole(authData.user.id);
     // 异步回来时可能已经 unmount 或被后续探测覆盖，丢弃过期结果
     if (seq !== adminProbeSeq) return;
-    if (!error && String(profile?.role || '').trim() === 'admin') {
+    if (role === 'admin') {
       isAdminPreviewReady.value = true;
     }
   } catch {
@@ -1525,11 +1523,10 @@ const flushPendingAvatar = async () => {
   if (!avatarUrl || !filePath) return;
 
   try {
-    const { error: updateError } = await supabase
-      .from('profiles')
-      .update({ avatar_url: avatarUrl })
-      .eq('id', userId);
-    if (updateError) {
+    const { ok: updated, error: updateError } = await updateProfileFields(userId, {
+      avatar_url: avatarUrl,
+    });
+    if (!updated) {
       logger.error('join', '更新头像 URL 失败:', updateError);
       await deleteAvatarFromSupabase(filePath);
       return;
@@ -1678,10 +1675,10 @@ const finishAfterVerification = async () => {
     }
 
     if (hasBirth) {
-      const { error: birthError } = await supabase
-        .from('profiles')
-        .update({ birth_month: month, birth_day: day })
-        .eq('id', uid);
+      const { error: birthError } = await updateProfileFields(uid, {
+        birth_month: month,
+        birth_day: day,
+      });
       // 生日是可选项，写失败不阻断注册 —— 但必须留痕，否则「用户说填了却没生效」查不出因
       if (birthError) logger.warn('join', '写入生日失败（非致命）:', birthError);
     }
