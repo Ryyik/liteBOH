@@ -974,6 +974,79 @@ const browser = await chromium.launch({ channel: 'chrome', args: CHROME_ARGS });
   await context.close();
 }
 
+/* ══════════════════ 场景 8b：桌面横屏也落成岛（1440×900 / iPad 1024×768）══════════════════
+   用户口径（2026-11-26）：「横屏的可以直接在岛上注册」—— 判据从
+   「横屏 + 矮」改成「横屏 + 够宽」，桌面横屏不许再退回「桌面卡片 + 岛形断裂」。
+   两条视口各验一遍：1440×900 是 Mac 常见窗口、1024×768 是 iPad 横屏。
+   ⚠️ 以前这条是**反向契约**（桌面必须不带岛），所以断言名里写清「已按新口径」。 */
+for (const vp of [
+  { label: 'Mac 1440×900', width: 1440, height: 900 },
+  { label: 'iPad 1024×768', width: 1024, height: 768 },
+]) {
+  const { context, page, pageErrors } = await boot(browser, {
+    viewport: { width: vp.width, height: vp.height },
+  });
+  await page.waitForTimeout(300);
+
+  const d = await page.evaluate(() => {
+    const rect = (sel) => {
+      const el = document.querySelector(sel);
+      if (!el) return null;
+      const b = el.getBoundingClientRect();
+      const cs = getComputedStyle(el);
+      return {
+        x: Math.round(b.x),
+        y: Math.round(b.y),
+        w: Math.round(b.width),
+        h: Math.round(b.height),
+        bottom: Math.round(b.bottom),
+        radius: [cs.borderTopLeftRadius, cs.borderBottomLeftRadius],
+      };
+    };
+    const inner = document.querySelector('.join-inner');
+    return {
+      nav: rect('.unified-nav-surface'),
+      card: rect('.join-card'),
+      primary: rect('.join-actions .join-btn-primary'),
+      viewportW: window.innerWidth,
+      viewportH: window.innerHeight,
+      innerScrollable: inner ? inner.scrollHeight > inner.clientHeight + 1 : null,
+    };
+  });
+
+  check(
+    `桌面横屏（${vp.label}）：导航与注册卡同宽（同一张岛）`,
+    d.nav && d.card && Math.abs(d.card.w - d.nav.w) <= 2,
+    `nav.w=${d.nav?.w} card.w=${d.card?.w}`,
+  );
+  check(
+    `桌面横屏（${vp.label}）：卡片顶边接住导航底边（不露缝）`,
+    d.card.y - d.nav.bottom <= 0,
+    `nav.bottom=${d.nav.bottom} card.y=${d.card.y} gap=${d.card.y - d.nav.bottom}`,
+  );
+  check(
+    `桌面横屏（${vp.label}）：只留下面两角`,
+    d.card.radius[0] === '0px' && parseFloat(d.card.radius[1]) > 0,
+    d.card.radius.join(' / '),
+  );
+  check(
+    `桌面横屏（${vp.label}）：卡片不超出视口、主按钮在首屏`,
+    d.card.x >= 0 &&
+      d.card.x + d.card.w <= d.viewportW + 1 &&
+      d.primary !== null &&
+      d.primary.bottom <= d.viewportH + 1,
+    `card=${d.card.x}+${d.card.w}/${d.viewportW} primary.bottom=${d.primary?.bottom}/${d.viewportH}`,
+  );
+  check(`桌面横屏（${vp.label}）：内容不用滚就能看到主按钮`, d.innerScrollable === false);
+  await page.screenshot({ path: `${OUT}/join-real-desktop-${vp.width}.png` });
+  check(
+    `桌面横屏（${vp.label}）：无 JS 异常`,
+    pageErrors.length === 0,
+    pageErrors.slice(0, 2).join(' | '),
+  );
+  await context.close();
+}
+
 /* ══════════════════ 场景 9：能力不可用（微信/QQ 内置浏览器）══════════════════ */
 {
   const context = await browser.newContext(DESKTOP);

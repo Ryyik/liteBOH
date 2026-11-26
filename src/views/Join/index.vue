@@ -3044,14 +3044,13 @@ watch(currentStep, () => {
    宽度走 --boh-login-island-width（与导航上半岛同一个 token），
    写死 720 或 100% 都会让两半一宽一窄、岛形断裂。
 
-   🔴 **必须带 max-height**（与登录页那条同款）。只写 orientation: landscape
-   时**每一块桌面屏都是 landscape** —— 实测 1280×900 / 1440×960 / iPad 横屏
-   1024×768 全部命中，桌面端因此被强行套上「720 宽白底 + 24/70 大投影」的
-   手机横屏岛外形。而真正的手机横屏 667×375 因为宽度 < 769 反而不命中。
-   判据错位得刚好相反：桌面最厚、小屏最素。
-   620 是「横屏手机」的上界（iPhone 横屏最高 430，iPad 横屏 768 → 已被
-   下面 769 宽度门槛排除），620~768 之间的矮桌面不属于岛形态。 */
-@media (orientation: landscape) and (min-width: 769px) and (max-height: 620px) {
+   判据只有「横屏 + 够宽」，**不按高度分档**（用户口径 2026-11-26：
+   「横屏的可以直接在岛上注册」）。桌面横屏 1440×900 / iPad 1024×768 与手机横屏
+   844×390 都落成同一张岛 —— 导航侧由 `UnifiedNavbar` 的 `isJoinLandscape`
+   给 surface 挂 `has-login-card`（判据同一句，改一处必须改两处）。
+   高度只用于**压缩排版**：下面还有 ≤620 / ≤430 两档，仅收字号与间距，
+   不再决定形态成立与否。 */
+@media (orientation: landscape) and (min-width: 769px) {
   .join-page {
     /* 岛自己贴在导航下方，页面不再叠额外上边距 —— 上边距由 .join-card 的
        margin-top 承担（要正好接住导航上半岛的底边） */

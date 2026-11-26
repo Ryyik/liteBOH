@@ -224,17 +224,6 @@
           >
             <Search :size="16" :stroke-width="2.2" aria-hidden="true" />
           </button>
-          <!-- DEV-TEST：智能概览灵动岛手动触发按钮（仅开发环境渲染，上线前整块删除） -->
-          <button
-            v-if="isDevMode && isLoggedIn"
-            type="button"
-            class="nav-dev-island-btn"
-            title="测试：模拟离线 30 天，用数据库真实内容强制触发智能概览灵动岛"
-            @click.stop="forceShowOverviewIsland({ simulateDays: 30 })"
-          >
-            <Bot :size="13" :stroke-width="2.2" aria-hidden="true" />
-            <span>岛</span>
-          </button>
           <template v-if="isLoggedIn">
             <router-link
               :to="myBlockTarget"
@@ -496,13 +485,12 @@ import { useAuthStore } from '@/stores/auth';
 import { resolveFrameForAuthor } from '@/composables/useAvatarFrame.js';
 import { storeToRefs } from 'pinia';
 import { ensureNotificationStore, getNotificationStoreRef } from '@/stores/notification-loader';
-import { Bot, Search } from 'lucide-vue-next';
+import { Search } from 'lucide-vue-next';
 import HomeCatMascot from '@/components/HomeCatMascot.vue';
 import { themeManager } from '@/utils/theme-manager.js';
 import { isHomeCatTheme } from '@/utils/home-cat-theme.js';
 import { useConfirmDialog } from '@/composables/useConfirmDialog.js';
 import { useVersionCheck } from '@/composables/useVersionCheck.js';
-import { useOverviewIsland } from '@/composables/useOverviewIsland.js';
 import { useGlobalSearch } from '@/composables/useGlobalSearch.js';
 import { useBohIsland } from '@/composables/useBohIsland.js';
 import { useRoutePrefetch, scheduleIdleRoutePrefetch } from '@/composables/useRoutePrefetch.js';
@@ -527,13 +515,8 @@ import {
 
 const authStore = useAuthStore();
 const { isLoggedIn, isInitialized, showLoginModal, isAdmin } = storeToRefs(authStore);
-// 导航栏侧只用 DEV 手动触发按钮；自动触发点已迁到「进入论坛（首屏解锁落定）」——
-// 见 views/Home/index.vue 的 watch([gateSettled, isLoggedIn])。
-const { forceShowOverviewIsland } = useOverviewIsland();
 // BOH AI 岛已迁移为 App 级 BohIsland（plans/038 P3 入口收敛）—— surface 内不再有 AI 岛宿主，
 // showIsland.ai() 由 useIsland 直连新岛，本组件只保留任务岛/通知岛/自定义岛的仲裁。
-// DEV-TEST：仅开发环境显示灵动岛测试按钮（与模板中 DEV-TEST 块一起删除）
-const isDevMode = import.meta.env.DEV;
 const notificationStoreRef = getNotificationStoreRef();
 const { alert, confirm } = useConfirmDialog();
 const { checkForUpdate, applyUpdate, isChecking } = useVersionCheck();
@@ -602,26 +585,12 @@ const normalizeNavStatus = (payload = {}) => {
   const message = String(payload.message || '').trim();
   const icon = String(payload.icon || payload.type || 'success').trim();
   const durationMs = Math.min(Math.max(Number(payload.durationMs) || 4200, 1800), 10000);
-  const previews = Array.isArray(payload.previews)
-    ? payload.previews
-        .filter((p) => p && typeof p === 'object' && String(p.title || '').trim())
-        .slice(0, 3)
-        .map((p) => ({
-          type: p.type === 'news' ? 'news' : 'post',
-          title: String(p.title).trim(),
-          excerpt: String(p.excerpt || '').trim(),
-          time: String(p.time || '').trim(),
-          image: String(p.image || '').trim(),
-        }))
-    : [];
-
   return {
     visible: true,
     kind: payload.kind || '',
     title,
     message,
     icon,
-    previews,
     isLong: Boolean(payload.isLong) || `${title}${message}`.length > 24,
     duration: Math.min(Math.max(Number(payload.motionDuration) || 620, 240), 1200),
     distance: Math.min(Math.max(Number(payload.distance) || 22, 0), 48),
@@ -970,8 +939,6 @@ const handleMyBlockClick = (event) => {
     // 滚动到顶部：首页是文档流滚动（论坛不再是嵌套滚动容器）
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
-  // ⚠️ 这里刻意**不**触发智能概览：2026-09-30 起它的唯一触发点是「进入论坛（首屏解锁落定）」，
-  // 见 views/Home/index.vue。导航栏侧只留 DEV 手动触发按钮（forceShowOverviewIsland）。
 };
 
 // 使用 store 中的状态
@@ -1505,15 +1472,16 @@ const immersiveExpanded = ref(false);
  * 而 mini 的资格判定本来就在 JS 里（DESKTOP_MINI_QUERY，唯一真源）——
  * 在 CSS 里再写一份 media query 就是第二份判定。
  *
- * 🔴 必须带 `max-height` —— 只写 orientation: landscape 时**每一块桌面屏都命中**
- * （1280×900 / 1440×960 / iPad 横屏 1024×768 全是 landscape），导航会收成手机
- * 横屏胶囊而注册页主体还是桌面形态，岛形当场断裂。620 与
- * `views/Join/index.vue` 那段媒体查询的 max-height 是**同一个数**，改一处必须改两处。
- * 真正的手机横屏最高 430，620 足够覆盖且不会误伤矮桌面。
+ * 判据只有「横屏 + 够宽」，**不按高度分档**（用户口径 2026-11-26：
+ * 「横屏的可以直接在岛上注册」）。桌面横屏（1280×900 / 1440×960 / iPad 1024×768）
+ * 与手机横屏（844×390）落在同一张岛上：导航先收成 `--boh-login-island-width` 的浮岛，
+ * 注册卡从它底边展开。
+ * ⚠️ 以前这里带 `max-height: 620px`，理由是「别让桌面被套上手机横屏外形」——
+ * 那条现在被用户口径推翻。高度只在 `views/Join/index.vue` 里用于**压缩排版**
+ * （≤620 / ≤430 两档），**不再决定形态成立与否**：形态与排版分开，才不会出现
+ * 「导航收成岛、卡片还是桌面形态」的一半一半断裂。
  */
-const joinLandscapeQuery = window.matchMedia(
-  '(orientation: landscape) and (min-width: 769px) and (max-height: 620px)',
-);
+const joinLandscapeQuery = window.matchMedia('(orientation: landscape) and (min-width: 769px)');
 /* matchMedia().matches 不是响应式的 —— 手机旋转后 computed 不会重算，
    结果是「横屏转竖屏了，导航还挂在岛形态上」。用 ref 跟一次 change 事件。 */
 const joinLandscapeMatches = ref(joinLandscapeQuery.matches);
