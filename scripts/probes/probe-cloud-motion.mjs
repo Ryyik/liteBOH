@@ -59,7 +59,10 @@ const check = (name, pass, detail = '') => {
   console.log(`${pass ? 'PASS' : 'FAIL'}  ${name}${detail ? '  -- ' + detail : ''}`);
 };
 
-const browser = await chromium.launch();
+const browser = await chromium.launch({
+  channel: 'chrome',
+  args: ['--no-proxy-server', '--proxy-server=direct://', '--proxy-bypass-list=*'],
+});
 const ctx = await browser.newContext({ viewport: { width: 420, height: 900 } });
 const page = await ctx.newPage();
 
@@ -97,21 +100,14 @@ await page.evaluate(() => {
     role: 'user',
   });
 });
-await page.waitForTimeout(2500);
+await page.waitForTimeout(800);
 await page.evaluate(() => {
-  const btn = [...document.querySelectorAll('.settings-shell button')].find((b) =>
-    /Cloud\s*\+?/i.test(b.textContent || ''),
-  );
-  btn?.click();
+  document
+    .querySelector('#app')
+    .__vue_app__.config.globalProperties.$router.push('/user-space/note');
 });
-await page.waitForTimeout(4500);
-await page.evaluate(() => {
-  const item = [...document.querySelectorAll('.cloud-segment-tabs .segment-tab')].find(
-    (b) => b.textContent.trim() === '内容',
-  );
-  item?.click();
-});
-await page.waitForTimeout(4500);
+await page.waitForSelector('.album-tile-grid .gallery-tile', { timeout: 15000 });
+await page.waitForTimeout(800);
 
 // 记录瞬时类名（进场过渡 / 落定回弹都是短时类，必须用 MutationObserver 抓）
 await page.evaluate(() => {
@@ -131,7 +127,7 @@ await page.evaluate(() => {
 const tiles = await page.$$('.gallery-tile');
 check('图库渲染出格子', tiles.length === rows.length, `tiles=${tiles.length} 期望=${rows.length}`);
 
-// ── ① 放大 / 缩小 ──────────────────────────────────────────────
+// ── ① hover 克制 / 按压缩小 ─────────────────────────────────────
 const hoverMedia = await page.evaluate(() => ({
   hover: matchMedia('(hover: hover)').matches,
   fine: matchMedia('(pointer: fine)').matches,
@@ -157,11 +153,11 @@ const hoverScale = await page.evaluate(() => {
   return { a: m.a, d: m.d, shadow: getComputedStyle(t).boxShadow };
 });
 check(
-  'hover 放大（scale > 1）',
-  hoverScale.a > 1.01 && hoverScale.d > 1.01,
+  'hover 不放大（保持相册网格静止）',
+  Math.abs(hoverScale.a - 1) < 0.01 && Math.abs(hoverScale.d - 1) < 0.01,
   `scale=${hoverScale.a.toFixed(3)}`,
 );
-check('hover 有上浮投影', hoverScale.shadow !== 'none', hoverScale.shadow.slice(0, 40));
+check('hover 不增加卡片投影', hoverScale.shadow === 'none', hoverScale.shadow.slice(0, 40));
 
 // 按压缩小：mousedown 后立刻读（:active 生效）
 await page.mouse.down();
@@ -233,12 +229,8 @@ check(
 check('退场结束后弹窗已移除', closed);
 
 // ── ③ 切换：tab 过渡 + 捏合落定 ────────────────────────────────
-await page.evaluate(() => {
-  const item = [...document.querySelectorAll('.cloud-segment-tabs .segment-tab')].find(
-    (b) => b.textContent.trim() === '设置',
-  );
-  item?.click();
-});
+await page.locator('.gallery-more-shell > button').click();
+await page.getByRole('menuitem', { name: '设置' }).click();
 // 进场 320ms：同样在动画窗口内读
 await page.waitForTimeout(120);
 const viewEnter = await page.evaluate(() => ({

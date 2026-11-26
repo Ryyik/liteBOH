@@ -229,6 +229,7 @@ html[data-theme='anniversary-mc'] .cloud-page {
 
 /* Layout - generous spacing */
 .cloud-shell {
+  --gallery-header-gutter: 40px;
   display: block;
   min-height: 100vh;
   padding: 40px 40px calc(118px + env(safe-area-inset-bottom, 0px));
@@ -249,6 +250,7 @@ html[data-theme='anniversary-mc'] .cloud-page {
    横向留白收到 24px —— iPad 图库的网格几乎贴边。 */
 @media (min-width: 1024px) {
   .cloud-shell.is-gallery {
+    --gallery-header-gutter: 24px;
     max-width: none;
     padding-inline: 24px;
   }
@@ -926,7 +928,6 @@ html[data-theme='anniversary-mc'] .cloud-page {
   min-height: 36px;
   padding: 8px 14px;
 }
-
 
 .shared-channel-loading {
   pointer-events: none;
@@ -1717,6 +1718,16 @@ html[data-theme='anniversary-mc'] .cloud-page {
   min-height: 190px;
 }
 
+.album-photo-count {
+  margin: 0;
+  padding: 26px 0 8px;
+  color: var(--apple-text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+  text-align: center;
+}
+
 .album-flow-actions {
   display: flex;
   align-items: center;
@@ -2313,6 +2324,7 @@ html[data-theme='anniversary-mc'] .cloud-page {
   }
 
   .cloud-shell {
+    --gallery-header-gutter: 32px;
     gap: 36px;
     padding: 32px;
   }
@@ -2542,6 +2554,7 @@ html[data-theme='anniversary-mc'] .cloud-page {
   .cloud-shell {
     /* 横向留白单源：相册网格要靠它做「通栏」（负 margin 抵消），两处必须同值 */
     --cloud-gutter: 16px;
+    --gallery-header-gutter: 16px;
     padding: 18px var(--cloud-gutter) calc(112px + env(safe-area-inset-bottom, 0px));
     gap: 20px;
   }
@@ -2842,14 +2855,24 @@ html[data-theme='anniversary-mc'] .cloud-page {
    颜色一律引用本页既有 --apple-* token，不新增裸色值（暗色棘轮）。
    ============================================================ */
 
-/* ---- 顶栏：大标题 + 工具行 ---- */
+/* ---- 顶栏：标题滚动，图标工具条悬浮固定 ---- */
 .gallery-header {
   align-items: center;
+  gap: 20px;
+  padding-bottom: 16px;
+}
+
+.gallery-header.is-search-open .gallery-title-block {
+  visibility: hidden;
+}
+
+.gallery-title-block {
+  min-width: 0;
 }
 
 .gallery-title-block h2 {
   margin: 0;
-  font-size: 28px;
+  font-size: 26px;
   line-height: 1.15;
   font-weight: 700;
   letter-spacing: -0.025em;
@@ -2858,19 +2881,295 @@ html[data-theme='anniversary-mc'] .cloud-page {
 
 .gallery-subtitle {
   margin: 4px 0 0;
-  font-size: 13px;
-  color: var(--apple-text-secondary);
+  overflow: hidden;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--apple-text-tertiary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.gallery-header-actions {
+.gallery-header-actions,
+.gallery-select-actions {
+  position: fixed;
+  top: calc(var(--cloud-nav-offset) + 20px);
+  right: var(--gallery-header-gutter);
+  z-index: 40;
   display: flex;
   align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+  flex: none;
+  flex-wrap: nowrap;
 }
 
-.gallery-search-field {
-  width: 168px;
+.cloud-page.embedded .gallery-header-actions,
+.cloud-page.embedded .gallery-select-actions {
+  position: static;
+}
+
+.gallery-header-actions:has(.gallery-search-expander) {
+  width: min(360px, calc(100vw - 2 * var(--gallery-header-gutter)));
+}
+
+.gallery-tool-btn {
+  width: 40px;
+  height: 40px;
+  min-height: 40px;
+  padding: 0;
+  flex: 0 0 40px;
+  border-radius: 50%;
+}
+
+.gallery-tool-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+.gallery-new-entry {
+  font-size: 0;
+}
+
+.gallery-select-actions .refresh-btn,
+.gallery-select-actions .danger-btn {
+  height: 40px;
+  padding-inline: 16px;
+  border-radius: var(--radius-full);
+  white-space: nowrap;
+}
+
+.gallery-select-done {
+  font-weight: 600;
+}
+
+.gallery-search-expander {
+  width: 100%;
+  height: 40px;
+  min-height: 40px;
+  padding: 0 6px 0 14px;
+  background: var(--liquid-bg-strong, rgba(255, 255, 255, 0.84));
+  border: 1px solid var(--liquid-border, rgba(255, 255, 255, 0.65));
+  box-shadow:
+    var(--liquid-highlight-subtle, inset 0 1px 0 rgba(255, 255, 255, 0.55)),
+    var(--liquid-shadow-sm, 0 8px 24px rgba(15, 23, 42, 0.06));
+  backdrop-filter: var(--glass-filter-sm, blur(18px));
+  -webkit-backdrop-filter: var(--glass-filter-sm, blur(18px));
+}
+
+.gallery-search-expander:focus-within {
+  border-color: var(--liquid-border-strong, rgba(255, 255, 255, 0.82));
+  background: var(--liquid-bg, rgba(255, 255, 255, 0.72));
+}
+
+.gallery-search-expander input {
+  flex: 1;
+}
+
+.gallery-search-close {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--liquid-text-secondary, #6e6e73);
+  cursor: pointer;
+}
+
+.gallery-search-close:hover {
+  background: color-mix(in srgb, var(--liquid-text-primary, #1d1d1f) 6%, transparent);
+  color: var(--liquid-text-primary, #1d1d1f);
+}
+
+html[data-theme='light'] .cloud-page:has(.gallery-header) {
+  background: #ffffff;
+}
+
+html[data-theme='light'] .cloud-page:has(.gallery-header)::before {
+  background: none;
+}
+
+.cloud-page:has(.gallery-header)
+  :is(.gallery-header-actions, .gallery-select-actions)
+  :is(.refresh-btn, .primary-btn) {
+  background: var(--liquid-bg-strong, rgba(255, 255, 255, 0.84));
+  border: 1px solid var(--liquid-border, rgba(255, 255, 255, 0.65));
+  color: var(--liquid-text-primary, #1d1d1f);
+  box-shadow:
+    var(--liquid-highlight-subtle, inset 0 1px 0 rgba(255, 255, 255, 0.55)),
+    var(--liquid-shadow-sm, 0 8px 24px rgba(15, 23, 42, 0.06));
+  backdrop-filter: var(--glass-filter-sm, blur(18px));
+  -webkit-backdrop-filter: var(--glass-filter-sm, blur(18px));
+}
+
+.cloud-page:has(.gallery-header)
+  :is(.gallery-header-actions, .gallery-select-actions)
+  :is(.refresh-btn, .primary-btn):disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.cloud-page:has(.gallery-header)
+  :is(.gallery-header-actions, .gallery-select-actions)
+  .toolbar-pill-badge {
+  background: var(--liquid-text-primary, #1d1d1f);
+  color: var(--liquid-bg-strong, rgba(255, 255, 255, 0.84));
+}
+
+@media (hover: hover) {
+  .cloud-page:has(.gallery-header)
+    :is(.gallery-header-actions, .gallery-select-actions)
+    :is(.refresh-btn, .primary-btn):hover:not(:disabled) {
+    background: var(--liquid-bg, rgba(255, 255, 255, 0.72));
+    border-color: var(--liquid-border-strong, rgba(255, 255, 255, 0.82));
+    box-shadow:
+      var(--liquid-highlight, inset 0 1px 0 rgba(255, 255, 255, 0.86)),
+      var(--liquid-shadow, 0 20px 60px rgba(15, 23, 42, 0.07));
+    transform: translateY(-1px);
+  }
+}
+
+.cloud-page:has(.gallery-header)
+  :is(.gallery-header-actions, .gallery-select-actions)
+  :is(.refresh-btn, .primary-btn):active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.cloud-page:has(.gallery-header)
+  :is(.gallery-header-actions, .gallery-select-actions)
+  .filter-trigger.is-filtering,
+.cloud-page:has(.gallery-header)
+  :is(.gallery-header-actions, .gallery-select-actions)
+  .album-select-trigger.is-selecting {
+  border-color: var(--liquid-border-strong, rgba(255, 255, 255, 0.82));
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--liquid-text-primary, #1d1d1f) 16%, transparent),
+    var(--liquid-highlight-subtle, inset 0 1px 0 rgba(255, 255, 255, 0.55)),
+    var(--liquid-shadow-sm, 0 8px 24px rgba(15, 23, 42, 0.06));
+}
+
+.gallery-tool-btn.gallery-camera-entry {
+  padding-inline: 0;
+}
+
+.gallery-more-shell {
+  position: relative;
+}
+
+.gallery-more-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 61;
+  width: 208px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--liquid-bg-strong, rgba(255, 255, 255, 0.84));
+  border: 1px solid var(--liquid-border, rgba(255, 255, 255, 0.65));
+  border-radius: var(--radius-lg);
+  box-shadow:
+    var(--liquid-highlight-subtle, inset 0 1px 0 rgba(255, 255, 255, 0.55)),
+    var(--liquid-shadow-overlay, 0 24px 80px rgba(15, 23, 42, 0.14));
+  backdrop-filter: var(--glass-filter-sm, blur(18px));
+  -webkit-backdrop-filter: var(--glass-filter-sm, blur(18px));
+}
+
+.gallery-more-menu > button {
+  width: 100%;
+  min-height: 40px;
+  padding: 0 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--liquid-text-primary, #1d1d1f);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.gallery-more-menu > button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--liquid-text-primary, #1d1d1f) 6%, transparent);
+}
+
+.gallery-more-menu > button.is-filtering {
+  color: var(--apple-blue);
+}
+
+.gallery-more-menu > button .toolbar-pill-badge,
+.gallery-menu-beta {
+  margin-left: auto;
+}
+
+.gallery-menu-beta {
+  padding: 2px 5px;
+  border-radius: var(--radius-full);
+  background: var(--liquid-text-primary, #1d1d1f);
+  color: var(--liquid-bg-strong, rgba(255, 255, 255, 0.84));
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 14px;
+}
+
+.gallery-more-menu > button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.gallery-density-control {
+  min-height: 40px;
+  padding: 0 6px 0 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--liquid-text-secondary, #6e6e73);
+  font-size: 12px;
+}
+
+.gallery-density-control > span {
+  margin-right: auto;
+}
+
+.gallery-density-control strong {
+  min-width: 34px;
+  color: var(--liquid-text-primary, #1d1d1f);
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.gallery-density-control button {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--liquid-border, rgba(255, 255, 255, 0.65));
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--liquid-text-primary, #1d1d1f) 5%, transparent);
+  color: var(--liquid-text-primary, #1d1d1f);
+  cursor: pointer;
+}
+
+.gallery-density-control button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.gallery-menu-separator {
+  height: 1px;
+  margin: 6px 4px;
+  background: color-mix(in srgb, var(--liquid-text-primary, #1d1d1f) 8%, transparent);
 }
 
 .filter-trigger {
@@ -3015,7 +3314,7 @@ html[data-theme='anniversary-mc'] .cloud-page {
   grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
   gap: 2px;
   columns: auto;
-  column-gap: normal;
+  column-gap: 2px;
 }
 
 /* 真机相册式格子：**直角 + 正方形 + cover 裁切**（2026-10-01）。
@@ -3051,24 +3350,8 @@ html[data-theme='anniversary-mc'] .cloud-page {
   transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* hover 只在「真有指针」的设备上生效。
-   触屏没有 hover，直接写 :hover 会让点过的格子一直保持放大态（实测粘滞）。 */
-@media (hover: hover) and (pointer: fine) {
-  .gallery-tile:hover {
-    /* 抬到相邻格之上：1.035 在 2px 缝上会压到邻居约 2px，不抬层会被后画的格子盖住半边 */
-    z-index: 1;
-    transform: scale(1.035);
-    box-shadow: 0 10px 26px rgba(15, 23, 42, 0.18);
-  }
-
-  .gallery-tile:hover .tile-cover {
-    transform: scale(1.06);
-  }
-}
-
-/* 按压：缩回一档（比 hover 更快，手感是「按下去」而不是「慢慢变小」） */
 .gallery-tile:active {
-  transform: scale(0.965);
+  transform: scale(0.98);
   transition-duration: 110ms;
 }
 
@@ -3165,29 +3448,44 @@ html[data-theme='anniversary-mc'] .cloud-page {
   right: 22px;
   bottom: calc(96px + env(safe-area-inset-bottom, 0px));
   z-index: 9100;
-  width: 52px;
-  height: 52px;
-  border: none;
+  width: 56px;
+  height: 56px;
+  border: 1px solid var(--liquid-border, rgba(255, 255, 255, 0.65));
   border-radius: var(--radius-full);
-  background: var(--apple-blue);
-  color: var(--apple-bg);
-  font-size: 24px;
+  background: var(--liquid-bg-strong, rgba(255, 255, 255, 0.84));
+  color: var(--liquid-text-primary, #1d1d1f);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 34px;
+  font-weight: 500;
   line-height: 1;
   font-family: inherit;
   cursor: pointer;
-  box-shadow: var(--shadow-lg);
+  box-shadow:
+    var(--liquid-shadow-sm, 0 8px 24px rgba(15, 23, 42, 0.06)),
+    0 14px 28px rgba(0, 0, 0, 0.12);
+  backdrop-filter: var(--glass-filter-sm, blur(18px));
+  -webkit-backdrop-filter: var(--glass-filter-sm, blur(18px));
   transition:
-    background 0.2s ease,
+    background-color 0.2s ease,
+    box-shadow 0.2s ease,
     transform 0.2s ease;
 }
 
 .gallery-fab:hover {
-  background: var(--apple-blue-hover);
+  background: var(--liquid-bg, rgba(255, 255, 255, 0.72));
+  box-shadow:
+    var(--liquid-shadow, 0 20px 60px rgba(15, 23, 42, 0.07)),
+    0 14px 28px rgba(0, 0, 0, 0.12);
   transform: scale(1.04);
 }
 
 .gallery-fab:active {
-  transform: scale(0.96);
+  box-shadow:
+    var(--liquid-shadow-sm, 0 8px 24px rgba(15, 23, 42, 0.06)),
+    0 10px 20px rgba(0, 0, 0, 0.18);
+  transform: scale(0.94);
 }
 
 /* ── 相册多选 + 回收站（plans/039）───────────────────────────────────────────
@@ -3251,44 +3549,6 @@ html[data-theme='anniversary-mc'] .cloud-page {
 .trash-check.checked {
   background: var(--apple-blue);
   border-color: var(--apple-blue);
-}
-
-.album-select-bar {
-  position: fixed;
-  left: 50%;
-  transform: translateX(-50%);
-  /* ⚠️ 必须显式给宽度。fixed + left:50% + width:auto 的 shrink-to-fit 可用宽度
-     只有**视口的一半**（390 宽时剩 195px），而「已选 N 张 / 取消全选 / 取消 / 删除」
-     需要约 270px ⇒ flex 把按钮压到 min-content，中文就逐字竖排了。
-     max-content 让条子按内容撑开；max-width 兜住窄屏，超出时宁可收缩到边上。 */
-  width: max-content;
-  max-width: calc(100vw - 24px);
-  bottom: calc(96px + env(safe-area-inset-bottom, 0px));
-  z-index: 9100;
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 9px 14px;
-  border-radius: var(--radius-full);
-  background: var(--apple-bg);
-  border: 1px solid var(--apple-border);
-  box-shadow: var(--shadow-lg);
-}
-
-/* 条内任何一项都不许折行：竖排比溢出更难读 */
-.album-select-bar > * {
-  white-space: nowrap;
-}
-
-.album-select-count {
-  font-size: 13px;
-  color: var(--apple-text-secondary);
-  white-space: nowrap;
-}
-
-.album-select-delete {
-  min-height: 34px;
-  padding: 0 16px;
 }
 
 /* ── 回收站页面（?view=trash）────────────────────────────────────────────────
@@ -3367,7 +3627,6 @@ html[data-theme='anniversary-mc'] .cloud-page {
   font-size: 13px;
   color: var(--apple-text-secondary);
 }
-
 
 .trash-grid {
   display: grid;
@@ -3448,65 +3707,65 @@ html[data-theme='anniversary-mc'] .cloud-page {
 /* 竖屏/窄屏：3 列、2px 间距的相册网格密度 */
 @media (max-width: 640px) {
   .gallery-header {
-    flex-direction: column;
-    align-items: stretch;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
   }
 
-  /* ---- 工具行折成两行（2026-10-01）----
-     一行塞不下「搜索 + 筛选 + 刷新 + 新建」四个元素，原写法用 `flex-wrap: nowrap` 硬压，
-     在 390×844 实测出三条连锁后果：
-       ① 搜索框被压到 **30px**（内部 input 宽 0）→ placeholder 与已输入内容全不可见，搜索名存实亡；
-       ② 「筛选 / 刷新」两个 .refresh-btn 没有 white-space，被压到 45px 后文字折成三行
-          —— 就是报障截图里的竖排「筛/选」「刷/新」；
-       ③ 「新建」继承本档（≤640）里的 `.primary-btn { width: 100% }`（见本文件 :2895，那条 100%
-          本是给 `.toolbar-actions` 两列网格里的「分享/保存」用的），又自带 `flex-shrink: 0`，
-          于是宽 = 容器宽且不肯收缩，实测 right=518（视口 390）**超出 128px 被祖先裁掉**
-          —— 报障截图里右半边不见了的蓝按钮即此。
-     改法：搜索框独占第一行；三个按钮在第二行平分。全部 white-space: nowrap 兜底。 */
-  .gallery-header-actions {
-    flex-wrap: wrap;
-    row-gap: 8px;
-  }
-
-  .gallery-search-field {
-    flex: 1 0 100%;
-    width: auto;
+  .gallery-title-block {
+    flex: 1;
     min-width: 0;
+    max-width: calc(100% - 100px);
   }
 
-  .gallery-header-actions > .filter-popover-shell,
-  .gallery-header-actions > .refresh-btn,
-  .gallery-header-actions > .primary-btn {
-    flex: 1 1 0;
-    min-width: 0;
-    /* 抵消本档（≤640）`.primary-btn { width: 100% }`；那条 100% 是给「分享/保存」这类
-       撑满两列网格的按钮用的，工具行里必须还原成按内容排 */
+  .gallery-header.is-selecting .gallery-title-block {
+    max-width: calc(100% - 232px);
+  }
+
+  .gallery-header.is-selecting .gallery-subtitle,
+  .gallery-header.is-search-open .gallery-title-block {
+    display: none;
+  }
+
+  .gallery-header-actions,
+  .gallery-select-actions {
     width: auto;
-    padding-inline: 12px;
-    white-space: nowrap;
+    gap: 4px;
   }
 
-  /* .filter-popover-shell 只是定位壳，真正可见的是里面的 .filter-trigger，
-     不撑满时按钮会贴在壳左边、与相邻按钮的间距看起来忽大忽小 */
-  .gallery-header-actions > .filter-popover-shell > .filter-trigger {
+  .gallery-tool-btn {
+    width: 44px;
+    height: 44px;
+    min-height: 44px;
+    flex-basis: 44px;
+  }
+
+  .gallery-search-expander {
     width: 100%;
-    white-space: nowrap;
+    height: 44px;
+    min-height: 44px;
+  }
+
+  .gallery-select-actions .refresh-btn,
+  .gallery-select-actions .danger-btn {
+    height: 44px;
   }
 
   .gallery-title-block h2 {
-    font-size: 26px;
+    font-size: 24px;
   }
 
-  .storage-strip {
-    flex-wrap: wrap;
-  }
-
-  .filter-popover {
+  .filter-popover,
+  .gallery-more-menu {
     position: fixed;
     top: auto;
     left: 16px;
     right: 16px;
     width: auto;
+  }
+
+  .gallery-more-menu {
+    padding: 10px;
   }
 
   /* ---- iOS 图库式密铺：固定 5 列 · 通栏 · 1px 白缝（2026-10-02）----

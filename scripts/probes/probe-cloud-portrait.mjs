@@ -67,43 +67,23 @@ const injectAuth = async (page) => {
 
 /**
  * 进入 Cloud+ 图库（内容分页）。
- * ⚠️ 不能直接 goto(`/user-space/note`)：路由守卫在注入登录之前就把它拦回首页了。
- * 必须走真实入口：用户空间「设置」→ 点 Cloud+ 那行 → 落 view=settings → 点底栏「内容」。
- * 这同时是一条真实路径的冒烟（入口一旦坏掉，本探针会以「进不去」的形式变红）。
+ * 先落到可访问页注入 pinia 登录，再用真实 router 进图库；不能直接 goto，
+ * 因为路由守卫会在注入登录之前把深链拦回首页。
  */
 const openCloudGallery = async (page) => {
   await page.goto(`${BASE}/#/user-space?tab=settings`, { waitUntil: 'domcontentloaded' });
   await injectAuth(page);
-  await page.waitForTimeout(3000);
-
-  const entered = await page.evaluate(() => {
-    const btn = [...document.querySelectorAll('.settings-shell button')].find((b) =>
-      /Cloud\s*\+?/i.test(b.textContent || ''),
-    );
-    if (!btn) return false;
-    btn.click();
-    return true;
+  await page.waitForTimeout(800);
+  await page.evaluate(() => {
+    document
+      .querySelector('#app')
+      .__vue_app__.config.globalProperties.$router.push('/user-space/note');
   });
-  if (!entered) return { ok: false, why: '设置页里没找到 Cloud+ 入口' };
-
-  await page.waitForTimeout(5000);
-  const switched = await page.evaluate(() => {
-    /* 2026-10-22：视图切换从底部胶囊（.cloud-bottom-nav-item）上移到页面内 SegmentTabs。
-       选择器必须带 .cloud-segment-tabs 作用域 —— .segment-tab 是全站共享组件的类名，
-       UserSpace / Newsroom 页面里也有，裸选择器会点错。 */
-    const item = [...document.querySelectorAll('.cloud-segment-tabs .segment-tab')].find((b) =>
-      /内容/.test(b.textContent || ''),
-    );
-    if (!item) return false;
-    item.click();
-    return true;
-  });
-  if (!switched) return { ok: false, why: 'Cloud+ 顶部没有「内容」分段' };
 
   try {
-    await page.waitForSelector('#cloud-search', { timeout: 15000 });
+    await page.waitForSelector('.gallery-header-actions', { timeout: 15000 });
   } catch {
-    return { ok: false, why: '点了「内容」但图库工具行没渲染（#cloud-search 缺席）' };
+    return { ok: false, why: '进入图库后工具条没渲染' };
   }
   await page.waitForTimeout(800);
   return { ok: true };
@@ -119,19 +99,16 @@ const readHeader = () =>
     return { x: Math.round(r.x), w: Math.round(r.width), h: Math.round(r.height), right: Math.round(r.right) };
   };
   const actions = q('.gallery-header-actions');
-  const input = q('#cloud-search');
   return {
     viewportW: window.innerWidth,
     overflowX: document.documentElement.scrollWidth > window.innerWidth,
     actionsWrap: actions ? getComputedStyle(actions).flexWrap : null,
+    actionsPosition: actions ? getComputedStyle(actions).position : null,
     actions: box('.gallery-header-actions'),
-    searchField: box('.gallery-search-field'),
-    searchInputW: input ? Math.round(input.getBoundingClientRect().width) : 0,
-    filterBtn: box('.filter-trigger'),
-    refreshBtn: box('.refresh-btn:not(.filter-trigger)'),
-    primaryBtn: box('.gallery-header-actions .primary-btn'),
+    selectBtn: box('.album-select-trigger'),
+    moreBtn: box('.gallery-more-shell > button'),
     headerPosition: (() => {
-      const h = q('.user-center-page-header');
+      const h = q('.gallery-header');
       return h ? getComputedStyle(h).position : null;
     })(),
     bottomNavFilter: (() => {
@@ -140,6 +117,18 @@ const readHeader = () =>
       const n = q('.bottom-nav-glass');
       return n ? getComputedStyle(n).backdropFilter || getComputedStyle(n).webkitBackdropFilter : null;
     })(),
+  };
+})()`;
+
+const readSearch = () =>
+  `(() => {
+  const field = document.querySelector('.gallery-search-expander');
+  const input = document.querySelector('.gallery-search-expander input');
+  if (!field || !input) return { searchField: null, searchInputW: 0 };
+  const r = field.getBoundingClientRect();
+  return {
+    searchField: { x: Math.round(r.x), w: Math.round(r.width), h: Math.round(r.height), right: Math.round(r.right) },
+    searchInputW: Math.round(input.getBoundingClientRect().width),
   };
 })()`;
 
@@ -163,46 +152,54 @@ try {
       continue;
     }
 
-    const r = await page.evaluate(readHeader());
+    await page.locator('.gallery-more-shell > button').click();
+    await page.getByRole('menuitem', { name: '搜索' }).click();
+    await page.waitForSelector('.gallery-search-expander input');
+    const search = await page.evaluate(readSearch());
+    await page.getByRole('button', { name: '关闭搜索' }).click();
+    const r = { ...(await page.evaluate(readHeader())), ...search };
     const p = (s) => `[${vp.name}] ${s}`;
-    const detail = `搜索框=${r.searchField?.w}px(input=${r.searchInputW}px) 筛选h=${r.filterBtn?.h} 刷新h=${r.refreshBtn?.h} 新建right=${r.primaryBtn?.right}/${r.viewportW} 工具行h=${r.actions?.h} wrap=${r.actionsWrap}`;
+    const detail = `搜索框=${r.searchField?.w}px(input=${r.searchInputW}px) 选择h=${r.selectBtn?.h} 更多h=${r.moreBtn?.h} 工具行h=${r.actions?.h} wrap=${r.actionsWrap}`;
 
-    // A 工具行必须是换行容器（折两行），不是 nowrap 硬压
+    // A 图标工具条保持单行，搜索展开时由输入框独占整行
     check(
-      p('A 工具行允许换行（flex-wrap: wrap）'),
-      r.actionsWrap === 'wrap',
+      p('A 图标工具条保持单行（flex-wrap: nowrap）'),
+      r.actionsWrap === 'nowrap',
       `flex-wrap=${r.actionsWrap}`,
     );
 
-    // B 搜索框独占第一行且真能看能打：宽 ≥ 150 且内部 input 宽 ≥ 80
+    // B 展开搜索框必须完整可用：窄屏宽 ≥ 150 且内部 input ≥ 80
     check(
-      p('B 搜索框完整可用（宽 ≥ 150，内部 input ≥ 80）'),
+      p('B 展开搜索框完整可用（宽 ≥ 150，内部 input ≥ 80）'),
       (r.searchField?.w ?? 0) >= 150 && r.searchInputW >= 80,
-      `field=${r.searchField?.w}px input=${r.searchInputW}px —— 报障原状是 30px/0px，placeholder 与输入全不可见`,
+      `field=${r.searchField?.w}px input=${r.searchInputW}px`,
     );
 
-    // C 「筛选 / 刷新」单行（折行即竖排两字一行）
+    // C 图标按钮不得被压成多行高块
     check(
-      p('C 「筛选」「刷新」文字单行（未折字）'),
-      (r.filterBtn?.h ?? 0) < 60 && (r.refreshBtn?.h ?? 0) < 60,
-      `筛选h=${r.filterBtn?.h} 刷新h=${r.refreshBtn?.h}（折行时约 69）`,
+      p('C 工具按钮保持单行几何（高度 < 60）'),
+      (r.selectBtn?.h ?? 0) < 60 && (r.moreBtn?.h ?? 0) < 60,
+      `选择h=${r.selectBtn?.h} 更多h=${r.moreBtn?.h}`,
     );
 
-    // D 「＋新建」不得越出视口（报障原状：right=518 > 390，右半边被裁）
+    // D 更多与选择两颗按钮不得越出视口
     check(
-      p('D 「＋新建」不越出视口右缘'),
-      (r.primaryBtn?.right ?? 1e9) <= r.viewportW && (r.primaryBtn?.x ?? -1) >= 0,
-      `right=${r.primaryBtn?.right} 视口=${r.viewportW}`,
+      p('D 更多与选择按钮不越出视口右缘'),
+      (r.selectBtn?.right ?? 1e9) <= r.viewportW &&
+        (r.moreBtn?.right ?? 1e9) <= r.viewportW &&
+        (r.selectBtn?.x ?? -1) >= 0 &&
+        (r.moreBtn?.x ?? -1) >= 0,
+      `选择right=${r.selectBtn?.right} 更多right=${r.moreBtn?.right} 视口=${r.viewportW}`,
     );
 
     // E 页面不得出现横向滚动
     check(p('E 无横向滚动'), r.overflowX === false, `overflowX=${r.overflowX}`);
 
-    // F 页头不再吸顶（2026-10-01 用户报障「这个栏不要固定在屏幕上」）
+    // F 只固定按钮层：标题和日期正常滚动，下滑后按钮仍可点
     check(
-      p('F 页头不吸顶（position 非 sticky/fixed）'),
-      r.headerPosition !== 'sticky' && r.headerPosition !== 'fixed',
-      `position=${r.headerPosition}`,
+      p('F 图库按钮层保持固定（position: fixed）'),
+      r.actionsPosition === 'fixed',
+      `position=${r.actionsPosition}`,
     );
 
     // G 底栏仍是液态玻璃（2026-10-22 起这是**全站底栏**，Cloud+ 只是它的宿主页之一）
@@ -221,12 +218,8 @@ try {
     //      · 背景是半透明白（若变回 rgb(245,245,247) 说明又被某条 `.sidebar-card` 覆盖了
     //        —— 那正是改版前踩到的坑：blur 生效但底色仍被压）
     //      · 卡片与存储条**圆角一致**（都来自 --liquid-radius-lg；被 scoped 的 --radius-lg 压回去就红）
-    await page.evaluate(() => {
-      const item = [...document.querySelectorAll('.cloud-segment-tabs .segment-tab')].find(
-        (b) => b.textContent.trim() === '设置',
-      );
-      item?.click();
-    });
+    await page.locator('.gallery-more-shell > button').click();
+    await page.getByRole('menuitem', { name: '设置' }).click();
     await page.waitForTimeout(2500);
     const glass = await page.evaluate(() => {
       const card = document.querySelector('.cloud-settings-page .sidebar-card');

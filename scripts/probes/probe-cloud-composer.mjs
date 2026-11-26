@@ -106,34 +106,20 @@ const injectAuth = async (page) => {
 const openCloudGallery = async (page) => {
   await page.goto(`${BASE}/#/user-space?tab=settings`, { waitUntil: 'domcontentloaded' });
   await injectAuth(page);
-  await page.waitForTimeout(3000);
-  const entered = await page.evaluate(() => {
-    const btn = [...document.querySelectorAll('.settings-shell button')].find((b) =>
-      /Cloud\s*\+?/i.test(b.textContent || ''),
-    );
-    if (!btn) return false;
-    btn.click();
-    return true;
+  await page.waitForTimeout(800);
+  await page.evaluate(() => {
+    document
+      .querySelector('#app')
+      .__vue_app__.config.globalProperties.$router.push('/user-space/note');
   });
-  if (!entered) return { ok: false, why: '设置页里没找到 Cloud+ 入口' };
-  await page.waitForTimeout(5000);
-  const switched = await page.evaluate(() => {
-    const item = [...document.querySelectorAll('.cloud-segment-tabs .segment-tab')].find((b) =>
-      /内容/.test(b.textContent || ''),
-    );
-    if (!item) return false;
-    item.click();
-    return true;
-  });
-  if (!switched) return { ok: false, why: 'Cloud+ 底栏没有「内容」分页' };
-  await page.waitForSelector('#cloud-search', { timeout: 15000 });
+  await page.waitForSelector('.gallery-header-actions', { timeout: 15000 });
   await page.waitForTimeout(600);
   return { ok: true };
 };
 
 const openComposer = async (page) => {
   const opened = await page.evaluate(() => {
-    const btn = document.querySelector('.gallery-header-actions .primary-btn');
+    const btn = document.querySelector('.gallery-fab');
     if (!btn) return false;
     btn.click();
     return true;

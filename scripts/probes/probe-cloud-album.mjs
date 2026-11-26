@@ -119,21 +119,14 @@ for (const vp of [
       role: 'user',
     });
   });
-  await page.waitForTimeout(2500);
+  await page.waitForTimeout(800);
   await page.evaluate(() => {
-    const btn = [...document.querySelectorAll('.settings-shell button')].find((b) =>
-      /Cloud\s*\+?/i.test(b.textContent || ''),
-    );
-    btn?.click();
+    document
+      .querySelector('#app')
+      .__vue_app__.config.globalProperties.$router.push('/user-space/note');
   });
-  await page.waitForTimeout(4500);
-  await page.evaluate(() => {
-    const item = [...document.querySelectorAll('.cloud-segment-tabs .segment-tab')].find(
-      (b) => b.textContent.trim() === '内容',
-    );
-    item?.click();
-  });
-  await page.waitForTimeout(4500);
+  await page.waitForSelector('.album-tile-grid .gallery-tile', { timeout: 15000 });
+  await page.waitForTimeout(800);
 
   const read = () =>
     page.evaluate(() => {

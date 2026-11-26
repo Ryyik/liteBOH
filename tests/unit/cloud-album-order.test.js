@@ -155,12 +155,10 @@ describe('Cloud+ 动效接线（2026-10-03，防「静默失效」）', () => {
   const css = () => read('src/views/user-center/Cloud+/style.scoped.css');
   const view = () => read('src/views/user-center/Cloud+/CloudPlusMain.vue');
 
-  it('图库格子：hover 放大 / 按压缩小', () => {
+  it('图库格子：hover 保持静止 / 按压缩小', () => {
     const sheet = css();
-    // hover 必须限定在真有指针的设备上：触屏没有 hover，点过会一直保持放大态
-    expect(sheet).toMatch(/@media \(hover: hover\) and \(pointer: fine\)/);
-    expect(sheet).toMatch(/\.gallery-tile:hover\s*\{[\s\S]{0,160}transform: scale\(1\.0/);
-    expect(sheet).toMatch(/\.gallery-tile:active\s*\{[\s\S]{0,120}transform: scale\(0\.9/);
+    expect(sheet).not.toMatch(/\.gallery-tile:hover\s*\{/);
+    expect(sheet).toMatch(/\.gallery-tile:active\s*\{[\s\S]{0,120}transform: scale\(0\.98\)/);
   });
 
   it('详情：从点中的格子放大展开、关闭缩回', () => {

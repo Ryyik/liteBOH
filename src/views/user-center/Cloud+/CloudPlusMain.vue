@@ -12,7 +12,7 @@
          页头容器是 `grid-template-columns: 52px 1fr 52px`、标题固定在第二列，
          所以少掉返回那一格**不会**让标题偏移。 -->
     <UserCenterPageHeader
-      v-if="!isDesktopEmbed"
+      v-if="!isDesktopEmbed && cloudTab !== 'content'"
       title="BOH Cloud+"
       max-width="1200px"
       :show-back="false"
@@ -25,12 +25,8 @@
          .cloud-share-page），限的是卡片宽度，不是标题左缘。 -->
     <div class="cloud-shell is-gallery">
       <main class="cloud-main" :class="{ 'is-view-entering': isViewEntering }">
-        <!-- 视图切换（2026-10-22 从底部胶囊上移到这里）：Cloud+ 成为全站底栏第五席后，
-             底部那套位置要让给全局底栏（UserSpaceBottomNav），否则同屏两套底栏。
-             内容/分享/设置本来就是**同一页面的三个视图**（靠 ?view= 切），不是跨模块导航
-             ⇒ 归位成页面内 SegmentTabs，与「我」页三段、Newsroom 同一套组件。
-             探针按 `.cloud-segment-tabs .segment-tab` 定位（`.segment-tab` 全站多处，必须带作用域）。 -->
         <SegmentTabs
+          v-if="cloudTab !== 'content'"
           class="cloud-segment-tabs"
           :sections="cloudTabSections"
           :model-value="cloudTab"
@@ -38,121 +34,227 @@
           @update:model-value="switchCloudTab"
         />
 
-        <header v-if="cloudTab === 'content'" class="cloud-header gallery-header">
+        <header
+          v-if="cloudTab === 'content'"
+          class="cloud-header gallery-header"
+          :class="{ 'is-selecting': isSelectMode, 'is-search-open': isSearchOpen }"
+        >
           <div class="gallery-title-block">
-            <h2>图库</h2>
+            <h2>{{ isSelectMode ? '选择照片' : '图库' }}</h2>
             <p class="gallery-subtitle">
-              私密空间 · 图片 {{ cloudAccounting.usedImages }} / {{ currentCloudImageLimit }}
+              {{
+                isSelectMode ? `已选 ${selectedTileCount} 张` : galleryDateRange || '你的私密照片'
+              }}
             </p>
           </div>
-          <div class="gallery-header-actions">
-            <label class="search-field gallery-search-field" for="cloud-search">
+
+          <div v-if="isSelectMode" class="gallery-select-actions">
+            <button type="button" class="refresh-btn" @click="toggleSelectAllVisibleImages">
+              {{ isAllVisibleImagesSelected ? '取消全选' : '全选' }}
+            </button>
+            <button
+              type="button"
+              class="danger-btn gallery-select-delete"
+              :disabled="selectedTileCount === 0 || isDeletingSelected"
+              @click="deleteSelectedImages"
+            >
+              {{ isDeletingSelected ? '删除中…' : '删除' }}
+            </button>
+            <button type="button" class="refresh-btn gallery-select-done" @click="exitSelectMode">
+              完成
+            </button>
+          </div>
+
+          <div v-else class="gallery-header-actions">
+            <div v-if="isSearchOpen" class="search-field gallery-search-expander">
               <Search class="search-icon" :size="16" :stroke-width="1.8" aria-hidden="true" />
               <input
-                id="cloud-search"
+                ref="searchInputRef"
                 v-model.trim="searchQuery"
                 type="search"
-                placeholder="搜索"
+                placeholder="搜索照片"
+                aria-label="搜索照片"
+                @keydown.esc="closeGallerySearch"
               />
-            </label>
-
-            <div class="filter-popover-shell">
               <button
                 type="button"
-                class="refresh-btn filter-trigger"
-                :class="{ 'is-filtering': hasGalleryFilters }"
-                @click="toggleFilterPanel"
+                class="gallery-search-close"
+                aria-label="关闭搜索"
+                @click="closeGallerySearch"
               >
-                筛选
-                <span v-if="activeFilterCount" class="toolbar-pill-badge">{{
-                  activeFilterCount
-                }}</span>
+                <X :size="15" :stroke-width="2" aria-hidden="true" />
               </button>
-              <div
-                v-if="isFilterPanelOpen"
-                class="filter-popover-backdrop"
-                aria-hidden="true"
-                @click="toggleFilterPanel"
-              ></div>
-              <div
-                v-if="isFilterPanelOpen"
-                class="filter-popover"
-                role="dialog"
-                aria-label="筛选条件"
-              >
-                <div class="filter-popover-row">
-                  <button
-                    v-for="option in filterOptions"
-                    :key="option.value"
-                    type="button"
-                    class="filter-chip"
-                    :class="{ active: currentFilter === option.value }"
-                    @click="currentFilter = option.value"
-                  >
-                    {{ option.label }}
-                    <span class="chip-count">{{ getFilterCount(option.value) }}</span>
-                  </button>
-                </div>
-                <div class="date-range filter-popover-dates">
-                  <label class="date-field">
-                    <span>开始</span>
-                    <input v-model="dateFrom" type="date" />
-                  </label>
-                  <label class="date-field">
-                    <span>结束</span>
-                    <input v-model="dateTo" type="date" />
-                  </label>
-                </div>
-                <button
-                  v-if="hasGalleryFilters"
-                  type="button"
-                  class="toolbar-reset-btn"
-                  @click="resetGalleryFilters"
-                >
-                  清除全部筛选
-                </button>
-              </div>
             </div>
 
-            <button type="button" class="refresh-btn" :disabled="isLoading" @click="loadEntries">
-              <span v-if="showRefreshIndicator" class="refresh-btn-dot" aria-hidden="true"></span>
-              <span>{{ showRefreshIndicator ? '同步中' : '刷新' }}</span>
-            </button>
+            <template v-else>
+              <div class="gallery-more-shell">
+                <button
+                  type="button"
+                  class="refresh-btn gallery-tool-btn"
+                  aria-label="更多"
+                  title="更多"
+                  @click="toggleGalleryMore"
+                >
+                  <MoreHorizontal :size="19" :stroke-width="1.9" aria-hidden="true" />
+                </button>
+                <div
+                  v-if="isMoreMenuOpen || isFilterPanelOpen"
+                  class="filter-popover-backdrop"
+                  aria-hidden="true"
+                  @click="closeGalleryMenus"
+                ></div>
+                <div
+                  v-if="isMoreMenuOpen"
+                  class="gallery-more-menu"
+                  role="menu"
+                  aria-label="更多操作"
+                >
+                  <button type="button" role="menuitem" @click="openGallerySearch">
+                    <Search :size="16" :stroke-width="1.9" aria-hidden="true" />
+                    搜索
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    :class="{ 'is-filtering': hasGalleryFilters }"
+                    @click="toggleFilterPanel"
+                  >
+                    <SlidersHorizontal :size="16" :stroke-width="1.9" aria-hidden="true" />
+                    筛选
+                    <span v-if="activeFilterCount" class="toolbar-pill-badge">{{
+                      activeFilterCount
+                    }}</span>
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    data-testid="gallery-camera-entry"
+                    @click="
+                      isMoreMenuOpen = false;
+                      openCamera();
+                    "
+                  >
+                    <Camera :size="16" :stroke-width="1.9" aria-hidden="true" />
+                    相机
+                    <span class="gallery-menu-beta">Beta</span>
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    :disabled="isLoading"
+                    @click="
+                      isMoreMenuOpen = false;
+                      loadEntries();
+                    "
+                  >
+                    <RotateCcw :size="16" :stroke-width="1.9" aria-hidden="true" />
+                    {{ showRefreshIndicator ? '同步中…' : '刷新' }}
+                  </button>
+                  <div class="gallery-density-control">
+                    <span>网格密度</span>
+                    <button
+                      type="button"
+                      aria-label="减少列数"
+                      :disabled="resolvedAlbumColumns <= ALBUM_COLUMN_MIN"
+                      @click="setAlbumColumns(resolvedAlbumColumns - 1)"
+                    >
+                      <Minus :size="14" :stroke-width="2" aria-hidden="true" />
+                    </button>
+                    <strong>{{ resolvedAlbumColumns }} 列</strong>
+                    <button
+                      type="button"
+                      aria-label="增加列数"
+                      :disabled="resolvedAlbumColumns >= ALBUM_COLUMN_MAX"
+                      @click="setAlbumColumns(resolvedAlbumColumns + 1)"
+                    >
+                      <Plus :size="14" :stroke-width="2" aria-hidden="true" />
+                    </button>
+                  </div>
+                  <div class="gallery-menu-separator"></div>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    @click="
+                      isMoreMenuOpen = false;
+                      switchCloudTab('trash');
+                    "
+                  >
+                    <Trash2 :size="16" :stroke-width="1.9" aria-hidden="true" />
+                    回收站
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    @click="
+                      isMoreMenuOpen = false;
+                      switchCloudTab('share');
+                    "
+                  >
+                    <Share2 :size="16" :stroke-width="1.9" aria-hidden="true" />
+                    分享
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    @click="
+                      isMoreMenuOpen = false;
+                      switchCloudTab('settings');
+                    "
+                  >
+                    <Settings :size="16" :stroke-width="1.9" aria-hidden="true" />
+                    设置
+                  </button>
+                </div>
+                <div
+                  v-if="isFilterPanelOpen"
+                  class="filter-popover gallery-filter-popover"
+                  role="dialog"
+                  aria-label="筛选条件"
+                >
+                  <div class="filter-popover-row">
+                    <button
+                      v-for="option in filterOptions"
+                      :key="option.value"
+                      type="button"
+                      class="filter-chip"
+                      :class="{ active: currentFilter === option.value }"
+                      @click="currentFilter = option.value"
+                    >
+                      {{ option.label }}
+                      <span class="chip-count">{{ getFilterCount(option.value) }}</span>
+                    </button>
+                  </div>
+                  <div class="date-range filter-popover-dates">
+                    <label class="date-field">
+                      <span>开始</span>
+                      <input v-model="dateFrom" type="date" />
+                    </label>
+                    <label class="date-field">
+                      <span>结束</span>
+                      <input v-model="dateTo" type="date" />
+                    </label>
+                  </div>
+                  <button
+                    v-if="hasGalleryFilters"
+                    type="button"
+                    class="toolbar-reset-btn"
+                    @click="resetGalleryFilters"
+                  >
+                    清除全部筛选
+                  </button>
+                </div>
+              </div>
 
-            <!-- BOH Camera Beta（plans/041）：实时滤镜取景 → 成片直接进下面「新建」的图片队列。
-                 图标按钮 + 角标；前置检查与 openImagePicker 同源（额度/Cloudinary），
-                 不让用户拍完一张才被告知存不进去。 -->
-            <button
-              v-if="!isSelectMode"
-              type="button"
-              class="refresh-btn gallery-camera-entry"
-              data-testid="gallery-camera-entry"
-              aria-label="相机（Beta）"
-              @click="openCamera"
-            >
-              <Camera :size="16" :stroke-width="1.9" aria-hidden="true" />
-              <span class="gallery-camera-entry__beta" aria-hidden="true">Beta</span>
-            </button>
-
-            <!-- 选择入口（2026-11-04 第二轮）：原先是相册网格上方一行 ghost-link 文字，
-                 用户要求「选择应该是一个按钮样式」⇒ 收进头部动作区，与筛选/刷新同一套 .refresh-btn，
-                 ≤640 那条 `.gallery-header-actions > .refresh-btn` 规则会自动让它跟其它按钮平分第二行。
-                 选择态下同一个按钮变「完成」，底部操作条仍保留「取消」（两处都能退）。 -->
-            <button
-              type="button"
-              class="refresh-btn album-select-trigger"
-              :class="{ 'is-selecting': isSelectMode }"
-              :aria-pressed="isSelectMode ? 'true' : 'false'"
-              @click="isSelectMode ? exitSelectMode() : enterSelectMode()"
-            >
-              <CheckSquare :size="15" :stroke-width="1.9" aria-hidden="true" />
-              <span>{{ isSelectMode ? '完成' : '选择' }}</span>
-            </button>
-
-            <!-- 选择态下不给「新建」：选中格子时点开编辑器会把选择态和草稿搅在一起 -->
-            <button v-if="!isSelectMode" type="button" class="primary-btn" @click="openComposer">
-              ＋ 新建
-            </button>
+              <button
+                type="button"
+                class="refresh-btn gallery-tool-btn album-select-trigger"
+                aria-label="选择照片"
+                title="选择照片"
+                @click="enterSelectMode"
+              >
+                <CheckSquare :size="17" :stroke-width="1.9" aria-hidden="true" />
+              </button>
+            </template>
           </div>
         </header>
 
@@ -650,20 +752,8 @@
               </button>
             </section>
 
-            <div class="storage-strip" role="status" aria-label="Cloud+ 存储用量">
-              <div class="storage-strip-track" aria-hidden="true">
-                <div class="storage-strip-fill" :style="{ width: `${quotaPercent}%` }"></div>
-              </div>
-              <span class="storage-strip-meta">
-                已用 {{ cloudAccounting.usedImages }} / {{ cloudAccounting.limit }} 张 · 私密
-                {{ cloudAccounting.privateEntries }} · 公开 {{ cloudAccounting.publicEntries }} ·
-                剩余 {{ cloudAccounting.remainingImages }} 张
-                <span v-if="cloudAccounting.overflow" class="storage-strip-overflow">已超限</span>
-              </span>
-            </div>
-
             <button
-              v-if="publicEntries.length"
+              v-if="cloudTab !== 'content' && publicEntries.length"
               type="button"
               class="public-notes-pill"
               @click="goWorksGrid"
@@ -1030,14 +1120,6 @@
                         @load="handleCloudImageLoaded"
                         @error="retryCloudImageLoad"
                       />
-                      <!-- 多图贴的每张图都各占一格了（2026-10-02），「N 图」角标失去意义；
-                           心情角标只在同一条内容的第一格出现，避免同一心情刷满一片格子。 -->
-                      <span
-                        v-if="tile.entry.mood && tile.isFirstOfEntry"
-                        class="mood-badge tile-mood-badge"
-                      >
-                        {{ resolveMoodMeta(tile.entry.mood)?.icon || '•' }}
-                      </span>
                     </template>
                     <div v-else class="tile-paper">
                       <h5 class="tile-paper-title">
@@ -1052,6 +1134,17 @@
                     </div>
                   </article>
                 </div>
+
+                <p v-if="albumTiles.length" class="album-photo-count">
+                  {{
+                    galleryPhotoCount
+                      ? `${galleryPhotoCount} 张照片`
+                      : `${albumTiles.length} 条内容`
+                  }}
+                  <span v-if="galleryPhotoCount && albumTiles.length > galleryPhotoCount">
+                    · {{ albumTiles.length - galleryPhotoCount }} 条文字
+                  </span>
+                </p>
 
                 <div class="album-flow-actions">
                   <button
@@ -1089,25 +1182,6 @@
     >
       ＋
     </button>
-
-    <!-- 多选操作条：固定在全局底栏上方（与 .gallery-fab 同一底距口径） -->
-    <Transition name="cp-status">
-      <div v-if="isSelectMode" class="album-select-bar" role="toolbar" aria-label="图片选择操作">
-        <span class="album-select-count">已选 {{ selectedTileCount }} 张</span>
-        <button type="button" class="ghost-link" @click="toggleSelectAllVisibleImages">
-          {{ isAllVisibleImagesSelected ? '取消全选' : '全选' }}
-        </button>
-        <button type="button" class="ghost-link" @click="exitSelectMode">取消</button>
-        <button
-          type="button"
-          class="danger-btn album-select-delete"
-          :disabled="selectedTileCount === 0 || isDeletingSelected"
-          @click="deleteSelectedImages"
-        >
-          {{ isDeletingSelected ? '删除中…' : '删除' }}
-        </button>
-      </div>
-    </Transition>
 
     <!-- 横屏左栏（2026-10-26）：图库补齐「左右栏布局」，与「我」/ 首页 / 他人空间 / BOH
          共用同一份组件与同一份 navItems 单源，current-tab 传 'cloud' —— 进图库后左栏仍高亮
@@ -1249,6 +1323,7 @@ import {
   onActivated,
   onDeactivated,
   reactive,
+  nextTick,
 } from 'vue';
 import { useDebounce } from '@/composables/useDebounceThrottle';
 import { storeToRefs } from 'pinia';
@@ -1260,8 +1335,14 @@ import {
   ChevronDown,
   Cloud,
   ImagePlus,
+  Minus,
+  MoreHorizontal,
+  Plus,
   RotateCcw,
   Search,
+  Settings,
+  Share2,
+  SlidersHorizontal,
   Smile,
   Trash2,
   X,
@@ -1519,6 +1600,9 @@ const isComposerOpen = ref(false);
    而绝大多数条目根本不标心情 —— 收进一个开关里，用的时候才展开。 */
 const isMoodTrayOpen = ref(false);
 const isFilterPanelOpen = ref(false);
+const isSearchOpen = ref(false);
+const isMoreMenuOpen = ref(false);
+const searchInputRef = ref(null);
 const cloudinaryCleanupLocks = new Set();
 let uploadAttemptTimestamps = [];
 const CLOUD_BATCH_LIMIT = 9;
@@ -1709,6 +1793,13 @@ const cloudAccounting = computed(() =>
  * 不再按可见性把一半备份藏起来；「设为公开」入口已随口径取消。
  */
 const activeGalleryEntries = computed(() => entries.value);
+const galleryDateRange = computed(() => {
+  const dateKeys = activeGalleryEntries.value.map(resolveEntryDateKey).filter(Boolean).sort();
+  if (!dateKeys.length) return '';
+  const start = formatDateKey(dateKeys[0]);
+  const end = formatDateKey(dateKeys[dateKeys.length - 1]);
+  return start === end ? start : `${start} – ${end}`;
+});
 const isSelectedEntryPublic = computed(() => isPublicCloudEntry(selectedEntry.value));
 /**
  * 「转为帖子」入口的显示条件（2026-10-03 报障：已经是帖子了还显示「转为帖子」）。
@@ -1809,6 +1900,7 @@ const canLoadMoreEntries = computed(
 // 删除 RPC 按 block 下标定位，论坛备份的 blocks 永远是 [标题文字, 图1, 图2…]，
 // 用图片序号会整体错位一位（详见 utils/cloud-album-tiles.js 的注释与单测）。
 const albumTiles = computed(() => buildAlbumTiles(visibleFilteredEntries.value));
+const galleryPhotoCount = computed(() => albumTiles.value.filter((tile) => tile.imageUrl).length);
 
 /** 取一条内容的全部图片地址（口径与 utils/cloud-storage-accounting 的图片计数一致：contentBlocks 里 type==='image'） */
 function collectEntryImageUrls(entry) {
@@ -2207,9 +2299,39 @@ async function closeComposer() {
   isMoodTrayOpen.value = false;
 }
 
-function toggleFilterPanel() {
-  isFilterPanelOpen.value = !isFilterPanelOpen.value;
+function closeGalleryMenus() {
+  isFilterPanelOpen.value = false;
+  isMoreMenuOpen.value = false;
+  isSearchOpen.value = false;
 }
+
+async function openGallerySearch() {
+  closeGalleryMenus();
+  isSearchOpen.value = true;
+  await nextTick();
+  searchInputRef.value?.focus();
+}
+
+function closeGallerySearch() {
+  isSearchOpen.value = false;
+}
+
+function toggleFilterPanel() {
+  const next = !isFilterPanelOpen.value;
+  closeGalleryMenus();
+  isFilterPanelOpen.value = next;
+}
+
+function toggleGalleryMore() {
+  const next = !isMoreMenuOpen.value;
+  closeGalleryMenus();
+  isMoreMenuOpen.value = next;
+}
+
+watch(cloudTab, closeGalleryMenus);
+watch(isSelectMode, (selecting) => {
+  if (selecting) closeGalleryMenus();
+});
 
 function loadMoreGalleryEntries() {
   visibleEntryLimit.value = Math.min(
