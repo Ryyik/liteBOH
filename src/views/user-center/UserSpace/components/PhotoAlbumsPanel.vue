@@ -26,6 +26,15 @@ import MyAlbumBook from '@/views/Forum/components/MyAlbumBook.vue';
   animation: pap-in 240ms var(--ease-out, ease-out) both;
 }
 
+/* 竖屏：内容根不是 .gs-card（相册是 .pa-* 自己的网格），拿不到
+   `.gs-card { margin-inline: 16px }` 那条内缩 —— 实测 left=0 贴屏幕边，
+   与页头 16px 的返回按钮错开一格。2026-11-24 页头内缩后这个错位才显出来。 */
+@media (max-width: 767px) {
+  .photo-albums-panel {
+    padding-inline: 16px;
+  }
+}
+
 @keyframes pap-in {
   from {
     opacity: 0;

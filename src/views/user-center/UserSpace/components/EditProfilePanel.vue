@@ -28,22 +28,21 @@
          右边换内容，左边始终在。 -->
     <!-- 2026-11-10：原来这里是私有的一套返回行（描边药丸 + 15px 标题），
          与设置二级页的 .gs-inline-bar 两套语言。统一成 gs 返回条，保存是唯一主操作。
-         竖屏也走这里 —— 设置页个人信息不再是弹窗/另开页，而是就地展开的三级页。 -->
-    <div v-else class="gs-inline-bar ep-inline-head">
-      <button type="button" class="gs-inline-back" @click="$emit('close')">
-        <ChevronLeft :size="17" :stroke-width="2.2" aria-hidden="true" />
-        <span>设置</span>
-      </button>
-      <h2 class="gs-inline-title">个人信息</h2>
-      <button
-        type="button"
-        class="ep-save"
-        :disabled="isSubmittingProfileEdit"
-        @click="$emit('save')"
-      >
-        {{ isSubmittingProfileEdit ? '保存中…' : '保存' }}
-      </button>
-    </div>
+         竖屏也走这里 —— 设置页个人信息不再是弹窗/另开页，而是就地展开的三级页。
+         2026-11-24：页头本体抽成 SettingsSubpageHeader（圆形返回 + 居中标题、无底板），
+         这里只保留「保存」这一颗动作按钮。 -->
+    <SettingsSubpageHeader v-else title="个人信息" @back="$emit('close')">
+      <template #actions>
+        <button
+          type="button"
+          class="ep-save"
+          :disabled="isSubmittingProfileEdit"
+          @click="$emit('save')"
+        >
+          {{ isSubmittingProfileEdit ? '保存中…' : '保存' }}
+        </button>
+      </template>
+    </SettingsSubpageHeader>
 
     <div class="ep-body">
       <!-- 头像：Apple 的个人信息页第一行就是「照片」（右侧缩略图 + ›），
@@ -193,7 +192,8 @@
 import { computed } from 'vue';
 import UserCenterPageHeader from '@/components/UserCenterPageHeader.vue';
 import FramedAvatar from './FramedAvatar.vue';
-import { ChevronLeft, ChevronRight } from 'lucide-vue-next';
+import SettingsSubpageHeader from './SettingsSubpageHeader.vue';
+import { ChevronRight } from 'lucide-vue-next';
 import { useAvatarFrame } from '@/composables/useAvatarFrame.js';
 import { useAutoGrowTextarea } from '@/composables/useAutoGrowTextarea.js';
 
@@ -357,14 +357,10 @@ const { textareaRef: bioRef } = useAutoGrowTextarea({
   font-weight: 700;
 }
 
-/* 竖屏：设置页的内容层是全宽（无左右内边距，行分割线一路铺到屏幕边），
-   工具行若不加内边距，实心「保存」药丸会**贴着屏幕右缘**画出去（实测 right=390）。
-   给它和下面各行同样的 16px，返回/标题/保存三者才在同一条竖线上。 */
-@media (max-width: 767px) {
-  .ep-inline-head {
-    padding: 0 16px;
-  }
-}
+/* 竖屏：页头现在由 SettingsSubpageHeader 提供（内部是 52px/1fr/52px 网格 +
+   与首页页头同款的左右 16px 沟槽），所以这里不再需要给整条加内边距 ——
+   旧版 .ep-inline-head 是 flex 胶囊条，不加内边距「保存」就贴屏幕右缘。
+   现在保存按钮落在网格第三列里，列宽 52px 且有 justify-self:end。 */
 
 /* 暗色：实心蓝在深底上偏暗，整支提亮一档。
    ⚠️ 这里**刻意不写第二个亮蓝 hex**：用 filter 提亮同一个 #0071e3，

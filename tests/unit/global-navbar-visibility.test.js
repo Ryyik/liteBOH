@@ -93,6 +93,55 @@ describe('isGlobalNavbarVisible（导航栏可见性单一真源）', () => {
     ).toBe(true);
   });
 
+  /* 2026-11-24 用户口径：「二级三级页面都要占满屏幕，不挂导航栏了……
+     横屏还是挂导航栏的」。两条规则拆开锁：
+       · settingsImmersive（竖屏子页沉浸态）—— 由面板广播，路由看不出来
+       · settingsWide（横屏两栏）           —— 此时上面那条 view 规则必须放行 */
+  describe('设置竖屏沉浸态 / 横屏保留导航岛', () => {
+    it('竖屏子页沉浸时隐藏（路由里没有 view 也能隐藏 —— 点组行进二级页不改 URL）', () => {
+      expect(
+        isGlobalNavbarVisible(
+          route({ path: '/user-space', query: { tab: 'settings' } }),
+          false,
+          true,
+          false,
+        ),
+      ).toBe(false);
+    });
+
+    it('横屏（settingsWide）即便 link 是子页也**保留**导航岛', () => {
+      expect(
+        isGlobalNavbarVisible(
+          route({ path: '/user-space', query: { tab: 'settings', view: 'account-security' } }),
+          false,
+          false,
+          true,
+        ),
+      ).toBe(true);
+      // 沉浸态与横屏同时为真时，横屏优先（岛浮在左栏，不挡右栏表单）
+      expect(
+        isGlobalNavbarVisible(
+          route({ path: '/user-space', query: { tab: 'settings', view: 'account-security' } }),
+          false,
+          true,
+          true,
+        ),
+      ).toBe(true);
+    });
+
+    it('首页 / 非设置路由不受沉浸标记影响', () => {
+      // 面板卸载时会复位，但即便标记残留也不该误伤首页 / 论坛
+      expect(isGlobalNavbarVisible(route({ name: 'Home', path: '/' }), false, true, false)).toBe(
+        true,
+      );
+      expect(isGlobalNavbarVisible(route({ path: '/forum' }), false, true, false)).toBe(true);
+      // 通知设置（独立路由）该隐藏 —— 它没有 hideNavbar，靠这条规则
+      expect(
+        isGlobalNavbarVisible(route({ path: '/user-space/pushplus-settings' }), false, true, false),
+      ).toBe(false);
+    });
+  });
+
   it('同样的 tab/view 在其他页面上不误伤', () => {
     expect(
       isGlobalNavbarVisible(route({ path: '/', query: { tab: 'profile', view: 'posts' } })),

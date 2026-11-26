@@ -6,6 +6,7 @@ import { registerAuthSoftResetHandler } from '@/composables/use-auth-soft-reset.
 import Footer from './components/Footer.vue';
 import { isGlobalNavbarVisible } from '@/utils/global-navbar-visibility.js';
 import { homeGateScreening } from '@/composables/useHomeGate.js';
+import { settingsImmersive, settingsWideViewport } from '@/composables/useSettingsChrome.js';
 import { shouldMarkBootReady } from '@/utils/boot-readiness.js';
 import UnifiedNavbar from '@/components/UnifiedNavbar/index.vue';
 import BohIsland from '@/components/BohIsland.vue';
@@ -435,7 +436,17 @@ watch(isInitialized, (newVal) => {
 // 全局导航栏：隐藏在桌面嵌入模式、路由标记隐藏、UserSpace内部子页面、或个人资料子页面时
 // ⚠️ 判据已抽到 utils/global-navbar-visibility.js（**单一真源**）：
 //    AI 岛的 canOpen 必须用同一函数，否则会出现「导航栏已卸载但 canOpen 说能开」的静默失败。
-const showGlobalNavbar = computed(() => isGlobalNavbarVisible(route, homeGateScreening.value));
+// ⚠️ 后两个参数走**显式传入**而不是在判据里读全局（那边有单测，读全局会让用例互相污染）：
+//    settingsImmersive —— 设置竖屏子页沉浸态，由 ProfileSettingsPanel 广播；
+//    settingsWide      —— 是否处于设置两栏的宽视口（横屏），那边岛不挡内容、照挂。
+const showGlobalNavbar = computed(() =>
+  isGlobalNavbarVisible(
+    route,
+    homeGateScreening.value,
+    settingsImmersive.value,
+    settingsWideViewport.value,
+  ),
+);
 </script>
 
 <template>

@@ -56,6 +56,15 @@ const CloudPlusMain = createPanelAsync(
   }
 }
 
+/* 竖屏：内容根不是 .gs-card（Cloud+ 是整页壳 .cloud-page），拿不到
+   `.gs-card { margin-inline: 16px }` 那条内缩 —— 实测 left=0 贴屏幕边，
+   与页头 16px 的返回按钮错开一格。2026-11-24 页头内缩后这个错位才显出来。 */
+@media (max-width: 767px) {
+  .cloud-plus-panel {
+    padding-inline: 16px;
+  }
+}
+
 /* 内嵌时收掉 Cloud+ 自己的页面留白（原本是整页的 24px gutter + 32px 底部）——
    设置右栏已经把内容框在 393..1249 里，再加 24px 就和上面返回条、以及其它
    设置子页的卡片左缘差一格（实测 417 vs 393）。 */

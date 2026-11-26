@@ -2,7 +2,8 @@
   <div
     key="profile-settings"
     class="profile-subpage-shell"
-    :style="{ '--userspace-nav-h': navTopOffset + 'px', paddingTop: navTopOffset + 'px' }"
+    :class="{ 'is-immersive': immersiveSubpage }"
+    :style="shellStyle"
   >
     <!-- 页头（2026-11-10 层级定稿：一级组 → 二级组页 → 三级表单）：
          一级首页才有「设置」标题 + 大返回 + 搜索；往下每一层只有一个返回条。 -->
@@ -111,29 +112,26 @@
 
           <!-- ② 右栏子页：导出 / 数据与隐私 / 账户安全表单（宿主经 #inline-panel 塞进来） -->
           <template v-else-if="inlinePanel">
-            <div class="gs-inline-bar">
-              <button type="button" class="gs-inline-back" @click="$emit('close-panel')">
-                <ChevronLeft :size="17" :stroke-width="2.2" aria-hidden="true" />
-                <span>设置</span>
-              </button>
-              <h2 class="gs-inline-title">{{ inlinePanelTitle }}</h2>
-            </div>
+            <SettingsSubpageHeader :title="inlinePanelTitle" @back="$emit('close-panel')" />
             <slot name="inline-panel"></slot>
           </template>
 
           <!-- ③ 列表 / 详情。左侧内容全部由 catalog 驱动，行样式只有这一处。 -->
           <template v-else>
             <!-- 二级页（如「密码与通行密钥」）与开关详情共用同一条返回条 -->
-            <div v-if="activeEntry" class="gs-inline-bar">
-              <button type="button" class="gs-inline-back" @click="showOverview">
-                <ChevronLeft :size="17" :stroke-width="2.2" aria-hidden="true" />
-                <span>设置</span>
-              </button>
-              <h2 class="gs-inline-title">{{ activeEntry.label }}</h2>
-            </div>
+            <SettingsSubpageHeader
+              v-if="activeEntry"
+              :title="activeEntry.label"
+              @back="showOverview"
+            />
 
-            <!-- 身份卡：手机首页顶部（桌面「概览」也是它） -->
-            <section v-if="!activeEntry" class="gs-identity" aria-label="个人账户">
+            <!-- 身份卡：桌面「概览」保留居中大头像（右栏没有组行列表可收，它是唯一内容）；
+                 手机首页降级为下方「账户」卡片的首行（2026-11-24 B 层）。 -->
+            <section
+              v-if="!activeEntry && !isPortraitHome"
+              class="gs-identity"
+              aria-label="个人账户"
+            >
               <div class="gs-id-hero">
                 <button
                   type="button"
@@ -170,7 +168,65 @@
               </div>
             </section>
 
+            <!-- 手机首页：账户降级为第一张卡的首行（2026-11-24 B 层，照 GPT 骨架）
+                 ⚠️ 行里装的是「我是谁」而不是一条设置，所以它 click 直接开「个人信息」编辑，
+                    头像自身仍是独立按钮（换头像），不整行都当换头像 —— 那会让想改昵称的人踩空。
+                 ⚠️ 昵称/邮箱的复制动作没有消失：行尾显示昵称，下方保留邮箱复制（见 .gs-acct-mail）。 -->
+            <section v-if="isPortraitHome" class="gs-group gs-acct" aria-label="个人账户">
+              <div class="gs-rows">
+                <button
+                  type="button"
+                  class="gs-row is-single-line gs-acct-row"
+                  :aria-label="`账户：${username || '未设置昵称'}，打开个人信息`"
+                  @click="emit('open-edit-profile')"
+                >
+                  <span class="gs-icon gs-acct-avatar">
+                    <FramedAvatar
+                      :src="avatarUrl"
+                      :initial="avatarInitial"
+                      :size="26"
+                      :frame-url="frameUrl"
+                      :frame-scale="frameScale"
+                    />
+                  </span>
+                  <span class="gs-text">
+                    <span class="gs-label">账户</span>
+                  </span>
+                  <span class="gs-side">
+                    <span class="gs-value">{{ username || '未设置昵称' }}</span>
+                    <ChevronRight
+                      class="gs-chevron"
+                      :size="16"
+                      :stroke-width="2"
+                      aria-hidden="true"
+                    />
+                  </span>
+                </button>
+              </div>
+              <p class="gs-acct-mail">
+                <button
+                  v-if="userEmail"
+                  type="button"
+                  class="gs-acct-mail-btn"
+                  :aria-label="`复制邮箱 ${userEmail}`"
+                  :title="emailCopied ? '已复制' : '点击复制邮箱'"
+                  @click="copyEmail"
+                >
+                  {{ emailCopied ? '已复制' : userEmail }}
+                  <Check v-if="emailCopied" :size="11" :stroke-width="2.6" aria-hidden="true" />
+                  <Copy v-else :size="11" :stroke-width="2" aria-hidden="true" />
+                </button>
+                <span v-else>未绑定邮箱</span>
+              </p>
+            </section>
+
             <!-- 分组列表（首页 / 二级页 / 搜索结果共用同一段行渲染） -->
+            <!-- 分组列表（首页 / 二级页 / 搜索结果共用同一段行渲染）
+                 2026-11-24 C 层：行内只留一个标题，说明文字移到**卡片下方**的脚注
+                 （GPT 的做法：`选择打开 ChatGPT 时的起始页面。` 在卡外，13px 灰字）。
+                 ⚠️ desc 数据仍保留在每条 entry 上，只是不再渲染进行内：
+                    搜索是按 [label, desc, group, keywords] 拼串匹配的（见 searchResults），
+                    删数据会让「搜『通行密钥』『导出』」整条路径失效。 -->
             <section
               v-for="group in renderedGroups"
               :key="group.id"
@@ -184,8 +240,14 @@
                   <button
                     v-else
                     type="button"
-                    class="gs-row"
-                    :class="{ 'is-static': item.static, 'gs-mail-freq-option': item.option }"
+                    class="gs-row is-single-line"
+                    :class="{
+                      'is-static': item.static,
+                      'gs-mail-freq-option': item.option,
+                    }"
+                    :aria-describedby="
+                      item.desc && !item.static ? `gs-desc-${item.uid}` : undefined
+                    "
                     @click="onRowClick(item)"
                   >
                     <span class="gs-icon" :class="item.iconClass">
@@ -195,7 +257,6 @@
                       <span class="gs-label" :class="{ 'gs-label-danger': item.danger }">{{
                         item.label
                       }}</span>
-                      <span v-if="item.desc" class="gs-desc">{{ item.desc }}</span>
                     </span>
                     <span class="gs-side">
                       <SettingToggle
@@ -222,6 +283,13 @@
                   </button>
                 </template>
               </div>
+              <!-- 卡下脚注（2026-11-24 C 层）：把原行内副标题收到这里。
+                   每张卡**最多一条** —— 逐行都配脚注等于没省空间，只是把双行搬到卡外。
+                   规则见 groupFootnotes(): 单一可交互项取它自己的 desc；多项则合并成一句
+                   短摘要（取每项 desc 的首句、去掉重复前缀）。 -->
+              <p v-if="groupFootnotes(group)" :id="`gs-foot-${group.id}`" class="gs-footnote">
+                {{ groupFootnotes(group) }}
+              </p>
             </section>
           </template>
         </div>
@@ -231,15 +299,16 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, onActivated, onBeforeUnmount, onDeactivated, onMounted, ref, watch } from 'vue';
 import UserCenterPageHeader from '@/components/UserCenterPageHeader.vue';
 import HomeCatMascot from '@/components/HomeCatMascot.vue';
 import {
   Archive,
   Bell,
+  Cake,
   Camera,
+  Cat,
   Check,
-  ChevronLeft,
   ChevronRight,
   Clock,
   Copy,
@@ -254,7 +323,10 @@ import {
   Mail,
   MapPin,
   MessagesSquare,
+  MonitorSmartphone,
   Moon,
+  Palette,
+  PawPrint,
   RotateCcw,
   Search,
   SearchX,
@@ -297,8 +369,15 @@ const replayHomeGate = () => {
   window.location.reload();
 };
 import SettingToggle from './SettingToggle.vue';
+import SettingsSubpageHeader from './SettingsSubpageHeader.vue';
 import FramedAvatar from './FramedAvatar.vue';
 import { useAvatarFrame } from '@/composables/useAvatarFrame.js';
+import { useGlobalAiPreferences } from '@/composables/useGlobalAiPreferences.js';
+import { setSettingsImmersive, settingsWideViewport } from '@/composables/useSettingsChrome.js';
+
+/* 小方挂件开关（2026-11-24）：偏好是模块级单例（App.vue 也在读同一个 reactive），
+   所以这里直改即可 —— 关掉时 App 的 v-if 立刻卸掉挂件，不需要经宿主 emit。 */
+const { preferences } = useGlobalAiPreferences();
 
 const props = defineProps({
   showBack: {
@@ -330,6 +409,14 @@ const props = defineProps({
     default: false,
   },
   currentTheme: {
+    type: String,
+    default: '',
+  },
+  /* 主题**偏好**（light / dark / system / home-cat / anniversary-mc），与 currentTheme
+     不同：currentTheme 是解析后的实际主题（system 会被解析成 light 或 dark）。
+     C 层把主题行改成就地展开的 choice，需要它来标出当前选中的是哪一个 —— 用
+     currentTheme 会把「跟随系统」误标成「浅色」。 */
+  currentThemePreference: {
     type: String,
     default: '',
   },
@@ -450,6 +537,11 @@ const emit = defineEmits([
   'choose-mail-window',
   /** 2026-10-29 引入、2026-11-01 改名：选择投递方式（false = 及时与摘要，true = 减少干扰）。无权益门槛。 */
   'choose-mail-digest',
+  /** 2026-11-24 C 层：主题就地选择。原先只能 `open-theme` 跳三级页，
+      现在通用组里的主题行直接展开 5 个选项（与「提醒频率」同一套交互），单栏两栏都是。
+      ⚠️ `open-theme` 事件本身**保留**（不是死代码）：左栏「更多 → 主题」与
+         深链 `?setting=theme` 仍会走三级页 ThemePanel（带缩略图那份）。 */
+  'choose-theme',
 ]);
 
 /* ---------- 身份卡（2026-10-26 Apple 账户页形态） ----------
@@ -567,6 +659,33 @@ const MAIL_WINDOW_OPTIONS = [
 ];
 const mailWindowLabel = computed(() => (props.followMailWindow === 15 ? '15 分钟' : '1 小时'));
 
+/* 主题可选值（2026-11-24 C 层：主题行就地展开用）
+   ⚠️ 与 ThemePanel 的 THEME_OPTIONS **不是**同一份：那边带缩略图预览（三级页用），
+      这里只要「标签 + 一句话」用于行内展开。两者共享同一组 value 字面量 ——
+      加新主题时**两处都要改**（ThemePanel 加预览，这里加标签），漏一处会出现
+      「三级页能选、行内选不到」。value 与 themeManager 的偏好字符串严格一致。 */
+const THEME_CHOICES = [
+  { value: 'light', label: '浅色', desc: '始终使用浅色界面', icon: Sun, iconClass: 'is-yellow' },
+  { value: 'dark', label: '深色', desc: '始终使用深色界面', icon: Moon, iconClass: 'is-purple' },
+  {
+    value: 'system',
+    label: '跟随系统',
+    desc: '随设备的深浅色设置自动切换',
+    icon: MonitorSmartphone,
+    iconClass: 'is-gray',
+  },
+  /* 两个定制主题必须用**不同**图标：都是 Sparkles 的话展开后两行长得一模一样
+     （实测截图确认过），用户只能靠读字区分，等于图标列白占宽度。 */
+  { value: 'home-cat', label: '方块小窝', desc: '暖色猫主题', icon: Cat, iconClass: 'is-teal' },
+  {
+    value: 'anniversary-mc',
+    label: '八周年',
+    desc: 'MC 风格纪念主题',
+    icon: Cake,
+    iconClass: 'is-indigo',
+  },
+];
+
 /* 投递方式（2026-11-01 改名 + 语义修正）：
    「及时与摘要」（默认）= 首条立刻发，同一周期其余动作在周期结束时合并成一封（一条都不丢）；
    「减少干扰」= 周期内全部动作只发一封，周期结束才发。
@@ -578,9 +697,9 @@ const MAIL_DIGEST_OPTIONS = [
   { value: true, label: '减少干扰', desc: '周期内不即时发送，仅在周期结束时送达一封' },
 ];
 const mailDigestLabel = computed(() => (props.followMailDigest ? '减少干扰' : '及时与摘要'));
-const mailExpandedGroup = ref('');
-const toggleMailExpanded = (group) => {
-  mailExpandedGroup.value = mailExpandedGroup.value === group ? '' : group;
+const expandedChoiceId = ref('');
+const toggleChoiceExpanded = (group) => {
+  expandedChoiceId.value = expandedChoiceId.value === group ? '' : group;
 };
 
 /* 顶部留白必须跟着「导航岛在不在」走（2026-11-10 用户报障「顶部空隙过大」）。
@@ -591,9 +710,12 @@ const toggleMailExpanded = (group) => {
    让 sticky 返回条 / 左栏吸附也停到正确位置。 */
 const navTopOffset = ref(78);
 const syncNavTopOffset = () => {
-  /* 设置子页（?view=…）一律隐藏导航岛 ⇒ 留白必须是 0，别再拿 DOM 去"校准"：
-     实测时序是「点击瞬间岛还在」→ 校准会把乐观归零又写回 78px，正是那一下上跳。 */
-  if (props.inlinePanel || props.editOpen) {
+  /* ⚠️ 2026-11-24：这段原来无条件把子页留白归零，前提是「设置子页一定隐藏导航岛」。
+     那条前提**只在竖屏成立**了 —— 横屏两栏按用户要求保留导航岛（`settingsWideViewport`），
+     于是这里的归零会把留白压成 0，岛直接压在右栏页头上（实测：横屏进「修改密码」，
+     胶囊压在标题左侧、返回按钮被顶到左栏里）。
+     现在先问「这个视口到底挂不挂岛」：挂 ⇒ 走实测；不挂 ⇒ 归零。 */
+  if (!settingsWideViewport.value && (props.inlinePanel || props.editOpen)) {
     navTopOffset.value = 0;
     return;
   }
@@ -620,9 +742,10 @@ watch(
   [() => props.inlinePanel, () => props.editOpen],
   ([panel, edit]) => {
     /* 乐观归零（2026-11-10 报障「点进二级/三级页会顿一下再上移」）：
-       设置子页（?view=…）一定隐藏导航岛，所以**先**把留白设成 0，再实测校准。
-       原来只靠实测 ⇒ 先按 78px 画一帧、岛卸载后再跳成 0，视觉上就是内容整体上跳一下。 */
-    if (panel || edit) navTopOffset.value = 0;
+       **竖屏**下设置子页一定隐藏导航岛，所以先把留白设成 0，再实测校准。
+       原来只靠实测 ⇒ 先按 78px 画一帧、岛卸载后再跳成 0，视觉上就是内容整体上跳一下。
+       ⚠️ 横屏（两栏）不能归零：那边按用户要求保留导航岛，归零会让岛压住页头。 */
+    if (!settingsWideViewport.value && (panel || edit)) navTopOffset.value = 0;
     resyncNavTopOffset();
   },
   { immediate: true },
@@ -640,7 +763,12 @@ onBeforeUnmount(() => {
   window.removeEventListener('resize', syncNavTopOffset);
   navIslandObserver?.disconnect();
   navIslandObserver = null;
+  /* 卸载 / 离开「我」页都要摘掉沉浸标记 —— 否则导航岛会在别的 tab 上继续隐藏
+     （本页被 KeepAlive 缓存时 onBeforeUnmount 不跑，所以 onDeactivated 也挂一份）。 */
+  setSettingsImmersive(false);
 });
+onDeactivated(() => setSettingsImmersive(false));
+onActivated(() => setSettingsImmersive(immersiveSubpage.value));
 
 /* 横竖切换时清掉选中态：竖屏没有「右栏详情」，留着会在转回横屏时莫名其妙地打开一项 */
 watch(
@@ -885,7 +1013,7 @@ const catalog = computed(() => {
       optionIcon: Clock,
       choose: (value) => emit('choose-mail-window', value),
       /* 手机：点行就地展开选项；桌面走 openEntry 出右栏详情，不执行 run */
-      run: () => toggleMailExpanded('mail-window'),
+      run: () => toggleChoiceExpanded('mail-window'),
     },
     {
       id: 'mail-digest',
@@ -907,7 +1035,7 @@ const catalog = computed(() => {
       optionIcon: Inbox,
       note: MAIL_DIGEST_NOTE,
       choose: (value) => emit('choose-mail-digest', value),
-      run: () => toggleMailExpanded('mail-digest'),
+      run: () => toggleChoiceExpanded('mail-digest'),
     },
 
     /* ── 内容与存储 ── */
@@ -957,13 +1085,44 @@ const catalog = computed(() => {
     {
       id: 'theme',
       group: 'general',
+      /* 2026-11-24 C 层：从「跳三级页」改为**就地展开**（与「提醒频率」同一套 choice 机制）。
+         GPT 二级页的外观/强调色正是行内选择器，这是它体验最值钱的一点 ——
+         改个主题不该离开当前页再回来。
+         ⚠️ **单栏与两栏都就地展开**，不是只有手机这样：`onRowClick` 只对 `kind:'group'`
+            调 openEntry，其余一律 `item.run?.()` ⇒ 桌面两栏点主题行同样是展开，不出右栏详情。
+            （这里 2026-11-24 的第一版注释写着「桌面走右栏详情」，与实现相反，已改。
+            实测截图：1280×800 两栏下点主题，右栏当场列出 5 个选项，标题仍是「通用」。）
+         ⚠️ 三级页 ThemePanel **仍然保留**：它还有两条活路径 ——
+            左栏「更多 → 主题」（openThemeModal）与深链 `?setting=theme`。
+            那边带主题缩略图预览，是「认真挑主题」的形态；行内展开只给「标签 + 勾」，
+            在手机上一屏能看全 5 个。两者不冲突，别因为行内能选就删掉三级页。 */
+      kind: 'choice',
+      /* label 保持「主题设置」不改名：`probe-settings-glass` 的「搜索：『深色』命中主题设置」
+         依赖它，且用户在设置语境里更认这个措辞。**行尾值与选项 label 统一**是另一回事
+         （见 THEME_CHOICES：浅色/深色/跟随系统），不要为了「跟选项一致」把行名也改短。 */
       label: '主题设置',
       desc: '选择浅色、深色或跟随系统',
       keywords: '主题 深色 浅色 暗色 暗黑 夜间 跟随系统 外观 dark light theme',
       icon: props.currentTheme === 'dark' ? Moon : Sun,
       iconClass: props.currentTheme === 'dark' ? 'is-purple' : 'is-yellow',
+      /* 行尾显示**偏好**而不是解析后的主题：选了「跟随系统」且系统是深色时，
+         显示「深色」会让人以为选错了（实际偏好仍是跟随系统）。 */
       value: props.themeDisplayText,
-      run: () => emit('open-theme'),
+      options: THEME_CHOICES.map((option) => ({
+        value: option.value,
+        label: option.label,
+        desc: option.desc,
+        /* 每个选项用自己的图标，而不是统一的 Palette 灰点 ——
+           实测第一版全部用 Palette，展开后五行的图标一模一样，看不出区别，
+           等于白占了一列宽度（截图确认）。 */
+        icon: option.icon,
+        iconClass: option.iconClass,
+      })),
+      /* 用偏好比对，不用 currentTheme —— 理由同上 */
+      optionValue: props.currentThemePreference || props.currentTheme,
+      optionIcon: Palette,
+      choose: (value) => emit('choose-theme', value),
+      run: () => toggleChoiceExpanded('theme'),
     },
     {
       id: 'home-gate',
@@ -974,6 +1133,27 @@ const catalog = computed(() => {
       icon: RotateCcw,
       iconClass: 'is-blue',
       run: () => replayHomeGate(),
+    },
+    /* 全局挂件「小方」（2026-11-24 用户口径：「设置里要允许关闭小方（默认为用户关闭）」）。
+       ⚠️ 与 BolekSettingsPanel 里那个开关是**同一个偏好**（petEnabled），不做第二套状态 ——
+          那边是「AI 设置」语境，这里是用户中心语境，两处都该能开关。
+       ⚠️ 之前唯一的重开入口在博莱克设置里，用户在「我 → 设置」里找不到，
+          右键菜单又只有「隐藏」⇒ 关掉后基本等于找不回来。这一行补的就是这条回路。
+       ⚠️ 开关不走 emit / 不改宿主：它是本机偏好（localStorage），没有服务端真源，
+          与 hide-online（profiles 表）不同。宿主不必知道小方在不在。 */
+    {
+      id: 'pet',
+      group: 'general',
+      kind: 'toggle',
+      label: '小方挂件',
+      desc: '博莱克的桌面化身，会贴边探头、跟随博莱克忙闲做动作',
+      keywords: '小方 挂件 宠物 角色 博莱克 桌面 悬浮 关闭 开启 pet widget',
+      icon: PawPrint,
+      iconClass: 'is-purple',
+      on: preferences.petEnabled,
+      run: () => {
+        preferences.petEnabled = !preferences.petEnabled;
+      },
     },
     {
       id: 'version',
@@ -1017,18 +1197,22 @@ const catalog = computed(() => {
 
   const visible = entries.filter((entry) => entry.visible !== false);
   /* 一级组行：首页与桌面左栏列的**就是它们**（组不是标题，是入口）。
-     条数由本组条目实时算出来，新增条目不用再手改「N 项」。 */
+     2026-11-24 改版：组行只留 label，去掉 desc 与「N 项」徽标 ——
+       · desc 是「昵称、简介、头像与头像框」这类枚举，进了页面自然看见，
+         留着会把行撑成双行 68px（GPT 一级页每行只承载一个名字，44px）；
+       · 「N 项」是为双行结构服务的信息压缩徽标，行变单行后没有存在理由。
+     ⚠️ desc 必须留在 keywords 里 —— 搜索是按 keywords 匹配的，
+        删掉「通行密钥 / 导出 / 推送」这些词会让按描述搜功能的路径失效
+        （probe-settings-glass 的「搜索：跨子页命中」两条就靠它）。 */
   const groupRows = GROUPS.map((group) => ({
     id: `g-${group.id}`,
     groupId: group.id,
     isGroupRow: true,
     kind: 'group',
     label: group.label,
-    desc: group.desc,
     keywords: `${group.label} ${group.desc}`,
     icon: group.icon,
     iconClass: group.iconClass,
-    value: `${visible.filter((entry) => entry.group === group.id && !entry.searchOnly).length} 项`,
     run: () => {},
   }));
   return groupRows.concat(visible);
@@ -1036,6 +1220,28 @@ const catalog = computed(() => {
 
 /** 一级组行（首页与桌面左栏列的条目） */
 const groupEntries = computed(() => catalog.value.filter((entry) => entry.isGroupRow));
+
+/* ---------- 卡下脚注（2026-11-24 C 层） ----------
+   把原来行内的副标题收到卡片下方一行灰字，行本身回到单行 44px。
+   GPT 二级页正是这个版式：「起始页面」只有标题，`选择打开 ChatGPT 时的起始页面。`
+   在卡外；整页 9 行只有 2 处脚注 —— **脚注是例外，不是标配**。
+
+   ⚠️ **只有「卡里只有一个可交互项」时才出脚注。** 这条是实测改出来的：
+      第一版规则给多行卡也出脚注（取首项的 desc），结果「账户与安全」页 6 行卡片
+      下面挂着「登录与找回密码，点击更换」—— 那是第 1 行的说明，放在整卡下方
+      读起来像在描述**整组**，语义是错的（截图确认：挂在「注销账号」下方，
+      像在说注销账号可以点击更换）。
+   ⚠️ 多项卡的说明没有丢：仍走每行的 `aria-describedby`（行上有 id 引用），
+      读屏用户照样能听到，只是视觉上不重复占位。这是「减视觉噪音、不减信息」。
+   ⚠️ 危险区不给脚注：红色行本身已是警告，再补一句是重复。 */
+const groupFootnotes = (group) => {
+  if (group.danger) return '';
+  const rows = group.rows.filter((r) => !r.note && !r.option && !r.static && r.desc);
+  // 只有一项 ⇒ 这句说明就是在描述这一项，挂卡下不会指错
+  if (rows.length !== 1) return '';
+  const text = String(rows[0].desc).split(/[。；]/)[0];
+  return text.length > 60 ? `${text.slice(0, 58)}…` : text;
+};
 
 /** 二级页里的条目：属于该组的叶子条目（searchOnly 只进搜索，不进列表） */
 const groupLeaves = (groupId) =>
@@ -1051,6 +1257,36 @@ const logoutEntry = computed(() => catalog.value.find((entry) => entry.id === 'l
 
 /** 一级首页：只有它带「设置」页头、大返回与搜索；二级组页 / 三级表单都只有返回条 */
 const isHome = computed(() => !activeEntry.value && !props.inlinePanel && !props.editOpen);
+
+/* 手机首页（单栏 + 首页）：账户降级为卡片首行的唯一条件（2026-11-24 B 层）。
+   ⚠️ 只降级这一档，桌面两栏**必须保留**居中大头像身份卡 ——
+      桌面右栏的「概览」没有组行列表可以收进首行，身份卡是它唯一的内容。
+      2026-11-10 那次「这个页面是空白的」报障就是右栏什么都没画，别再制造一次。
+   ⚠️ 判定复用宿主给的 twoPane，不在这里自己读 matchMedia —— 断点只在宿主算一次
+      （见 UserSpaceMain 的 isSettingsTwoPane），这里再算一份会出现两条断点漂移。 */
+const isPortraitHome = computed(() => isHome.value && !props.twoPane);
+
+/* 竖屏子页「沉浸态」（2026-11-24 用户口径：「二级三级页面都要占满屏幕，不挂导航栏了」）。
+   三个条件缺一不可：
+     · 不在首页（首页有「设置」标题 + 圆形返回 + 搜索，导航岛要留着）；
+     · 不是两栏（横屏两栏照挂 —— 岛浮在左栏上方，不挡右栏表单，
+       用户明确说「横屏还是挂导航栏的」）；
+     · 真的进了子页（activeEntry / 编辑态 / 右栏表单三者之一）。
+   这个值同时喂给 App 级导航岛（经 useSettingsChrome 单例）和本组件的外壳留白：
+   导航岛一卸，78px 的顶部留白必须同时归零，否则会白留一道空档。 */
+const immersiveSubpage = computed(() => !isHome.value && !props.twoPane);
+const shellStyle = computed(() => {
+  const top = immersiveSubpage.value ? 0 : navTopOffset.value;
+  return { '--userspace-nav-h': `${top}px`, paddingTop: `${top}px` };
+});
+
+/* 把「我在竖屏子页里」广播给 App 级导航岛。
+   ⚠️ 竖屏点组行进二级页**不改 URL**（openEntry 是纯内存态），所以 App 那边没法靠
+      路由判断 —— 必须由面板主动写。immediate 让深链直达子页时首帧就是沉浸态，
+      不会「先挂一帧岛再消失」。
+   ⚠️ 卸载时必须复位：本面板被 KeepAlive 缓存，离开「我」页不会触发 onUnmounted，
+      但会触发 onDeactivated（下面 watch 里一并处理）—— 否则岛会在别的 tab 上继续隐藏。 */
+watch(immersiveSubpage, (active) => setSettingsImmersive(active), { immediate: true });
 
 /* 左栏高亮：左栏是一级组，所以三级表单打开时高亮它**所属的组**（而不是某一条）。
    editOpen / inlinePanel 是宿主状态，本组件按 props 反推 —— 组 id 固定是 g-<groupId>。
@@ -1078,15 +1314,19 @@ const railActiveId = computed(() => {
    与二级页的行同一套样式（.gs-row + .gs-mail-freq-option），不新造控件。 */
 const expandRows = (entries) =>
   entries.flatMap((entry) => {
-    const rows = [{ ...entry, uid: entry.id, expanded: mailExpandedGroup.value === entry.id }];
-    if (entry.kind !== 'choice' || mailExpandedGroup.value !== entry.id) return rows;
+    const rows = [{ ...entry, uid: entry.id, expanded: expandedChoiceId.value === entry.id }];
+    if (entry.kind !== 'choice' || expandedChoiceId.value !== entry.id) return rows;
     const options = entry.options.map((option) => ({
       uid: `${entry.id}-${option.value}`,
       option: true,
       label: option.label,
       desc: option.desc,
-      icon: entry.optionValue === option.value ? Check : entry.optionIcon,
-      iconClass: entry.optionValue === option.value ? 'is-green' : 'is-gray',
+      /* 选中 → 勾（绿色）；未选中 → **选项自带的图标**，没有才退回 entry 的统一图标。
+         ⚠️ 原来未选中一律用 entry.optionIcon，主题那样 5 个选项全画同一个灰点时
+            五行图标完全一样、看不出区别（实测）。让选项能自带图标是这次改的。
+         ⚠️ 选中态必须是勾而不是「显示自己的图标 + 绿色」—— 勾是唯一的「已选」信号。 */
+      icon: entry.optionValue === option.value ? Check : option.icon || entry.optionIcon,
+      iconClass: entry.optionValue === option.value ? 'is-green' : option.iconClass || 'is-gray',
       badge: option.badge,
       run: () => entry.choose(option.value),
     }));
@@ -1253,6 +1493,16 @@ const handleBack = () => {
   transition: padding-top 240ms cubic-bezier(0.32, 0.72, 0, 1);
 }
 
+/* 竖屏子页沉浸态（2026-11-24）：导航岛已卸载 ⇒ 留白归零（值由 shellStyle 写死，
+   这里只补两件 padding 管不到的事）：
+     ① 安全区：刘海屏顶部被状态栏吃掉一截，返回按钮必须有 8px + env() 的呼吸；
+        有导航岛时那块空隙天然存在，岛一卸就没了 —— 不补的话按钮贴着顶部边缘。
+     ② 横向：内容层在 ≤767px 是 padding 0（为通栏卡片），子页的页头与表单需要
+        自己的 16px 沟槽，否则返回按钮贴屏幕左缘。 */
+.profile-subpage-shell.is-immersive {
+  padding-top: max(8px, env(safe-area-inset-top, 0px));
+}
+
 @media (prefers-reduced-motion: reduce) {
   .profile-subpage-shell {
     transition: none;
@@ -1296,13 +1546,16 @@ const handleBack = () => {
   border-radius: var(--liquid-radius-md);
 }
 
-/* 竖屏全宽（2026-10-22）：搜索框贴边，圆角与左右边框会让它在通栏时被切出弧形 */
+/* 竖屏：搜索框与卡片共用同一条 16px 沟槽（2026-11-24 改版）
+   旧版通栏贴边，是为了跟当时同样通栏的卡片对齐。卡片现在内缩了，
+   搜索框若仍贴边就会比卡片宽出一圈，首屏第一条横线立刻显歪。
+   圆角取 12px 而非卡片的 20px —— 让「输入框」和「卡片」在视觉上不是同一类东西。
+   ⚠️ 这里**只改圆角，不再加 margin** —— 16px 沟槽由吸顶容器
+      `.glass-settings:not(.is-two-pane) .gs-aside { margin-inline: 16px }` 提供。
+      两处都写会变成 32px 内缩，搜索框比卡片窄一圈（改版首测就是这个症状）。 */
 @media (max-width: 767px) {
   .gs-search {
-    border-radius: 0;
-    border-left-width: 0;
-    border-right-width: 0;
-    box-shadow: none;
+    border-radius: 12px;
     padding: 0 16px;
   }
 }
@@ -1392,11 +1645,16 @@ const handleBack = () => {
    滚过就再也找不到，15 个条目只能硬滚。这是「找不到」在竖屏下的那一半原因。
    ⚠️ 吸顶必须自带不透明底 + 模糊：否则下面的卡片会从搜索框底下透出来，看着像重影。
    ⚠️ top 用 --userspace-nav-h 而不是 0：滚动容器是宿主的 .tab-page，
-      顶部还有导航岛，写 0 会被压在岛下面（与双栏那条同一口径）。 */
+      顶部还有导航岛，写 0 会被压在岛下面（与双栏那条同一口径）。
+   ⚠️ 2026-11-24：搜索框内缩 16px 后，这层吸顶底**必须跟着收同一条沟槽** ——
+      否则它会比搜索框左右各宽出 16px，成为一条横贯屏幕的白带
+      （实测截图：搜索框缩进后，两侧露出两条白边）。它现在只负责遮住
+      搜索框正后方滚过去的行，所以宽度对齐搜索框即可。 */
 .glass-settings:not(.is-two-pane) .gs-aside {
   position: sticky;
   top: calc(var(--userspace-nav-h, 78px) + 8px);
   z-index: 4;
+  margin-inline: 16px;
   padding: 8px 0 10px;
   background: var(--liquid-bg, rgba(255, 255, 255, 0.72));
   backdrop-filter: var(--liquid-filter-sm);
@@ -1573,6 +1831,74 @@ const handleBack = () => {
   margin-top: -8px;
   border-radius: 2px;
   background: var(--apple-blue, #0071e3);
+}
+
+/* ══ 手机首页「账户」卡（2026-11-24 B 层：身份卡降级为卡片首行）══════════════
+   替换原先 151px 高的居中大头像区（84px 头像 + 昵称 + 邮箱）。省下的空间
+   正好装下两个分组 —— 这是「一屏看全 6 个分组」的直接来源。
+
+   为什么头像容器走 --gs-icon-size（30px）而不是自定 26px：
+   **文字必须与下面六个分组的文字左对齐**。行内文字起点 =
+   卡片内缩 + 边框 + 行内边距 + 图标宽 + 图标间距 —— 任一档不同就会错开。
+   实测过 26px 版本：账户行文字 68px、分组行 72px，差 4px，肉眼一眼看出台阶。
+   头像本身仍画 26px（`svg`/图片不填满容器），留出的 2px 是圆形与线条图标的
+   视觉重量差，不影响对齐。 */
+.gs-acct-row .gs-acct-avatar {
+  width: var(--gs-icon-size, 30px);
+  height: var(--gs-icon-size, 30px);
+  overflow: visible;
+}
+
+/* 邮箱行：卡片下方的一行灰字，与组标题同为 12/13px 档
+   ⚠️ 必须放在卡片**外面**（不塞进行内）：行内已经有昵称占着 gs-side，
+      再塞邮箱会把右侧挤成两段、并且让「点行=编辑个人信息」这个动作意图变模糊。
+   ⚠️ 左缩进对齐**卡内文字**（不是卡片左边缘）：卡片内缩 16 + 边框 1 +
+      行内边距（竖屏 14）+ 图标 30 + 间距 13。写死 32px 会让它比文字左出一大截
+      （改版首测就是这么错的）。这里用同一组变量算，断点变了自动跟随。 */
+.gs-acct-mail {
+  margin: 7px 16px 0
+    calc(
+      16px + 1px + var(--gs-row-pad-x, 18px) + var(--gs-icon-size, 30px) + var(--gs-row-gap, 13px) -
+        7px
+    );
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--liquid-text-tertiary, #8b9098);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gs-acct-mail-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  padding: 2px 7px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  font-size: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    background-color 150ms ease,
+    color 150ms ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .gs-acct-mail-btn:hover {
+    background: var(--rail-item-bg-hover, rgba(15, 23, 42, 0.05));
+    color: var(--liquid-text-secondary, #6e6e73);
+  }
+}
+
+/* 双写伪类：与 .gs-id-email 同一处理 —— 全局 .bolek-page :focus-visible 特异性打平且靠后 */
+.gs-acct-mail-btn:focus-visible:focus-visible {
+  outline: 2px solid var(--liquid-accent, #0071e3);
+  outline-offset: 2px;
 }
 
 /* ══ 身份卡（2026-10-26 Apple 账户页形态）══════════════════════════════

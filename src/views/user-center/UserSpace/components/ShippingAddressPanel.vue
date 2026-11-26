@@ -50,6 +50,17 @@ const { isLoggedIn, showLoginModal } = storeToRefs(authStore);
   animation: sap-in 240ms var(--ease-out, ease-out) both;
 }
 
+/* 竖屏：本面板的内容根**不是 .gs-card**（地址卡是 AddressManager 自己的 .am-card），
+   所以拿不到 settings-glass.css 里 `.gs-card { margin-inline: 16px }` 那条内缩，
+   实测卡片 left=0 贴屏幕边，而页头的圆形返回按钮在 16px —— 两者错开一格（截图可见）。
+   2026-11-24 页头改成极简（按钮内缩 16）后这个错位才显出来：改前页头是通栏胶囊
+   （left=0），两边都贴边，反而"对齐"。这里补同样的 16px 沟槽。 */
+@media (max-width: 767px) {
+  .shipping-address-panel {
+    padding-inline: 16px;
+  }
+}
+
 @keyframes sap-in {
   from {
     opacity: 0;

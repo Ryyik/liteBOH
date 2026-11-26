@@ -137,7 +137,14 @@ html[data-theme="anniversary-mc"] .settings-page:not(.is-inline) {
 }
 
 /* 行分隔线：内缩到文字起始处。
-   不能用 border —— border 会铺满整行、从图标下方穿过（与 iOS 不符）。 */
+   不能用 border —— border 会铺满整行、从图标下方穿过（与 iOS 不符）。
+
+   ⚠️ 2026-11-24 改版时专门做过 A/B，结论是**保持内缩、不照抄 GPT 的通栏**：
+      GPT 设置页的行**没有左侧图标**，通栏线底下什么都没有，所以通栏是干净的；
+      我们的行有 26px 彩色图标，通栏后线会从图标正下方穿过，把图标槽切成
+      「被线条串起来的一列」，视觉上脏（实测两张对比图差异明显）。
+      有图标的列表在这一点上不能直接搬无图标的规范 —— 内缩正是让图标列
+      保持为一条连续、无干扰的视觉槽。不要因为「GPT 是通栏」就改这里。 */
 .gs-row + .gs-row {
   border-top: 0;
 }
@@ -151,6 +158,18 @@ html[data-theme="anniversary-mc"] .settings-page:not(.is-inline) {
   height: 1px;
   background: var(--liquid-border-hairline);
   pointer-events: none;
+}
+
+/* 单行行（无 desc）：纵向内边距收到 6px，让行落到 GPT 的 44px 档
+   —— 44(min-height) = 30(图标) + 6×2 + 2；双行行仍走上面的 12px。
+   ⚠️ 用显式 class 而不是 `:has(.gs-desc)`：iOS/Safari 对 :has 的支持跨度不够稳，
+      而这是 PWA 主路径。class 由模板按 `!item.desc` 给出，口径与「有没有副标题」同源。
+   ⚠️ 图标容器仍是 30px（--gs-icon-size 不变）。只收 padding 不动图标，
+      是为了让「有图标 / 无图标」「单行 / 双行」四类行的左对齐与基线全部一致 ——
+      改 --gs-icon-size 会连带 5 个设置页的行高一起变。 */
+.gs-row.is-single-line {
+  padding-top: 6px;
+  padding-bottom: 6px;
 }
 
 /* 静态行（纯展示，不可点） */
@@ -299,9 +318,15 @@ html[data-theme="anniversary-mc"] .settings-page:not(.is-inline) {
   gap: 3px;
 }
 
+/* 2026-11-24：600 → 500。
+   600 在「标题 + 副标题 + 徽标」的三段式双行里是必要的（靠粗体把主信息从两行文字里
+   拎出来）。行改成单行后，一行里只剩一个名字，粗体不再承担分层职责，只是把整页
+   字重密度抬高一档 —— GPT 设置页全页几乎只用 400/500。
+   ⚠️ 不要再往上加回 600 来表达「这一行更重要」：重要性走位置与分组，
+      不靠字重（暗色下 600 的白字还会因为字重变大而显得发糊）。 */
 .gs-label {
   font-size: 15px;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--liquid-text-primary, #1d1d1f);
   overflow-wrap: anywhere;
 }
@@ -310,6 +335,28 @@ html[data-theme="anniversary-mc"] .settings-page:not(.is-inline) {
   font-size: 12px;
   line-height: 1.45;
   color: var(--liquid-text-tertiary, #8b9098);
+}
+
+/* 卡下脚注（2026-11-24 C 层）
+   原来行内的副标题收到这里，行本身回到单行 44px。
+   GPT 同版式：卡片下方一行 13px 灰字，缩进与卡内文字起点对齐。
+
+   ⚠️ 左缩进必须对齐**卡内文字**而不是卡片边缘，算式与 .gs-acct-mail 同源：
+      卡片内缩 + 边框 + 行内边距 + 图标 + 间距。写死像素会在断点切换时错位。
+   ⚠️ 每张卡最多一条（由 groupFootnotes 保证）。逐行都配等于把双行搬到卡外，
+      总高不减、还多一层缩进 —— 那是负优化。 */
+.gs-footnote {
+  margin: 7px 16px 0
+    calc(16px + 1px + var(--gs-row-pad-x, 18px) + var(--gs-icon-size, 30px) + var(--gs-row-gap, 13px));
+  padding: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--liquid-text-tertiary, #8b9098);
+  /* 最多两行：一句附注不该长成第二块正文 */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .gs-side {
@@ -726,12 +773,26 @@ html[data-theme="anniversary-mc"] .settings-page:not(.is-inline) {
   }
 }
 
-/* ---------- 竖屏全宽（2026-10-22）----------
-   与「我·空间」「印象」两段同一套语言：iOS grouped list 的卡片退化为
-   通栏分隔线列表（方角、去左右边框、去投影），分组标题与行内容各自留 16px。
+/* ---------- 竖屏卡片几何（2026-11-24 改版）----------
+   ⚠️ 这条规则**推翻了 2026-10-22 的「竖屏拉平通栏」**，理由要留在这里：
+
+   旧口径是「与『我·空间』『印象』同一套语言 ⇒ 卡片退化为通栏分隔线列表
+   （方角、去左右边框、去投影）」。它解决的是「贴边更省横向空间」，代价是
+   卡片边界彻底消失 —— 设置页在一屏里堆 6 个双行分组时，没有任何视觉容器
+   帮助分组，只剩组间 14px 的留白在硬撑层级。
+
+   2026-11-24 用户拿 GPT 设置页做参照重定：竖屏**保留卡片**
+   （左右内缩 16px、圆角 20px、投影保留轻微一档）。省下的横向空间用
+   「行内容不贴边」补回来 —— 行内边距 18px + 卡片内缩 16px = 文字距屏幕 34px，
+   与旧版通栏时的 18px 相比反而更透气，而卡片成为分组的可见边界。
+
+   ⚠️ 三 tab 语言对齐是有意**不再强求**的：设置页是「分组清单」，它的分组
+   就是信息层级本身；「我·空间」「印象」是内容流，通栏更合适。两套各自成立，
+   不要为了「看起来统一」把这条改回去（改了这里，`probe-settings-glass` 的
+   竖屏断言会红 —— 那条断言就是给这次改版加的锁）。
    ⚠️ 每条都带 `.settings-shell` 前缀 —— 本文件被 5 个设置类页面共用，
    全局改 `.gs-rows` 会把独立路由的设置页（/user-space/settings/version 等）
-   也一起拉平，那些页面的父容器仍是 20px 边距，贴边后会错位。 */
+   也一起改，那些页面的父容器仍是 20px 边距，会变成双重内缩。 */
 @media (max-width: 767px) {
   .settings-shell .glass-settings {
     gap: 14px;
@@ -741,11 +802,14 @@ html[data-theme="anniversary-mc"] .settings-page:not(.is-inline) {
     padding: 0 16px 7px;
   }
 
-  .settings-shell .gs-rows {
-    border-radius: 0;
-    border-left-width: 0;
-    border-right-width: 0;
-    box-shadow: none;
+  .settings-shell .gs-rows,
+  .settings-shell .gs-card {
+    /* 卡片左右内缩：与搜索框、组标题共用同一条 16px 沟槽（GPT 的做法） */
+    margin-inline: 16px;
+    border-radius: 20px;
+    /* 投影保留一档极轻的 —— 通栏方角时投在页底上毫无意义，现在有边有角了，
+       这一档负责把卡片从页底「托起来」，不能给大（大投影会显脏） */
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
   }
 }
 
@@ -826,60 +890,12 @@ html[data-theme="anniversary-mc"] .settings-page:not(.is-inline) {
   }
 }
 
-/* ---------- 子页返回条（2026-11-10 层级定稿） ----------
-   二级 / 三级页唯一的返回入口（页头与大返回只属于一级首页）。
-   ⚠️ 必须 sticky：数据导出这类长表单滚下去之后，返回条还停在上面，
-      不然「怎么回去」要靠用户往上划半屏。 */
-.gs-inline-bar {
-  position: sticky;
-  top: calc(var(--userspace-nav-h, 78px) + 6px);
-  z-index: 5;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-height: 34px;
-  padding: 5px 6px 5px 0;
-  margin-bottom: 2px;
-  background: var(--liquid-bg, rgba(255, 255, 255, 0.78));
-  backdrop-filter: var(--liquid-filter-sm);
-  -webkit-backdrop-filter: var(--liquid-filter-sm);
-  border-radius: var(--liquid-radius-sm, 10px);
-}
+/* ---------- 子页极简页头：样式在组件里 ----------
+   2026-11-24：二级 / 三级页的页头已抽成 `components/SettingsSubpageHeader.vue`
+   （圆形返回按钮 + 居中标题、无底板），它的规则住在组件自己的 `<style scoped>` 里。
 
-.gs-inline-back {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  padding: 4px 10px 4px 4px;
-  border: 0;
-  border-radius: 999px;
-  background: transparent;
-  color: #0071e3;
-  font-family: inherit;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background 160ms var(--ease-out, ease-out);
-}
-
-/* 异步 chunk 的 scoped 样式晚于 themes/*.css 落地 ⇒ 暗色必须带 html 前缀（写平会被压掉） */
-html[data-theme='dark'] .gs-inline-back {
-  color: #2997ff;
-}
-
-.gs-inline-back:hover {
-  background: var(--liquid-bg-nested);
-}
-
-/* 双写伪类保证键盘焦点环盖过全局 .bolek-page :focus-visible（特异性打平会静默失效） */
-.gs-inline-back:focus-visible:focus-visible {
-  outline: 2px solid currentColor;
-  outline-offset: 2px;
-}
-
-.gs-inline-title {
-  margin: 0;
-  color: var(--liquid-text-primary, #1d1d1f);
-  font-size: 15px;
-  font-weight: 600;
-}
+   ⚠️ **不要把这些规则搬回本文件**：本文件是经各面板的
+   `<style scoped> @import` 引入的，编译后带的是**引入方的 data-v**，
+   作用不到 SettingsSubpageHeader 的元素上。第一版就写在这里，
+   实测标题停在 h2 默认的 left/16px、返回按钮 48px —— 属性全落空。
+   本文件只留 `.gs-inline-*` 的**语义占位**（探针靠这些类名定位），不留样式。 */

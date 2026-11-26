@@ -308,6 +308,7 @@
             @open-edit-profile="openEditProfileModal"
             @close-edit="closeEditProfileModal"
             @open-theme="openThemePanel"
+            @choose-theme="setThemePreference"
             @open-assets="openAssetsPanel()"
             @open-address="openShippingAddressPanel"
             @open-photo-albums="openPhotoAlbumsPanel"
@@ -635,6 +636,7 @@ import {
 } from './composables/useUserSpaceTabs.js';
 // 2026-09-30 底栏收为四席后，assets / settings 不再是底栏项 —— 高亮要经映射落到「我」
 import { resolveBottomNavIdForUserSpaceTab } from '@/config/bottom-nav';
+import { settingsWideViewport } from '@/composables/useSettingsChrome.js';
 import { useImageCompressionLoader } from './composables/useImageCompressionLoader.js';
 import {
   AsyncMessages,
@@ -1717,17 +1719,24 @@ const currentThemePreference = ref(themeManager.getPreference?.() || currentThem
 const isHomeCatActive = computed(
   () => isHomeCatTheme(currentTheme.value) || isHomeCatTheme(currentThemePreference.value),
 );
+/* 主题行尾的显示文案。
+   ⚠️ 2026-11-24 C 层：用词必须与 `THEME_CHOICES`（ProfileSettingsPanel）**逐字一致** ——
+      同一行里「行尾值」和「展开后的选项」是同一个概念，出现「浅色模式 / 浅色」
+      「八周年 MC 限定 / 八周年」两种叫法会让人以为它们不是一回事（实测截图确认）。
+      改这里的任意一个词，必须同步 `THEME_CHOICES` 的 label。
+   ⚠️ 「跟随系统」额外带解析结果（跟随系统：深色）：这是**有用的补充**，
+      不是重复 —— 用户选了跟随系统后，需要知道此刻实际是什么色。 */
 const themeDisplayText = computed(() => {
   if (currentThemePreference.value === 'anniversary-mc') {
-    return '八周年 MC 限定';
+    return '八周年';
   }
   if (currentThemePreference.value === 'home-cat') {
     return '方块小窝';
   }
   if (currentThemePreference.value === 'system') {
-    return currentTheme.value === 'dark' ? '跟随系统：深色' : '跟随系统：浅色';
+    return currentTheme.value === 'dark' ? '跟随系统 · 深色' : '跟随系统 · 浅色';
   }
-  return currentTheme.value === 'dark' ? '深色模式' : '浅色模式';
+  return currentTheme.value === 'dark' ? '深色' : '浅色';
 });
 const dataPrivacyStatusText = computed(() =>
   isProfileBasicsComplete.value ? '资料已完善' : '待补充资料',
@@ -2752,10 +2761,10 @@ const settingsWideMq =
   typeof window !== 'undefined' && typeof window.matchMedia === 'function'
     ? window.matchMedia('(orientation: landscape) and (min-width: 1024px) and (min-height: 600px)')
     : null;
-const isSettingsWideViewport = ref(settingsWideMq ? settingsWideMq.matches : false);
-const onSettingsWideChange = (event) => {
-  isSettingsWideViewport.value = event.matches;
-};
+/* ⚠️ 2026-11-24：这个 ref 也被 `useSettingsChrome` 持有（导航岛判据要用它决定
+   「横屏不隐藏」）。两边**必须同一份** —— 各建一个 ref 各听一次 change，
+   断点一改就会一边两栏一边单栏。所以这里直接引用单例，不再自己 new。 */
+const isSettingsWideViewport = settingsWideViewport;
 const isSettingsTwoPane = computed(
   () => isSettingsWideViewport.value && currentTab.value === 'settings',
 );
@@ -3660,15 +3669,10 @@ onMounted(() => {
   }
   setUserSpaceMountedForPreload(true);
   document.body.classList.add('is-loaded');
-  // 设置页两栏的断点监听：进页时按当前视口补一次，之后跟随横竖屏切换
-  if (settingsWideMq) {
-    if (typeof settingsWideMq.addEventListener === 'function') {
-      settingsWideMq.addEventListener('change', onSettingsWideChange);
-    } else {
-      settingsWideMq.addListener(onSettingsWideChange);
-    }
-    onSettingsWideChange(settingsWideMq);
-  }
+  /* 设置页两栏的断点监听已挪进 useSettingsChrome（App 级导航判据也要读它，
+     两边各听一份会让断点瞬间出现「一边两栏一边单栏」）。这里只补一次当前值：
+     单例的初始值在模块加载时算过一次，但那是 App 启动时的视口。 */
+  isSettingsWideViewport.value = settingsWideMq ? settingsWideMq.matches : false;
   // 初始化主题
   const initialTheme = themeManager.getTheme();
   userSpacePageEl = document.querySelector('.user-space-page');
@@ -3819,13 +3823,8 @@ watch(currentTab, (newTab, oldTab) => {
 
 onUnmounted(() => {
   closeSuggestIsland(); // 建议岛是全局导航槽位，页面卸载必须收（项目规则）
-  if (settingsWideMq) {
-    if (typeof settingsWideMq.removeEventListener === 'function') {
-      settingsWideMq.removeEventListener('change', onSettingsWideChange);
-    } else {
-      settingsWideMq.removeListener(onSettingsWideChange);
-    }
-  }
+  /* 断点监听归 useSettingsChrome 的模块级单例持有（App 生命周期内常驻），
+     这里**不要**摘 —— 摘了会让导航判据在下次进「我」页前读到过期值。 */
   // body 级 class 必须在这里摘：它改的是全局 --userspace-rail-w，
   // 留着会让首页 / 他人空间的左栏也停在缩小态
   document.body.classList.remove('is-rail-compact');
