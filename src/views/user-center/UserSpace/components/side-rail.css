@@ -50,6 +50,10 @@
       inset 0 1px 0 rgba(255, 255, 255, 0.12);
   }
 
+  .userspace-rail.is-more-open {
+    z-index: 40;
+  }
+
   /* 条目状态色必须写在**胶囊自己身上**：宿主在 body / 页面根上的暗色覆写
      赢不过元素自身的亮色声明（自定义属性按最近声明取值），会让选中淡染停在亮色。 */
   html[data-theme='dark'] .userspace-rail.liquid-glass,

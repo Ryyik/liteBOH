@@ -95,7 +95,7 @@
 
 .user-space-page[data-theme='dark'],
 html[data-theme='dark'] .community-page-grid {
-  --bg: #181a20;
+  --bg: #000000;
   --text-primary: #f5f5f7;
   --text-secondary: #a1a1aa;
   --text-muted: #71717a;
@@ -109,9 +109,9 @@ html[data-theme='dark'] .community-page-grid {
   --shadow-lg: rgba(0, 0, 0, 0.3);
   /* 玻璃变量已映射到 --liquid-* tokens，暗色自动切换；仅保留无对应 token 的 border-strong */
   --glass-border-strong: rgba(255, 255, 255, 0.14);
-  --surface: #1a1a24;
-  --surface-soft: #252532;
-  --surface-elevated: #252532;
+  --surface: #0a0a0a;
+  --surface-soft: #141414;
+  --surface-elevated: #141414;
   --stroke: rgba(255, 255, 255, 0.1);
   --stroke-strong: rgba(255, 255, 255, 0.2);
   --accent-soft: rgba(59, 130, 246, 0.12);
@@ -1153,7 +1153,7 @@ html[data-boh-detail-returning] .user-space-page .profile-service-panel {
 }
 
 .user-space-page[data-theme='dark'] .online-dot {
-  border-color: #181a20;
+  border-color: #000000;
 }
 
 /* ---------- 用户信息 ---------- */

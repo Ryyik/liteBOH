@@ -5,15 +5,15 @@
  */
 
 [data-theme='dark'] {
-  --uc-dark-bg: #09111d;
-  --uc-dark-bg-soft: #0f1a2b;
+  --uc-dark-bg: #000000;
+  --uc-dark-bg-soft: #0a0a0a;
   --uc-dark-surface: rgba(0, 0, 0, 0.86);
-  --uc-dark-surface-strong: #111b2d;
+  --uc-dark-surface-strong: #121212;
   --uc-dark-border: rgba(255, 255, 255, 0.08);
   --uc-dark-border-strong: rgba(255, 255, 255, 0.14);
-  --uc-dark-text: #f8fbff;
-  --uc-dark-text-soft: #c7d3e3;
-  --uc-dark-text-muted: #8ea0b8;
+  --uc-dark-text: #f0f0f0;
+  --uc-dark-text-soft: #d4d4d8;
+  --uc-dark-text-muted: #9a9a9f;
   --uc-dark-accent: #67a2ff;
   --uc-dark-accent-soft: rgba(103, 162, 255, 0.16);
   --uc-dark-danger-soft: rgba(255, 140, 140, 0.16);
@@ -29,10 +29,7 @@
     .shared-memory-page
   ) {
   color: var(--uc-dark-text);
-  background:
-    radial-gradient(circle at top left, rgba(90, 151, 255, 0.16), transparent 30%),
-    radial-gradient(circle at top right, rgba(56, 189, 248, 0.12), transparent 24%),
-    linear-gradient(180deg, var(--uc-dark-bg) 0%, #0c1625 54%, #0f1a2b 100%) !important;
+  background: var(--boh-page-bg) !important;
 }
 
 [data-theme='dark']

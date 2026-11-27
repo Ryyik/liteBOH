@@ -1222,8 +1222,16 @@ const openSettingsGroup = (groupId) => {
   const next = String(groupId || '').trim();
   if (!next) return;
   settingsGroupId.value = next;
+  settingsSection.value = 'home';
+  settingsSecurityPanel.value = '';
   const nextQuery = applySettingsLayersToQuery({ ...route.query, tab: 'settings' });
-  if (String(nextQuery.group || '') === String(route.query.group || '')) return;
+  delete nextQuery.view;
+  delete nextQuery.panel;
+  delete nextQuery.setting;
+  const hasStaleLayers = ['view', 'panel', 'setting'].some(
+    (key) => route.query[key] !== undefined && route.query[key] !== '',
+  );
+  if (String(nextQuery.group || '') === String(route.query.group || '') && !hasStaleLayers) return;
   router.replace({ query: nextQuery });
 };
 

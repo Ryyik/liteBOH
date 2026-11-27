@@ -158,6 +158,37 @@ await context.addInitScript(() => {
   }
 });
 const page = await context.newPage();
+await page.route('**/rest/v1/rpc/get_weekly_checkin_status', (route) =>
+  route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({
+      ok: true,
+      has_signed_this_week: false,
+      streak_total: 1,
+      cycle_progress: 1,
+      cycle_size: 4,
+      current_points: 42,
+      current_week_start: '2026-11-23',
+    }),
+  }),
+);
+await page.route('**/rest/v1/rpc/submit_weekly_checkin', (route) =>
+  route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({
+      ok: true,
+      has_signed_this_week: true,
+      streak_total: 1,
+      cycle_progress: 1,
+      cycle_size: 4,
+      points_awarded: 10,
+      current_points: 52,
+      current_week_start: '2026-11-23',
+    }),
+  }),
+);
 page.on('pageerror', (e) => errors.push(String(e.message).slice(0, 160)));
 await page.goto(`${BASE}/#/`, { waitUntil: 'domcontentloaded' });
 await injectAuth(page);
@@ -293,6 +324,7 @@ check('C2 签到入口（已签态 .is-done）文字可读', (c2?.contrast ?? 0)
 await page.evaluate(() => {
   document.querySelector('.section-checkin')?.click();
 });
+await page.waitForSelector('.checkin-stage', { timeout: 20000 });
 await page.waitForTimeout(1800);
 const d = await page.evaluate(SAMPLE, [
   '.checkin-stage-scrim',
@@ -380,36 +412,36 @@ await page.waitForTimeout(600);
 await page.evaluate(() => {
   window.location.hash = '#/shop';
 });
-await page.waitForSelector('.shop-page', { timeout: 20000 });
+await page.waitForSelector('.store-page', { timeout: 20000 });
 await page.waitForTimeout(2200);
 const f = await page.evaluate(SAMPLE, [
-  '.shop-search',
-  '.shop-search input',
-  '.shop-bottom-nav',
-  '.shop-bottom-nav .nav-label',
+  '.store-search',
+  '.store-search input',
+  '.bottom-nav-glass',
+  '.bottom-nav-glass .nav-label',
 ]);
 check(
   'F1 商店搜索框已翻深色',
-  f['.shop-search']?.effBgLum < 0.35,
-  JSON.stringify(f['.shop-search']),
+  f['.store-search']?.effBgLum < 0.35,
+  JSON.stringify(f['.store-search']),
 );
 check(
   'F2 搜索框内文字可读',
-  f['.shop-search input']?.contrast >= 4.5,
-  JSON.stringify(f['.shop-search input']),
+  f['.store-search input']?.contrast >= 4.5,
+  JSON.stringify(f['.store-search input']),
 );
 check(
   'F3 悬浮底栏已翻深色',
-  f['.shop-bottom-nav']?.effBgLum < 0.4,
-  JSON.stringify(f['.shop-bottom-nav']),
+  f['.bottom-nav-glass']?.effBgLum < 0.4,
+  JSON.stringify(f['.bottom-nav-glass']),
 );
 check(
   'F4 底栏标签可读',
-  f['.shop-bottom-nav .nav-label']?.contrast >= 3,
-  JSON.stringify(f['.shop-bottom-nav .nav-label']),
+  f['.bottom-nav-glass .nav-label']?.contrast >= 3,
+  JSON.stringify(f['.bottom-nav-glass .nav-label']),
 );
 const heroTitle = await page.evaluate(() => {
-  const el = document.querySelector('.mascot-copy h2');
+  const el = document.querySelector('.store-head h1');
   if (!el) return null;
   const cs = getComputedStyle(el);
   const m = /rgba?\(([^)]+)\)/.exec(cs.color);
@@ -421,12 +453,8 @@ const heroTitle = await page.evaluate(() => {
   const lum = 0.2126 * f(p[0]) + 0.7152 * f(p[1]) + 0.0722 * f(p[2]);
   return { color: cs.color, lum: +lum.toFixed(3), text: el.textContent.trim().slice(0, 12) };
 });
-// hero 文案卡是"白底产品图上的白玻璃卡"，卡内文字必须是深色（亮度低）
-check(
-  'F5 hero 文案卡内标题为深字（白卡上可读）',
-  heroTitle && heroTitle.lum < 0.3,
-  JSON.stringify(heroTitle),
-);
+// 暗色商城页标题应为浅字。
+check('F5 商城页标题在暗底上可读', heroTitle && heroTitle.lum > 0.3, JSON.stringify(heroTitle));
 await page.screenshot({ path: `${OUT}/shop.png` });
 
 check('G1 全程零 pageerror', errors.length === 0, errors.join(' | '));
@@ -448,18 +476,18 @@ check('G1 全程零 pageerror', errors.length === 0, errors.join(' | '));
   p2.on('pageerror', (e) => errs2.push(String(e.message).slice(0, 120)));
   await p2.goto(`${BASE}/#/`, { waitUntil: 'domcontentloaded' });
   await injectAuth(p2);
-  await p2.waitForSelector('.forum-toolbar', { timeout: 20000 });
+  await p2.waitForSelector('.segment-tab.active', { timeout: 20000 });
   await p2.waitForTimeout(1800);
-  const h = await p2.evaluate(SAMPLE, ['.forum-toolbar', '.forum-toolbar .toolbar-search-input']);
+  const h = await p2.evaluate(SAMPLE, ['.segment-tab.active', '.section-search']);
   check(
-    'H1 窄屏档：工具栏容器自身非白玻璃',
-    h['.forum-toolbar']?.ownBgLum < 0.35,
-    JSON.stringify(h['.forum-toolbar']),
+    'H1 窄屏档：选中页签文字可读',
+    h['.segment-tab.active']?.contrast >= 3,
+    JSON.stringify(h['.segment-tab.active']),
   );
   check(
-    'H2 窄屏档：输入区自身非白底',
-    h['.forum-toolbar .toolbar-search-input']?.ownBgLum < 0.35,
-    JSON.stringify(h['.forum-toolbar .toolbar-search-input']),
+    'H2 窄屏档：搜索入口图标可读',
+    h['.section-search']?.contrast >= 3,
+    JSON.stringify(h['.section-search']),
   );
   check('H3 窄屏档：零 pageerror', errs2.length === 0, errs2.join(' | '));
   await p2.screenshot({ path: `${OUT}/home-narrow.png` });
@@ -494,56 +522,47 @@ check(
 await page.evaluate(() => {
   window.location.hash = '#/';
 });
-await page.waitForSelector('.nav-search-btn', { timeout: 20000 });
+await page.waitForSelector('.nav-search-btn', { state: 'attached', timeout: 20000 });
 await page.waitForTimeout(2200);
 const jRest = await page.evaluate(() => {
   const c = document.querySelector('#unified-nav-container');
   return c ? Math.round(c.getBoundingClientRect().height) : 0;
 });
-await page.locator('.nav-search-btn').click();
+await page.evaluate(() => {
+  window.location.hash = '#/search';
+});
+await page.waitForSelector('.page-search', { timeout: 20000 });
 await page.waitForTimeout(1300);
 const j = await page.evaluate(() => {
   const c = document.querySelector('#unified-nav-container');
-  const s = document.querySelector('.unified-nav-surface');
-  if (!c || !s) return null;
+  if (!c) return null;
   const cs = getComputedStyle(c);
-  const ss = getComputedStyle(s);
   return {
     containerH: Math.round(c.getBoundingClientRect().height),
     containerBg: cs.backgroundColor,
     containerBackdrop: cs.backdropFilter,
     containerShadow: cs.boxShadow,
-    surfaceH: Math.round(s.getBoundingClientRect().height),
-    surfaceBg: ss.backgroundColor,
-    surfaceCls: s.className,
+    searchVisible: Boolean(document.querySelector('.page-search')),
   };
 });
 check(
-  'J1 岛展开确实把容器撑高（本问题成立的前提）',
-  (j?.containerH ?? 0) > (jRest || 0) * 2,
+  'J1 全屏搜索不撑高导航容器',
+  Boolean(j?.searchVisible) && (j?.containerH ?? 0) <= (jRest || 0) + 4,
   `rest=${jRest} open=${j?.containerH}`,
 );
 check(
-  'J2 撑高后的容器自身不铺背景（否则=页顶一大块实心矩形）',
+  'J2 导航容器自身不铺背景',
   /^rgba\(0, 0, 0, 0\)$|^transparent$/.test(j?.containerBg || 'x'),
-  JSON.stringify({ bg: j?.containerBg, cls: j?.surfaceCls }),
+  JSON.stringify({ bg: j?.containerBg }),
 );
 check(
-  'J3 撑高后的容器不做 backdrop 模糊（同样会糊成块）',
+  'J3 导航容器不做 backdrop 模糊',
   j?.containerBackdrop === 'none',
   String(j?.containerBackdrop),
 );
-check(
-  'J4 撑高后的容器无投影（否则在页面中部画一条横线）',
-  j?.containerShadow === 'none',
-  String(j?.containerShadow),
-);
-check(
-  'J5 岛面板自己仍有实心玻璃底（视觉没被一起关掉）',
-  !/^rgba\(0, 0, 0, 0\)$/.test(j?.surfaceBg || 'rgba(0, 0, 0, 0)'),
-  JSON.stringify({ bg: j?.surfaceBg, h: j?.surfaceH }),
-);
-check('J6 岛展开态零 pageerror', errors.length === 0, errors.join(' | '));
+check('J4 导航容器无投影', j?.containerShadow === 'none', String(j?.containerShadow));
+check('J5 全屏搜索页可见', j?.searchVisible === true);
+check('J6 全屏搜索态零 pageerror', errors.length === 0, errors.join(' | '));
 await page.screenshot({ path: `${OUT}/island-open.png` });
 
 console.log(`\n合计：PASS ${pass} / FAIL ${fail}`);

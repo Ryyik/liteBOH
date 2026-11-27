@@ -1,5 +1,9 @@
 <template>
-  <aside class="userspace-rail liquid-glass" aria-label="用户空间导航">
+  <aside
+    class="userspace-rail liquid-glass"
+    :class="{ 'is-more-open': moreOpen }"
+    aria-label="用户空间导航"
+  >
     <!-- 品牌位：胶囊顶部。文字在 72px 宽下隐藏（按钮自带 aria-label / title）。 -->
     <div class="userspace-rail-brand">
       <img
