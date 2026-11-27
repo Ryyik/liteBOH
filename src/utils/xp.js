@@ -12,7 +12,7 @@ export const getLevelInfo = (xp) => {
       currentLevelXP: 0,
       nextLevelXP: 100,
       progress: 0,
-      totalXP: 0
+      totalXP: 0,
     };
   }
 
@@ -39,42 +39,39 @@ export const getLevelInfo = (xp) => {
     currentLevelXP: currentXP,
     nextLevelXP,
     progress,
-    totalXP: safeXP
+    totalXP: safeXP,
   };
 };
 
 // 经验奖励配置
 export const XP_REWARDS = {
-  POST: 20,      // 发帖奖励
-  REPLY: 10,     // 回复奖励
-  LIKE: 2,       // 点赞奖励
-  BE_LIKED: 5    // 被点赞奖励（额外激励）
+  POST: 20, // 发帖奖励
+  REPLY: 10, // 回复奖励
+  LIKE: 2, // 点赞奖励
+  BE_LIKED: 5, // 被点赞奖励（额外激励）
 };
 
 /**
- * 增加经验值的通用函数
+ * 按服务端固定奖励发放经验；金额与用户身份都不接受客户端传入。
  * @param {Object} supabase Supabase 客户端实例
- * @param {String} userId 用户ID
- * @param {Number} amount 增加的经验值数量
+ * @param {'POST'|'REPLY'|'LIKE'|'BE_LIKED'} reason XP_REWARDS 中的奖励原因
  */
-export async function addExperience(supabase, userId, amount) {
-  if (!userId || !Number.isFinite(amount) || amount <= 0) {
-    return { success: false, error: new Error('无效的经验值参数') };
+export async function addExperience(supabase, reason) {
+  if (!Object.prototype.hasOwnProperty.call(XP_REWARDS, reason)) {
+    return { success: false, error: new Error('无效的经验奖励原因') };
   }
 
   try {
-    // 仅使用数据库原子操作，避免并发更新导致经验值覆盖。
-    const { error } = await supabase.rpc('increment_xp', {
-      user_id: userId,
-      xp_amount: amount
+    const { data, error } = await supabase.rpc('award_forum_experience', {
+      p_reason: reason.toLowerCase(),
     });
 
     if (error) {
-      logger.error('xp', 'increment_xp RPC 执行失败', error);
+      logger.error('xp', 'award_forum_experience RPC 执行失败', error);
       return { success: false, error };
     }
 
-    return { success: true };
+    return { success: data === true };
   } catch (err) {
     logger.error('xp', '增加经验值失败:', err);
     return { success: false, error: err };

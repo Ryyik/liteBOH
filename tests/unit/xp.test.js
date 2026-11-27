@@ -1,5 +1,9 @@
-import { describe, it, expect } from 'vitest';
-import { getLevelInfo, XP_REWARDS } from '../../src/utils/xp.js';
+import { describe, it, expect, vi } from 'vitest';
+import { addExperience, getLevelInfo, XP_REWARDS } from '../../src/utils/xp.js';
+
+vi.mock('../../src/utils/logger.js', () => ({
+  logger: { error: vi.fn() },
+}));
 
 describe('getLevelInfo', () => {
   it('returns level 1 with 0 progress for 0 XP', () => {
@@ -90,5 +94,23 @@ describe('XP_REWARDS', () => {
 
   it('BE_LIKED reward is greater than LIKE reward', () => {
     expect(XP_REWARDS.BE_LIKED).toBeGreaterThan(XP_REWARDS.LIKE);
+  });
+});
+
+describe('addExperience', () => {
+  it('sends only a fixed reward reason to the server', async () => {
+    const supabase = { rpc: vi.fn().mockResolvedValue({ data: true, error: null }) };
+
+    await expect(addExperience(supabase, 'POST')).resolves.toEqual({ success: true });
+    expect(supabase.rpc).toHaveBeenCalledWith('award_forum_experience', { p_reason: 'post' });
+  });
+
+  it('rejects unknown reasons without calling the database', async () => {
+    const supabase = { rpc: vi.fn() };
+
+    const result = await addExperience(supabase, 'POST_9999');
+
+    expect(result.success).toBe(false);
+    expect(supabase.rpc).not.toHaveBeenCalled();
   });
 });

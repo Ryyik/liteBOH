@@ -210,13 +210,12 @@ with required_functions(function_name, importance) as (
     ('match_boh_ai_knowledge_chunks', 'required'),
     ('search_boh_ai_shared_memories', 'required'),
     ('set_my_boh_cloud_share_description', 'required'),
-    ('set_my_boh_cloud_share_visibility', 'required'),
     ('submit_forum_post_report', 'required'),
     ('submit_weekly_checkin', 'required'),
     ('subscribe_with_points', 'required'),
     ('toggle_forum_like', 'required'),
     ('upsert_my_boh_cloud_share_channel', 'required'),
-    ('increment_xp', 'required')
+    ('award_forum_experience', 'required')
 )
 insert into boh_db_health_results
 select

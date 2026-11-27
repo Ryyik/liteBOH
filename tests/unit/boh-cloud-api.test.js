@@ -3,17 +3,17 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const cloudMocks = vi.hoisted(() => ({
   rpcMock: vi.fn(),
   authGetUserMock: vi.fn(),
-  fromMock: vi.fn()
+  fromMock: vi.fn(),
 }));
 
 vi.mock('../../src/utils/supabase-client.js', () => ({
   supabase: {
     rpc: cloudMocks.rpcMock,
     auth: {
-      getUser: cloudMocks.authGetUserMock
+      getUser: cloudMocks.authGetUserMock,
     },
-    from: cloudMocks.fromMock
-  }
+    from: cloudMocks.fromMock,
+  },
 }));
 
 import { clearRequestCache } from '../../src/utils/request-core.js';
@@ -22,7 +22,7 @@ import {
   getMyCloudShareViewers,
   revokeMyCloudShareToken,
   setMyCloudShareDescription,
-  upsertMyCloudShareChannel
+  upsertMyCloudShareChannel,
 } from '../../src/utils/api/boh-cloud-api.js';
 
 describe('boh-cloud-api private token channel', () => {
@@ -33,7 +33,7 @@ describe('boh-cloud-api private token channel', () => {
     clearRequestCache();
   });
 
-  it('hard-codes token visibility for share channel writes', async () => {
+  it('uses the token-only share channel signatures', async () => {
     cloudMocks.rpcMock.mockResolvedValue({
       data: {
         ok: true,
@@ -42,23 +42,22 @@ describe('boh-cloud-api private token channel', () => {
           user_id: 'u1',
           share_token: 'ABCD1234EFGH5678',
           is_active: true,
-          visibility: 'token'
-        }
+          visibility: 'token',
+        },
       },
-      error: null
+      error: null,
     });
 
     const result = await upsertMyCloudShareChannel({
       regenerate: false,
       visibility: 'public',
-      description: 'private note'
+      description: 'private note',
     });
 
     expect(result.ok).toBe(true);
     expect(cloudMocks.rpcMock).toHaveBeenCalledWith('upsert_my_boh_cloud_share_channel', {
       p_regenerate: false,
-      p_visibility: 'token',
-      p_description: 'private note'
+      p_description: 'private note',
     });
   });
 
@@ -71,10 +70,10 @@ describe('boh-cloud-api private token channel', () => {
           user_id: 'u1',
           share_token: 'NEWTOKEN12345678',
           is_active: true,
-          visibility: 'token'
-        }
+          visibility: 'token',
+        },
       },
-      error: null
+      error: null,
     });
 
     const result = await revokeMyCloudShareToken();
@@ -82,8 +81,7 @@ describe('boh-cloud-api private token channel', () => {
     expect(result.ok).toBe(true);
     expect(cloudMocks.rpcMock).toHaveBeenCalledWith('upsert_my_boh_cloud_share_channel', {
       p_regenerate: true,
-      p_visibility: 'token',
-      p_description: null
+      p_description: null,
     });
   });
 
@@ -91,21 +89,21 @@ describe('boh-cloud-api private token channel', () => {
     cloudMocks.rpcMock
       .mockResolvedValueOnce({
         data: { ok: true, viewers: [] },
-        error: null
+        error: null,
       })
       .mockResolvedValueOnce({
         data: {
           ok: true,
-          channel: { id: 'c1', user_id: 'u1', share_token: 'TOKEN1234567890', is_active: true }
+          channel: { id: 'c1', user_id: 'u1', share_token: 'TOKEN1234567890', is_active: true },
         },
-        error: null
+        error: null,
       })
       .mockResolvedValueOnce({
         data: {
           ok: true,
-          channel: { id: 'c1', user_id: 'u1', share_token: 'TOKEN1234567890', is_active: false }
+          channel: { id: 'c1', user_id: 'u1', share_token: 'TOKEN1234567890', is_active: false },
         },
-        error: null
+        error: null,
       });
 
     await getMyCloudShareViewers({ limit: 10, visibility: 'public' });
@@ -114,14 +112,10 @@ describe('boh-cloud-api private token channel', () => {
 
     expect(cloudMocks.rpcMock).toHaveBeenNthCalledWith(1, 'get_my_boh_cloud_share_viewers', {
       p_limit: 10,
-      p_visibility: 'token'
     });
     expect(cloudMocks.rpcMock).toHaveBeenNthCalledWith(2, 'set_my_boh_cloud_share_description', {
       p_description: 'for close friends',
-      p_visibility: 'token'
     });
-    expect(cloudMocks.rpcMock).toHaveBeenNthCalledWith(3, 'disable_my_boh_cloud_share_channel', {
-      p_visibility: 'token'
-    });
+    expect(cloudMocks.rpcMock).toHaveBeenNthCalledWith(3, 'disable_my_boh_cloud_share_channel');
   });
 });

@@ -765,7 +765,6 @@ export async function getMyCloudShareViewers({ limit = 50 } = {}) {
     async () => {
       const { data, error } = await supabase.rpc('get_my_boh_cloud_share_viewers', {
         p_limit: safeLimit,
-        p_visibility: TOKEN_SHARE_VISIBILITY,
       });
       if (error) return { data: null, error };
 
@@ -798,7 +797,6 @@ export async function getMyCloudShareViewers({ limit = 50 } = {}) {
 export async function upsertMyCloudShareChannel({ regenerate = false, description = null } = {}) {
   const { data, error } = await supabase.rpc('upsert_my_boh_cloud_share_channel', {
     p_regenerate: Boolean(regenerate),
-    p_visibility: TOKEN_SHARE_VISIBILITY,
     p_description: description === null ? null : toText(description, 160),
   });
 
@@ -829,7 +827,6 @@ export async function revokeMyCloudShareToken({ description = null } = {}) {
 export async function setMyCloudShareDescription(description) {
   const { data, error } = await supabase.rpc('set_my_boh_cloud_share_description', {
     p_description: toText(description, 160),
-    p_visibility: TOKEN_SHARE_VISIBILITY,
   });
 
   if (error) {
@@ -853,9 +850,7 @@ export async function setMyCloudShareDescription(description) {
 }
 
 export async function disableMyCloudShareChannel() {
-  const { data, error } = await supabase.rpc('disable_my_boh_cloud_share_channel', {
-    p_visibility: TOKEN_SHARE_VISIBILITY,
-  });
+  const { data, error } = await supabase.rpc('disable_my_boh_cloud_share_channel');
 
   if (error) {
     return { ok: false, data: null, error: normalizeDbError(error) };
