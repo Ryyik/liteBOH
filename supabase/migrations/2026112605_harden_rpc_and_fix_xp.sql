@@ -47,6 +47,8 @@ revoke execute on function public.cleanup_lottery_scheduler_logs(integer)
   from anon, public;
 revoke execute on function public.execute_due_lottery_draws(integer, text)
   from anon, public;
+grant execute on function public.cleanup_lottery_scheduler_logs(integer) to authenticated;
+grant execute on function public.execute_due_lottery_draws(integer, text) to authenticated;
 revoke execute on function public.archive_expired_completed_gifts(integer)
   from authenticated, public;
 revoke execute on function public.refresh_forum_post_counters(uuid)

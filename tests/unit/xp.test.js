@@ -98,17 +98,34 @@ describe('XP_REWARDS', () => {
 });
 
 describe('addExperience', () => {
-  it('sends only a fixed reward reason to the server', async () => {
+  it('sends a fixed reward reason and the real event id to the server', async () => {
     const supabase = { rpc: vi.fn().mockResolvedValue({ data: true, error: null }) };
+    const eventId = '00000000-0000-4000-8000-000000000001';
 
-    await expect(addExperience(supabase, 'POST')).resolves.toEqual({ success: true });
-    expect(supabase.rpc).toHaveBeenCalledWith('award_forum_experience', { p_reason: 'post' });
+    await expect(addExperience(supabase, 'POST', eventId)).resolves.toEqual({ success: true });
+    expect(supabase.rpc).toHaveBeenCalledWith('award_forum_experience', {
+      p_reason: 'post',
+      p_event_id: eventId,
+    });
+  });
+
+  it('rejects a missing event id without calling the database', async () => {
+    const supabase = { rpc: vi.fn() };
+
+    const result = await addExperience(supabase, 'POST');
+
+    expect(result.success).toBe(false);
+    expect(supabase.rpc).not.toHaveBeenCalled();
   });
 
   it('rejects unknown reasons without calling the database', async () => {
     const supabase = { rpc: vi.fn() };
 
-    const result = await addExperience(supabase, 'POST_9999');
+    const result = await addExperience(
+      supabase,
+      'POST_9999',
+      '00000000-0000-4000-8000-000000000001',
+    );
 
     expect(result.success).toBe(false);
     expect(supabase.rpc).not.toHaveBeenCalled();

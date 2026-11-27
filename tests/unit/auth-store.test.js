@@ -421,19 +421,14 @@ describe('auth store', () => {
       expect(store.userInfo.creatorPlatformIds.bilibili).toBe('12345');
     });
 
-    /* 2026-11-26 报障：「隐藏在线状态」开关点不动（点了弹回原状态）。
-       真因是**两层**缺漏，任一层没修都表现为同一个症状：
-         ① 本 store 的 dbUpdates 是字段白名单式（逐个 if），漏了 hide_online_status
-            ⇒ update({}) ⇒ 影响 0 行、回读还是旧值 ⇒ 开关弹回；
-         ② 线上 authenticated 对 profiles 该列没有列级 UPDATE（迁移 2026112607 已补）。
-       本用例锁 ①：断言 payload **真的带了**这一列，而不是被静默丢弃。
-       ⚠️ 别写成「测 store.userInfo 变了」—— 回读成功分支会把它覆盖成服务端值，
-          那样即使白名单漏了也照样绿（假测试）。必须断言发给库的 payload。 */
-    it('把 hide_online_status 真的写进 update payload（不是被白名单丢掉）', async () => {
+    /* 2026-11-26 报障：「隐藏在线状态」开关点了没反应。
+       现在走仅能更新自己的 RPC，避免 authenticated 的列级直更权同时开放管理员改他人并绕过审计。 */
+    it('通过 self-only RPC 写 hide_online_status，不再直更 profiles 列', async () => {
       store.userInfo.id = 'user-123';
       const updatePayload = vi.fn(() => ({
         eq: vi.fn().mockResolvedValue({ error: null }),
       }));
+      mockSupabase.rpc.mockResolvedValue({ error: null });
 
       mockSupabase.from.mockReturnValue({
         select: vi.fn(() => ({
@@ -450,11 +445,10 @@ describe('auth store', () => {
       const result = await store.updateUserProfile({ hide_online_status: true });
 
       expect(result.success).toBe(true);
-      expect(updatePayload).toHaveBeenCalledTimes(1);
-      const sent = updatePayload.mock.calls[0][0];
-      expect(sent).toHaveProperty('hide_online_status', true);
-      // 反向断言：payload 不能是空的（空对象 = 典型的「白名单漏列」症状）
-      expect(Object.keys(sent)).not.toHaveLength(0);
+      expect(mockSupabase.rpc).toHaveBeenCalledWith('update_my_hide_online_status', {
+        p_hidden: true,
+      });
+      expect(updatePayload).not.toHaveBeenCalled();
       expect(store.userInfo.hideOnlineStatus).toBe(true);
     });
   });

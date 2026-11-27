@@ -55,15 +55,20 @@ export const XP_REWARDS = {
  * 按服务端固定奖励发放经验；金额与用户身份都不接受客户端传入。
  * @param {Object} supabase Supabase 客户端实例
  * @param {'POST'|'REPLY'|'LIKE'|'BE_LIKED'} reason XP_REWARDS 中的奖励原因
+ * @param {string} eventId 触发奖励的真实帖子 / 评论 / 点赞事件 ID
  */
-export async function addExperience(supabase, reason) {
+export async function addExperience(supabase, reason, eventId) {
   if (!Object.prototype.hasOwnProperty.call(XP_REWARDS, reason)) {
     return { success: false, error: new Error('无效的经验奖励原因') };
+  }
+  if (!String(eventId || '').trim()) {
+    return { success: false, error: new Error('缺少经验奖励事件 ID') };
   }
 
   try {
     const { data, error } = await supabase.rpc('award_forum_experience', {
       p_reason: reason.toLowerCase(),
+      p_event_id: String(eventId).trim(),
     });
 
     if (error) {

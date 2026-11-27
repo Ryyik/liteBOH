@@ -225,6 +225,53 @@
         "nullable": "NO"
       }
     ],
+    "admin_audit_logs": [
+      {
+        "column": "id",
+        "type": "bigint",
+        "nullable": "NO"
+      },
+      {
+        "column": "actor_id",
+        "type": "uuid",
+        "nullable": "YES"
+      },
+      {
+        "column": "actor_label",
+        "type": "text",
+        "nullable": "YES"
+      },
+      {
+        "column": "action",
+        "type": "text",
+        "nullable": "NO"
+      },
+      {
+        "column": "resource_table",
+        "type": "text",
+        "nullable": "NO"
+      },
+      {
+        "column": "resource_id",
+        "type": "text",
+        "nullable": "YES"
+      },
+      {
+        "column": "diff",
+        "type": "jsonb",
+        "nullable": "YES"
+      },
+      {
+        "column": "meta",
+        "type": "jsonb",
+        "nullable": "YES"
+      },
+      {
+        "column": "created_at",
+        "type": "timestamp with time zone",
+        "nullable": "NO"
+      }
+    ],
     "admin_issued_login_tokens": [
       {
         "column": "id",
@@ -322,6 +369,48 @@
         "column": "updated_at",
         "type": "timestamp with time zone",
         "nullable": "NO"
+      },
+      {
+        "column": "card_size",
+        "type": "text",
+        "nullable": "NO"
+      },
+      {
+        "column": "card_height_landscape",
+        "type": "integer",
+        "nullable": "NO"
+      },
+      {
+        "column": "card_height_portrait",
+        "type": "integer",
+        "nullable": "NO"
+      }
+    ],
+    "ai_pricing_config": [
+      {
+        "column": "id",
+        "type": "smallint",
+        "nullable": "NO"
+      },
+      {
+        "column": "enabled",
+        "type": "boolean",
+        "nullable": "NO"
+      },
+      {
+        "column": "rate_tokens_per_point",
+        "type": "bigint",
+        "nullable": "NO"
+      },
+      {
+        "column": "daily_points_burn_cap",
+        "type": "integer",
+        "nullable": "NO"
+      },
+      {
+        "column": "updated_at",
+        "type": "timestamp with time zone",
+        "nullable": "NO"
       }
     ],
     "ai_quota_config": [
@@ -343,6 +432,11 @@
       {
         "column": "web_search_daily_limit",
         "type": "integer",
+        "nullable": "NO"
+      },
+      {
+        "column": "points_multiplier",
+        "type": "numeric",
         "nullable": "NO"
       }
     ],
@@ -437,6 +531,16 @@
       {
         "column": "settled_at",
         "type": "timestamp with time zone",
+        "nullable": "YES"
+      },
+      {
+        "column": "points_reserved",
+        "type": "numeric",
+        "nullable": "NO"
+      },
+      {
+        "column": "points_settled",
+        "type": "numeric",
         "nullable": "YES"
       }
     ],
@@ -794,71 +898,9 @@
         "nullable": "NO"
       }
     ],
-    "birthday_events": [
-      {
-        "column": "id",
-        "type": "uuid",
-        "nullable": "NO"
-      },
-      {
-        "column": "target_user_id",
-        "type": "uuid",
-        "nullable": "NO"
-      },
-      {
-        "column": "title",
-        "type": "text",
-        "nullable": "NO"
-      },
-      {
-        "column": "subtitle",
-        "type": "text",
-        "nullable": "NO"
-      },
-      {
-        "column": "hero_quote",
-        "type": "text",
-        "nullable": "NO"
-      },
-      {
-        "column": "page_copy",
-        "type": "jsonb",
-        "nullable": "NO"
-      },
-      {
-        "column": "celebration_date",
-        "type": "date",
-        "nullable": "NO"
-      },
-      {
-        "column": "is_active",
-        "type": "boolean",
-        "nullable": "NO"
-      },
-      {
-        "column": "sort_order",
-        "type": "integer",
-        "nullable": "NO"
-      },
-      {
-        "column": "created_at",
-        "type": "timestamp with time zone",
-        "nullable": "NO"
-      },
-      {
-        "column": "updated_at",
-        "type": "timestamp with time zone",
-        "nullable": "NO"
-      }
-    ],
     "birthday_wishes": [
       {
         "column": "id",
-        "type": "uuid",
-        "nullable": "NO"
-      },
-      {
-        "column": "event_id",
         "type": "uuid",
         "nullable": "NO"
       },
@@ -896,87 +938,15 @@
         "column": "created_at",
         "type": "timestamp with time zone",
         "nullable": "NO"
-      }
-    ],
-    "block_wall_items": [
+      },
       {
-        "column": "id",
+        "column": "target_user_id",
         "type": "uuid",
         "nullable": "NO"
       },
       {
-        "column": "author_id",
-        "type": "uuid",
-        "nullable": "NO"
-      },
-      {
-        "column": "author_username",
-        "type": "text",
-        "nullable": "NO"
-      },
-      {
-        "column": "author_avatar_url",
-        "type": "text",
-        "nullable": "YES"
-      },
-      {
-        "column": "item_type",
-        "type": "text",
-        "nullable": "NO"
-      },
-      {
-        "column": "content",
-        "type": "text",
-        "nullable": "NO"
-      },
-      {
-        "column": "color",
-        "type": "text",
-        "nullable": "NO"
-      },
-      {
-        "column": "image_url",
-        "type": "text",
-        "nullable": "YES"
-      },
-      {
-        "column": "image_public_id",
-        "type": "text",
-        "nullable": "YES"
-      },
-      {
-        "column": "image_width",
-        "type": "integer",
-        "nullable": "YES"
-      },
-      {
-        "column": "image_height",
-        "type": "integer",
-        "nullable": "YES"
-      },
-      {
-        "column": "position_x",
-        "type": "numeric",
-        "nullable": "NO"
-      },
-      {
-        "column": "position_y",
-        "type": "numeric",
-        "nullable": "NO"
-      },
-      {
-        "column": "rotation",
-        "type": "numeric",
-        "nullable": "NO"
-      },
-      {
-        "column": "created_at",
-        "type": "timestamp with time zone",
-        "nullable": "NO"
-      },
-      {
-        "column": "updated_at",
-        "type": "timestamp with time zone",
+        "column": "celebration_date",
+        "type": "date",
         "nullable": "NO"
       }
     ],
@@ -1038,6 +1008,259 @@
       },
       {
         "column": "updated_at",
+        "type": "timestamp with time zone",
+        "nullable": "NO"
+      }
+    ],
+    "boh_ai_entities": [
+      {
+        "column": "id",
+        "type": "uuid",
+        "nullable": "NO"
+      },
+      {
+        "column": "slug",
+        "type": "text",
+        "nullable": "NO"
+      },
+      {
+        "column": "entity_type",
+        "type": "text",
+        "nullable": "NO"
+      },
+      {
+        "column": "canonical_name",
+        "type": "text",
+        "nullable": "NO"
+      },
+      {
+        "column": "display_name",
+        "type": "text",
+        "nullable": "NO"
+      },
+      {
+        "column": "summary",
+        "type": "text",
+        "nullable": "NO"
+      },
+      {
+        "column": "status",
+        "type": "text",
+        "nullable": "NO"
+      },
+      {
+        "column": "merged_into",
+        "type": "uuid",
+        "nullable": "YES"
+      },
+      {
+        "column": "created_at",
+        "type": "timestamp with time zone",
+        "nullable": "NO"
+      },
+      {
+        "column": "updated_at",
+        "type": "timestamp with time zone",
+        "nullable": "NO"
+      }
+    ],
+    "boh_ai_entity_aliases": [
+      {
+        "column": "id",
+        "type": "uuid",
+        "nullable": "NO"
+      },
+      {
+        "column": "entity_id",
+        "type": "uuid",
+        "nullable": "NO"
+      },
+      {
+        "column": "alias",
+        "type": "text",
+        "nullable": "NO"
+      },
+      {
+        "column": "normalized_alias",
+        "type": "text",
+        "nullable": "NO"
+      },
+      {
+        "column": "alias_type",
+        "type": "text",
+        "nullable": "NO"
+      },
+      {
+        "column": "source",
+        "type": "text",
+        "nullable": "NO"
+      },
+      {
+        "column": "confidence",
+        "type": "numeric",
+        "nullable": "NO"
+      },
+      {
+        "column": "is_ambiguous",
+        "type": "boolean",
+        "nullable": "NO"
+      },
+      {
+        "column": "created_at",
+        "type": "timestamp with time zone",
+        "nullable": "NO"
+      },
+      {
+        "column": "updated_at",
+        "type": "timestamp with time zone",
+        "nullable": "NO"
+      }
+    ],
+    "boh_ai_forum_memories": [
+      {
+        "column": "id",
+        "type": "uuid",
+        "nullable": "NO"
+      },
+      {
+        "column": "source_post_id",
+        "type": "uuid",
+        "nullable": "NO"
+      },
+      {
+        "column": "source_post_title",
+        "type": "text",
+        "nullable": "NO"
+      },
+      {
+        "column": "source_post_author",
+        "type": "text",
+        "nullable": "NO"
+      },
+      {
+        "column": "fact",
+        "type": "text",
+        "nullable": "NO"
+      },
+      {
+        "column": "category",
+        "type": "text",
+        "nullable": "NO"
+      },
+      {
+        "column": "people",
+        "type": "jsonb",
+        "nullable": "NO"
+      },
+      {
+        "column": "occurred_at",
+        "type": "text",
+        "nullable": "NO"
+      },
+      {
+        "column": "confidence",
+        "type": "numeric",
+        "nullable": "NO"
+      },
+      {
+        "column": "evidence",
+        "type": "text",
+        "nullable": "NO"
+      },
+      {
+        "column": "model",
+        "type": "text",
+        "nullable": "NO"
+      },
+      {
+        "column": "status",
+        "type": "text",
+        "nullable": "NO"
+      },
+      {
+        "column": "updated_by",
+        "type": "uuid",
+        "nullable": "YES"
+      },
+      {
+        "column": "created_at",
+        "type": "timestamp with time zone",
+        "nullable": "NO"
+      },
+      {
+        "column": "updated_at",
+        "type": "timestamp with time zone",
+        "nullable": "NO"
+      },
+      {
+        "column": "people_ids",
+        "type": "ARRAY",
+        "nullable": "NO"
+      },
+      {
+        "column": "people_surface",
+        "type": "ARRAY",
+        "nullable": "NO"
+      },
+      {
+        "column": "fact_key",
+        "type": "text",
+        "nullable": "NO"
+      },
+      {
+        "column": "support_level",
+        "type": "text",
+        "nullable": "NO"
+      },
+      {
+        "column": "evidence_start",
+        "type": "integer",
+        "nullable": "YES"
+      },
+      {
+        "column": "evidence_end",
+        "type": "integer",
+        "nullable": "YES"
+      },
+      {
+        "column": "supersedes_id",
+        "type": "uuid",
+        "nullable": "YES"
+      },
+      {
+        "column": "verified_at",
+        "type": "timestamp with time zone",
+        "nullable": "YES"
+      },
+      {
+        "column": "verified_by",
+        "type": "uuid",
+        "nullable": "YES"
+      }
+    ],
+    "boh_ai_forum_memory_scans": [
+      {
+        "column": "post_id",
+        "type": "uuid",
+        "nullable": "NO"
+      },
+      {
+        "column": "fact_count",
+        "type": "integer",
+        "nullable": "NO"
+      },
+      {
+        "column": "model",
+        "type": "text",
+        "nullable": "NO"
+      },
+      {
+        "column": "note",
+        "type": "text",
+        "nullable": "NO"
+      },
+      {
+        "column": "scanned_at",
         "type": "timestamp with time zone",
         "nullable": "NO"
       }
@@ -1173,6 +1396,11 @@
       {
         "column": "updated_at",
         "type": "timestamp with time zone",
+        "nullable": "NO"
+      },
+      {
+        "column": "entity_ids",
+        "type": "ARRAY",
         "nullable": "NO"
       }
     ],
@@ -1317,6 +1545,108 @@
       {
         "column": "image_count",
         "type": "integer",
+        "nullable": "NO"
+      },
+      {
+        "column": "source_post_id",
+        "type": "uuid",
+        "nullable": "YES"
+      }
+    ],
+    "boh_cloud_image_trash": [
+      {
+        "column": "id",
+        "type": "uuid",
+        "nullable": "NO"
+      },
+      {
+        "column": "user_id",
+        "type": "uuid",
+        "nullable": "NO"
+      },
+      {
+        "column": "entry_id",
+        "type": "uuid",
+        "nullable": "NO"
+      },
+      {
+        "column": "source_post_id",
+        "type": "uuid",
+        "nullable": "YES"
+      },
+      {
+        "column": "source",
+        "type": "text",
+        "nullable": "NO"
+      },
+      {
+        "column": "block",
+        "type": "jsonb",
+        "nullable": "NO"
+      },
+      {
+        "column": "block_index",
+        "type": "integer",
+        "nullable": "NO"
+      },
+      {
+        "column": "image_url",
+        "type": "text",
+        "nullable": "NO"
+      },
+      {
+        "column": "public_id",
+        "type": "text",
+        "nullable": "NO"
+      },
+      {
+        "column": "entry_title",
+        "type": "text",
+        "nullable": "NO"
+      },
+      {
+        "column": "entry_date",
+        "type": "date",
+        "nullable": "NO"
+      },
+      {
+        "column": "entry_snapshot",
+        "type": "jsonb",
+        "nullable": "NO"
+      },
+      {
+        "column": "deleted_at",
+        "type": "timestamp with time zone",
+        "nullable": "NO"
+      },
+      {
+        "column": "purge_after",
+        "type": "timestamp with time zone",
+        "nullable": "NO"
+      },
+      {
+        "column": "state",
+        "type": "text",
+        "nullable": "NO"
+      },
+      {
+        "column": "restored_at",
+        "type": "timestamp with time zone",
+        "nullable": "YES"
+      },
+      {
+        "column": "purged_at",
+        "type": "timestamp with time zone",
+        "nullable": "YES"
+      },
+      {
+        "column": "purge_attempts",
+        "type": "integer",
+        "nullable": "NO"
+      },
+      {
+        "column": "skipped_reason",
+        "type": "text",
         "nullable": "NO"
       }
     ],
@@ -1654,6 +1984,113 @@
         "nullable": "NO"
       }
     ],
+    "bohai_model_configs": [
+      {
+        "column": "id",
+        "type": "uuid",
+        "nullable": "YES"
+      },
+      {
+        "column": "mode_id",
+        "type": "text",
+        "nullable": "YES"
+      },
+      {
+        "column": "display_name",
+        "type": "text",
+        "nullable": "YES"
+      },
+      {
+        "column": "tagline",
+        "type": "text",
+        "nullable": "YES"
+      },
+      {
+        "column": "description",
+        "type": "text",
+        "nullable": "YES"
+      },
+      {
+        "column": "provider",
+        "type": "text",
+        "nullable": "YES"
+      },
+      {
+        "column": "provider_label",
+        "type": "text",
+        "nullable": "YES"
+      },
+      {
+        "column": "model_id",
+        "type": "text",
+        "nullable": "YES"
+      },
+      {
+        "column": "api_url",
+        "type": "text",
+        "nullable": "YES"
+      },
+      {
+        "column": "capability",
+        "type": "text",
+        "nullable": "YES"
+      },
+      {
+        "column": "icon",
+        "type": "text",
+        "nullable": "YES"
+      },
+      {
+        "column": "temperature",
+        "type": "numeric",
+        "nullable": "YES"
+      },
+      {
+        "column": "top_p",
+        "type": "numeric",
+        "nullable": "YES"
+      },
+      {
+        "column": "frequency_penalty",
+        "type": "numeric",
+        "nullable": "YES"
+      },
+      {
+        "column": "max_tokens",
+        "type": "integer",
+        "nullable": "YES"
+      },
+      {
+        "column": "status",
+        "type": "text",
+        "nullable": "YES"
+      },
+      {
+        "column": "sort_order",
+        "type": "integer",
+        "nullable": "YES"
+      },
+      {
+        "column": "created_at",
+        "type": "timestamp with time zone",
+        "nullable": "YES"
+      },
+      {
+        "column": "updated_at",
+        "type": "timestamp with time zone",
+        "nullable": "YES"
+      },
+      {
+        "column": "min_tier",
+        "type": "text",
+        "nullable": "YES"
+      },
+      {
+        "column": "quota_multiplier",
+        "type": "numeric",
+        "nullable": "YES"
+      }
+    ],
     "bolek_model_configs": [
       {
         "column": "id",
@@ -1773,6 +2210,16 @@
       {
         "column": "quota_multiplier",
         "type": "numeric",
+        "nullable": "NO"
+      },
+      {
+        "column": "strategy_candidates",
+        "type": "jsonb",
+        "nullable": "YES"
+      },
+      {
+        "column": "fallback_mode_ids",
+        "type": "jsonb",
         "nullable": "NO"
       }
     ],
@@ -1907,6 +2354,110 @@
         "nullable": "NO"
       }
     ],
+    "csp_violations": [
+      {
+        "column": "stat_day",
+        "type": "date",
+        "nullable": "NO"
+      },
+      {
+        "column": "directive",
+        "type": "text",
+        "nullable": "NO"
+      },
+      {
+        "column": "blocked_host",
+        "type": "text",
+        "nullable": "NO"
+      },
+      {
+        "column": "disposition",
+        "type": "text",
+        "nullable": "NO"
+      },
+      {
+        "column": "hits",
+        "type": "bigint",
+        "nullable": "NO"
+      },
+      {
+        "column": "first_seen_at",
+        "type": "timestamp with time zone",
+        "nullable": "NO"
+      },
+      {
+        "column": "last_seen_at",
+        "type": "timestamp with time zone",
+        "nullable": "NO"
+      },
+      {
+        "column": "sample_document_path",
+        "type": "text",
+        "nullable": "YES"
+      },
+      {
+        "column": "last_format",
+        "type": "text",
+        "nullable": "NO"
+      }
+    ],
+    "edge_probe_events": [
+      {
+        "column": "id",
+        "type": "bigint",
+        "nullable": "NO"
+      },
+      {
+        "column": "created_at",
+        "type": "timestamp with time zone",
+        "nullable": "NO"
+      },
+      {
+        "column": "probe_day",
+        "type": "date",
+        "nullable": "NO"
+      },
+      {
+        "column": "client_key",
+        "type": "text",
+        "nullable": "NO"
+      },
+      {
+        "column": "colo",
+        "type": "text",
+        "nullable": "NO"
+      },
+      {
+        "column": "loc",
+        "type": "text",
+        "nullable": "YES"
+      },
+      {
+        "column": "http_version",
+        "type": "text",
+        "nullable": "YES"
+      },
+      {
+        "column": "tls_version",
+        "type": "text",
+        "nullable": "YES"
+      },
+      {
+        "column": "ip24",
+        "type": "inet",
+        "nullable": "YES"
+      },
+      {
+        "column": "ttfb_ms",
+        "type": "integer",
+        "nullable": "YES"
+      },
+      {
+        "column": "load_ms",
+        "type": "integer",
+        "nullable": "YES"
+      }
+    ],
     "forum_async_jobs": [
       {
         "column": "id",
@@ -1982,6 +2533,90 @@
         "column": "completed_at",
         "type": "timestamp with time zone",
         "nullable": "YES"
+      }
+    ],
+    "forum_card_items": [
+      {
+        "column": "id",
+        "type": "uuid",
+        "nullable": "NO"
+      },
+      {
+        "column": "label",
+        "type": "text",
+        "nullable": "NO"
+      },
+      {
+        "column": "kind",
+        "type": "text",
+        "nullable": "NO"
+      },
+      {
+        "column": "hero_id",
+        "type": "uuid",
+        "nullable": "YES"
+      },
+      {
+        "column": "hero_ids",
+        "type": "ARRAY",
+        "nullable": "NO"
+      },
+      {
+        "column": "status",
+        "type": "text",
+        "nullable": "NO"
+      },
+      {
+        "column": "priority",
+        "type": "integer",
+        "nullable": "NO"
+      },
+      {
+        "column": "starts_at",
+        "type": "timestamp with time zone",
+        "nullable": "YES"
+      },
+      {
+        "column": "ends_at",
+        "type": "timestamp with time zone",
+        "nullable": "YES"
+      },
+      {
+        "column": "version",
+        "type": "integer",
+        "nullable": "NO"
+      },
+      {
+        "column": "created_at",
+        "type": "timestamp with time zone",
+        "nullable": "NO"
+      },
+      {
+        "column": "updated_at",
+        "type": "timestamp with time zone",
+        "nullable": "NO"
+      }
+    ],
+    "forum_experience_awards": [
+      {
+        "column": "user_id",
+        "type": "uuid",
+        "nullable": "NO"
+      },
+      {
+        "column": "reason",
+        "type": "text",
+        "nullable": "NO"
+      },
+      {
+        "column": "event_id",
+        "type": "uuid",
+        "nullable": "NO"
+      },
+      {
+        "column": "awarded_at",
+        "type": "timestamp with time zone",
+        "nullable": "NO"
       }
     ],
     "forum_post_drafts": [
@@ -2091,6 +2726,11 @@
         "column": "created_at",
         "type": "timestamp with time zone",
         "nullable": "NO"
+      },
+      {
+        "column": "recheck_status",
+        "type": "text",
+        "nullable": "YES"
       }
     ],
     "forum_post_reports": [
@@ -2380,114 +3020,25 @@
         "nullable": "YES"
       }
     ],
-    "health_daily_logs": [
+    "home_gate_config": [
       {
         "column": "id",
-        "type": "uuid",
-        "nullable": "NO"
-      },
-      {
-        "column": "user_id",
-        "type": "uuid",
-        "nullable": "NO"
-      },
-      {
-        "column": "log_date",
-        "type": "date",
-        "nullable": "NO"
-      },
-      {
-        "column": "sleep_hours",
-        "type": "numeric",
-        "nullable": "YES"
-      },
-      {
-        "column": "steps",
         "type": "integer",
-        "nullable": "YES"
-      },
-      {
-        "column": "water_cups",
-        "type": "integer",
-        "nullable": "YES"
-      },
-      {
-        "column": "mood",
-        "type": "text",
-        "nullable": "YES"
-      },
-      {
-        "column": "mood_note",
-        "type": "text",
-        "nullable": "YES"
-      },
-      {
-        "column": "created_at",
-        "type": "timestamp with time zone",
-        "nullable": "YES"
-      }
-    ],
-    "health_profiles": [
-      {
-        "column": "user_id",
-        "type": "uuid",
         "nullable": "NO"
       },
       {
-        "column": "sex",
-        "type": "text",
-        "nullable": "YES"
-      },
-      {
-        "column": "birth_year",
-        "type": "smallint",
-        "nullable": "YES"
-      },
-      {
-        "column": "height_cm",
-        "type": "numeric",
-        "nullable": "YES"
-      },
-      {
-        "column": "weight_kg",
-        "type": "numeric",
-        "nullable": "YES"
-      },
-      {
-        "column": "target_weight_kg",
-        "type": "numeric",
-        "nullable": "YES"
-      },
-      {
-        "column": "activity_level",
-        "type": "text",
-        "nullable": "YES"
-      },
-      {
-        "column": "goals",
-        "type": "jsonb",
-        "nullable": "YES"
-      },
-      {
-        "column": "created_at",
-        "type": "timestamp with time zone",
-        "nullable": "YES"
-      },
-      {
-        "column": "updated_at",
-        "type": "timestamp with time zone",
-        "nullable": "YES"
-      }
-    ],
-    "health_vault_records": [
-      {
-        "column": "id",
-        "type": "uuid",
+        "column": "enabled",
+        "type": "boolean",
         "nullable": "NO"
       },
       {
-        "column": "user_id",
-        "type": "uuid",
+        "column": "theme",
+        "type": "text",
+        "nullable": "NO"
+      },
+      {
+        "column": "eyebrow",
+        "type": "text",
         "nullable": "NO"
       },
       {
@@ -2496,45 +3047,53 @@
         "nullable": "NO"
       },
       {
-        "column": "indicators",
-        "type": "jsonb",
-        "nullable": "YES"
-      },
-      {
-        "column": "file_name",
+        "column": "subtitle",
         "type": "text",
+        "nullable": "NO"
+      },
+      {
+        "column": "hint_text",
+        "type": "text",
+        "nullable": "NO"
+      },
+      {
+        "column": "cta_text",
+        "type": "text",
+        "nullable": "NO"
+      },
+      {
+        "column": "cta_target_type",
+        "type": "text",
+        "nullable": "NO"
+      },
+      {
+        "column": "cta_lottery_id",
+        "type": "uuid",
         "nullable": "YES"
       },
       {
-        "column": "created_at",
+        "column": "cta_route",
+        "type": "text",
+        "nullable": "NO"
+      },
+      {
+        "column": "starts_at",
         "type": "timestamp with time zone",
         "nullable": "YES"
-      }
-    ],
-    "health_weight_logs": [
-      {
-        "column": "id",
-        "type": "uuid",
-        "nullable": "NO"
       },
       {
-        "column": "user_id",
-        "type": "uuid",
-        "nullable": "NO"
+        "column": "ends_at",
+        "type": "timestamp with time zone",
+        "nullable": "YES"
       },
       {
-        "column": "weight_kg",
-        "type": "numeric",
-        "nullable": "NO"
-      },
-      {
-        "column": "logged_at",
+        "column": "updated_at",
         "type": "timestamp with time zone",
         "nullable": "NO"
       },
       {
-        "column": "created_at",
-        "type": "timestamp with time zone",
+        "column": "updated_by",
+        "type": "uuid",
         "nullable": "YES"
       }
     ],
@@ -2811,6 +3370,11 @@
         "column": "user_id",
         "type": "uuid",
         "nullable": "YES"
+      },
+      {
+        "column": "created_at",
+        "type": "timestamp with time zone",
+        "nullable": "NO"
       }
     ],
     "lotteries": [
@@ -3641,6 +4205,130 @@
         "nullable": "YES"
       }
     ],
+    "mail_keepalive_log": [
+      {
+        "column": "id",
+        "type": "bigint",
+        "nullable": "NO"
+      },
+      {
+        "column": "triggered_at",
+        "type": "timestamp with time zone",
+        "nullable": "NO"
+      },
+      {
+        "column": "recipient",
+        "type": "text",
+        "nullable": "NO"
+      },
+      {
+        "column": "http_status",
+        "type": "integer",
+        "nullable": "YES"
+      },
+      {
+        "column": "response_body",
+        "type": "text",
+        "nullable": "YES"
+      },
+      {
+        "column": "ok",
+        "type": "boolean",
+        "nullable": "NO"
+      },
+      {
+        "column": "error",
+        "type": "text",
+        "nullable": "YES"
+      }
+    ],
+    "mail_outbox": [
+      {
+        "column": "id",
+        "type": "uuid",
+        "nullable": "NO"
+      },
+      {
+        "column": "recipient_id",
+        "type": "uuid",
+        "nullable": "NO"
+      },
+      {
+        "column": "sender_id",
+        "type": "uuid",
+        "nullable": "YES"
+      },
+      {
+        "column": "kind",
+        "type": "text",
+        "nullable": "NO"
+      },
+      {
+        "column": "post_id",
+        "type": "uuid",
+        "nullable": "YES"
+      },
+      {
+        "column": "comment_id",
+        "type": "uuid",
+        "nullable": "YES"
+      },
+      {
+        "column": "status",
+        "type": "text",
+        "nullable": "NO"
+      },
+      {
+        "column": "attempts",
+        "type": "integer",
+        "nullable": "NO"
+      },
+      {
+        "column": "last_error",
+        "type": "text",
+        "nullable": "YES"
+      },
+      {
+        "column": "dedupe_key",
+        "type": "text",
+        "nullable": "NO"
+      },
+      {
+        "column": "created_at",
+        "type": "timestamp with time zone",
+        "nullable": "NO"
+      },
+      {
+        "column": "sent_at",
+        "type": "timestamp with time zone",
+        "nullable": "YES"
+      },
+      {
+        "column": "extra_items",
+        "type": "jsonb",
+        "nullable": "NO"
+      },
+      {
+        "column": "window_minutes",
+        "type": "integer",
+        "nullable": "YES"
+      },
+      {
+        "column": "delivery",
+        "type": "text",
+        "nullable": "NO"
+      },
+      {
+        "column": "due_at",
+        "type": "timestamp with time zone",
+        "nullable": "YES"
+      },
+      {
+        "column": "order_id",
+        "type": "uuid",
+        "nullable": "YES"
+      }
+    ],
     "moderation_logs": [
       {
         "column": "id",
@@ -3780,6 +4468,224 @@
         "column": "archived_at",
         "type": "timestamp with time zone",
         "nullable": "YES"
+      }
+    ],
+    "photo_album_exports": [
+      {
+        "column": "id",
+        "type": "uuid",
+        "nullable": "NO"
+      },
+      {
+        "column": "user_id",
+        "type": "uuid",
+        "nullable": "NO"
+      },
+      {
+        "column": "album_id",
+        "type": "uuid",
+        "nullable": "NO"
+      },
+      {
+        "column": "kind",
+        "type": "text",
+        "nullable": "NO"
+      },
+      {
+        "column": "created_at",
+        "type": "timestamp with time zone",
+        "nullable": "NO"
+      }
+    ],
+    "photo_album_pages": [
+      {
+        "column": "id",
+        "type": "uuid",
+        "nullable": "NO"
+      },
+      {
+        "column": "album_id",
+        "type": "uuid",
+        "nullable": "NO"
+      },
+      {
+        "column": "page_index",
+        "type": "integer",
+        "nullable": "NO"
+      },
+      {
+        "column": "page_type",
+        "type": "text",
+        "nullable": "NO"
+      },
+      {
+        "column": "layout_id",
+        "type": "text",
+        "nullable": "NO"
+      },
+      {
+        "column": "chapter_title",
+        "type": "text",
+        "nullable": "NO"
+      },
+      {
+        "column": "note",
+        "type": "text",
+        "nullable": "NO"
+      },
+      {
+        "column": "photo_refs",
+        "type": "jsonb",
+        "nullable": "NO"
+      },
+      {
+        "column": "created_at",
+        "type": "timestamp with time zone",
+        "nullable": "NO"
+      },
+      {
+        "column": "updated_at",
+        "type": "timestamp with time zone",
+        "nullable": "NO"
+      },
+      {
+        "column": "headline",
+        "type": "text",
+        "nullable": "NO"
+      },
+      {
+        "column": "taken_on",
+        "type": "date",
+        "nullable": "YES"
+      },
+      {
+        "column": "place",
+        "type": "text",
+        "nullable": "NO"
+      }
+    ],
+    "photo_album_photos": [
+      {
+        "column": "id",
+        "type": "uuid",
+        "nullable": "NO"
+      },
+      {
+        "column": "album_id",
+        "type": "uuid",
+        "nullable": "NO"
+      },
+      {
+        "column": "user_id",
+        "type": "uuid",
+        "nullable": "NO"
+      },
+      {
+        "column": "cloudinary_url",
+        "type": "text",
+        "nullable": "NO"
+      },
+      {
+        "column": "public_id",
+        "type": "text",
+        "nullable": "NO"
+      },
+      {
+        "column": "width",
+        "type": "integer",
+        "nullable": "NO"
+      },
+      {
+        "column": "height",
+        "type": "integer",
+        "nullable": "NO"
+      },
+      {
+        "column": "ratio",
+        "type": "text",
+        "nullable": "NO"
+      },
+      {
+        "column": "caption",
+        "type": "text",
+        "nullable": "NO"
+      },
+      {
+        "column": "sort_order",
+        "type": "integer",
+        "nullable": "NO"
+      },
+      {
+        "column": "moderation_status",
+        "type": "text",
+        "nullable": "NO"
+      },
+      {
+        "column": "moderation_score",
+        "type": "numeric",
+        "nullable": "NO"
+      },
+      {
+        "column": "moderation_source",
+        "type": "text",
+        "nullable": "NO"
+      },
+      {
+        "column": "created_at",
+        "type": "timestamp with time zone",
+        "nullable": "NO"
+      }
+    ],
+    "photo_albums": [
+      {
+        "column": "id",
+        "type": "uuid",
+        "nullable": "NO"
+      },
+      {
+        "column": "user_id",
+        "type": "uuid",
+        "nullable": "NO"
+      },
+      {
+        "column": "title",
+        "type": "text",
+        "nullable": "NO"
+      },
+      {
+        "column": "subtitle",
+        "type": "text",
+        "nullable": "NO"
+      },
+      {
+        "column": "cover_url",
+        "type": "text",
+        "nullable": "NO"
+      },
+      {
+        "column": "status",
+        "type": "text",
+        "nullable": "NO"
+      },
+      {
+        "column": "shared_to_community",
+        "type": "boolean",
+        "nullable": "NO"
+      },
+      {
+        "column": "photo_count",
+        "type": "integer",
+        "nullable": "NO"
+      },
+      {
+        "column": "created_at",
+        "type": "timestamp with time zone",
+        "nullable": "NO"
+      },
+      {
+        "column": "updated_at",
+        "type": "timestamp with time zone",
+        "nullable": "NO"
       }
     ],
     "points_card_cats_unlocks": [
@@ -4144,6 +5050,21 @@
         "column": "repost_of_post_id",
         "type": "uuid",
         "nullable": "YES"
+      },
+      {
+        "column": "edited_at",
+        "type": "timestamp with time zone",
+        "nullable": "YES"
+      },
+      {
+        "column": "album_entries",
+        "type": "jsonb",
+        "nullable": "NO"
+      },
+      {
+        "column": "is_album",
+        "type": "boolean",
+        "nullable": "YES"
       }
     ],
     "products": [
@@ -4216,6 +5137,16 @@
         "column": "rmb_price",
         "type": "integer",
         "nullable": "YES"
+      },
+      {
+        "column": "sort_order",
+        "type": "integer",
+        "nullable": "NO"
+      },
+      {
+        "column": "card_layout",
+        "type": "text",
+        "nullable": "NO"
       }
     ],
     "profiles": [
@@ -4463,6 +5394,61 @@
         "column": "avatar_frame_url",
         "type": "text",
         "nullable": "YES"
+      },
+      {
+        "column": "ai_points_fraction",
+        "type": "numeric",
+        "nullable": "NO"
+      },
+      {
+        "column": "follow_mail_enabled",
+        "type": "boolean",
+        "nullable": "NO"
+      },
+      {
+        "column": "follow_mail_window_minutes",
+        "type": "integer",
+        "nullable": "NO"
+      },
+      {
+        "column": "follow_mail_digest",
+        "type": "boolean",
+        "nullable": "NO"
+      },
+      {
+        "column": "moderation_mail_enabled",
+        "type": "boolean",
+        "nullable": "NO"
+      },
+      {
+        "column": "birthday_mail_enabled",
+        "type": "boolean",
+        "nullable": "NO"
+      },
+      {
+        "column": "album_title",
+        "type": "text",
+        "nullable": "NO"
+      },
+      {
+        "column": "album_intro",
+        "type": "text",
+        "nullable": "NO"
+      },
+      {
+        "column": "terms_accepted_at",
+        "type": "timestamp with time zone",
+        "nullable": "YES"
+      },
+      {
+        "column": "terms_version",
+        "type": "text",
+        "nullable": "YES"
+      },
+      {
+        "column": "signup_completed_at",
+        "type": "timestamp with time zone",
+        "nullable": "YES"
       }
     ],
     "push_outbox": [
@@ -4624,6 +5610,36 @@
         "column": "payment_mode",
         "type": "text",
         "nullable": "NO"
+      },
+      {
+        "column": "shipping_recipient",
+        "type": "text",
+        "nullable": "YES"
+      },
+      {
+        "column": "shipping_phone",
+        "type": "text",
+        "nullable": "YES"
+      },
+      {
+        "column": "shipping_address",
+        "type": "text",
+        "nullable": "YES"
+      },
+      {
+        "column": "remark",
+        "type": "text",
+        "nullable": "YES"
+      },
+      {
+        "column": "source",
+        "type": "text",
+        "nullable": "NO"
+      },
+      {
+        "column": "lottery_id",
+        "type": "uuid",
+        "nullable": "YES"
       }
     ],
     "subscription_plan_prices": [
@@ -4706,6 +5722,115 @@
       },
       {
         "column": "updated_at",
+        "type": "timestamp with time zone",
+        "nullable": "NO"
+      }
+    ],
+    "user_ai_endpoints": [
+      {
+        "column": "id",
+        "type": "uuid",
+        "nullable": "NO"
+      },
+      {
+        "column": "user_id",
+        "type": "uuid",
+        "nullable": "NO"
+      },
+      {
+        "column": "name",
+        "type": "text",
+        "nullable": "NO"
+      },
+      {
+        "column": "base_url",
+        "type": "text",
+        "nullable": "NO"
+      },
+      {
+        "column": "encrypted_value",
+        "type": "text",
+        "nullable": "NO"
+      },
+      {
+        "column": "masked_value",
+        "type": "text",
+        "nullable": "NO"
+      },
+      {
+        "column": "status",
+        "type": "text",
+        "nullable": "NO"
+      },
+      {
+        "column": "last_test_status",
+        "type": "text",
+        "nullable": "YES"
+      },
+      {
+        "column": "last_test_message",
+        "type": "text",
+        "nullable": "YES"
+      },
+      {
+        "column": "last_tested_at",
+        "type": "timestamp with time zone",
+        "nullable": "YES"
+      },
+      {
+        "column": "created_at",
+        "type": "timestamp with time zone",
+        "nullable": "NO"
+      },
+      {
+        "column": "updated_at",
+        "type": "timestamp with time zone",
+        "nullable": "NO"
+      }
+    ],
+    "user_ai_models": [
+      {
+        "column": "id",
+        "type": "uuid",
+        "nullable": "NO"
+      },
+      {
+        "column": "endpoint_id",
+        "type": "uuid",
+        "nullable": "NO"
+      },
+      {
+        "column": "user_id",
+        "type": "uuid",
+        "nullable": "NO"
+      },
+      {
+        "column": "model_id",
+        "type": "text",
+        "nullable": "NO"
+      },
+      {
+        "column": "display_name",
+        "type": "text",
+        "nullable": "NO"
+      },
+      {
+        "column": "temperature",
+        "type": "numeric",
+        "nullable": "YES"
+      },
+      {
+        "column": "max_tokens",
+        "type": "integer",
+        "nullable": "YES"
+      },
+      {
+        "column": "sort_order",
+        "type": "integer",
+        "nullable": "NO"
+      },
+      {
+        "column": "created_at",
         "type": "timestamp with time zone",
         "nullable": "NO"
       }
@@ -5006,6 +6131,147 @@
         "type": "uuid",
         "nullable": "YES"
       }
+    ],
+    "xmas_exchange_events": [
+      {
+        "column": "id",
+        "type": "uuid",
+        "nullable": "NO"
+      },
+      {
+        "column": "slug",
+        "type": "text",
+        "nullable": "NO"
+      },
+      {
+        "column": "title",
+        "type": "text",
+        "nullable": "NO"
+      },
+      {
+        "column": "reveal_at",
+        "type": "timestamp with time zone",
+        "nullable": "NO"
+      },
+      {
+        "column": "signup_deadline",
+        "type": "timestamp with time zone",
+        "nullable": "NO"
+      },
+      {
+        "column": "capacity",
+        "type": "integer",
+        "nullable": "NO"
+      },
+      {
+        "column": "status",
+        "type": "text",
+        "nullable": "NO"
+      },
+      {
+        "column": "is_visible",
+        "type": "boolean",
+        "nullable": "NO"
+      },
+      {
+        "column": "santa_user_id",
+        "type": "uuid",
+        "nullable": "YES"
+      },
+      {
+        "column": "revealed_at",
+        "type": "timestamp with time zone",
+        "nullable": "YES"
+      },
+      {
+        "column": "created_at",
+        "type": "timestamp with time zone",
+        "nullable": "NO"
+      },
+      {
+        "column": "updated_at",
+        "type": "timestamp with time zone",
+        "nullable": "NO"
+      }
+    ],
+    "xmas_exchange_matches": [
+      {
+        "column": "id",
+        "type": "uuid",
+        "nullable": "NO"
+      },
+      {
+        "column": "event_id",
+        "type": "uuid",
+        "nullable": "NO"
+      },
+      {
+        "column": "a_user_id",
+        "type": "uuid",
+        "nullable": "NO"
+      },
+      {
+        "column": "b_user_id",
+        "type": "uuid",
+        "nullable": "YES"
+      },
+      {
+        "column": "created_at",
+        "type": "timestamp with time zone",
+        "nullable": "NO"
+      }
+    ],
+    "xmas_exchange_participants": [
+      {
+        "column": "id",
+        "type": "uuid",
+        "nullable": "NO"
+      },
+      {
+        "column": "event_id",
+        "type": "uuid",
+        "nullable": "NO"
+      },
+      {
+        "column": "user_id",
+        "type": "uuid",
+        "nullable": "NO"
+      },
+      {
+        "column": "slot_index",
+        "type": "integer",
+        "nullable": "NO"
+      },
+      {
+        "column": "status",
+        "type": "text",
+        "nullable": "NO"
+      },
+      {
+        "column": "display_name",
+        "type": "text",
+        "nullable": "NO"
+      },
+      {
+        "column": "avatar_url",
+        "type": "text",
+        "nullable": "YES"
+      },
+      {
+        "column": "avatar_frame_url",
+        "type": "text",
+        "nullable": "YES"
+      },
+      {
+        "column": "joined_at",
+        "type": "timestamp with time zone",
+        "nullable": "NO"
+      },
+      {
+        "column": "left_at",
+        "type": "timestamp with time zone",
+        "nullable": "YES"
+      }
     ]
   },
   "objects": [
@@ -5030,11 +6296,19 @@
       "relkind": "r"
     },
     {
+      "table_name": "admin_audit_logs",
+      "relkind": "r"
+    },
+    {
       "table_name": "admin_issued_login_tokens",
       "relkind": "r"
     },
     {
       "table_name": "advertisements",
+      "relkind": "r"
+    },
+    {
+      "table_name": "ai_pricing_config",
       "relkind": "r"
     },
     {
@@ -5078,19 +6352,27 @@
       "relkind": "r"
     },
     {
-      "table_name": "birthday_events",
-      "relkind": "r"
-    },
-    {
       "table_name": "birthday_wishes",
       "relkind": "r"
     },
     {
-      "table_name": "block_wall_items",
+      "table_name": "boh_ai_core_memories",
       "relkind": "r"
     },
     {
-      "table_name": "boh_ai_core_memories",
+      "table_name": "boh_ai_entities",
+      "relkind": "r"
+    },
+    {
+      "table_name": "boh_ai_entity_aliases",
+      "relkind": "r"
+    },
+    {
+      "table_name": "boh_ai_forum_memories",
+      "relkind": "r"
+    },
+    {
+      "table_name": "boh_ai_forum_memory_scans",
       "relkind": "r"
     },
     {
@@ -5107,6 +6389,10 @@
     },
     {
       "table_name": "boh_cloud_entries",
+      "relkind": "r"
+    },
+    {
+      "table_name": "boh_cloud_image_trash",
       "relkind": "r"
     },
     {
@@ -5138,6 +6424,10 @@
       "relkind": "r"
     },
     {
+      "table_name": "bohai_model_configs",
+      "relkind": "v"
+    },
+    {
       "table_name": "bolek_model_configs",
       "relkind": "r"
     },
@@ -5154,7 +6444,23 @@
       "relkind": "r"
     },
     {
+      "table_name": "csp_violations",
+      "relkind": "r"
+    },
+    {
+      "table_name": "edge_probe_events",
+      "relkind": "r"
+    },
+    {
       "table_name": "forum_async_jobs",
+      "relkind": "r"
+    },
+    {
+      "table_name": "forum_card_items",
+      "relkind": "r"
+    },
+    {
+      "table_name": "forum_experience_awards",
       "relkind": "r"
     },
     {
@@ -5190,19 +6496,7 @@
       "relkind": "r"
     },
     {
-      "table_name": "health_daily_logs",
-      "relkind": "r"
-    },
-    {
-      "table_name": "health_profiles",
-      "relkind": "r"
-    },
-    {
-      "table_name": "health_vault_records",
-      "relkind": "r"
-    },
-    {
-      "table_name": "health_weight_logs",
+      "table_name": "home_gate_config",
       "relkind": "r"
     },
     {
@@ -5282,6 +6576,14 @@
       "relkind": "r"
     },
     {
+      "table_name": "mail_keepalive_log",
+      "relkind": "r"
+    },
+    {
+      "table_name": "mail_outbox",
+      "relkind": "r"
+    },
+    {
       "table_name": "moderation_logs",
       "relkind": "r"
     },
@@ -5291,6 +6593,22 @@
     },
     {
       "table_name": "notifications",
+      "relkind": "r"
+    },
+    {
+      "table_name": "photo_album_exports",
+      "relkind": "r"
+    },
+    {
+      "table_name": "photo_album_pages",
+      "relkind": "r"
+    },
+    {
+      "table_name": "photo_album_photos",
+      "relkind": "r"
+    },
+    {
+      "table_name": "photo_albums",
       "relkind": "r"
     },
     {
@@ -5350,6 +6668,14 @@
       "relkind": "r"
     },
     {
+      "table_name": "user_ai_endpoints",
+      "relkind": "r"
+    },
+    {
+      "table_name": "user_ai_models",
+      "relkind": "r"
+    },
+    {
       "table_name": "user_avatar_frames",
       "relkind": "r"
     },
@@ -5371,6 +6697,18 @@
     },
     {
       "table_name": "user_subscriptions",
+      "relkind": "r"
+    },
+    {
+      "table_name": "xmas_exchange_events",
+      "relkind": "r"
+    },
+    {
+      "table_name": "xmas_exchange_matches",
+      "relkind": "r"
+    },
+    {
+      "table_name": "xmas_exchange_participants",
       "relkind": "r"
     }
   ]

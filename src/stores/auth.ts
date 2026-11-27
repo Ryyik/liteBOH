@@ -1125,18 +1125,23 @@ export const useAuthStore = defineStore(
       //   reload 顺手清掉 —— 漏一个就会让上一个账号的数据活在下一个访客的页面上。
       //   homeHeroes 原先有 resetState 却没人调用，是软重置引入后必须补上的一个。
       try {
-        const [
-          notificationStoreModule,
-          bagStoreModule,
-          productsStoreModule,
-          homeHeroesStoreModule,
-        ] = await loadResetStores();
-        await Promise.all([
-          notificationStoreModule.useNotificationStore().resetState(),
-          bagStoreModule.useBagStore().resetState(),
-          productsStoreModule.useProductsStore().resetState(),
-          homeHeroesStoreModule.useHomeHeroesStore().resetState(),
-        ]);
+        if (relatedStores === 'lite') {
+          const { useHomeHeroesStore } = await import('@/stores/homeHeroes');
+          await useHomeHeroesStore().resetState();
+        } else {
+          const [
+            notificationStoreModule,
+            bagStoreModule,
+            productsStoreModule,
+            homeHeroesStoreModule,
+          ] = await loadResetStores();
+          await Promise.all([
+            notificationStoreModule.useNotificationStore().resetState(),
+            bagStoreModule.useBagStore().resetState(),
+            productsStoreModule.useProductsStore().resetState(),
+            homeHeroesStoreModule.useHomeHeroesStore().resetState(),
+          ]);
+        }
       } catch (error) {
         logger.warn('auth-store', '清理关联状态失败', error);
       }
