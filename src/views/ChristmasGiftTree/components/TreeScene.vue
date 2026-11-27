@@ -59,12 +59,7 @@ function initials(name) {
 <template>
   <div class="tree-scene" :class="{ 'is-still': still }">
     <!-- eslint-disable-next-line vue/no-v-html -->
-    <div
-      class="tree-pixels"
-      role="img"
-      aria-label="一棵挂满彩灯的圣诞树，树上挂着大家头像做的挂饰"
-      v-html="sceneSvg"
-    ></div>
+    <div class="tree-pixels" role="img" aria-label="圣诞树，挂有参与者头像" v-html="sceneSvg"></div>
 
     <!-- 挂饰层：与像素画像素级对齐（容器 aspect-ratio 锁死等于画布比例） -->
     <div class="tree-hangers">
@@ -73,9 +68,10 @@ function initials(name) {
         :key="hanger.id"
         type="button"
         class="hanger"
+        :data-self="hanger.isSelf ? 'true' : undefined"
         :class="{ 'is-active': String(activeId) === String(hanger.id) }"
         :style="hangerStyle(hanger, index)"
-        :aria-label="`${hanger.name} 的头像挂饰`"
+        :aria-label="`${hanger.name} 的头像`"
         :aria-pressed="String(activeId) === String(hanger.id)"
         @click.stop="emit('select', hanger.id)"
       >

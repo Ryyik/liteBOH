@@ -31,12 +31,9 @@
         BOH · CHRISTMAS 2026
       </p>
       <h2 class="xmas-hero-title">
-        把头像挂上树，<br />
-        <span class="xmas-hero-mark">交换一份圣诞礼物</span>
+        <span class="xmas-hero-mark">圣诞交换礼物</span>
       </h2>
-      <p class="xmas-hero-sub">
-        一个人的圣诞树是装饰，一群人的圣诞树才叫节日。挂上头像，剩下的交给那一天。
-      </p>
+      <p class="xmas-hero-sub">挂上头像，随机配对。礼物自行准备。</p>
       <div class="xmas-hero-actions">
         <router-link class="xmas-hero-cta" to="/xmas">
           <svg class="xmas-hero-gift" viewBox="0 0 12 12" width="18" height="18" aria-hidden="true">
@@ -46,7 +43,7 @@
             <rect x="2" y="4" width="8" height="7" fill="currentColor" />
             <rect x="5" y="2" width="2" height="9" fill="#8a5a12" />
           </svg>
-          去挂头像
+          立即参与
         </router-link>
         <span class="xmas-hero-meta">12 月 20 日 20:00 揭晓 · 最多 20 位</span>
       </div>

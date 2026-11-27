@@ -108,38 +108,34 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown));
         </div>
 
         <h2 id="xmas-sheet-title" class="sheet-title">
-          {{ isLeave() ? '确定退出交换？' : '交换礼物' }}
+          {{ isLeave() ? '退出交换？' : '参与交换' }}
         </h2>
 
         <p id="xmas-sheet-desc" class="sheet-desc">
           {{
             isLeave()
-              ? '你的头像会从树上取下来，这次就不参与配对啦。想回来随时可以再挂上去。'
-              : '把你的头像挂上这棵圣诞树，等揭晓那一晚，和另一位朋友随机配成一对。'
+              ? '退出后头像将从树上移除；揭晓前可重新参与。'
+              : '参与后，头像将挂在圣诞树上。揭晓时查看配对对象。'
           }}
         </p>
 
         <ul v-if="!isLeave()" class="sheet-rules">
           <li>
             <span class="rule-dot" aria-hidden="true">1</span>
-            <span>点击参与，头像立刻挂到树上，和其他人一起亮起来</span>
+            <span
+              ><strong>{{ revealLabel }}</strong> 揭晓随机配对结果。</span
+            >
           </li>
           <li>
             <span class="rule-dot" aria-hidden="true">2</span>
-            <span>
-              <strong>{{ revealLabel }}</strong> 随机两两配对，你会知道把礼物送给谁、又从谁那里收到
-            </span>
-          </li>
-          <li>
-            <span class="rule-dot" aria-hidden="true">3</span>
-            <span>礼物自己准备就好，配对完成后会告诉你送给谁、又是谁送你</span>
+            <span>请自行准备礼物。</span>
           </li>
         </ul>
 
         <div v-if="!isLeave()" class="sheet-meta">
-          <span>已挂上树 {{ peopleCount }} / {{ capacity }} 人</span>
+          <span>{{ peopleCount }} / {{ capacity }} 人参与</span>
           <span class="sheet-meta-dot" aria-hidden="true"></span>
-          <span>揭晓前都可以退出</span>
+          <span>揭晓前可退出</span>
         </div>
 
         <p v-if="error" class="sheet-error" role="alert">{{ error }}</p>
@@ -154,7 +150,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown));
             @click="emit('confirm')"
           >
             <span v-if="submitting" class="sheet-spinner" aria-hidden="true"></span>
-            {{ submitting ? '处理中…' : isLeave() ? '确认退出' : '挂上我的头像' }}
+            {{ submitting ? '处理中…' : isLeave() ? '确认退出' : '确认参与' }}
           </button>
           <button
             type="button"
@@ -162,7 +158,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown));
             :disabled="submitting"
             @click="emit('close')"
           >
-            {{ isLeave() ? '继续挂着' : '再想想' }}
+            {{ isLeave() ? '继续参与' : '取消' }}
           </button>
         </div>
       </section>

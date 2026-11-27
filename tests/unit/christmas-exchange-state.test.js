@@ -119,7 +119,7 @@ describe('christmas gift exchange state machine', () => {
     vi.advanceTimersByTime(1500);
 
     expect(api.remainingMs.value).toBe(0);
-    expect(api.countdownText.value).toBe('已到揭晓时刻');
+    expect(api.countdownText.value).toBe('已揭晓');
     expect(api.isRevealed.value).toBe(true);
     stop();
   });

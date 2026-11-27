@@ -60,7 +60,7 @@ const createBuiltinFallback = (
 export const HOME_HERO_BASELINE: HomeHero[] = [
   // 圣诞交换礼物（2026-12）：节日强时效内容，固定在英雄区最前。
   // ⚠️ 节后请到 Hero Console 归档这条配置；这里只是远端不可达时的兜底基线。
-  createBuiltinFallback('christmas-xmas', -20, '把头像挂上树', '圣诞交换礼物'),
+  createBuiltinFallback('christmas-xmas', -20, '圣诞交换礼物', '圣诞交换礼物'),
   createBuiltinFallback('beta6-renewal', -10, '焕然一新，即刻相见', 'BOHLITE Beta 6 焕新体验'),
   createBuiltinFallback('mascot-new', 10, '全新吉祥物现已上线', '全新吉祥物现已上线'),
   createBuiltinFallback('agent-preview', 20, 'BOH Agent Preview', 'BOH Agent Preview'),

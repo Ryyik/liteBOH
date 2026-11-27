@@ -154,7 +154,7 @@ export function useXmasExchange() {
 
   const countdownText = computed(() => {
     const { days, hours, minutes, seconds } = countdown.value;
-    if (remainingMs.value <= 0) return '已到揭晓时刻';
+    if (remainingMs.value <= 0) return '已揭晓';
     if (days > 0) return `${days} 天 ${pad2(hours)}:${pad2(minutes)}:${pad2(seconds)}`;
     return `${pad2(hours)}:${pad2(minutes)}:${pad2(seconds)}`;
   });
@@ -259,7 +259,7 @@ export function useXmasExchange() {
         if (!res.ok) {
           const reasonMap = { DEADLINE: 'deadline', FULL: 'full', CLOSED: 'closed' };
           if (res.notReady) backendReady.value = false;
-          error.value = res.message || '报名失败，请稍后重试';
+          error.value = res.message || '参与失败，请稍后重试';
           return { ok: false, reason: reasonMap[res.code] || res.code || 'failed' };
         }
         await refresh();
@@ -270,11 +270,11 @@ export function useXmasExchange() {
       // 本地演示分支：故意保留 260ms 延迟，把 loading 态也一起验证掉
       await new Promise((resolve) => setTimeout(resolve, 260));
       if (Date.now() >= deadlineMs.value) {
-        error.value = '报名已经截止啦，明年早点来';
+        error.value = '报名已截止';
         return { ok: false, reason: 'deadline' };
       }
       if (roster.value.length >= capacity.value) {
-        error.value = '树上挂满啦，等有人退出再来';
+        error.value = '参与人数已满';
         return { ok: false, reason: 'full' };
       }
       roster.value = [
@@ -300,7 +300,7 @@ export function useXmasExchange() {
   async function leave() {
     if (submitting.value || !isSignedUp.value) return { ok: false };
     if (isRevealed.value) {
-      error.value = '已经揭晓了，这时候退出就没意义了';
+      error.value = '结果已揭晓，无法退出';
       return { ok: false, reason: 'revealed' };
     }
     submitting.value = true;

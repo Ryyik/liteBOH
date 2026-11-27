@@ -65,7 +65,7 @@ async function load() {
     }
     notReady.value = false;
     if (!res.ok) {
-      flash(res.message || '读取失败，确认一下当前账号是不是管理员');
+      flash(res.message || '读取失败，请确认管理员权限');
       return;
     }
     state.exists = res.exists;
@@ -90,8 +90,8 @@ async function afterWrite(ok, message) {
 async function removePerson(person) {
   if (busy.value) return;
   const ok = await confirmDialog({
-    title: '摘下此人',
-    message: `把「${person.name}」从树上摘下来？挂位会留空，不会被后面的人顶掉。`,
+    title: '移除参与者',
+    message: `确认移除「${person.name}」？其挂位将保留为空。`,
   });
   if (!ok) return;
   busy.value = true;
@@ -106,9 +106,9 @@ async function removePerson(person) {
 async function draw(force) {
   if (busy.value) return;
   const tip = force
-    ? '重新洗牌？已有配对会被丢弃并重新生成。'
-    : '现在生成配对？不会让用户提前看到（结果接口在揭晓前不返回内容）。';
-  const ok = await confirmDialog({ title: force ? '重新洗牌' : '生成配对', message: tip });
+    ? '重新配对将清除现有结果，是否继续？'
+    : '现在生成配对？揭晓前用户无法查看结果。';
+  const ok = await confirmDialog({ title: force ? '重新配对' : '生成配对', message: tip });
   if (!ok) return;
   busy.value = true;
   try {
@@ -123,7 +123,7 @@ async function resetMatches() {
   if (busy.value) return;
   const ok = await confirmDialog({
     title: '清空配对',
-    message: '清空本轮配对？参与者与挂位不受影响。',
+    message: '清空本轮配对？参与者和挂位不变。',
   });
   if (!ok) return;
   busy.value = true;
@@ -159,11 +159,11 @@ async function saveTimes() {
   const revealAt = fromLocalInputValue(revealInput.value);
   const signupDeadline = fromLocalInputValue(deadlineInput.value);
   if (!revealAt || !signupDeadline) {
-    flash('两个时间都要填');
+    flash('请填写揭晓时间和报名截止时间');
     return;
   }
   if (new Date(signupDeadline) >= new Date(revealAt)) {
-    flash('报名截止必须早于揭晓');
+    flash('报名截止时间必须早于揭晓时间');
     return;
   }
   busy.value = true;
@@ -212,7 +212,7 @@ onUnmounted(() => {
         <header class="dock-head">
           <div>
             <h2 id="dock-title" class="dock-title">名单管理</h2>
-            <p class="dock-sub">仅管理员可见 · 改完即时生效</p>
+            <p class="dock-sub">仅管理员 · 修改即时生效</p>
           </div>
           <button type="button" class="dock-close" aria-label="关闭" @click="emit('close')">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -229,18 +229,18 @@ onUnmounted(() => {
         <p v-if="notice" class="dock-notice" role="status">{{ notice }}</p>
 
         <p v-if="notReady" class="dock-empty">
-          数据表还没创建，先在项目根目录执行 <code>supabase db push</code>。
+          数据表未创建，请先执行 <code>supabase db push</code>。
         </p>
 
         <p v-else-if="loading" class="dock-empty">读取中…</p>
 
-        <p v-else-if="!state.exists" class="dock-empty">这一轮活动还没创建。</p>
+        <p v-else-if="!state.exists" class="dock-empty">本轮活动尚未创建。</p>
 
         <template v-else>
           <div class="dock-chips">
-            <span class="dock-chip">{{ activeCount }} / {{ state.event.capacity }} 在树上</span>
+            <span class="dock-chip">{{ activeCount }} / {{ state.event.capacity }} 人参与</span>
             <span class="dock-chip" :class="{ 'is-off': !isVisible }">
-              {{ isVisible ? '页面对访客可见' : '页面已隐藏' }}
+              {{ isVisible ? '页面可见' : '页面隐藏' }}
             </span>
             <span class="dock-chip is-gold">{{ statusLabel }}</span>
           </div>
@@ -256,7 +256,7 @@ onUnmounted(() => {
                 :disabled="busy"
                 @click="patchEvent({ isVisible: !isVisible })"
               >
-                {{ isVisible ? '隐藏活动页' : '放出活动页' }}
+                {{ isVisible ? '隐藏页面' : '显示页面' }}
               </button>
               <button
                 type="button"
@@ -267,34 +267,30 @@ onUnmounted(() => {
                 {{ state.event.status === 'open' ? '停止报名' : '开放报名' }}
               </button>
             </div>
-            <p class="dock-hint">
-              隐藏后 /xmas 只显示「活动还没开始」，名单一并收起；已参与的记录不会丢。
-            </p>
+            <p class="dock-hint">隐藏后页面显示「活动未开始」，名单同时隐藏，参与记录保留。</p>
           </div>
 
           <details class="dock-block dock-times">
-            <summary>改时间</summary>
+            <summary>时间设置</summary>
             <label class="dock-field">
-              <span>揭晓时刻</span>
+              <span>揭晓时间</span>
               <input v-model="revealInput" type="datetime-local" />
             </label>
             <label class="dock-field">
-              <span>报名截止</span>
+              <span>报名截止时间</span>
               <input v-model="deadlineInput" type="datetime-local" />
             </label>
-            <button type="button" class="dock-btn" :disabled="busy" @click="saveTimes">
-              保存时间
-            </button>
+            <button type="button" class="dock-btn" :disabled="busy" @click="saveTimes">保存</button>
           </details>
 
           <div class="dock-block">
             <p class="dock-block-title">配对</p>
             <div class="dock-toggles">
               <button type="button" class="dock-btn" :disabled="busy" @click="draw(false)">
-                立即配对
+                生成配对
               </button>
               <button type="button" class="dock-btn" :disabled="busy" @click="draw(true)">
-                重新洗牌
+                重新配对
               </button>
               <button
                 type="button"
@@ -302,14 +298,14 @@ onUnmounted(() => {
                 :disabled="busy || !state.matches.length"
                 @click="resetMatches"
               >
-                清空结果
+                清空配对
               </button>
             </div>
-            <p class="dock-hint">到点会自动配对，一般不用手动。提前配对不会让用户提前看到。</p>
+            <p class="dock-hint">到点自动配对，无需手动操作。提前配对不会提前展示。</p>
           </div>
 
           <div class="dock-block">
-            <p class="dock-block-title">在树上 {{ activeCount }} 人</p>
+            <p class="dock-block-title">参与者 {{ activeCount }} 人</p>
             <ul v-if="joined.length" class="dock-list">
               <li v-for="person in joined" :key="person.userId" class="dock-person">
                 <span class="dock-slot">#{{ person.slot }}</span>
@@ -327,11 +323,10 @@ onUnmounted(() => {
                 </button>
               </li>
             </ul>
-            <p v-else class="dock-empty">还没有人挂上去。</p>
+            <p v-else class="dock-empty">暂无参与者。</p>
 
             <p v-if="state.participants.length !== joined.length" class="dock-hint">
-              另有
-              {{ state.participants.length - joined.length }} 位已退出，记录保留但不再参与配对。
+              另有 {{ state.participants.length - joined.length }} 人已退出，记录保留。
             </p>
           </div>
         </template>
