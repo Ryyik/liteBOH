@@ -99,8 +99,16 @@ function buildMockRoster() {
 const pad2 = (value) => String(value).padStart(2, '0');
 
 export function formatRevealLabel(timestamp = REVEAL_MS) {
-  const date = new Date(timestamp);
-  return `${date.getMonth() + 1} 月 ${date.getDate()} 日 ${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
+  const parts = new Intl.DateTimeFormat('zh-CN', {
+    timeZone: 'Asia/Shanghai',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(new Date(timestamp));
+  const value = (type) => parts.find((part) => part.type === type)?.value || '';
+  return `${Number(value('month'))} 月 ${Number(value('day'))} 日 ${value('hour')}:${value('minute')}`;
 }
 
 export function useXmasExchange() {
@@ -118,6 +126,7 @@ export function useXmasExchange() {
 
   /** 服务端是否可用。false 时 join/leave 走本地演示分支 */
   const backendReady = ref(false);
+  const remoteParticipation = ref(false);
   const loadingRemote = ref(false);
   const capacity = ref(XMAS_EVENT_FALLBACK.capacity);
   const eventTitle = ref(XMAS_EVENT_FALLBACK.title);
@@ -129,6 +138,8 @@ export function useXmasExchange() {
   const viewerId = ref('');
   /** 揭晓后的结果：{ code, partner, message } */
   const result = ref(null);
+  let refreshSeq = 0;
+  let resultSeq = 0;
 
   // 倒计时按秒走。用 onScopeDispose 而不是 onUnmounted：单测在 effectScope 里跑也能清掉，
   // 否则一个测试泄漏一个定时器，跑完不退出。
@@ -139,8 +150,14 @@ export function useXmasExchange() {
 
   const isSignedUp = computed(() => phase.value === 'joined' || phase.value === 'revealed');
   const remainingMs = computed(() => Math.max(0, revealMs.value - now.value));
-  const isPastDeadline = computed(() => now.value >= deadlineMs.value);
-  const isRevealed = computed(() => now.value >= revealMs.value && phase.value !== 'closed');
+  const isPastDeadline = computed(
+    () =>
+      eventStatus.value === 'closed' ||
+      eventStatus.value === 'revealed' ||
+      now.value >= deadlineMs.value,
+  );
+  const revealDue = computed(() => now.value >= revealMs.value && phase.value !== 'closed');
+  const isRevealed = computed(() => phase.value === 'revealed');
 
   const countdown = computed(() => {
     const total = remainingMs.value;
@@ -163,7 +180,14 @@ export function useXmasExchange() {
 
   /** 页面挂载后由 index.vue 传入，避免 composable 依赖 pinia（单测里没有 app 上下文） */
   function setViewer(userId) {
-    viewerId.value = String(userId || '');
+    const nextViewer = String(userId || '');
+    if (nextViewer === viewerId.value) return;
+    viewerId.value = nextViewer;
+    refreshSeq += 1;
+    resultSeq += 1;
+    phase.value = 'idle';
+    result.value = null;
+    remoteParticipation.value = false;
   }
 
   function mapRemotePeople(list) {
@@ -182,9 +206,13 @@ export function useXmasExchange() {
    * 本地状态永远不作为「我参与了」的依据。
    */
   async function refresh() {
+    const requestViewer = viewerId.value;
+    const requestSeq = ++refreshSeq;
+    resultSeq += 1;
     loadingRemote.value = true;
     try {
       const res = await fetchXmasRoster();
+      if (requestSeq !== refreshSeq || requestViewer !== viewerId.value) return { ok: false };
       if (!res.ok) {
         backendReady.value = false;
         return { ok: false, notReady: res.notReady === true, message: res.message || '' };
@@ -215,6 +243,7 @@ export function useXmasExchange() {
       slotCount.value = Math.max(res.slotCount, res.participants.length);
 
       if (res.me?.joined) {
+        remoteParticipation.value = true;
         phase.value = 'joined';
         // 远端名单里没有「我」，靠 slot 反标一次，保证自己的头像用实时头像/头像框
         const selfSlot = res.me.slot;
@@ -223,20 +252,30 @@ export function useXmasExchange() {
         );
       } else if (phase.value !== 'closed') {
         phase.value = 'idle';
+        remoteParticipation.value = false;
       }
 
-      if (now.value >= revealMs.value && res.me?.joined) {
+      if ((revealDue.value || eventStatus.value === 'revealed') && res.me?.joined) {
         await loadResult();
       }
+      if (requestSeq !== refreshSeq || requestViewer !== viewerId.value) return { ok: false };
       return { ok: true };
     } finally {
-      loadingRemote.value = false;
+      if (requestSeq === refreshSeq) loadingRemote.value = false;
     }
   }
 
   /** 揭晓后取自己的配对。未到点时服务端只返回时间，partner 一定为空 */
   async function loadResult() {
+    const requestViewer = viewerId.value;
+    const requestSeq = ++resultSeq;
     const res = await fetchXmasMyResult();
+    if (requestSeq !== resultSeq || requestViewer !== viewerId.value)
+      return { ok: false, revealed: false };
+    if (res.ok && res.revealAt) {
+      const serverRevealMs = new Date(res.revealAt).getTime();
+      if (serverRevealMs) revealMs.value = serverRevealMs;
+    }
     if (res.ok && res.revealed) {
       result.value = {
         code: res.code,
@@ -253,22 +292,27 @@ export function useXmasExchange() {
     if (submitting.value || isSignedUp.value) return { ok: false };
     submitting.value = true;
     error.value = '';
+    const requestViewer = viewerId.value;
     try {
       if (backendReady.value) {
         const res = await joinXmas();
+        if (requestViewer !== viewerId.value) return { ok: false };
         if (!res.ok) {
           const reasonMap = { DEADLINE: 'deadline', FULL: 'full', CLOSED: 'closed' };
           if (res.notReady) backendReady.value = false;
           error.value = res.message || '参与失败，请稍后重试';
           return { ok: false, reason: reasonMap[res.code] || res.code || 'failed' };
         }
+        remoteParticipation.value = true;
         await refresh();
+        if (requestViewer !== viewerId.value) return { ok: false };
         phase.value = 'joined';
         return { ok: true, slot: res.slot };
       }
 
       // 本地演示分支：故意保留 260ms 延迟，把 loading 态也一起验证掉
       await new Promise((resolve) => setTimeout(resolve, 260));
+      if (requestViewer !== viewerId.value) return { ok: false };
       if (Date.now() >= deadlineMs.value) {
         error.value = '报名已截止';
         return { ok: false, reason: 'deadline' };
@@ -304,21 +348,26 @@ export function useXmasExchange() {
       return { ok: false, reason: 'revealed' };
     }
     submitting.value = true;
+    const requestViewer = viewerId.value;
     try {
-      if (backendReady.value) {
+      if (backendReady.value || remoteParticipation.value) {
         const res = await leaveXmas();
+        if (requestViewer !== viewerId.value) return { ok: false };
         if (!res.ok) {
           if (res.notReady) backendReady.value = false;
           error.value = res.message || '退出失败，请稍后重试';
           return { ok: false, reason: res.code || 'failed' };
         }
         await refresh();
+        if (requestViewer !== viewerId.value) return { ok: false };
+        remoteParticipation.value = false;
         phase.value = 'idle';
         result.value = null;
         return { ok: true };
       }
 
       await new Promise((resolve) => setTimeout(resolve, 200));
+      if (requestViewer !== viewerId.value) return { ok: false };
       roster.value = roster.value.filter((person) => !person.isSelf);
       phase.value = 'idle';
       return { ok: true };
@@ -338,6 +387,7 @@ export function useXmasExchange() {
     remainingMs,
     isSignedUp,
     isPastDeadline,
+    revealDue,
     isRevealed,
     revealLabel,
     capacity,

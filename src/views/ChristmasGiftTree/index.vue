@@ -6,7 +6,7 @@
  * 配对与揭晓都在服务端，这里的倒计时只是展示 —— 到点也必须重新问一次服务端，
  * 不能靠本地时钟自己把结果翻出来。
  */
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { storeToRefs } from 'pinia';
 
@@ -44,6 +44,7 @@ const {
   countdownText,
   isSignedUp,
   isPastDeadline,
+  revealDue,
   isRevealed,
   revealLabel,
   capacity,
@@ -55,23 +56,27 @@ const {
   leave,
 } = useXmasExchange();
 
-onMounted(async () => {
-  // 先告诉 composable「我是谁」，名单回来时才能把我标出来
-  setViewer(auth.userInfo.id);
-  await refresh();
-});
+watch(
+  [() => isLoggedIn.value, () => auth.userInfo.id],
+  ([, userId]) => {
+    setViewer(userId);
+    void refresh();
+  },
+  { immediate: true },
+);
 
 /*
  * 到点自动问服务端。
  * 这里**不能**用本地时间直接翻结果 —— 本地时钟可能不准，配对也由服务端生成；
  * 倒计时归零只是「该去看一眼了」的信号。
  */
-watch(isRevealed, (revealed) => {
-  if (revealed) loadResult();
+watch(revealDue, (due) => {
+  if (due) loadResult();
 });
 
 /** '' | 'intro' | 'leave' */
 const sheetMode = ref('');
+const isUnmounted = ref(false);
 const activeHangerId = ref(null);
 /** 页面内管理面板。只在管理员身上出现，普通用户看不到这个入口 */
 const adminOpen = ref(false);
@@ -185,7 +190,7 @@ async function onSheetConfirm() {
     return;
   }
   const result = await join();
-  if (!result.ok) return;
+  if (isUnmounted.value || !result.ok) return;
   sheetMode.value = '';
   await nextTick();
   window.clearTimeout(flightTimer);
@@ -207,7 +212,10 @@ function cancelAvatarFlight() {
   }
 }
 
-onBeforeUnmount(cancelAvatarFlight);
+onBeforeUnmount(() => {
+  isUnmounted.value = true;
+  cancelAvatarFlight();
+});
 
 async function playSelfAvatarFlight() {
   await nextTick();

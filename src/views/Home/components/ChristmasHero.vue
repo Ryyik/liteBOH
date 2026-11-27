@@ -19,7 +19,7 @@
       alt=""
       aria-hidden="true"
       :loading="priority ? 'eager' : 'lazy'"
-      :fetchpriority="priority ? 'high' : 'auto'"
+      :fetchpriority="priority ? 'high' : 'low'"
       decoding="async"
       draggable="false"
     />

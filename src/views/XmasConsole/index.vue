@@ -298,7 +298,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, onUnmounted, reactive, ref } from 'vue';
 import { useConfirmDialog } from '@/composables/useConfirmDialog.js';
 import { AlertTriangle, Check, ExternalLink, RefreshCw, Shuffle } from 'lucide-vue-next';
 
@@ -330,9 +330,11 @@ const busy = ref(false);
 const saving = ref(false);
 const notReady = ref(false);
 const notice = ref(null);
+const isUnmounted = ref(false);
 
 let noticeTimer = null;
 function showNotice(text, type = 'ok') {
+  if (isUnmounted.value) return;
   notice.value = { text, type };
   clearTimeout(noticeTimer);
   noticeTimer = setTimeout(() => {
@@ -613,6 +615,10 @@ async function removePerson(person) {
 }
 
 onMounted(load);
+onUnmounted(() => {
+  isUnmounted.value = true;
+  clearTimeout(noticeTimer);
+});
 </script>
 
 <style scoped>
