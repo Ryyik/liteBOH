@@ -6,7 +6,7 @@ import prettier from 'eslint-config-prettier';
 export default [
   {
     ignores: [
-      'dist/**',
+      '**/dist/**',
       'dist-check/**', // 构建校验产物（minified），不参与 lint —— 与 dist 同性质，漏配会让 no-undef 在压缩产物上爆出海量误报
       '.build-verify/**', // 构建校验产物（minified），不参与 lint
       'node_modules/**',
