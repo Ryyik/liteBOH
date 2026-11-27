@@ -44,6 +44,9 @@
         >
           {{ item.label }}
         </button>
+        <button type="button" class="join-admin-preview-btn" @click="adminPreviewExit">
+          退出预览
+        </button>
       </div>
 
       <div class="join-card">
@@ -81,7 +84,12 @@
                 </div>
               </div>
 
-              <form autocomplete="on" novalidate @submit.prevent="handleNext">
+              <form
+                :inert="isAdminPreview"
+                autocomplete="on"
+                novalidate
+                @submit.prevent="handleNext"
+              >
                 <div
                   ref="viewportRef"
                   class="join-viewport"
@@ -116,6 +124,7 @@
                           placeholder="you@example.com"
                           aria-describedby="joinMsgEmail"
                           :aria-invalid="!!fieldMsg.email"
+                          :disabled="isSubmitting || isVerifying"
                           @input="onEmailInput"
                           @blur="validateEmailField"
                         />
@@ -427,13 +436,19 @@
                         </div>
                         <div class="join-avatar-side">
                           <div class="join-avatar-btns">
-                            <button type="button" class="join-mini" @click="handleAvatarClick">
+                            <button
+                              type="button"
+                              class="join-mini"
+                              :disabled="isAvatarUploading"
+                              @click="handleAvatarClick"
+                            >
                               选择图片
                             </button>
                             <button
                               v-if="formData.avatarPreview"
                               type="button"
                               class="join-mini"
+                              :disabled="isAvatarUploading"
                               @click="clearAvatar"
                             >
                               移除
@@ -505,7 +520,7 @@
                   <button
                     type="submit"
                     class="join-btn join-btn-primary"
-                    :disabled="isSubmitting || !canAdvance"
+                    :disabled="isSubmitting || isVerifying || isAvatarUploading || !canAdvance"
                   >
                     {{ nextLabel }}
                   </button>
@@ -513,7 +528,7 @@
                     v-if="currentStep === 4 || currentStep === 5 || currentStep === 6"
                     type="button"
                     class="join-btn join-btn-ghost"
-                    :disabled="isSubmitting"
+                    :disabled="isSubmitting || isAvatarUploading"
                     @click="handleSkip"
                   >
                     跳过
@@ -727,6 +742,7 @@ const fieldMsg = reactive({ account: '', email: '', password: '' });
  */
 const isAdminPreviewReady = ref(false);
 const adminPreviewStep = ref(0);
+const isAdminPreview = ref(false);
 let adminProbeSeq = 0;
 
 const ADMIN_PREVIEW_ENABLED = !import.meta.env.DEV;
@@ -783,6 +799,7 @@ const probeAdmin = async () => {
 /** 跳到某一步做视觉检查。不改动任何真实数据，只切 currentStep。 */
 const adminPreviewJump = (step) => {
   if (!isAdminPreviewReady.value) return;
+  isAdminPreview.value = true;
   adminPreviewStep.value = step;
   submitError.value = '';
   // 预览时把关键字段填成示例值，否则第 ② 屏会渲染成
@@ -805,7 +822,11 @@ const adminPreviewJump = (step) => {
   });
 };
 
-/* ---------------- 邮箱验证码 ---------------- */
+const adminPreviewExit = () => {
+  isAdminPreview.value = false;
+  adminPreviewStep.value = 0;
+  submitError.value = '';
+};
 const otpCode = ref('');
 const otpError = ref('');
 const otpInputRef = ref(null);
@@ -852,7 +873,10 @@ const nextLabel = computed(() => {
 
 /* 返回按钮的出现条件（结构决定的，见模板注释）：
    ② 可回 ①；③ 不可回（账号已按邮箱建好）；④⑤⑥ 可回上一步。 */
-const canGoBack = computed(() => currentStep.value >= 4 || currentStep.value === 2);
+const canGoBack = computed(
+  () =>
+    !isVerifying.value && !isResending.value && (currentStep.value >= 4 || currentStep.value === 2),
+);
 
 /* 主按钮的放行条件：这一步的必填项都成立才可点。
    用户口径（2026-11-26）：「没写好或者没同意就不给下一步」——
@@ -862,12 +886,17 @@ const canGoBack = computed(() => currentStep.value >= 4 || currentStep.value ===
 const canAdvance = computed(() => {
   if (isSubmitting.value || isVerifying.value) return false;
   if (currentStep.value === 1)
-    return !validateEmail(String(formData.email || '').trim()) && formData.agreedToTerms;
+    return (
+      !validateEmail(String(formData.email || '').trim()) &&
+      formData.agreedToTerms &&
+      emailState.value !== 'err'
+    );
   if (currentStep.value === 2) return String(otpCode.value || '').length === OTP_LENGTH;
   if (currentStep.value === 3)
     return (
       !validateUsername(String(formData.account || '').trim()) &&
-      !validatePassword(formData.password)
+      !validatePassword(formData.password) &&
+      accountState.value !== 'err'
     );
   return true;
 });
@@ -1203,6 +1232,7 @@ const avatarInputRef = ref(null);
 const showCropModal = ref(false);
 const cropImageSrc = ref('');
 const isProcessingCrop = ref(false);
+const isAvatarUploading = ref(false);
 const handleAvatarClick = () => avatarInputRef.value?.click();
 const handleAvatarFileChange = (event) => {
   const file = event.target.files?.[0];
@@ -1236,6 +1266,7 @@ const handleCropConfirm = async (blob) => {
   }
 };
 const clearAvatar = () => {
+  if (isAvatarUploading.value) return;
   formData.avatarBlob = null;
   formData.avatarPreview = '';
 };
@@ -1277,6 +1308,7 @@ const closeAgreementModal = () => {
 /* ---------------- 完成页 / 重发验证邮件 ---------------- */
 const signupNeedsEmailConfirmation = ref(false);
 const isResending = ref(false);
+let resendSeq = 0;
 const resendStatus = ref('');
 const resendErrorMessage = ref('');
 const RESEND_COOLDOWN_MS = 60 * 1000;
@@ -1386,7 +1418,8 @@ const validateStep = (step) => {
 };
 
 const handleNext = async () => {
-  if (isSubmitting.value || isVerifying.value) return;
+  if (isAdminPreview.value) return;
+  if (isSubmitting.value || isVerifying.value || isAvatarUploading.value) return;
   submitError.value = '';
 
   // ① 第 1 屏：邮箱 + 协议。纯本地校验，但**会真的发出一封邮件**。
@@ -1455,44 +1488,52 @@ const onOtpComplete = () => {
  * 失败不抛错：头像属于可选资料，丢了不该阻断注册收尾。
  */
 const flushPendingAvatar = async () => {
+  if (isAdminPreview.value) return;
+  if (isAvatarUploading.value) return;
   const blob = formData.avatarBlob;
   if (!blob) return;
-
-  /* userId 不能只靠 pendingAvatarUserId 那一个 ref：
-     它是为「signUp 返回无 session」那套旧时序准备的，而当前流程的会话是在
-     第 ② 屏 verifyOtp 时建立的 —— 那条路径上没人给它赋值。
-     只读它会让 flushPendingAvatar 在第一行就 return，用户在 ⑤ 屏选好的头像
-     **永远传不上去**，而且不报错、不留痕（真机上就是「选了头像但账户里没有」）。
-     所以这里以「当前会话」为第一真源，ref 只作为兜底。 */
-  let userId = pendingAvatarUserId.value;
-  if (!userId) {
-    const { data: authData } = await supabase.auth.getUser();
-    userId = authData?.user?.id || '';
-  }
-  if (!userId) return;
-
-  const { url: avatarUrl, filePath } = await uploadAvatarToSupabase(userId, blob);
-  if (!avatarUrl || !filePath) return;
+  isAvatarUploading.value = true;
 
   try {
-    const { ok: updated, error: updateError } = await updateProfileFields(userId, {
-      avatar_url: avatarUrl,
-    });
-    if (!updated) {
-      logger.error('join', '更新头像 URL 失败:', updateError);
-      await deleteAvatarFromSupabase(filePath);
-      return;
+    /* userId 不能只靠 pendingAvatarUserId 那一个 ref：
+       它是为「signUp 返回无 session」那套旧时序准备的，而当前流程的会话是在
+       第 ② 屏 verifyOtp 时建立的 —— 那条路径上没人给它赋值。
+       只读它会让 flushPendingAvatar 在第一行就 return，用户在 ⑤ 屏选好的头像
+       **永远传不上去**，而且不报错、不留痕（真机上就是「选了头像但账户里没有」）。
+       所以这里以「当前会话」为第一真源，ref 只作为兜底。 */
+    let userId = pendingAvatarUserId.value;
+    if (!userId) {
+      const { data: authData } = await supabase.auth.getUser();
+      userId = authData?.user?.id || '';
     }
-    // 传成功了才清掉待办，避免「传上去了但下次又传一遍」
-    pendingAvatarUserId.value = '';
-  } catch (updateErr) {
-    logger.error('join', '更新头像时出错:', updateErr);
-    await deleteAvatarFromSupabase(filePath);
+    if (!userId) return;
+
+    const { url: avatarUrl, filePath } = await uploadAvatarToSupabase(userId, blob);
+    if (!avatarUrl || !filePath) return;
+
+    try {
+      const { ok: updated, error: updateError } = await updateProfileFields(userId, {
+        avatar_url: avatarUrl,
+      });
+      if (!updated) {
+        logger.error('join', '更新头像 URL 失败:', updateError);
+        await deleteAvatarFromSupabase(filePath);
+        return;
+      }
+      pendingAvatarUserId.value = '';
+      formData.avatarBlob = null;
+    } catch (updateErr) {
+      logger.error('join', '更新头像时出错:', updateErr);
+      await deleteAvatarFromSupabase(filePath);
+    }
+  } finally {
+    isAvatarUploading.value = false;
   }
 };
 
 const verifyOtpAndContinue = async () => {
   if (isVerifying.value) return;
+  const email = normalizeEmail(formData.email);
   const code = String(otpCode.value || '').replace(/\D/g, '');
   if (code.length !== OTP_LENGTH) {
     otpError.value = `请输入 ${OTP_LENGTH} 位验证码`;
@@ -1503,7 +1544,8 @@ const verifyOtpAndContinue = async () => {
   otpError.value = '';
   isVerifying.value = true;
   try {
-    const { ok, error } = await verifySignupOtp(formData.email, code);
+    const { ok, error } = await verifySignupOtp(email, code);
+    if (currentStep.value !== 2 || normalizeEmail(formData.email) !== email) return;
     if (!ok) {
       otpError.value = error?.message || '验证失败，请稍后重试。';
       // 过期/不匹配时清空，逼用户重新输 —— 留着旧值他会以为还能再点一次
@@ -1524,6 +1566,7 @@ const verifyOtpAndContinue = async () => {
        checkSignupState 拿不到数据时返回 incomplete:true（fail-open）——
        宁可让极少数老用户多填一屏，也不要让正常新用户卡死在这里。 */
     const state = await checkSignupState();
+    if (currentStep.value !== 2 || normalizeEmail(formData.email) !== email) return;
     if (state.ok && state.incomplete === false) {
       otpError.value = '该邮箱已注册，请直接登录；忘记密码可在登录页重置。';
       otpCode.value = '';
@@ -1545,10 +1588,18 @@ const verifyOtpAndContinue = async () => {
 
 const handleResendOtp = async () => {
   if (isResending.value || otpResendCooldown.value > 0) return;
+  const email = normalizeEmail(formData.email);
+  const requestSeq = ++resendSeq;
   isResending.value = true;
   otpError.value = '';
   try {
-    const { ok, error, retryAfterSeconds } = await resendSignupConfirmation(formData.email);
+    const { ok, error, retryAfterSeconds } = await resendSignupConfirmation(email);
+    if (
+      requestSeq !== resendSeq ||
+      currentStep.value !== 2 ||
+      normalizeEmail(formData.email) !== email
+    )
+      return;
     if (!ok) {
       otpError.value = error?.message || '发送失败，请稍后再试。';
       // 429 时必须听服务端给的秒数，不能一律 60 秒 ——
@@ -1574,7 +1625,8 @@ const handleResendOtp = async () => {
  *    ⑥ 通行密钥 —— 不勾就是不建，什么都不用做
  */
 const handleSkip = async () => {
-  if (isSubmitting.value) return;
+  if (isAdminPreview.value) return;
+  if (isSubmitting.value || isAvatarUploading.value) return;
   if (currentStep.value === 4) {
     formData.birth_month = '';
     formData.birth_day = '';
@@ -1596,6 +1648,7 @@ const handleSkip = async () => {
  * 因为头像上传失败就把人拦在注册流程里是荒唐的。
  */
 const finishAfterVerification = async () => {
+  if (isAdminPreview.value) return;
   if (isSubmitting.value) return;
 
   const month = String(formData.birth_month || '');
@@ -1608,7 +1661,9 @@ const finishAfterVerification = async () => {
     const uid = sessionData?.user?.id;
     if (!uid) {
       // 走到这里说明会话丢了（换标签页、清了 storage）。不能假装成功。
-      fieldMsg.email = '登录状态已失效，请重新验证。';
+      otpError.value = '登录状态已失效，请重新验证。';
+      otpSentAt.value = 0;
+      otpSentTo.value = '';
       otpCode.value = '';
       goStep(2);
       return;
@@ -1671,6 +1726,7 @@ const sendOtpForSignup = async () => {
     const { ok, error, retryAfterSeconds } = await sendSignupOtp(normalizedEmail, {
       termsAcceptedAt: new Date().toISOString(),
     });
+    if (currentStep.value !== 1 || normalizeEmail(formData.email) !== normalizedEmail) return;
 
     if (!ok) {
       // 已注册的邮箱：这里**不能**直接放行去验证 —— 那会把老用户送进第 ③ 屏
@@ -1708,6 +1764,7 @@ const sendOtpForSignup = async () => {
  * Razer 的可用性测试发现，验证过邮箱的用户仍然需要一个明确的「账号已建成」节点。
  */
 const completeIdentity = async () => {
+  if (isAdminPreview.value) return;
   if (isSubmitting.value) return;
 
   if (!validateStep(3)) {
@@ -1800,6 +1857,7 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+  resendSeq += 1;
   heightObserver?.disconnect();
   heightObserver = null;
   navObserver?.disconnect();
