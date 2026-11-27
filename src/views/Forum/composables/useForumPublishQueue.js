@@ -668,7 +668,7 @@ export function useForumPublishQueue(deps) {
             await enqueueForumImageRecheck(realPost.id, 30);
           })().catch((err) => logger.warn('forum', '图片复审入队失败:', err));
           // 经验与奖励
-          void addExperience(supabase, 'POST').catch((err) =>
+          void addExperience(supabase, 'POST', realPost.id).catch((err) =>
             logger.error('forum', '经验值增加失败:', err),
           );
           if (realPost.id) {

@@ -21,6 +21,7 @@
  * 挪到尾部会让 `askBolek` 里的 stripTagTokens 变成「先用后声明」。
  */
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { useSearchHistory } from '@/composables/useSearchHistory.js';
 import { FORUM_TAG_OPTIONS, SEARCH_DEBOUNCE_MS } from '../forum-config.js';
 
 export function useForumFeedQuery(deps) {
@@ -146,48 +147,10 @@ export function useForumFeedQuery(deps) {
    3. 结果计数：搜索/筛选态下给出命中条数，避免「搜完不知道有几条」。
    4. ⌘K / Ctrl+K 聚焦搜索框。 */
   const isSearchFocused = ref(false);
-  const searchHistory = ref([]);
+  const { searchHistory, rememberSearchKeyword, clearSearchHistory, loadSearchHistory } =
+    useSearchHistory();
 
-  const SEARCH_HISTORY_KEY = 'boh-forum-search-history';
-  const SEARCH_HISTORY_MAX = 6;
   const SINGLE_CHAR_SEARCH_DELAY_MS = 900;
-
-  const readSearchHistory = () => {
-    try {
-      const raw = window.localStorage.getItem(SEARCH_HISTORY_KEY);
-      const parsed = raw ? JSON.parse(raw) : [];
-      if (!Array.isArray(parsed)) return [];
-      return parsed
-        .filter((item) => typeof item === 'string' && item.trim())
-        .slice(0, SEARCH_HISTORY_MAX);
-    } catch {
-      // 隐私模式 / 存储被禁：历史退化为「本次会话有效」
-      return [];
-    }
-  };
-
-  const persistSearchHistory = () => {
-    try {
-      window.localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(searchHistory.value));
-    } catch {
-      // 存不住就算了，不影响检索
-    }
-  };
-
-  const rememberSearchKeyword = (keyword) => {
-    const value = String(keyword || '').trim();
-    if (!value) return;
-    searchHistory.value = [value, ...searchHistory.value.filter((item) => item !== value)].slice(
-      0,
-      SEARCH_HISTORY_MAX,
-    );
-    persistSearchHistory();
-  };
-
-  const clearSearchHistory = () => {
-    searchHistory.value = [];
-    persistSearchHistory();
-  };
 
   /* 面板展开条件（2026-11-26 19:06 用户口径）：
      原来是「聚焦 + 输入为空」，但用户参考截图里的历史是**在有输入时**也铺在输入框下方的
@@ -273,7 +236,7 @@ export function useForumFeedQuery(deps) {
   };
 
   onMounted(() => {
-    searchHistory.value = readSearchHistory();
+    loadSearchHistory();
     window.addEventListener('keydown', handleSearchHotkey);
   });
 

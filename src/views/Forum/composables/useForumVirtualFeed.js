@@ -308,6 +308,15 @@ export function useForumVirtualFeed({
 
   watch(visibleForumPostSignature, setupForumWindowObserverOnce, { flush: 'post' });
 
+  watch(
+    shouldVirtualizeForumFeed,
+    (virtualized) => {
+      if (!virtualized) return;
+      nextTick(syncWindowFromScroll);
+    },
+    { flush: 'post' },
+  );
+
   const stop = () => {
     forumWindowObserverAborted = true;
     detachScrollFallback();

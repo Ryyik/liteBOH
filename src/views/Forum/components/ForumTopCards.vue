@@ -123,6 +123,7 @@ const emit = defineEmits(['checkin', 'dismiss']);
 }
 
 .forum-top-card {
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   gap: 10px;

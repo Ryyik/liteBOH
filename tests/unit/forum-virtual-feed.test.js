@@ -25,6 +25,47 @@ describe('forum virtual feed', () => {
     expect(feed.virtualFeedBottomSpacerHeight.value).toBe(3300);
   });
 
+  it('横屏切回竖屏时按保留的深层滚动位置重算虚拟窗口', async () => {
+    vi.stubGlobal('window', {
+      scrollY: 12000,
+      innerHeight: 900,
+      getComputedStyle: () => ({ overflowY: 'visible' }),
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    });
+    vi.stubGlobal('document', { body: {}, querySelectorAll: () => [] });
+    vi.stubGlobal(
+      'IntersectionObserver',
+      class {
+        observe() {}
+        disconnect() {}
+      },
+    );
+    const disableVirtualization = ref(true);
+    const feed = useForumVirtualFeed({
+      feedMode: ref('posts'),
+      forumData: ref(Array.from({ length: 60 }, (_, index) => ({ id: index }))),
+      forumPageRef: ref(null),
+      loadMoreSentinelRef: ref(null),
+      isLoading: ref(false),
+      isLoadingMore: ref(false),
+      hasMoreData: ref(false),
+      getScrollContainer: () => null,
+      onLoadMore: () => {},
+      disableVirtualization,
+    });
+
+    await feed.setupForumWindowObserver();
+    expect(feed.shouldVirtualizeForumFeed.value).toBe(false);
+    disableVirtualization.value = false;
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(feed.shouldVirtualizeForumFeed.value).toBe(true);
+    expect(feed.activeForumWindowIndex.value).toBeGreaterThan(0);
+    feed.stop();
+    vi.unstubAllGlobals();
+  });
+
   it('renders the full result for short feeds', () => {
     const forumData = ref([{ id: 1 }, { id: 2 }]);
     const feed = useForumVirtualFeed({

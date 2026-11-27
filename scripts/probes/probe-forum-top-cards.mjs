@@ -98,7 +98,7 @@ try {
     );
     check(
       'A3 圣诞卡文案来自 Christmas Hero',
-      cards[1]?.text.includes('把头像挂上树') && cards[1]?.text.includes('圣诞礼物'),
+      cards[1]?.text.includes('圣诞交换礼物') && cards[1]?.text.includes('挂上头像，随机配对'),
       cards[1]?.text,
     );
     check('A4 圣诞卡 CTA 指向 /xmas', cards[1]?.ctaHref.endsWith('/xmas'), cards[1]?.ctaHref);

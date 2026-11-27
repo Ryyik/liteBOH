@@ -1600,7 +1600,7 @@ const handleForumPostDeleted = (event) => {
     expandedPostIds.value.delete(postId);
     if (activeReplyTarget.value?.postId === postId) {
       activeReplyTarget.value = null;
-      replyContent.value = '';
+      delete replyDrafts.value[postId];
     }
   }
 
@@ -2823,7 +2823,7 @@ const handlePost = async () => {
 
 const expandedPostIds = ref(new Set());
 const activeReplyTarget = ref(null); // { postId, parentId, username }
-const replyContent = ref('');
+const replyDrafts = ref({});
 const isReplySubmitting = ref(false);
 
 const toggleReplyInput = (
@@ -2839,11 +2839,11 @@ const toggleReplyInput = (
     activeReplyTarget.value.parentId === parentId
   ) {
     activeReplyTarget.value = null;
-    replyContent.value = '';
+    delete replyDrafts.value[postId];
   } else {
     activeReplyTarget.value = { postId, parentId, username, quotedContent };
     // 直接回复楼层根评论时不预填 @（与详情页同一判据）；回复楼里其他子评论才预填。
-    replyContent.value = shouldShowReplyTarget(username, rootAuthorUsername)
+    replyDrafts.value[postId] = shouldShowReplyTarget(username, rootAuthorUsername)
       ? buildReplyDraft(username)
       : '';
   }
@@ -3093,7 +3093,7 @@ const submitReply = async (post) => {
     }
   }
 
-  if (!replyContent.value.trim()) return;
+  if (!String(replyDrafts.value[post.id] || '').trim()) return;
   if (isReplySubmitting.value) return;
   if (replyCooldownSeconds.value > 0) {
     showModal('warning', '回复太频繁', `请 ${replyCooldownSeconds.value} 秒后再试`);
@@ -3103,12 +3103,13 @@ const submitReply = async (post) => {
   isReplySubmitting.value = true;
   try {
     const commentStatus = 'approved';
-    const parentId = activeReplyTarget.value?.parentId;
-    const replyToUsername = activeReplyTarget.value?.username;
-    const rawReplyContent = replyContent.value;
+    const activeTarget = activeReplyTarget.value;
+    const parentId = activeTarget?.postId === post.id ? activeTarget.parentId : null;
+    const replyToUsername = activeTarget?.postId === post.id ? activeTarget.username : null;
+    const rawReplyContent = String(replyDrafts.value[post.id] || '');
     const safeUsername = resolveReplyUsername(userInfo);
 
-    const { error } = await createComment(
+    const { data: commentData, error } = await createComment(
       post.id,
       rawReplyContent,
       userInfo.id,
@@ -3119,7 +3120,7 @@ const submitReply = async (post) => {
     );
 
     if (error) throw error;
-    replyContent.value = '';
+    delete replyDrafts.value[post.id];
     activeReplyTarget.value = null;
     // 刚写过评论（发送/删除）⇒ 必须绕过快照，否则卡片里看到的还是写之前的列表
     await loadPostReplyPreview(post, { force: true });
@@ -3139,7 +3140,8 @@ const submitReply = async (post) => {
       showModal('success', '回复成功', '你的声音已被听到');
     }
 
-    addExperience(supabase, 'REPLY');
+    const commentId = Array.isArray(commentData) ? commentData[0]?.id : commentData?.id;
+    if (commentId) addExperience(supabase, 'REPLY', commentId);
     addUiMarker(replySuccessPostIds, post.id, 1800, 'reply-success');
     emitProfileSync({
       userId: userInfo.id,
@@ -3204,7 +3206,7 @@ const handleToggleLike = async (post) => {
       post.like_count = calculateOptimisticLikeCount(prevCount, action, data?.likeCount);
       post.isLiked = action === 'liked';
       if (action === 'liked') {
-        addExperience(supabase, 'LIKE');
+        addExperience(supabase, 'LIKE', post.id);
       }
       triggerRef(forumData);
 
@@ -3397,7 +3399,7 @@ const submitCardReport = async ({ reason, detail }) => {
   isCardReportSubmitting.value = true;
   try {
     const result = await reportPost(post.id, reason, detail);
-    if (!result.success) {
+    if (!result.ok) {
       showModal('error', '举报失败', result.error?.message || '请稍后重试');
       return;
     }
@@ -4028,7 +4030,7 @@ const {
                             ? activeReplyTarget
                             : null
                         "
-                        :reply-content="replyContent"
+                        :reply-content="replyDrafts[item.post.id] || ''"
                         :is-reply-submitting="isReplySubmitting"
                         :reply-cooldown-seconds="replyCooldownSeconds"
                         :reply-submit-label="replySubmitLabel"
@@ -4056,7 +4058,7 @@ const {
                         @submit-reply="submitReply"
                         @delete-comment="handleDeleteComment"
                         @open-image-viewer="openForumImageViewer"
-                        @update:reply-content="replyContent = $event"
+                        @update:reply-content="replyDrafts[item.post.id] = $event"
                         @clear-reply-target="handlePostCardClearReplyTarget"
                         @cancel-reply="handlePostCardCancelReply"
                         @image-loaded="markForumImageLoaded"

@@ -123,6 +123,7 @@
 
    过渡动画复用既有的 userspace-tab-in/out 体系（由外层页面提供类名）。 */
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import { useRouter } from 'vue-router';
 import { storeToRefs } from 'pinia';
 import { CalendarDays, Search } from 'lucide-vue-next';
 import { useAuthStore } from '@/stores/auth';
@@ -161,6 +162,7 @@ const isFeedSection = computed(() => isForumFeedSection(section.value));
 const externalFeed = computed(() => resolveExternalFeed(section.value));
 
 const authStore = useAuthStore();
+const router = useRouter();
 const { isLoggedIn } = storeToRefs(authStore);
 const userInfo = computed(() => authStore.userInfo);
 
@@ -251,7 +253,10 @@ const callForumView = (method) => {
 /* 整页搜索入口：复用既有链路（ForumMain.focusForumSearch → router.push('/search')）。
    ⚠️ 不要在模板里直接 router.push('/search') —— 那会让「跳搜索页」出现第二处实现，
      将来改跳转目标（比如带上当前分区/关键词）就得改两个地方。 */
-const openFullSearch = () => callForumView('focusSearch');
+const openFullSearch = () => {
+  if (callForumView('focusSearch')) return;
+  router.push('/search');
+};
 
 const prefetchSearchPage = () => {
   void import('@/views/Search/SearchPage.vue').catch(() => {});

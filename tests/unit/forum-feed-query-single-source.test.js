@@ -83,10 +83,13 @@ describe('查询条件层：不变量（两文件并集，跟着代码走）', (
     expect(code).toMatch(/searchQuery\.value\.includes\('#'\)[\s\S]{0,160}stripTagTokens/);
   });
 
-  it('最近搜索历史只在本模块读写 localStorage，且键名唯一', () => {
+  it('最近搜索历史只读共享 composable，键名唯一', () => {
     const host = hostCode();
     expect(host).not.toContain('boh-forum-search-history');
     const code = queryCode();
-    expect(code.match(/boh-forum-search-history/g)).toHaveLength(1);
+    expect(code).toContain('useSearchHistory');
+    expect(code).not.toContain('boh-forum-search-history');
+    const shared = squeezeSource(stripComments(read('src/composables/useSearchHistory.js')));
+    expect(shared.match(/boh-forum-search-history/g)).toHaveLength(1);
   });
 });

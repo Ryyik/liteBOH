@@ -89,13 +89,14 @@ const fetchPostsForChip = async (kw, kindFilter) => {
   isSearching.value = true;
   searchError.value = '';
   try {
-    const { data } = await getPosts(null, {
+    const { data, error } = await getPosts(null, {
       page: 1,
       pageSize: 20,
       searchQuery: kw,
       kindFilter,
       sortMode: 'latest',
     });
+    if (error) throw error;
     if (seq !== searchSeq) return; // 已有更新的检索在途/完成，丢弃
     postResults.value = Array.isArray(data) ? data : [];
   } catch {
@@ -220,7 +221,9 @@ const onSubmit = () => {
     clearTimeout(debounceTimer);
     debounceTimer = null;
   }
+  if (!keyword.value) return;
   runSearch({ remember: true });
+  router.replace({ query: { ...route.query, q: keyword.value } });
 };
 
 const applyHistoryKeyword = (kw) => {
@@ -237,6 +240,11 @@ const openDetail = (postId) => {
     return;
   }
   router.push(`/forum/post/${id}`);
+};
+
+const openProfile = (username) => {
+  const name = String(username || '').trim();
+  if (name) router.push(`/profile/${name}`);
 };
 
 const goBack = () => {
@@ -284,6 +292,11 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
+  if (debounceTimer) {
+    clearTimeout(debounceTimer);
+    debounceTimer = null;
+  }
+  searchSeq += 1;
   navObserver?.disconnect();
   navObserver = null;
   if (navSyncRaf) {
@@ -522,6 +535,7 @@ const KIND_BADGE = { news: '资讯', activity: '活动' };
                   post.author_avatar_url ? getAvatarUrl(post.author_avatar_url, 'xs') : ''
                 "
                 :avatar-frame-url="post.author_avatar_frame_url || ''"
+                @go-to-profile="openProfile"
                 :author-id="post.author_id"
                 :banned="!!post.author_is_banned"
                 :time="formatDate(post.created_at)"

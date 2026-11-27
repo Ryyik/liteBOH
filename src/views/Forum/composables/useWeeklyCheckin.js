@@ -44,6 +44,8 @@ export function useWeeklyCheckin({ onSyncProfile, onError } = {}) {
   });
 
   const weeklyCheckinStatus = ref(createDefaultWeeklyCheckinStatus());
+  let statusRequestSeq = 0;
+  let actionSeq = 0;
 
   /* 签到成功舞台（卡面 3D）。open 为 true 时组件才挂载 —— 挂载即起播，
      所以「资源就绪」必须在把它置 true **之前**完成（见 handleCheckinClick）。 */
@@ -69,9 +71,12 @@ export function useWeeklyCheckin({ onSyncProfile, onError } = {}) {
     // 这里若重置成默认值，会把「后端已确认本周已签」的本地状态抹掉 → 按钮重新可点。
     if (!userInfo?.id) return;
 
+    const userId = userInfo.id;
+    const requestSeq = ++statusRequestSeq;
     isWeeklyCheckinLoading.value = true;
     try {
-      const { ok, data, error } = await getWeeklyCheckinStatus(userInfo.id);
+      const { ok, data, error } = await getWeeklyCheckinStatus(userId);
+      if (requestSeq !== statusRequestSeq || !isLoggedIn.value || userInfo?.id !== userId) return;
       if (!ok || error || !data) {
         // 纪律②：拉取失败就保持现状，绝不用默认值覆盖
         logger.error('checkin', '加载周签到状态失败:', error);
@@ -83,7 +88,7 @@ export function useWeeklyCheckin({ onSyncProfile, onError } = {}) {
     } catch (error) {
       logger.error('checkin', '加载周签到状态异常:', error);
     } finally {
-      isWeeklyCheckinLoading.value = false;
+      if (requestSeq === statusRequestSeq) isWeeklyCheckinLoading.value = false;
     }
   };
 
@@ -93,10 +98,13 @@ export function useWeeklyCheckin({ onSyncProfile, onError } = {}) {
    */
   const replayCheckinStage = async () => {
     if (checkinReward.value.open) return;
+    const userId = userInfo?.id;
+    const requestSeq = ++actionSeq;
     const assets = await preloadPointsCardAssets({
       skin: userInfo?.pointsCardSkin || 'blank',
       imageUrl: userInfo?.pointsCardImageUrl || '',
     }).catch(() => ({ ready: false, failed: [], timedOut: false }));
+    if (requestSeq !== actionSeq || !isLoggedIn.value || userInfo?.id !== userId) return;
 
     checkinReward.value = {
       open: true,
@@ -112,6 +120,9 @@ export function useWeeklyCheckin({ onSyncProfile, onError } = {}) {
     if (isWeeklyCheckinSubmitting.value) return;
 
     isWeeklyCheckinSubmitting.value = true;
+    statusRequestSeq += 1;
+    const userId = userInfo?.id;
+    const requestSeq = ++actionSeq;
     try {
       // 卡面预取与提交**并行**：等 RPC 回来再开始下图片等于白等一个 RTT。
       const assetsPromise = preloadPointsCardAssets({
@@ -120,12 +131,14 @@ export function useWeeklyCheckin({ onSyncProfile, onError } = {}) {
       }).catch(() => ({ ready: false, failed: [], timedOut: false }));
 
       const { ok, data, error, alreadySigned } = await submitWeeklyCheckin();
+      if (requestSeq !== actionSeq || !isLoggedIn.value || userInfo?.id !== userId) return;
       if (!ok || error || !data) {
         // 纪律①：「本周已签」不是失败，是后端明确告知该行已存在
         if (alreadySigned || data?.alreadySigned) {
           weeklyCheckinStatus.value = { ...weeklyCheckinStatus.value, hasSignedThisWeek: true };
           void loadWeeklyCheckinStatus();
           const assets = await assetsPromise;
+          if (requestSeq !== actionSeq || !isLoggedIn.value || userInfo?.id !== userId) return;
           checkinReward.value = {
             open: true,
             pointsAfter: readPoints(data?.currentPoints) ?? (Number(userInfo?.points) || 0),
@@ -143,6 +156,7 @@ export function useWeeklyCheckin({ onSyncProfile, onError } = {}) {
 
       // 只有卡面「可绘制」后才允许起播（preload 内部等的是 decode，不是 onload）。
       const assets = await assetsPromise;
+      if (requestSeq !== actionSeq || !isLoggedIn.value || userInfo?.id !== userId) return;
       const awarded = Number(data.pointsAwarded || 0);
 
       onSyncProfile?.({
@@ -159,10 +173,11 @@ export function useWeeklyCheckin({ onSyncProfile, onError } = {}) {
         assetsReady: assets.ready,
       };
     } catch (error) {
+      if (requestSeq !== actionSeq || !isLoggedIn.value || userInfo?.id !== userId) return;
       logger.error('checkin', '周签到失败:', error);
       onError?.('签到失败', error?.message || '请稍后重试');
     } finally {
-      isWeeklyCheckinSubmitting.value = false;
+      if (requestSeq === actionSeq) isWeeklyCheckinSubmitting.value = false;
     }
   };
 
@@ -190,8 +205,10 @@ export function useWeeklyCheckin({ onSyncProfile, onError } = {}) {
   watch(
     () => [isLoggedIn.value, userInfo?.id],
     ([loggedIn, id]) => {
+      actionSeq += 1;
+      closeCheckinReward();
+      weeklyCheckinStatus.value = createDefaultWeeklyCheckinStatus();
       if (loggedIn && id) void loadWeeklyCheckinStatus();
-      else if (!loggedIn) weeklyCheckinStatus.value = createDefaultWeeklyCheckinStatus();
     },
     { immediate: true },
   );
