@@ -29,14 +29,17 @@
 /* 导航品牌/Logo */
 #unified-nav-container[data-theme="dark"] .nav-brand,
 [data-theme="dark"] #unified-nav-container .nav-brand {
-  color: #f5f5f7 !important;
+  color: var(--boh-text-primary) !important;
 }
 
-/* 用户头像 */
+/* 用户头像
+   ⚠️ 2026-11-26：反色实心件的字色必须跟**页面底**（--boh-page-bg，纯黑），
+   不能写 #0a0a0f 这种「面板色字面量」—— 面板色已经跟着页底收敛了，
+   万一将来又分开，这里会变成「白底上压一块几乎不黑的黑」。 */
 #unified-nav-container[data-theme="dark"] .nav-avatar,
 [data-theme="dark"] #unified-nav-container .nav-avatar {
-  background: #f5f5f7 !important;
-  color: #0a0a0f !important;
+  background: #f0f0f0 !important;
+  color: var(--boh-page-bg) !important;
 }
 
 /* 未读消息红点 */
@@ -44,13 +47,15 @@
 /* 汉堡菜单按钮 */
 #unified-nav-container[data-theme="dark"] .nav-hamburger span,
 [data-theme="dark"] #unified-nav-container .nav-hamburger span {
-  background: #f5f5f7 !important;
+  background: var(--boh-text-primary) !important;
 }
 
-/* 移动端菜单 */
+/* 移动端菜单
+   ⚠️ 2026-11-26 纯黑收敛：原 rgba(18,18,26,.98) 带紫偏，与纯黑页底并列时
+   在顶部读成一条「灰紫横带」。改中性近黑（浮层档）。 */
 #unified-nav-container[data-theme="dark"] .nav-menu-mobile,
 [data-theme="dark"] #unified-nav-container .nav-menu-mobile {
-  background: rgba(18, 18, 26, 0.98) !important;
+  background: rgba(12, 12, 12, 0.98) !important;
   border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
 }
 
@@ -73,8 +78,10 @@
    加了 :not() 之后岛才能用普通优先级覆盖，也不必再为此新增 !important。 */
 [data-theme="dark"] #unified-nav-container .unified-nav-surface:not(.has-login-card):not(.has-boh-island),
 #unified-nav-container[data-theme="dark"] .unified-nav-surface:not(.has-login-card):not(.has-boh-island) {
-  background: rgba(20, 27, 37, 0.9) !important;
-  border-color: rgba(220, 235, 255, 0.16) !important;
+  /* 藏青 rgba(20,27,37,.9) → 中性近黑（2026-11-26 纯黑收敛：藏青在纯黑页顶上
+     是一块能看出偏色的浮岛）。α 保持 0.9，玻璃行为不变。 */
+  background: rgba(10, 10, 10, 0.9) !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
 }
 
 [data-theme="dark"] #unified-nav-container .nav-logo,
@@ -105,16 +112,17 @@
 }
 
 [data-theme="dark"] #unified-nav-container .nav-submenu {
-  background: #1b2430 !important;
-  border-color: rgba(220, 235, 255, 0.16) !important;
-  color: #ffffff !important;
+  /* 藏青 #1b2430 → 中性浮层档（2026-11-26 纯黑收敛） */
+  background: #121212 !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+  color: var(--boh-text-primary) !important;
 }
 
 [data-theme="dark"] #unified-nav-container .nav-submenu a,
 [data-theme="dark"] #unified-nav-container .nav-submenu-group-title,
 [data-theme="dark"] #unified-nav-container .nav-mobile-link,
 [data-theme="dark"] #unified-nav-container .nav-mobile-submenu a {
-  color: #ffffff !important;
+  color: var(--boh-text-primary) !important;
 }
 
 /* ⚠️ dark audit 2026-11-01：移动端二级菜单的「返回 / 大标题 / 分组入口 / 分组返回」

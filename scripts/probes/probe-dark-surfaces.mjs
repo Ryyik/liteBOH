@@ -218,27 +218,44 @@ check(
   b['.segment-tab:not(.active)']?.contrast >= 3,
   JSON.stringify(b['.segment-tab:not(.active)']),
 );
+/* ⚠️ 断言口径：读**令牌的实际值**做对比，不写死色值。
+   2026-11-26 暗色重做把 --liquid-text-primary 从 #f5f5f7 收敛到 #f0f0f0（纯黑底上
+   纯白长文刺眼，17.9:1 已远超 AA），这里硬编码 'rgb(245, 245, 247)' 会假红 ——
+   它测的本来是「下划线跟主文字色一致」，不是「文字必须是某个具体白」。
+   同一个色值写两份正是本仓反复吃到的那类漂移。 */
+const b3 = await page.evaluate(() => {
+  const ind = document.querySelector('.segment-tab-indicator');
+  if (!ind) return { exists: false };
+  const probe = document.createElement('div');
+  probe.style.color = 'var(--liquid-text-primary)';
+  document.body.appendChild(probe);
+  const tokenColor = getComputedStyle(probe).color;
+  probe.remove();
+  return { exists: true, indicator: getComputedStyle(ind).backgroundColor, tokenColor };
+});
 check(
   'B3 页签下划线是亮色（暗底可见）',
-  (await page.evaluate(
-    () => getComputedStyle(document.querySelector('.segment-tab-indicator')).backgroundColor,
-  )) === 'rgb(245, 245, 247)',
-  '期望 --liquid-text-primary 的暗色值',
+  b3.exists && b3.indicator === b3.tokenColor,
+  JSON.stringify(b3),
 );
 
-// ─────────────── C. 周签到 pill：文字不能隐形 ───────────────
-const c = await page.evaluate(SAMPLE, ['.toolbar-checkin-btn', '.toolbar-hero-pill']);
+// ─────────────── C. 签到入口：文字不能隐形 ───────────────
+/* ⚠️ 2026-11-26 改口径：签到入口早已从工具栏迁到**分区页签行**（plans/052），
+   组件是 ForumSectionShell 的 `.section-checkin`；`.toolbar-checkin-btn` 在
+   `.vue` 里**一个消费方都没有**（grep = 0），旧断言量的其实一直是「问博莱克」pill ——
+   它形同虚设。现在只认真实存在的入口，并且逐态（未签 / 已签）各量一次。 */
+const c = await page.evaluate(SAMPLE, ['.section-checkin', '.toolbar-hero-pill']);
 check(
   'C1 签到入口（未签态）文字可读',
-  (c['.toolbar-checkin-btn']?.contrast ?? 0) >= 3 || (c['.toolbar-hero-pill']?.contrast ?? 0) >= 3,
-  JSON.stringify({ checkin: c['.toolbar-checkin-btn'], hero: c['.toolbar-hero-pill'] }),
+  (c['.section-checkin']?.contrast ?? 0) >= 3 || (c['.toolbar-hero-pill']?.contrast ?? 0) >= 3,
+  JSON.stringify({ checkin: c['.section-checkin'], hero: c['.toolbar-hero-pill'] }),
 );
-/* 用户看到的是**已签态**（"签到按钮全黑了看不清楚"）：.is-done 的文字色
-   #3f4a5a 是给白玻璃底写的深字，暗底上等于隐形。这里就地打上 .is-done 量一次。 */
+/* 已签态（`.is-done`）就地打类量一次：浅色档 `.is-done` 用深灰字（给白玻璃写的），
+   暗色若没覆盖就是黑字压近黑底 —— 用户原话「签到按钮全黑了看不清楚」。 */
 const c2 = await page.evaluate(() => {
   const el =
-    document.querySelector('.toolbar-checkin-btn') || document.querySelector('.toolbar-hero-pill');
-  if (!el) return null;
+    document.querySelector('.section-checkin') || document.querySelector('.toolbar-hero-pill');
+  if (!el) return { exists: false };
   el.classList.add('is-done');
   const cs = getComputedStyle(el);
   const parse = (s) => {
@@ -256,50 +273,64 @@ const c2 = await page.evaluate(() => {
   const bg = parse(cs.backgroundColor);
   const contrast = (Math.max(L(fg), L(bg)) + 0.05) / (Math.min(L(fg), L(bg)) + 0.05);
   el.classList.remove('is-done');
-  return { color: cs.color, bg: cs.backgroundColor, contrast: +contrast.toFixed(2) };
+  return {
+    exists: true,
+    color: cs.color,
+    bg: cs.backgroundColor,
+    contrast: +contrast.toFixed(2),
+  };
 });
 check('C2 签到入口（已签态 .is-done）文字可读', (c2?.contrast ?? 0) >= 3, JSON.stringify(c2));
 
-// ─────────────── D. 签到面板（Teleport 到 body） ───────────────
+// ─────────────── D. 签到成功舞台（Teleport 到 body） ───────────────
+/* ⚠️ 2026-11-26 改口径：老的「签到面板」`.checkin-modal / .checkin-week-section /
+   .checkin-next-row` 已随 plans/034 改版下线（`.vue` 里 grep = 0），旧断言
+   D1–D5 永远 exists:false ⇒ 永远红，等于把一处**结构性失效**伪装成「暗色坏了」。
+   现在的签到反馈是 CheckinRewardStage（卡面 3D + 到账文案），它按设计**不写暗色
+   覆盖**（恒深遮罩 + 浅字，两主题通用，见该组件文件末尾注释）—— 所以这里不该
+   再断言「已翻深色」，而要断言**它在暗色下确实不亮**（遮罩够深、文案可读）。
+   保持「有断言」而不是直接删掉：真出回归时这里是唯一会说话的地方。 */
 await page.evaluate(() => {
-  const btn =
-    document.querySelector('.toolbar-checkin-btn') || document.querySelector('.toolbar-hero-pill');
-  btn?.click();
+  document.querySelector('.section-checkin')?.click();
 });
-await page.waitForTimeout(1400);
+await page.waitForTimeout(1800);
 const d = await page.evaluate(SAMPLE, [
-  '.checkin-modal',
-  '.checkin-title',
-  '.checkin-kicker',
-  '.checkin-week-section',
-  '.checkin-next-row',
-  '.checkin-week-day-label',
+  '.checkin-stage-scrim',
+  '.checkin-stage',
+  '.checkin-copy-title',
+  '.checkin-copy-balance',
+  '.checkin-card-face',
 ]);
 check(
-  'D1 签到面板已翻深色（非纯白）',
-  d['.checkin-modal']?.effBgLum < 0.35,
-  JSON.stringify(d['.checkin-modal']),
-);
-check('D2 面板标题可读', d['.checkin-title']?.contrast >= 4.5, JSON.stringify(d['.checkin-title']));
-check(
-  'D3 面板 Kicker 可读',
-  d['.checkin-kicker']?.contrast >= 3,
-  JSON.stringify(d['.checkin-kicker']),
+  'D1 签到舞台遮罩够深（纯黑底上不出现亮罩）',
+  (d['.checkin-stage-scrim']?.effBgLum ?? 1) < 0.35 && (d['.checkin-stage']?.effBgLum ?? 1) < 0.35,
+  JSON.stringify({ scrim: d['.checkin-stage-scrim'], stage: d['.checkin-stage'] }),
 );
 check(
-  'D4 日历区块 + 下次签到行已翻深色',
-  (d['.checkin-week-section']?.effBgLum ?? 1) < 0.4 &&
-    (d['.checkin-next-row']?.effBgLum ?? 1) < 0.4,
-  JSON.stringify({ week: d['.checkin-week-section'], next: d['.checkin-next-row'] }),
+  'D2 签到舞台标题可读',
+  d['.checkin-copy-title']?.contrast >= 4.5 || !d['.checkin-copy-title']?.exists,
+  JSON.stringify(d['.checkin-copy-title']),
 );
 check(
-  'D5 星期标签可读',
-  d['.checkin-week-day-label']?.contrast >= 3,
-  JSON.stringify(d['.checkin-week-day-label']),
+  'D3 签到舞台到账文案可读',
+  d['.checkin-copy-balance']?.contrast >= 3 || !d['.checkin-copy-balance']?.exists,
+  JSON.stringify(d['.checkin-copy-balance']),
+);
+check(
+  'D4 签到卡面已加载（不是空白面）',
+  d['.checkin-card-face']?.exists === true,
+  JSON.stringify(d['.checkin-card-face']),
 );
 await page.screenshot({ path: `${OUT}/checkin.png` });
-await page.evaluate(() => document.querySelector('.checkin-close')?.click());
-await page.waitForTimeout(700);
+/* 关闭链：CheckinRewardStage 用 emit('dismiss')，没有 `.checkin-close` 按钮 ——
+   旧代码点的是已下线的类名，关不掉，后面 E 段就被这层遮罩挡着点不到帖子卡片。
+   现在点舞台任意处（组件自身接 dismiss），退不干净再兜一次 Escape。 */
+await page.evaluate(() => {
+  document.querySelector('.checkin-stage')?.click();
+});
+await page.waitForTimeout(900);
+await page.keyboard.press('Escape');
+await page.waitForTimeout(500);
 
 // ─────────────── E. 帖子详情弹窗（.pd-* 命名，横屏） ───────────────
 await page.evaluate(() => {

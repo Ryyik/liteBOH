@@ -52,16 +52,24 @@
         的覆盖迟早出事。 */
 }
 
-/* 深色模式覆盖 */
+/* 深色模式覆盖
+   ⚠️ 2026-11-26 暗色重做：全站收敛为**纯黑 + 中性灰阶**（用户口径「纯黑配色和白色文字」）。
+   旧值是「暖炭 #16120e 页底 + 藏青 #0d1117 面板 + 中性 #1c1c1e 卡片」三套互相冲突的黑，
+   一屏之内相邻即成色块拼接。现在色相全部归零：
+     页底 #000 / 卡片 #0a0a0a / 浮层 #121212（真源 tokens.css 的 --boh-surface-*）。
+   文字 primary 用 #f0f0f0（17.9:1）而非纯白 —— 纯白在纯黑上长文会刺眼。 */
 [data-theme="dark"] {
-  --boh-bg-primary: #0a0a0f;
-  --boh-bg-secondary: #12121a;
-  --boh-bg-tertiary: #1a1a25;
-  --boh-bg-elevated: #222230;
+  --boh-bg-primary: #000000;
+  --boh-bg-secondary: #0a0a0a;
+  --boh-bg-tertiary: #121212;
+  --boh-bg-elevated: #121212;
 
-  /* 页面底色（暖炭色）——对应 tokens.css :root 的 --boh-page-bg。
-     刻意不复用 --boh-bg-primary（那个被大量面板/卡片消费，改它会波及全站）。 */
-  --boh-page-bg: #16120e;
+  /* 页面底色 —— 与 --boh-bg-primary 同值（纯黑）也仍然分开定义：
+     这两个 token 的语义不同（页面底 vs 面板底），将来面板要抬升时改一处即可。
+     相应消费方是 body（见本文件末尾）与 post-detail / 详情页的页根。
+     ⚠️ 首屏骨架 index.html 的 `:root[data-theme="dark"]` 必须跟本值一致，
+     由 scripts/check-first-paint.mjs 断言 —— 改这里就要同步改那里。 */
+  --boh-page-bg: #000000;
 
   /* 语义色（暗色档）——2026-10-22 新增。浅色档在 tokens.css :root 里是
      #d70015（删除）/ #8a5a00（举报/警告），这两个在深色底上对比度不足，
@@ -70,10 +78,10 @@
   --boh-danger-soft: rgba(255, 105, 97, 0.16);
   --boh-warning: #d9a94a;
 
-  --boh-text-primary: #f5f5f7;
-  --boh-text-secondary: #b8c2cf;
-  --boh-text-tertiary: #8d99a8;
-  --boh-text-muted: #6f7b8b;
+  --boh-text-primary: #f0f0f0;
+  --boh-text-secondary: #a8a8a8;
+  --boh-text-tertiary: #8a8a8a;
+  --boh-text-muted: #6b6b6b;
   
   --boh-border-primary: rgba(255, 255, 255, 0.08);
   --boh-border-secondary: rgba(255, 255, 255, 0.05);
@@ -88,8 +96,8 @@
   --boh-shadow-md: 0 10px 24px rgba(0, 0, 0, 0.4);
   --boh-shadow-lg: 0 20px 60px rgba(0, 0, 0, 0.5);
   
-  --boh-glass-bg: rgba(30, 30, 40, 0.75);
-  --boh-glass-border: rgba(255, 255, 255, 0.08);
+  --boh-glass-bg: rgba(0, 0, 0, 0.75);
+  --boh-glass-border: rgba(255, 255, 255, 0.1);
 
   /* AI 整理结果面板（2026-10-25，发帖编辑器的 .composer-polish-panel / .composer-polish-apply）。
      亮色档在 forum-dark.css 里是「淡灰填充 + 灰描边」——白底上必须靠中性灰立轮廓，
@@ -116,30 +124,33 @@
 }
 
 /* Keep framework tokens in sync with the runtime theme. A number of pages use
-   Tailwind/base variables instead of the BOH tokens above. */
+   Tailwind/base variables instead of the BOH tokens above.
+   ⚠️ 2026-11-26：这一组原来是**藏青 palette**（#0d1117 / #121212 / #243142 / #29405a），
+   色相偏蓝，与页面底的黑并列时读成两块不同的颜色 —— 论坛「色块拼接」里最大的一块
+   就是它。现已全部归零成中性灰阶，抬升幅度对齐 --boh-surface-*。 */
 [data-theme="dark"] {
-  --background: #0d1117;
-  --foreground: #f2f5f8;
-  --card: #1b2430;
-  --card-foreground: #f2f5f8;
-  --popover: #202b38;
-  --popover-foreground: #f2f5f8;
-  --secondary: #243142;
-  --secondary-foreground: #f2f5f8;
-  --muted: #202b38;
-  --muted-foreground: #aab6c4;
-  --accent: #29405a;
-  --accent-foreground: #f2f5f8;
-  --border: rgba(220, 235, 255, 0.14);
-  --input: rgba(220, 235, 255, 0.18);
-  --ring: #62b0ff;
-  --apple-text-primary: #f2f5f8;
-  --apple-text-secondary: #aab6c4;
-  --apple-text-tertiary: #8d99a8;
-  --apple-bg-white: #1b2430;
-  --apple-bg-gray: #141a22;
-  --apple-bg-light: #202b38;
-  --apple-border: rgba(220, 235, 255, 0.14);
+  --background: #000000;
+  --foreground: #f0f0f0;
+  --card: #0a0a0a;
+  --card-foreground: #f0f0f0;
+  --popover: #121212;
+  --popover-foreground: #f0f0f0;
+  --secondary: #141414;
+  --secondary-foreground: #f0f0f0;
+  --muted: #121212;
+  --muted-foreground: #a8a8a8;
+  --accent: #1a1a1a;
+  --accent-foreground: #f0f0f0;
+  --border: rgba(255, 255, 255, 0.1);
+  --input: rgba(255, 255, 255, 0.14);
+  --ring: #5a9bff;
+  --apple-text-primary: #f0f0f0;
+  --apple-text-secondary: #a8a8a8;
+  --apple-text-tertiary: #8a8a8a;
+  --apple-bg-white: #0a0a0a;
+  --apple-bg-gray: #000000;
+  --apple-bg-light: #121212;
+  --apple-border: rgba(255, 255, 255, 0.1);
 }
 
 /* ============================================
@@ -188,7 +199,7 @@
 }
 
 [data-theme="dark"] .glass-card {
-  background: rgba(30, 30, 40, 0.8);
+  background: rgba(0, 0, 0, 0.8);
   border-color: rgba(255, 255, 255, 0.1);
 }
 

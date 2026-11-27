@@ -4,18 +4,21 @@
  * ============================================
  */
 
-/* 页面基础 */
+/* 页面基础
+   ⚠️ 2026-11-26 纯黑收敛：原来是 `radial-gradient(...rgba(59,130,246,0.08)...) + #0d0d12`
+   —— 顶部那圈蓝雾 + 紫黑实底，与首页暖炭底（#16120e）并列时是两块不同颜色的块。
+   现在页底交给 --boh-page-bg（纯黑），不再画渐变、不再声明实底。
+   `--surface*` 也从「亮一档的蓝灰」收到中性灰阶（抬升 ≤7%，不会读成灰块）。 */
 .user-space-page[data-theme="dark"] {
-  background:
-    radial-gradient(1200px 320px at 50% -120px, rgba(59, 130, 246, 0.08), transparent 60%),
-    #0d0d12 !important;
-  --surface: #1a1a24;
-  --surface-soft: #252532;
+  background: var(--boh-page-bg) !important;
+  background-image: none !important;
+  --surface: #0a0a0a;
+  --surface-soft: #141414;
   --stroke: rgba(255, 255, 255, 0.1);
-  --shadow-sm: 0 4px 16px rgba(0, 0, 0, 0.4);
-  --shadow-md: 0 10px 24px rgba(0, 0, 0, 0.5);
-  --text-primary: #ffffff;
-  --text-secondary: #c4c4cc;
+  --shadow-sm: 0 0 0 1px rgba(255, 255, 255, 0.04);
+  --shadow-md: 0 0 0 1px rgba(255, 255, 255, 0.06), 0 10px 24px rgba(0, 0, 0, 0.5);
+  --text-primary: var(--boh-text-primary);
+  --text-secondary: var(--boh-text-secondary);
 }
 
 /* ============================================
@@ -27,7 +30,7 @@
 .user-space-page[data-theme="dark"] .bottom-nav-glass,
 [data-theme="dark"] .user-space-page .bottom-nav-glass,
 [data-theme="dark"] .bottom-nav-glass {
-  background: rgba(26, 26, 36, 0.85) !important;
+  background: rgba(10, 10, 10, 0.85) !important;
   backdrop-filter: var(--liquid-filter) !important;
   -webkit-backdrop-filter: var(--liquid-filter) !important;
   border: 1px solid rgba(255, 255, 255, 0.12) !important;
@@ -86,7 +89,7 @@
 
 .user-space-page[data-theme="dark"] .apple-card,
 [data-theme="dark"] .user-space-page .apple-card {
-  background-color: #1e1e2a !important;
+  background-color: #0a0a0a !important;
   border: 1px solid rgba(255, 255, 255, 0.1) !important;
   box-shadow: var(--shadow-sm);
 }
@@ -110,7 +113,7 @@
    图标背景 - 提高对比度
    ============================================ */
 .user-space-page[data-theme="dark"] .icon-wrapper {
-  background-color: #2a2a3a;
+  background-color: #141414;
 }
 
 .user-space-page[data-theme="dark"] .icon-wrapper svg {
@@ -135,7 +138,7 @@
 }
 
 .user-space-page[data-theme="dark"] .bg-gray {
-  background-color: #2a2a3a;
+  background-color: #141414;
 }
 
 .user-space-page[data-theme="dark"] .bg-gray svg {
@@ -187,7 +190,7 @@
    ============================================ */
 
 .user-space-page[data-theme="dark"] .apple-avatar {
-  background: #2a2a3a;
+  background: #141414;
   color: #ffffff;
 }
 
@@ -201,7 +204,7 @@
 .user-space-page[data-theme="dark"] .admin-badge,
 [data-theme="dark"] .user-space-page .admin-badge {
   background: #ffffff;
-  color: #0d0d12;
+  color: var(--boh-page-bg);
 }
 
 /* 2026-11-24（plans/046）：`.tier-badge.tier-plus` 规则随 Plus 并入 Pro 删除
@@ -236,13 +239,13 @@
    社区/用户列表
    ============================================ */
 .user-space-page[data-theme="dark"] .community-group {
-  background: #1a1a24 !important;
+  background: #0a0a0a !important;
   border: 1px solid rgba(255, 255, 255, 0.1) !important;
   box-shadow: var(--shadow-sm);
 }
 
 .user-space-page[data-theme="dark"] .community-group:hover {
-  background: #252532 !important;
+  background: #141414 !important;
   box-shadow: var(--shadow-md);
 }
 
@@ -260,13 +263,13 @@
 
 /* 用户项 */
 .user-space-page[data-theme="dark"] .user-item {
-  background: #1a1a24 !important;
+  background: #0a0a0a !important;
   border: 1px solid rgba(255, 255, 255, 0.1) !important;
   box-shadow: var(--shadow-sm);
 }
 
 .user-space-page[data-theme="dark"] .user-item:hover {
-  background: #252532 !important;
+  background: #141414 !important;
   box-shadow: var(--shadow-md);
 }
 
@@ -284,27 +287,27 @@
 
 .user-space-page[data-theme="dark"] .meta-item {
   color: #c4c4cc !important;
-  background: #2a2a3a;
+  background: #141414;
 }
 
 /* 搜索输入 */
 
 /* 分页按钮 */
 .user-space-page[data-theme="dark"] .community-page-btn {
-  background: #1a1a24 !important;
+  background: #0a0a0a !important;
   border: 1px solid rgba(255, 255, 255, 0.1) !important;
   color: #ffffff !important;
 }
 
 .user-space-page[data-theme="dark"] .community-page-btn:hover:not(:disabled) {
-  background: #252532 !important;
+  background: #141414 !important;
 }
 
 /* ============================================
    登录提示
    ============================================ */
 .user-space-page[data-theme="dark"] .login-prompt {
-  background: #1a1a24 !important;
+  background: #0a0a0a !important;
   border: 1px solid rgba(255, 255, 255, 0.1) !important;
   box-shadow: var(--shadow-sm);
 }
@@ -319,7 +322,7 @@
 
 .user-space-page[data-theme="dark"] .login-prompt-btn {
   background: #ffffff;
-  color: #0d0d12;
+  color: var(--boh-page-bg);
 }
 
 .user-space-page[data-theme="dark"] .login-prompt-btn:hover {
@@ -335,7 +338,7 @@
 }
 
 .user-space-page[data-theme="dark"] .mobile-more-tag {
-  background: #2a2a3a;
+  background: #141414;
   color: #a1a1aa;
 }
 
@@ -378,7 +381,7 @@
 }
 
 .user-space-page[data-theme="dark"] .empty-state {
-  background: #1a1a24 !important;
+  background: #0a0a0a !important;
   border: 1px dashed rgba(255, 255, 255, 0.12);
   box-shadow: var(--shadow-sm);
 }
@@ -395,16 +398,16 @@
 }
 
 .user-space-page[data-theme="dark"] .modal-card {
-  background: #252532;
+  background: #141414;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
 }
 
 .user-space-page[data-theme="dark"] .modal-visual-header {
-  background: #1e1e2a;
+  background: #0a0a0a;
 }
 
 .user-space-page[data-theme="dark"] .modal-icon-circle {
-  background: #2a2a3a;
+  background: #141414;
 }
 
 .user-space-page[data-theme="dark"] .close-icon-btn {
@@ -427,7 +430,7 @@
 
 /* 日期选择器 */
 .user-space-page[data-theme="dark"] .modal-selector {
-  background: #2a2a3a;
+  background: #141414;
 }
 
 .user-space-page[data-theme="dark"] .date-select {
@@ -440,15 +443,15 @@
 }
 
 .user-space-page[data-theme="dark"] .date-input-wrapper {
-  background: #1e1e2a;
+  background: #0a0a0a;
 }
 
 .user-space-page[data-theme="dark"] .date-input-wrapper:hover {
-  background: #2a2a3a;
+  background: #141414;
 }
 
 .user-space-page[data-theme="dark"] .date-input-wrapper:focus-within {
-  background: #1e1e2a;
+  background: #0a0a0a;
   box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.08);
 }
 
@@ -548,16 +551,16 @@
    主题设置模态框深色模式
    ============================================ */
 .user-space-page[data-theme="dark"] .theme-header {
-  background: #1b2430 !important;
-  box-shadow: inset 0 -1px 0 rgba(220, 235, 255, 0.12);
+  background: #121212 !important;
+  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.09);
 }
 
 .user-space-page[data-theme="dark"] .theme-option {
-  background: #2a2a3a;
+  background: #141414;
 }
 
 .user-space-page[data-theme="dark"] .theme-option:hover {
-  background: #353545;
+  background: #1a1a1a;
 }
 
 .user-space-page[data-theme="dark"] .theme-option.active {
@@ -574,11 +577,11 @@
 }
 
 .user-space-page[data-theme="dark"] .dark-preview {
-  background: #1e1e2a;
+  background: #0a0a0a;
 }
 
 .user-space-page[data-theme="dark"] .dark-preview .preview-header {
-  background: #2a2a3a;
+  background: #141414;
   border-bottom: 1px solid rgba(255, 255, 255, 0.12);
 }
 

@@ -280,7 +280,7 @@ class ThemeManager {
       metaThemeColor.setAttribute(
         'content',
         theme === 'dark'
-          ? '#0a0a0f'
+          ? '#000000'
           : theme === 'home-cat'
             ? '#fffdf8'
             : theme === 'anniversary-mc'

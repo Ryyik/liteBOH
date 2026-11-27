@@ -7,7 +7,7 @@
 [data-theme='dark'] {
   --uc-dark-bg: #09111d;
   --uc-dark-bg-soft: #0f1a2b;
-  --uc-dark-surface: rgba(15, 24, 39, 0.86);
+  --uc-dark-surface: rgba(0, 0, 0, 0.86);
   --uc-dark-surface-strong: #111b2d;
   --uc-dark-border: rgba(255, 255, 255, 0.08);
   --uc-dark-border-strong: rgba(255, 255, 255, 0.14);
@@ -355,7 +355,7 @@
     .shared-memory-page
   )
   :is(.loading-state, .empty-state, .sm-empty, .login-card) {
-  background: rgba(15, 24, 39, 0.74) !important;
+  background: rgba(0, 0, 0, 0.74) !important;
   border-color: rgba(255, 255, 255, 0.12) !important;
 }
 

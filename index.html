@@ -114,18 +114,20 @@
       /* 骨架期间的底色兜底：暗色主题 CSS（src/styles/themes/dark-mode.css）是
          懒加载的，在它到位前 body 会沿用 src/style.css 的兜底色。这里用与
          dark-mode.css 相同特异性的选择器先垫一层，应用 CSS 加载后由后者接管。
-         2026-09-23：页面底色改回纯白（--boh-page-bg = #ffffff）；暗色仍是暖炭
-         #16120e。骨架必须跟同一 token 走，否则启动瞬间有一次底色跳变。
+         2026-09-23：页面底色改回纯白（--boh-page-bg = #ffffff）；
+         2026-11-26 暗色重做：暗色页底由暖炭 #16120e 收敛为纯黑 #000000
+         （全站色相归零，消除多套黑并列造成的色块拼接）。
+         骨架必须跟同一 token 走，否则启动瞬间有一次底色跳变。
          scripts/check-first-paint.mjs 会比对这里的值 === tokens.css / dark-mode.css
          的 --boh-page-bg。 */
       /* ⚠️ 必须带 `:root` / body 限定，不能写成裸 `[data-theme="dark"]`：
          `data-theme` 不只挂在 html 上，组件级容器也会带（BohIsland 的
          `.boh-island-root` 恒带 data-theme="dark"，且它是 inset:0 / z-index:90 /
-         pointer-events:none 的全屏层）。裸选择器会把整屏涂成 #16120e ⇒ 页面全黑、
+         pointer-events:none 的全屏层）。裸选择器会把整屏涂成同一个色 ⇒ 页面全黑、
          但 DOM 取点与交互全部正常（指针穿透），排查时极容易误判成「内容没渲染」。
          2026-11-04 实测：首页 / 论坛 / AI 岛全部页面整屏黑，只有导航栏可见。 */
-      :root[data-theme="dark"] { background-color: #16120e; }
-      [data-theme="dark"] body { background-color: #16120e; }
+      :root[data-theme="dark"] { background-color: #000000; }
+      [data-theme="dark"] body { background-color: #000000; }
       /* 自定义主题同样垫一层（2026-11-20，plans/043 阶段 1）：token 层在
          src/styles/common/tokens.css 的 :root[data-theme=…] 块，骨架必须与
          其 --boh-page-bg 同步，由 check-first-paint 对账。 */
@@ -141,7 +143,7 @@
         display: flex;
         flex-direction: column;
       }
-      [data-theme="dark"] .boh-boot { background: #16120e; }
+      [data-theme="dark"] .boh-boot { background: #000000; }
       [data-theme="home-cat"] .boh-boot { background: #fffdf8; }
       [data-theme="anniversary-mc"] .boh-boot { background: #e9eee3; }
 
@@ -182,8 +184,8 @@
         line-height: 1.6;
         color: #8b9098;
       }
-      /* --liquid-text-tertiary：浅 #8b9098 / 暗 #8a919c（tokens.css） */
-      [data-theme="dark"] .boh-boot-text { color: #8a919c; }
+      /* --liquid-text-tertiary：浅 #8b9098 / 暗 #8a8a8a（tokens.css，2026-11-26 纯黑收敛） */
+      [data-theme="dark"] .boh-boot-text { color: #8a8a8a; }
       /* 自定义主题：与 tokens.css 同名 token 对账（#726c63 / #6d6b60） */
       [data-theme="home-cat"] .boh-boot-text { color: #726c63; }
       [data-theme="anniversary-mc"] .boh-boot-text { color: #6d6b60; }
@@ -202,7 +204,7 @@
       [data-theme="dark"] .boh-boot-retry {
         border-color: rgba(255, 255, 255, 0.18);
         background: rgba(255, 255, 255, 0.08);
-        color: #f5f5f7;
+        color: #f0f0f0;
       }
       /* 自定义主题：边框/填充走各自强调色的低透明度，文字走 --liquid-text-primary */
       [data-theme="home-cat"] .boh-boot-retry {
@@ -280,7 +282,7 @@
       [data-theme="dark"] .boh-boot-badge {
         border-color: rgba(255, 255, 255, 0.16);
         background: rgba(255, 255, 255, 0.06);
-        color: #8a919c;
+        color: #8a8a8a;
       }
 
       /* 报错元素错峰入场（一次性 rise + fade） */
@@ -310,7 +312,7 @@
         background: #1d1d1f;
         color: #ffffff;
       }
-      [data-theme="dark"] .boh-boot-retry--primary { background: #f5f5f7; color: #1d1d1f; }
+      [data-theme="dark"] .boh-boot-retry--primary { background: #f0f0f0; color: #1d1d1f; }
 
       /* 内联报错组的布局与显隐（[hidden] 要显式压回 display:none，否则上面的 flex 会顶掉它） */
       .boh-boot-error {

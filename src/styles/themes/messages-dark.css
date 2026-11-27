@@ -4,10 +4,11 @@
  * ============================================
  */
 
-/* 页面基础 */
+/* 页面基础
+   ⚠️ 2026-11-26 纯黑收敛：原 #0d0d12 紫黑与首页暖炭底并列时是两块色。改走 --boh-page-bg。 */
 .x-notifications-container[data-theme="dark"],
 [data-theme="dark"] .x-notifications-container {
-  background: #0d0d12 !important;
+  background: var(--boh-page-bg) !important;
 }
 
 /* ============================================
@@ -44,7 +45,7 @@
 }
 
 /* .x-inbox-list 暗色实底已删：基础规则走 --liquid-bg/border/shadow，
-   [data-theme="dark"] 下 token 自动翻转（旧 #1e1e2a 实底会压死暗色玻璃）。 */
+   [data-theme="dark"] 下 token 自动翻转（旧 #0a0a0a 实底会压死暗色玻璃）。 */
 
 /* 通知项暗色实底已删：行在玻璃列表上保持透明，暗色 hover/未读 tint
    由组件 scoped 的 [data-theme="dark"] 块提供（单一真源，不再双系统打架）。 */
@@ -52,7 +53,7 @@
 /* 通知头像 */
 .x-notifications-container[data-theme="dark"] .x-avatar,
 .x-notifications-container[data-theme="dark"] .x-avatar-wrapper {
-  background: #2a2a3a;
+  background: #141414;
 }
 
 .x-notifications-container[data-theme="dark"] .x-avatar img,
@@ -76,7 +77,7 @@
 
 .x-notifications-container[data-theme="dark"] .x-action-type,
 [data-theme="dark"] .x-notifications-container .x-action-type {
-  background: #2a2a3a;
+  background: #141414;
   color: #a1a1aa;
 }
 
@@ -98,7 +99,7 @@
 .x-notifications-container[data-theme="dark"] .x-quick-btn:hover,
 [data-theme="dark"] .x-notifications-container .x-quick-btn:hover {
   background: #60a5fa;
-  color: #0d0d12;
+  color: var(--boh-page-bg);
 }
 
 /* 类型徽章 */
@@ -120,7 +121,7 @@
 
 .x-notifications-container[data-theme="dark"] .empty-icon-circle {
   color: #3f3f46;
-  background: #1e1e2a;
+  background: #0a0a0a;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
 }
 
@@ -163,12 +164,12 @@
 
 .x-notifications-container[data-theme="dark"] .close-modal-btn {
   color: #71717a;
-  background: #2a2a3a;
+  background: #141414;
 }
 
 .x-notifications-container[data-theme="dark"] .close-modal-btn:hover {
   color: #ffffff;
-  background: #353545;
+  background: #1a1a1a;
 }
 
 /* ============================================
@@ -176,7 +177,7 @@
    ============================================ */
 
 .x-notifications-container[data-theme="dark"] .reply-textarea {
-  background: #2a2a3a;
+  background: #141414;
   border: 1px solid rgba(255, 255, 255, 0.1);
   color: #ffffff;
 }
@@ -191,7 +192,7 @@
    ============================================ */
 .x-notifications-container[data-theme="dark"] .submit-reply-btn {
   background: #60a5fa;
-  color: #0d0d12;
+  color: var(--boh-page-bg);
 }
 
 .x-notifications-container[data-theme="dark"] .submit-reply-btn:hover:not(:disabled) {
@@ -326,7 +327,7 @@
 
 .x-notifications-container[data-theme="dark"] .x-mark-all-btn-minimal:hover {
   background: #60a5fa;
-  color: #0d0d12;
+  color: var(--boh-page-bg);
 }
 
 /* ============================================
@@ -376,7 +377,7 @@
 [data-theme="dark"] .x-notifications-container .x-skeleton-item,
 [data-theme="dark"] .x-notifications-container .x-skeleton-wrap .x-skeleton-list,
 [data-theme="dark"] .x-notifications-container .x-skeleton-detail {
-  background: #1e1e2a;
+  background: #0a0a0a;
   border-color: rgba(255, 255, 255, 0.08);
 }
 
@@ -386,7 +387,7 @@
 [data-theme="dark"] .x-notifications-container .x-skeleton-avatar,
 [data-theme="dark"] .x-notifications-container .x-skeleton-line,
 [data-theme="dark"] .x-notifications-container .x-skeleton-detail-avatar {
-  background: linear-gradient(90deg, #252532 25%, #303044 50%, #252532 75%);
+  background: linear-gradient(90deg, #141414 25%, #303044 50%, #141414 75%);
   background-size: 200% 100%;
 }
 

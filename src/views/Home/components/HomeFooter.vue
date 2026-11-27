@@ -15,9 +15,20 @@
           <h5>{{ col.h }}</h5>
           <ul>
             <li v-for="item in col.items" :key="item.label">
-              <router-link v-if="item.to" :to="item.to" class="home-footer-link">{{ item.label }}</router-link>
-              <a v-else-if="item.href" :href="item.href" class="home-footer-link">{{ item.label }}</a>
-              <button v-else-if="item.agreement" type="button" class="home-footer-link home-footer-link-btn" @click="openAgreement(item.agreement)">{{ item.label }}</button>
+              <router-link v-if="item.to" :to="item.to" class="home-footer-link">{{
+                item.label
+              }}</router-link>
+              <a v-else-if="item.href" :href="item.href" class="home-footer-link">{{
+                item.label
+              }}</a>
+              <button
+                v-else-if="item.agreement"
+                type="button"
+                class="home-footer-link home-footer-link-btn"
+                @click="openAgreement(item.agreement)"
+              >
+                {{ item.label }}
+              </button>
             </li>
           </ul>
         </div>
@@ -27,13 +38,34 @@
       <div class="home-footer-bottom">
         <span class="home-footer-copyright">{{ footerCopyright }}</span>
         <div class="home-footer-bottom-links">
-          <span v-for="link in footerBottomLinks" :key="link.label" class="home-footer-bottom-link-wrap">
-            <router-link v-if="link.to" :to="link.to" class="home-footer-link">{{ link.label }}</router-link>
-            <button v-else-if="link.agreement" type="button" class="home-footer-link home-footer-link-btn" @click="openAgreement(link.agreement)">{{ link.label }}</button>
+          <span
+            v-for="link in footerBottomLinks"
+            :key="link.label"
+            class="home-footer-bottom-link-wrap"
+          >
+            <router-link v-if="link.to" :to="link.to" class="home-footer-link">{{
+              link.label
+            }}</router-link>
+            <button
+              v-else-if="link.agreement"
+              type="button"
+              class="home-footer-link home-footer-link-btn"
+              @click="openAgreement(link.agreement)"
+            >
+              {{ link.label }}
+            </button>
           </span>
         </div>
         <span class="home-footer-locale">
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+          <svg
+            width="11"
+            height="11"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            aria-hidden="true"
+          >
             <circle cx="12" cy="12" r="10" />
             <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20" />
             <path d="M2 12h20" />
@@ -44,10 +76,7 @@
     </div>
 
     <!-- 协议弹窗 — 复用注册流程的 AgreementModal -->
-    <AgreementModal
-      v-model:visible="showAgreementModal"
-      :title="agreementTitle"
-    >
+    <AgreementModal v-model:visible="showAgreementModal" :title="agreementTitle">
       <div v-html="safeAgreementContent"></div>
     </AgreementModal>
   </footer>
@@ -107,12 +136,15 @@ onMounted(() => {
     return;
   }
 
-  archiveObserver = new IntersectionObserver((entries) => {
-    if (!entries.some((entry) => entry.isIntersecting)) return;
-    loadArchivedHeroes();
-    archiveObserver?.disconnect();
-    archiveObserver = null;
-  }, { rootMargin: '800px 0px' });
+  archiveObserver = new IntersectionObserver(
+    (entries) => {
+      if (!entries.some((entry) => entry.isIntersecting)) return;
+      loadArchivedHeroes();
+      archiveObserver?.disconnect();
+      archiveObserver = null;
+    },
+    { rootMargin: '800px 0px' },
+  );
   archiveObserver.observe(footerRef.value);
 });
 
@@ -234,7 +266,7 @@ onBeforeUnmount(() => {
 
 /* Apple 标志性 1px 竖线分隔符 */
 .home-footer-bottom-link-wrap:not(:last-child)::after {
-  content: "";
+  content: '';
   position: absolute;
   right: 0;
   top: 4px;
@@ -326,38 +358,43 @@ onBeforeUnmount(() => {
   }
 }
 
-/* ============ 深色模式 ============ */
-:global([data-theme="dark"] .home-footer ){
-  background: var(--background-900, #1d1d1f);
-  color: var(--text-500, #98989d);
+/* ============ 深色模式 ============
+   ⚠️ 2026-11-26 纯黑收敛：这里原来读 `--background-900` —— 那个 token **全仓没有定义**
+   （tokens.css / style.css 都查不到），于是永远回落到 #1d1d1f。结果是纯黑页底之上
+   一整条 1352×432 的近黑页脚（实测截图里是页脚一块明显更亮的矩形，正是用户说的
+   「色块」）。页脚是**页级表面**，不抬升：与页底同色，只靠上边框分界。 */
+:global([data-theme='dark'] .home-footer) {
+  background: var(--boh-page-bg);
+  color: var(--boh-text-secondary);
+  border-top: 1px solid var(--boh-border-primary);
 }
 
-:global([data-theme="dark"] .home-footer-disclaimer),
-:global([data-theme="dark"] .home-footer-columns ){
-  border-bottom-color: color-mix(in srgb, var(--background-50, #f5f5f7) 10%, transparent);
+:global([data-theme='dark'] .home-footer-disclaimer),
+:global([data-theme='dark'] .home-footer-columns) {
+  border-bottom-color: var(--boh-border-primary);
 }
 
-:global([data-theme="dark"] .home-footer-link ){
-  color: var(--text-500, #98989d);
+:global([data-theme='dark'] .home-footer-link) {
+  color: var(--boh-text-secondary);
 }
 
-:global([data-theme="dark"] .home-footer-link:hover ){
-  color: var(--background-50, #f5f5f7);
+:global([data-theme='dark'] .home-footer-link:hover) {
+  color: var(--boh-text-primary);
 }
 
-:global([data-theme="dark"] .home-footer-col h5 ){
-  color: var(--background-50, #f5f5f7);
+:global([data-theme='dark'] .home-footer-col h5) {
+  color: var(--boh-text-primary);
 }
 
-:global([data-theme="dark"] .home-footer-copyright ){
-  color: var(--text-500, #98989d);
+:global([data-theme='dark'] .home-footer-copyright) {
+  color: var(--boh-text-secondary);
 }
 
-:global([data-theme="dark"] .home-footer-locale ){
-  color: var(--text-500, #98989d);
+:global([data-theme='dark'] .home-footer-locale) {
+  color: var(--boh-text-secondary);
 }
 
-:global([data-theme="dark"] .home-footer-bottom-link-wrap:not(:last-child)::after ){
+:global([data-theme='dark'] .home-footer-bottom-link-wrap:not(:last-child)::after) {
   background: color-mix(in srgb, var(--background-50, #f5f5f7) 18%, transparent);
 }
 </style>

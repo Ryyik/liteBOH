@@ -31,9 +31,15 @@ body {
 
 /* 论坛层的暗色面（2026-09-23）。
    放在非 scoped 文件里是为了能挂 html 级主题属性；.home-forum-stage 是首页专有类名，
-   不会外溢到其它页面。色值走 dark-mode.css 的 token，不新增裸值。 */
+   不会外溢到其它页面。色值走 dark-mode.css 的 token，不新增裸值。
+
+   ⚠️ 2026-11-26 改走 --boh-page-bg（原来是 --boh-bg-secondary）：
+   这一层是**页级背景**，不是面板。它铺满整屏、嵌在里面的论坛页自己也是页级底色，
+   两个 token 一旦分档（页底 #000 / 面板 #0a0a0a），论坛四周就会露出一圈
+   比内容亮 3% 的边框 —— 实测裁图能直接看到一条 L 形浅边（左上角 10,10,10
+   与内容的 0,0,0 交界）。页级背景只能用页级 token。 */
 [data-theme="dark"] .home-forum-stage {
-  background-color: var(--boh-bg-secondary);
+  background-color: var(--boh-page-bg);
   border-top-color: var(--boh-border-primary);
 }
 
