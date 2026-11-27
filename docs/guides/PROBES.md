@@ -12,10 +12,11 @@
 | 改动范围 | 探针 | 断言数 |
 | --- | --- | --- |
 | 首页布局 / 左栏 / 底栏 | `probe-home-forum-rail.mjs` | 21 |
-| 横屏左栏落位 | `probe-rail-landing.mjs` | 45 |
-| **横屏左栏「更多」浮层**（窄栏 88px 下主题 / 退出登录不被滚动容器裁成半个字、不被内容层遮挡；含反证自检） | `probe-rail-more-menu.mjs` | 16 |
+| 横屏左栏胶囊落位 | `probe-rail-landing.mjs` | 30 |
+| **横屏左栏「更多」浮层**（72px 胶囊下菜单向右越出仍完整可见、不被内容层遮挡；含反证自检） | `probe-rail-more-menu.mjs` | 16 |
 | 首页定时遮罩 / 渐隐落定 | `probe-home-gate-overlay.mjs` | 33 |
-| 论坛搜索 | `probe-forum-search.mjs` | 39 |
+| 论坛搜索 | `probe-forum-search.mjs` | 33 |
+| **论坛「最新」顶部卡位**（签到卡 + 圣诞运营卡；双宿主、仅最新、关闭持久化、签到后消失、极简高度） | `probe-forum-top-cards.mjs` | 20 |
 | **论坛/详情「从哪来、回哪去」空间连续性**（图片查看器从缩略图 rect 起、关闭缩回同一张；详情正文卡从列表卡片 rect 形变入场；返程克隆层末帧落回入口卡片矩形；落定后 `transform: none`；reduce 下形变全跳过） | `probe-forum-motion.mjs` | 22 |
 | **帖子列表大图浏览**（翻页左箭头不被 stage/图片盖住；点空白关闭、点图片不关闭、拖拽不误关；开合动效逐帧采样 + reduce 口径） | `probe-forum-image-viewer.mjs` | 27 |
 | **帖子详情弹窗 chunk 加载失败兜底**（部署窗口期旧入口 import 旧 chunk 404：错误态出现、不再无声空白、DEV 不强刷、正常路径内容完整渲染） | `probe-pd-modal-chunk-fail.mjs` | 12 |
@@ -73,7 +74,7 @@
 | `probe-forum-motion.mjs` | — | 探针：空间连续性（plans/035）—— 来源 rect 对齐 / 落点回归 / 落定 transform 归零 / 克隆层无残留 / reduce 降级 |
 | `probe-home-forum-rail.mjs` | — | 探针：首页（论坛层）横屏左栏 —— 修复「换个入口进论坛，左右栏结构就没了」 |
 | `probe-home-gate-overlay.mjs` | — | 探针：首页普通遮罩完整显示 2 秒 → 纯 opacity 渐隐；右下角跳过立即退场 |
-| `probe-rail-landing.mjs` | — | 探针：横屏左栏改造落地验收（plans/011 B 组 + C1/C2） |
+| `probe-rail-landing.mjs` | — | 探针：横屏左栏「竖排胶囊条」验收（72×352 / 垂直居中 / 5 席 + 更多 / 纯图标 / 暗色淡染 / 1024×600 与竖屏零副作用） |
 | `probe-route-switch.mjs` | `npm run probe:route-switch` | probe-route-switch.mjs — 路由级切换巡检（逐路由，不抽样） |
 | `probe-subscription-benefits.mjs` | — | 探针：订阅页（/user-space/subscriptions）· 权益单源对齐回归。**2026-11-24（plans/046）四档制**：Plus 并入 Pro，卡 3 张 / 表 4 列（Standard 不进卡），AI 百分比基准 plus→pro（100/250/500）。⚠️ 同批新增 **A1b 布局守卫** —— `.cards` 曾写死 `repeat(4)`，付费卡减到 3 张后右空 294px，而 A1/A2 全是读文字断言、**全绿**；A1b 的量法是「最右卡右沿到容器右沿的留白」，因为它直接反映「有没有空列」，而 grid 计算列数读不到（`gridTemplateColumns` 只给 px 列表）。**反证**：`repeat(3)` 改回 `repeat(4)` → A1b FAIL（右留白 294），其余 39 条仍绿 |
 | `probe-vite-dep-scan.mjs` | — | 探针：dev server 依赖预构建不炸（node 内置模块 / node-fetch 那条链） |
@@ -119,10 +120,9 @@
 | `probe-nav-optical-center.mjs` | — | 探针：竖屏 mini 胶囊的「视觉居中」回归护栏 |
 | `probe-notification-suggest-island-extra.mjs` | — | 探针：消息中心智能建议岛补充回归 —— 暗色主题 + 移动端视口 |
 | `probe-notification-suggest-island.mjs` | — | 探针：消息中心智能建议岛回归（进入「消息 tab·收件箱」且有未读 → 导航岛自动弹「N 条未读·全部已读」） |
-| `probe-overview-island-guards.mjs` | — | 智能概览（灵动岛 + /overview 页）守卫回归探针（Playwright + 伪造登录，不需要真实账号） |
 | `probe-pity-island.mjs` | — | 探针：社区抽奖保底进度自定义岛（PityIslandCard） |
 | `probe-rail-indicator-diag.mjs` | — | （无头部说明） |
-| `probe-rail-more-menu.mjs` | — | 探针：横屏左栏「更多」（主题 / 退出登录）浮层可见性。回归对象：浮层挂在 `overflow-x: hidden` 的 `.userspace-rail-scroll` 内 → 88px 窄栏下被裁到 68px（「深色模式」只剩「深」），240px 宽栏恰好不暴露。六档：UserSpace 窄栏 / UserSpace 宽栏 / AI 页 88px / 首页 fixed 左栏 / 1024×600 矮窗 / **反证自检**（把浮层运行时搬回滚动容器 ⇒ 测量必须报出 widthLoss > 0，防断言空转）。⚠️ 「不被祖先裁」≠「看得见」：窄栏下浮层要向右越出 88px 栏压到内容区上，故断言同时做 `elementFromPoint` 遮挡检测 |
+| `probe-rail-more-menu.mjs` | — | 探针：横屏左栏「更多」浮层可见性（2026-11-26 胶囊版）。菜单 172px 必须向右越出 72px 胶囊且完整可见：六档 = UserSpace 窄/宽、AI 页、首页 fixed、1024×600、**反证自检**（给胶囊注入 `overflow:hidden` ⇒ `widthLoss > 0`，防断言空转）。⚠️ 「不被祖先裁」≠「看得见」：菜单要压到内容区上，故断言同时做 `elementFromPoint` 遮挡检测 |
 | `probe-share-island.mjs` | — | （无头部说明） |
 
 ### 论坛 / 帖子 / 发布器（17）
@@ -348,7 +348,6 @@ F5 后不得掉回整页详情：A 横屏刷新仍是弹窗 / B 仍是同一帖 
 | `probe-messages-glass.mjs` | 21 | 消息中心液态玻璃验收（2026-10-15）：挂载/材质 token 口径/**像素级模糊开-关**（确定性条纹背板 + about:blank 整页重建）/采样根链（.tab-page 架构白名单）× 浅暗双主题 + 旧路由重定向。⚠️ 三坑：fixed 岛状态卡会探进页头 clip 污染能量读数（测前滚 300px + 藏岛）；暗色容器 `background !important`（0,2,0）会压平 0,1,0 背板条纹（同特异度 + 后注入才赢）；登录必须种**会话形状**（pinia 注入触发不了 supabase.getUser 的取数链 —— 无会话时它零网络静默返 null，实测踩过） |
 | `probe-messages-list-ux.mjs` | 29 | 消息中心列表视图 UX（2026-11-21 二期；同日晚扩 B6b/B8–B10）：日期分组（今天/昨天/更早组头 + 顺序）、同帖点赞聚合（3 赞 1 行 + 头像堆叠 + 行内展开/收起 + 评论不聚 + **成员行归属标记/缩进/展开态聚合行强化**）、详情连续处理（上一条/下一条 + 边界禁用 + J/K 键盘 + 归档 auto-advance）、左滑手势（吸附展开 + 滑层按钮 + 纵向复位 + 回弹吞点击 + 选择模式禁用）、外置「未读」chip 过滤往返、虚拟滚动边界（>100 条无组头/无聚合）。⚠️ 五坑：① 列表 mock 必须**有状态**（PATCH 归档 / mark_single_as_read RPC 翻转本地集合，生产语义 = 落库后重拉一致；静态 mock 会被 120ms 重拉盖回去）；② 归档 PATCH 路由用**谓词**不用正则（`[?&]id=eq\.` 对「id 是首参」的 URL 先天不匹配，裸 `id=eq\.` 又误匹配 `recipient_id`）；③ 行入场动画 `message-row-in` 是 fill-mode: both，会永久压住 inline transform ⇒ 左滑在 `.x-item-swipe-cell > .x-item` 上必须 `animation: none`；成员行错峰入场动画**挂在 cell 上**（行/动画/inline transform 三者不能共存，同理由）；④ `getUserNotifications` 按 limit 切片 ⇒ 要测 >100 虚拟阈值必须分页感知 mock + 滚动触发哨兵链（哨兵在视口外不自触发）；⑤ 横屏组头 CSS 隐藏（028 的 3 行预算被 ~30px 组头吃成 2 行，F 组断言抓到） |
 | `probe-news-image-check.mjs` | — | （无头部说明） |
-| `probe-overview-day-marker.mjs` | — | 离线总结「上次在线日 / 当日已检查」天粒度游标 — 纯函数单元验证 |
 | `probe-pd-modal.mjs` | — | 探针：横屏帖子详情弹窗化（openForumPost 单源分流 + 小红书式布局） |
 | `probe-ppt-quality.mjs` | — | 探针：PPT 质量优化全链路回归（mock vault 流 + 模型配置，直调 usePPTGenerator） |
 | `probe-resources-hub.mjs` | — | 1. 下载分段 |

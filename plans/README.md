@@ -24,6 +24,7 @@
 | [017](./017-modal-overlay-polish.md) | 模态/覆盖层家族曲线统一 + 勾选弹入 + island 收敛 | MEDIUM | Easing / Physicality | TODO | — |
 | [018](./018-state-change-micro-transitions.md) | 状态微过渡（骨架→内容/展开收起/积分滚动/边缘条） | MEDIUM | Missed opportunities | TODO | — |
 | [019](./019-ambient-reduce-baseline.md) | 环境动效收敛 + reduce/hover 全量基线 | MEDIUM/HIGH | Accessibility / Frequency | TODO | 013, 016, 017, 018 |
+| [052](./052-xmas-avatar-flight.md) | 圣诞参与头像从主按钮飞向树上挂点 | MEDIUM | Missed opportunities / Physicality / Accessibility | DONE | — |
 
 ## 012-019 批次（2026-09-24 UserSpace 动效美感审计，commit fc8dfc74）
 
@@ -41,6 +42,13 @@
 - 019 必须最后：需吸收 013-018 新增动效的 reduce 降级（各计划内已写局部 reduce，019 做全量合并盘点）。
 - 统一手感曲线：强 ease-out `cubic-bezier(0.23, 1, 0.32, 1)`；轻过冲弹性 `cubic-bezier(0.34, 1.3, 0.64, 1)`（高频控件）；drawer `cubic-bezier(0.32, 0.72, 0, 1)`（覆盖层/收合）。
 - 审计中已确认正确、未立计划的：useScrollDirectionHide（rAF+passive）、列表 30ms stagger、bottom-nav/side-rail 横屏指示器双 rAF。
+
+## 052 — 圣诞参与头像飞上树（2026-11-27）
+
+- 目标：参与成功后，头像从主按钮沿轻弧线落到树上真实挂点，完整节奏约 800ms，无弹跳。
+- 依赖：无；使用现有 `motionMs()` / `motionEase()` 与 `--motion-morph-in` / `--ease-morph`。
+- 推荐执行顺序：独立执行，不依赖 001–019。
+- 验收：新增 `probe-xmas-avatar-flight.mjs`，覆盖正常、reduced-motion、lite、中断与防重复。
 
 ## 推荐执行顺序
 

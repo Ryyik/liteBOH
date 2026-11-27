@@ -15,15 +15,14 @@
       "glob": "src/views/Home/**",
       "run": [
         "node scripts/probes/probe-home-gate-overlay.mjs",
-        "node scripts/probes/probe-home-forum-rail.mjs",
-        "node scripts/probes/probe-overview-island-guards.mjs"
+        "node scripts/probes/probe-home-forum-rail.mjs"
       ],
-      "why": "首页定时遮罩/渐隐落定 + 底栏布局 + 概览岛触发点（唯一触发点在首页 gateSettled）"
+      "why": "首页定时遮罩/渐隐落定 + 底栏布局"
     },
     {
-      "glob": "src/views/SmartOverview/**",
-      "run": ["node scripts/probes/probe-overview-island-guards.mjs"],
-      "why": "/overview 页口径（离线天数/去重标记）"
+      "glob": "src/views/ChristmasGiftTree/index.vue",
+      "run": ["node scripts/probes/probe-xmas-avatar-flight.mjs"],
+      "why": "圣诞参与头像从主按钮飞向真实挂点：首/中/末帧几何、生命周期、减弱动效/轻量降级、切页清理与防重复"
     },
     {
       "glob": "src/components/UnifiedNavbar/**",
@@ -72,10 +71,11 @@
         "node scripts/probes/probe-forum-search.mjs",
         "node scripts/probes/probe-forum-virtual-jump.mjs",
         "node scripts/probes/probe-forum-polish-sweep.mjs",
+        "node scripts/probes/probe-forum-top-cards.mjs",
         "node scripts/probes/probe-weekly-checkin-points.mjs",
         "node scripts/probes/probe-forum-motion.mjs"
       ],
-      "why": "发布会话闸门（双宿主）+ 选图反馈口径 + 竖屏图片胶片条/长按拖动 + 论坛搜索 RPC + 虚拟列表跳跃兜底 + 智能整理流光 + 周签到 + 空间连续性（来源 rect/落点）"
+      "why": "发布会话闸门（双宿主）+ 选图反馈口径 + 竖屏图片胶片条/长按拖动 + 论坛搜索 RPC + 顶部签到/运营卡 + 虚拟列表跳跃兜底 + 智能整理流光 + 周签到 + 空间连续性（来源 rect/落点）"
     },
     {
       "glob": "src/utils/motion-origin.js",
