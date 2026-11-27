@@ -127,6 +127,12 @@ const measure = (page) =>
       gate: box(document.querySelector('.home-gate')),
       stage: box(document.querySelector('.home-forum-stage')),
       tabs: box(tabs),
+      tabsRow: box(document.querySelector('.forum-section-shell .segment-tabs-row')),
+      topCards: box(document.querySelector('.forum-section-shell .forum-top-cards')),
+      firstPost: box(document.querySelector('.forum-page .post-card-v2')),
+      forumPaddingTop: document.querySelector('.forum-page')
+        ? getComputedStyle(document.querySelector('.forum-page')).paddingTop
+        : null,
       nav: box(nav),
       htmlTheme: document.documentElement.getAttribute('data-theme'),
       indicatorBg: getComputedStyle(document.querySelector('.userspace-rail-indicator'))
@@ -149,8 +155,8 @@ try {
     const m = await measure(page);
     console.log('\n--- 宽栏 1440×900 ---');
     check(
-      'A1 左栏可见且 240px',
-      m.rail && !m.rail.hidden && m.rail.w === 240 && m.railW === '240px',
+      'A1 左栏可见且胶囊 72px（内容让位 88）',
+      m.rail && !m.rail.hidden && m.rail.w === 72 && m.railW === '88px',
       `rail=${m.rail ? m.rail.w : 'ABSENT'} var=${m.railW}`,
     );
     check('A2 左栏 fixed（长文档流下不被拉满整页）', m.railPosition === 'fixed', m.railPosition);
@@ -159,8 +165,8 @@ try {
        同时补上「更多」—— 它也是 .userspace-rail-item，旧文案漏在账外。
        当前真源 = src/config/bottom-nav.ts（内容/消息/AI/图库/我）+ 便捷组（发布/搜索）+ 工具组（首页）+ 更多。 */
     check(
-      'A3 左栏条目与 UserSpace 同源（5 主 + 发布/资产 + 首页 + 更多）',
-      m.railItems.join('/') === '内容/消息/周边/图库/我/发布/资产/首页/更多',
+      'A3 左栏条目与 UserSpace 同源（5 主 + 更多；其余进菜单）',
+      m.railItems.join('/') === '内容/消息/周边/图库/我/更多',
       m.railItems.join('/'),
     );
 
@@ -188,9 +194,11 @@ try {
     );
     check('C2 底栏在横屏关掉', !m.bottomNav || m.bottomNav.hidden, JSON.stringify(m.bottomNav));
 
-    // D：左栏「发布」→ 发布会话只覆盖右区
+    // D：左栏「更多」→「发布」→ 发布会话只覆盖右区
+    await page.click('.userspace-rail-more').catch(() => {});
+    await page.waitForSelector('.userspace-rail-menu', { timeout: 4000 }).catch(() => {});
     const clicked = await page.evaluate(() => {
-      const btn = document.querySelector('.userspace-rail-item[data-rail-action="compose"]');
+      const btn = document.querySelector('.userspace-rail-menu-item[data-rail-action="compose"]');
       if (!btn) return false;
       btn.click();
       return true;
@@ -198,14 +206,15 @@ try {
     await page.waitForTimeout(2200);
     const after = await measure(page);
     check(
-      'D1 左栏「发布」打开发布会话',
+      'D1 菜单「发布」打开发布会话',
       clicked && !!after.composerOverlay && !after.composerOverlay.hidden,
       JSON.stringify(after.composerOverlay),
     );
     check(
-      'D2 发布会话左缘 = 栏宽（左栏保持可见）',
-      after.composerOverlay && Math.abs(after.composerOverlay.x - after.rail.w) <= 2,
-      `overlay.x=${after.composerOverlay?.x} railW=${after.rail?.w}`,
+      'D2 发布会话左缘 = 内容让位 88px（左栏保持可见）',
+      after.composerOverlay &&
+        Math.abs(after.composerOverlay.x - Number(after.railW.replace('px', ''))) <= 2,
+      `overlay.x=${after.composerOverlay?.x} railW=${after.railW}`,
     );
     await page.screenshot({ path: `${OUT}/wide-1440-composer.png` });
 
@@ -234,8 +243,8 @@ try {
     const m = await measure(page);
     console.log('\n--- 窄栏 1100×800 ---');
     check(
-      'E1 窄栏 88px',
-      m.rail && m.rail.w === 88 && m.railW === '88px',
+      'E1 窄栏胶囊仍 72px（内容让位 88）',
+      m.rail && m.rail.w === 72 && m.railW === '88px',
       `rail=${m.rail?.w} var=${m.railW}`,
     );
     const contentCx = Math.round((88 + m.viewport.w) / 2);
@@ -265,6 +274,18 @@ try {
       'E5 竖屏分区页签不受左栏偏移影响',
       m.tabs && Math.abs(m.tabs.cx - m.viewport.w / 2) <= 2,
       `tabs.cx=${m.tabs?.cx} 视口中心=${m.viewport.w / 2}`,
+    );
+    const tabsBottom = m.tabsRow ? m.tabsRow.y + m.tabsRow.h : -1;
+    const postGap = m.firstPost ? m.firstPost.y - tabsBottom : -1;
+    const cardsGap = m.topCards ? m.topCards.y - tabsBottom : null;
+    const firstContentGap = cardsGap ?? postGap;
+    check(
+      'E6 首页嵌入论坛不重复留 80px 顶部避让',
+      m.forumPaddingTop === '0px' &&
+        firstContentGap >= 0 &&
+        firstContentGap <= 20 &&
+        (!m.topCards || !m.firstPost || m.firstPost.y >= m.topCards.y + m.topCards.h),
+      `paddingTop=${m.forumPaddingTop} 页签→首内容=${firstContentGap}px 首帖=${postGap}px`,
     );
     await page.screenshot({ path: `${OUT}/portrait-390.png` });
     await context.close();

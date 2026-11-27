@@ -35,385 +35,222 @@
     </div>
 
     <template v-else>
-      <!-- 全宽：社区概览条（4 指标） -->
-      <section class="community-pulse community-pulse-wide" aria-labelledby="community-pulse-title">
-        <div class="community-pulse-heading">
-          <span class="community-pulse-live" aria-hidden="true"></span>
-          <strong id="community-pulse-title">社区动态</strong>
-          <small>此刻</small>
-        </div>
-        <div class="community-pulse-grid">
-          <button type="button" @click="setCommunityFilter('all')">
-            <span>{{ totalCommunityUsers }}</span>
-            <small>成员总数</small>
-          </button>
-          <button type="button" @click="setCommunityFilter('active')">
-            <span>{{ activeCommunityCount }}</span>
-            <small>最近活跃</small>
-          </button>
-          <button type="button" @click="setCommunityFilter('new')">
-            <span>{{ newCommunityCount }}</span>
-            <small>最近加入</small>
-          </button>
-          <button
-            v-if="!isMobileLayout"
-            type="button"
-            class="pulse-metric-birthday"
-            @click="toggleBirthdaysExpand"
-          >
-            <span>{{ recentBirthdayUsers.length }}</span>
-            <small>生日将至</small>
-          </button>
-        </div>
-
-        <div v-if="isMobileLayout" class="community-pulse-actions" aria-label="社区快捷入口">
-          <button
-            type="button"
-            class="community-pulse-action"
-            @click="toggleBirthdaysExpand"
-            :aria-expanded="isBirthdaysExpanded"
-          >
-            <Cake :size="17" :stroke-width="1.9" aria-hidden="true" />
-            <span>
-              <strong>最近生日</strong>
-              <small>{{
-                recentBirthdayUsers.length ? `${recentBirthdayUsers.length} 位伙伴` : '查看提醒'
-              }}</small>
-            </span>
-            <ChevronRight :size="16" aria-hidden="true" />
-          </button>
-          <button type="button" class="community-pulse-action" @click="emit('switch-tab', 'shows')">
-            <Play :size="17" :stroke-width="1.9" fill="currentColor" aria-hidden="true" />
-            <span>
-              <strong>节目中心</strong>
-              <small>社区精选</small>
-            </span>
-            <ChevronRight :size="16" aria-hidden="true" />
-          </button>
-        </div>
-      </section>
-
-      <transition name="expand">
-        <CommunityBirthdayList
-          v-if="isMobileLayout && isBirthdaysExpanded"
-          class="community-pulse-birthday-list"
-          :users="recentBirthdayUsers"
-          :is-loading="isLoadingBirthdays"
-          :tier-map="birthdayTierMap"
-          :format-birthday-distance="formatBirthdayDistance"
-          @open-profile="goToProfile"
-        />
-      </transition>
-
       <!-- 主列：社区伙伴 -->
       <section class="community-main-col">
-        <div class="community-group glass-group">
-          <HomeCatMascot
-            v-if="isHomeCatActive"
-            class="community-group-cat"
-            pool="ambient"
-            seed="community-recent"
-            size="sm"
-            decorative
-          />
-          <div class="group-header">
-            <button
-              type="button"
-              class="group-header-left"
-              @click="toggleCommunityExpand"
-              :aria-expanded="isCommunityExpanded"
+        <div class="community-main-header">
+          <div class="community-main-title">
+            <h3 class="group-title">社区伙伴</h3>
+            <span
+              class="group-badge"
+              :class="{ 'badge-loading': isLoadingCommunity && !hasLoadedCommunity }"
+              >{{ isLoadingCommunity && !hasLoadedCommunity ? '' : displayCommunityCount }}</span
             >
-              <div class="group-info">
-                <h3 class="group-title">社区伙伴</h3>
-                <span
-                  class="group-badge"
-                  :class="{ 'badge-loading': isLoadingCommunity && !hasLoadedCommunity }"
-                  >{{
-                    isLoadingCommunity && !hasLoadedCommunity ? '' : displayCommunityCount
-                  }}</span
-                >
-              </div>
-            </button>
-
-            <button
-              type="button"
-              class="group-header-right"
-              @click="toggleCommunityExpand"
-              :aria-expanded="isCommunityExpanded"
-            >
-              <div class="expand-icon" :class="{ expanded: isCommunityExpanded }">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M9 18l6-6-6-6" />
-                </svg>
-              </div>
-            </button>
           </div>
+          <button
+            v-if="isMobileLayout"
+            type="button"
+            class="community-birthday-trigger"
+            @click="toggleBirthdaysExpand"
+            :aria-expanded="isBirthdaysExpanded"
+            :aria-label="`最近生日，${recentBirthdayUsers.length} 位伙伴`"
+            :title="birthdayGroupSummary"
+          >
+            <Cake :size="17" :stroke-width="1.9" aria-hidden="true" />
+            <span>{{ recentBirthdayUsers.length }}</span>
+          </button>
         </div>
 
         <transition name="expand">
-          <div v-if="isCommunityExpanded" class="expand-shell">
-            <div class="expand-clip">
-              <div class="community-users-list">
-                <div class="community-search-bar-glass">
-                  <svg
-                    class="search-icon"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                  >
-                    <circle cx="11" cy="11" r="8"></circle>
-                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                  </svg>
-                  <input
-                    v-model="communitySearchQuery"
-                    type="text"
-                    placeholder="搜索社区伙伴..."
-                    class="community-search-input-glass"
-                  />
-                  <button
-                    v-if="communitySearchQuery"
-                    class="search-clear-btn"
-                    @click.stop="communitySearchQuery = ''"
-                    aria-label="清除搜索"
-                  >
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <line x1="18" y1="6" x2="6" y2="18"></line>
-                      <line x1="6" y1="6" x2="18" y2="18"></line>
-                    </svg>
-                  </button>
-                  <span v-if="isSearching" class="search-loading-spinner" aria-hidden="true"></span>
-                </div>
-
-                <div class="community-filter-tabs" role="tablist" aria-label="社区伙伴筛选">
-                  <button
-                    v-for="filter in communityFilters"
-                    :key="filter.id"
-                    type="button"
-                    role="tab"
-                    :aria-selected="communityFilter === filter.id"
-                    :class="{ active: communityFilter === filter.id }"
-                    @click="setCommunityFilter(filter.id)"
-                  >
-                    {{ filter.label }}
-                  </button>
-                </div>
-
-                <p
-                  v-if="isCommunityFilterPool && communityUsers.length >= 100"
-                  class="community-filter-hint"
-                >
-                  当前筛选基于最近活跃的前
-                  {{ communityUsers.length }} 位成员，可能未覆盖全部社区伙伴
-                </p>
-
-                <EmptyState
-                  v-if="visibleCommunityUsers.length === 0 && !isLoadingCommunity"
-                  :icon="Users"
-                  title="还没有社区伙伴"
-                  :description="communityEmptyText"
-                  compact
-                />
-
-                <button
-                  v-for="(user, index) in visibleCommunityUsers"
-                  :key="user.id"
-                  type="button"
-                  class="user-item glass-user community-user-button"
-                  :style="{ '--item-index': index }"
-                  @click="goToProfile(user.username)"
-                >
-                  <span class="boh-avatar-wrap">
-                    <div class="user-avatar">
-                      <img
-                        v-if="user.avatar_url"
-                        :src="user.avatar_url"
-                        alt="用户头像"
-                        class="avatar-image"
-                        loading="lazy"
-                        decoding="async"
-                      />
-                      <span v-else>{{
-                        user.username ? user.username.charAt(0).toUpperCase() : 'U'
-                      }}</span>
-                      <span
-                        v-if="isUserOnline(user, hideOnlineStatus)"
-                        class="online-dot"
-                        aria-label="在线"
-                      ></span>
-                    </div>
-                    <span
-                      v-if="memberFrame(user)"
-                      class="boh-avatar-frame"
-                      :style="{
-                        '--boh-avatar-frame-url': `url(${memberFrame(user).url})`,
-                        '--boh-avatar-frame-scale': String(memberFrame(user).scale || 1.24),
-                      }"
-                      aria-hidden="true"
-                    ></span>
-                  </span>
-                  <div class="user-info">
-                    <div class="user-name-row">
-                      <span class="user-name" :class="communityTierMap[user.id]"
-                        >@{{ user.username }}</span
-                      >
-                      <span
-                        class="user-status"
-                        :class="{ 'status-online': isUserOnline(user, hideOnlineStatus) }"
-                        :title="formatOnlineStatusTooltip(user, hideOnlineStatus)"
-                        >{{ formatUserOnlineStatus(user, hideOnlineStatus) }}</span
-                      >
-                    </div>
-                    <p class="user-bio">{{ user.bio || '这个人很懒，还没有个性签名' }}</p>
-                    <div class="user-meta">
-                      <span v-if="user.birth_month && user.birth_day" class="meta-item">
-                        <svg
-                          class="meta-icon"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          stroke-width="2"
-                        >
-                          <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-                          <line x1="16" y1="2" x2="16" y2="6"></line>
-                          <line x1="8" y1="2" x2="8" y2="6"></line>
-                          <line x1="3" y1="10" x2="21" y2="10"></line>
-                        </svg>
-                        {{ String(user.birth_month).padStart(2, '0') }}/{{
-                          String(user.birth_day).padStart(2, '0')
-                        }}
-                      </span>
-                      <span v-if="user.join_date" class="meta-item">
-                        <svg
-                          class="meta-icon"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          stroke-width="2"
-                        >
-                          <circle cx="12" cy="12" r="10"></circle>
-                          <polyline points="12 6 12 12 16 14"></polyline>
-                        </svg>
-                        {{ formatJoinDate(user.join_date) }}
-                      </span>
-                      <span
-                        v-if="
-                          user.followersCount !== undefined || user.followingCount !== undefined
-                        "
-                        class="meta-item follow-count-combo"
-                      >
-                        <svg
-                          class="meta-icon"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          stroke-width="2"
-                        >
-                          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-                          <circle cx="9" cy="7" r="4"></circle>
-                          <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-                          <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-                        </svg>
-                        <span
-                          v-if="canClickFollow(user)"
-                          class="follow-count-link"
-                          @click.stop="emit('open-follow-modal', user, 'followers')"
-                          >粉丝 {{ user.followersCount || 0 }}</span
-                        >
-                        <template v-else>粉丝 {{ user.followersCount || 0 }}</template>
-                        <span class="follow-count-sep">·</span>
-                        <span
-                          v-if="canClickFollow(user)"
-                          class="follow-count-link"
-                          @click.stop="emit('open-follow-modal', user, 'following')"
-                          >关注 {{ user.followingCount || 0 }}</span
-                        >
-                        <template v-else>关注 {{ user.followingCount || 0 }}</template>
-                      </span>
-                    </div>
-                  </div>
-                </button>
-
-                <nav
-                  v-if="
-                    !isMobileLayout && isPaginatedFilter(communityFilter) && totalCommunityPages > 1
-                  "
-                  class="community-pagination"
-                  aria-label="社区伙伴分页"
-                >
-                  <button
-                    type="button"
-                    class="community-page-btn glass-page-btn"
-                    :disabled="isLoadingCommunity || currentCommunityPage === 1"
-                    @click="
-                      currentCommunityPage--;
-                      isCommunityExpanded = true;
-                    "
-                    aria-label="上一页"
-                  >
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <polyline points="15 18 9 12 15 6"></polyline>
-                    </svg>
-                  </button>
-                  <span class="pagination-text" aria-live="polite"
-                    >第 {{ currentCommunityPage }} / {{ totalCommunityPages }} 页</span
-                  >
-                  <div class="page-dots" aria-label="页码">
-                    <button
-                      v-for="page in totalCommunityPages"
-                      :key="page"
-                      type="button"
-                      class="page-dot"
-                      :class="{ active: page === currentCommunityPage }"
-                      @click="
-                        currentCommunityPage = page;
-                        isCommunityExpanded = true;
-                      "
-                      :aria-label="`第 ${page} 页`"
-                      :aria-current="page === currentCommunityPage ? 'page' : undefined"
-                    ></button>
-                  </div>
-                  <button
-                    type="button"
-                    class="community-page-btn glass-page-btn"
-                    :disabled="isLoadingCommunity || currentCommunityPage === totalCommunityPages"
-                    @click="
-                      currentCommunityPage++;
-                      isCommunityExpanded = true;
-                    "
-                    aria-label="下一页"
-                  >
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <polyline points="9 18 15 12 9 6"></polyline>
-                    </svg>
-                  </button>
-                </nav>
-
-                <button
-                  v-if="
-                    isMobileLayout &&
-                    isPaginatedFilter(communityFilter) &&
-                    currentCommunityPage < totalCommunityPages
-                  "
-                  ref="communityLoadMoreRef"
-                  type="button"
-                  class="community-load-more"
-                  :disabled="isLoadingCommunity"
-                  aria-live="polite"
-                  @click="loadMoreCommunityUsers"
-                >
-                  {{ isLoadingCommunity ? '加载中...' : '加载更多伙伴' }}
-                </button>
-              </div>
-            </div>
-          </div>
+          <CommunityBirthdayList
+            v-if="isMobileLayout && isBirthdaysExpanded"
+            class="community-birthday-list"
+            :users="recentBirthdayUsers"
+            :is-loading="isLoadingBirthdays"
+            :tier-map="birthdayTierMap"
+            :format-birthday-distance="formatBirthdayDistance"
+            @open-profile="goToProfile"
+          />
         </transition>
+
+        <div class="community-tools">
+          <div class="community-search-bar-glass">
+            <svg
+              class="search-icon"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <input
+              v-model="communitySearchQuery"
+              type="text"
+              placeholder="搜索社区伙伴..."
+              class="community-search-input-glass"
+            />
+            <button
+              v-if="communitySearchQuery"
+              class="search-clear-btn"
+              @click.stop="communitySearchQuery = ''"
+              aria-label="清除搜索"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+            <span v-if="isSearching" class="search-loading-spinner" aria-hidden="true"></span>
+          </div>
+
+          <div class="community-filter-tabs" role="tablist" aria-label="社区伙伴筛选">
+            <button
+              v-for="filter in communityFilters"
+              :key="filter.id"
+              type="button"
+              role="tab"
+              :aria-selected="communityFilter === filter.id"
+              :class="{ active: communityFilter === filter.id }"
+              @click="setCommunityFilter(filter.id)"
+            >
+              {{ filter.label }}
+            </button>
+          </div>
+        </div>
+
+        <div class="community-users-list">
+          <p
+            v-if="isCommunityFilterPool && communityUsers.length >= 100"
+            class="community-filter-hint"
+          >
+            当前筛选基于最近活跃的前
+            {{ communityUsers.length }} 位成员，可能未覆盖全部社区伙伴
+          </p>
+
+          <EmptyState
+            v-if="visibleCommunityUsers.length === 0 && !isLoadingCommunity"
+            :icon="Users"
+            title="还没有社区伙伴"
+            :description="communityEmptyText"
+            compact
+          />
+
+          <button
+            v-for="(user, index) in visibleCommunityUsers"
+            :key="user.id"
+            type="button"
+            class="user-item glass-user community-user-button"
+            :style="{ '--item-index': index }"
+            @click="goToProfile(user.username)"
+          >
+            <span class="boh-avatar-wrap">
+              <div class="user-avatar">
+                <img
+                  v-if="user.avatar_url"
+                  :src="user.avatar_url"
+                  alt="用户头像"
+                  class="avatar-image"
+                  loading="lazy"
+                  decoding="async"
+                />
+                <span v-else>{{
+                  user.username ? user.username.charAt(0).toUpperCase() : 'U'
+                }}</span>
+                <span
+                  v-if="isUserOnline(user, hideOnlineStatus)"
+                  class="online-dot"
+                  aria-label="在线"
+                ></span>
+              </div>
+              <span
+                v-if="memberFrame(user)"
+                class="boh-avatar-frame"
+                :style="{
+                  '--boh-avatar-frame-url': `url(${memberFrame(user).url})`,
+                  '--boh-avatar-frame-scale': String(memberFrame(user).scale || 1.24),
+                }"
+                aria-hidden="true"
+              ></span>
+            </span>
+            <div class="user-info">
+              <div class="user-name-row">
+                <span class="user-name" :class="communityTierMap[user.id]"
+                  >@{{ user.username }}</span
+                >
+                <span v-if="isUserOnline(user, hideOnlineStatus)" class="user-status status-online"
+                  >在线</span
+                >
+              </div>
+              <p v-if="user.bio" class="user-bio">{{ user.bio }}</p>
+            </div>
+          </button>
+
+          <nav
+            v-if="!isMobileLayout && isPaginatedFilter(communityFilter) && totalCommunityPages > 1"
+            class="community-pagination"
+            aria-label="社区伙伴分页"
+          >
+            <button
+              type="button"
+              class="community-page-btn glass-page-btn"
+              :disabled="isLoadingCommunity || currentCommunityPage === 1"
+              @click="currentCommunityPage--"
+              aria-label="上一页"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="15 18 9 12 15 6"></polyline>
+              </svg>
+            </button>
+            <span class="pagination-text" aria-live="polite"
+              >第 {{ currentCommunityPage }} / {{ totalCommunityPages }} 页</span
+            >
+            <div class="page-dots" aria-label="页码">
+              <button
+                v-for="page in totalCommunityPages"
+                :key="page"
+                type="button"
+                class="page-dot"
+                :class="{ active: page === currentCommunityPage }"
+                @click="currentCommunityPage = page"
+                :aria-label="`第 ${page} 页`"
+                :aria-current="page === currentCommunityPage ? 'page' : undefined"
+              ></button>
+            </div>
+            <button
+              type="button"
+              class="community-page-btn glass-page-btn"
+              :disabled="isLoadingCommunity || currentCommunityPage === totalCommunityPages"
+              @click="currentCommunityPage++"
+              aria-label="下一页"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="9 18 15 12 9 6"></polyline>
+              </svg>
+            </button>
+          </nav>
+
+          <button
+            v-if="
+              isMobileLayout &&
+              isPaginatedFilter(communityFilter) &&
+              currentCommunityPage < totalCommunityPages
+            "
+            ref="communityLoadMoreRef"
+            type="button"
+            class="community-load-more"
+            :disabled="isLoadingCommunity"
+            aria-live="polite"
+            @click="loadMoreCommunityUsers"
+          >
+            {{ isLoadingCommunity ? '加载中...' : '加载更多伙伴' }}
+          </button>
+        </div>
       </section>
 
-      <!-- 侧栏：最近生日 + 入口 -->
-      <aside class="community-side-col">
+      <!-- 侧栏：最近生日 -->
+      <aside v-if="!isMobileLayout" class="community-side-col">
         <button
-          v-if="!isMobileLayout"
           type="button"
           class="community-group glass-group birthday-group-glass"
           @click="toggleBirthdaysExpand"
@@ -441,7 +278,7 @@
         </button>
 
         <transition name="expand">
-          <div v-if="!isMobileLayout && isBirthdaysExpanded" class="expand-shell">
+          <div v-if="isBirthdaysExpanded" class="expand-shell">
             <div class="expand-clip">
               <CommunityBirthdayList
                 :users="recentBirthdayUsers"
@@ -453,30 +290,6 @@
             </div>
           </div>
         </transition>
-
-        <!-- 方块墙入口卡已随功能退场删除（2026-10-19） -->
-
-        <button
-          v-if="!isMobileLayout"
-          type="button"
-          class="shows-entry-card-glass"
-          @click="emit('switch-tab', 'shows')"
-        >
-          <div class="shows-entry-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polygon points="5 3 19 12 5 21 5 3"></polygon>
-            </svg>
-          </div>
-          <div class="shows-entry-content">
-            <span class="shows-entry-title">方块节目中心</span>
-            <p class="shows-entry-desc">进入节目页，查看社区节目与精选内容</p>
-          </div>
-          <div class="shows-entry-arrow">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polyline points="9 18 15 12 9 6"></polyline>
-            </svg>
-          </div>
-        </button>
       </aside>
     </template>
   </div>
@@ -486,7 +299,7 @@
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
 import { storeToRefs } from 'pinia';
-import { Users, Cake, ChevronRight, Play } from 'lucide-vue-next';
+import { Users, Cake } from 'lucide-vue-next';
 import EmptyState from '@/components/ui/EmptyState.vue';
 import HomeCatMascot from '@/components/HomeCatMascot.vue';
 import CommunityBirthdayList from './CommunityBirthdayList.vue';
@@ -494,15 +307,13 @@ import { useAuthStore } from '@/stores/auth';
 import { useUserOnlineStatus } from '../composables/useUserOnlineStatus.js';
 import { createMemoryTtlCache } from '../composables/useMemoryTtlCache.js';
 import { getProfilesPage, getRecentBirthdayProfiles } from '@/utils/api/auth-api.js';
-import { getFollowCountsBatch, getFollowing } from '@/utils/api/profile-api.js';
+import { getFollowing } from '@/utils/api/profile-api.js';
 import { logger } from '@/utils/logger.js';
 import { themeManager } from '@/utils/theme-manager.js';
 import { isHomeCatTheme } from '@/utils/home-cat-theme.js';
 import { useUserTier } from '@/composables/useUserTier.js';
 import { useTierMap } from '@/composables/useTierMap.js';
 import { resolveFrameForAuthor } from '@/composables/useAvatarFrame.js';
-
-const emit = defineEmits(['switch-tab', 'open-follow-modal']);
 
 const router = useRouter();
 const authStore = useAuthStore();
@@ -514,8 +325,7 @@ const isHomeCatActive = computed(
   () => isHomeCatTheme(currentTheme.value) || isHomeCatTheme(currentThemePreference.value),
 );
 
-const { isUserOnline, isRecentlyActive, formatUserOnlineStatus, formatOnlineStatusTooltip } =
-  useUserOnlineStatus();
+const { isUserOnline } = useUserOnlineStatus();
 
 const hideOnlineStatus = computed(() => userInfo.value?.hideOnlineStatus ?? false);
 
@@ -529,7 +339,6 @@ const CACHE_TTL = {
 
 const isLoadingCommunity = ref(false);
 const isLoadingBirthdays = ref(false);
-const isCommunityExpanded = ref(true);
 const isBirthdaysExpanded = ref(false);
 const communityUsers = ref([]);
 const communityFilter = ref('all');
@@ -596,14 +405,6 @@ const isRecentlyJoined = (user = {}) => {
   return Number.isFinite(time) && time > 0 && Date.now() - time <= 30 * 24 * 60 * 60 * 1000;
 };
 const isPaginatedFilter = (filterId) => filterId === 'all' || filterId === 'active';
-const activeCommunityCount = computed(() => {
-  // 脉冲区展示最近活跃总数：当处于最近活跃分页时使用服务端 total，否则用当前加载池的 3 天内统计
-  if (hideOnlineStatus.value) return 0;
-  if (communityFilter.value === 'active') return totalRecentActiveUsers.value;
-  return communityUsers.value.filter((user) => isRecentlyActive(user, hideOnlineStatus.value))
-    .length;
-});
-const newCommunityCount = computed(() => communityUsers.value.filter(isRecentlyJoined).length);
 const visibleCommunityUsers = computed(() => {
   if (communityFilter.value === 'active') {
     // 最近活跃为服务端分页，已按 3 天过滤；若用户隐藏在线状态则不展示
@@ -651,17 +452,6 @@ const birthdayGroupSummary = computed(() => {
   return `${recentBirthdayUsers.value.length} 位伙伴 · ${formatBirthdayDistance(firstBirthday)}`;
 });
 
-const formatJoinDate = (dateStr) => {
-  if (!dateStr) return '';
-  const date = new Date(dateStr);
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-};
-
-const canClickFollow = (user) => !user.hide_follow_data || user.id === userInfo.value.id;
-
 const formatBirthdayDistance = (user = {}) => {
   const daysUntil = Number(user.birthday_days_until);
   if (!Number.isFinite(daysUntil)) {
@@ -670,10 +460,6 @@ const formatBirthdayDistance = (user = {}) => {
   if (daysUntil === 0) return '今天生日';
   if (daysUntil === 1) return '明天生日';
   return `${daysUntil} 天后生日`;
-};
-
-const toggleCommunityExpand = () => {
-  isCommunityExpanded.value = !isCommunityExpanded.value;
 };
 
 const setCommunityFilter = (filterId) => {
@@ -708,27 +494,6 @@ const goToProfile = (usernameVal) => {
   const safeUsername = String(usernameVal || '').trim();
   if (!safeUsername) return;
   router.push(`/profile/${encodeURIComponent(safeUsername)}?from=community`);
-};
-
-const loadCommunityFollowCounts = async () => {
-  const users = communityUsers.value;
-  if (!users.length) return;
-  const ids = users.map((u) => u.id).filter(Boolean);
-  if (!ids.length) return;
-  try {
-    const res = await getFollowCountsBatch(ids);
-    if (res.ok !== false && res.data) {
-      for (const user of users) {
-        const counts = res.data[user.id];
-        if (counts) {
-          user.followersCount = counts.followersCount;
-          user.followingCount = counts.followingCount;
-        }
-      }
-    }
-  } catch {
-    // silent
-  }
 };
 
 const fetchCommunityUsers = async ({ force = false } = {}) => {
@@ -810,8 +575,6 @@ const fetchCommunityUsers = async ({ force = false } = {}) => {
       if (isRecentActiveFilter) totalRecentActiveUsers.value = data.total || 0;
       else totalCommunityUsers.value = data.total || 0;
       hasLoadedCommunity.value = true;
-
-      void loadCommunityFollowCounts();
 
       communityMemoryCache.set(cacheKey, {
         items: nextUsers,

@@ -311,8 +311,12 @@ const gapState = await page.evaluate(() => {
   const cs = getComputedStyle(tabs);
   const fcs = getComputedStyle(forum);
   const tabsRect = tabs.getBoundingClientRect();
+  const cards = document.querySelector('.forum-section-shell .forum-top-cards');
   const first = forum.querySelector('.forum-main-grid, .forum-container > *');
-  const gap = first ? Math.round(first.getBoundingClientRect().top - tabsRect.bottom) : -1;
+  const firstContent = cards && cards.getClientRects().length > 0 ? cards : first;
+  const gap = firstContent
+    ? Math.round(firstContent.getBoundingClientRect().top - tabsRect.bottom)
+    : -1;
   return { pos: cs.position, pt: fcs.paddingTop, gap };
 });
 check(
@@ -322,7 +326,7 @@ check(
 );
 check('论坛 80px 顶距已清零（shell-community.css 平铺覆盖）', gapState.pt === '0px', gapState.pt);
 check(
-  '页签-内容空隙收紧（≤24px）',
+  '页签-首内容空隙收紧（≤24px）',
   gapState.gap >= 0 && gapState.gap <= 24,
   `gap=${gapState.gap}px`,
 );
@@ -1305,7 +1309,10 @@ const railBeforeCompose = await landPage.evaluate(() => {
   const item = document.querySelector('.userspace-rail-item');
   return item ? Math.round(item.getBoundingClientRect().y) : -1;
 });
-await safeClick(landPage, '[data-rail-action="compose"]');
+// 「发布」已收进「更多」菜单（2026-11-26）：先展开菜单再点
+await safeClick(landPage, '.userspace-rail-more');
+await landPage.waitForSelector('.userspace-rail-menu', { timeout: 4000 }).catch(() => {});
+await safeClick(landPage, '.userspace-rail-menu-item[data-rail-action="compose"]');
 let composerOpened = false;
 try {
   await landPage.waitForSelector('.mobile-composer-overlay', { timeout: 12000 });

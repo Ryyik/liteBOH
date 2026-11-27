@@ -25,7 +25,7 @@
      发布会话 .mobile-composer-overlay 被 Teleport 到 body（ForumMain.vue:3937），
      只有 body 级变量它能继承到；左栏等 .user-space-page 内的元素照旧继承 */
   body.page-userspace {
-    /* 左栏宽度：窄档 88（图标）→ 宽档 240（图标 + 文字），宽档在文件末尾覆盖 */
+    /* 内容让位：72px 竖排胶囊 + 左距 8 + 呼吸 8 = 88（所有宿主统一） */
     --userspace-rail-w: 88px;
     /* 内容与左栏 / 窗口边缘之间的统一间距（各 tab 最外层容器共用） */
     --userspace-content-gutter: clamp(20px, 2.4vw, 40px);
@@ -38,9 +38,9 @@
 
   /* ── 顶部导航以内容区居中，而不是整页居中 ────────────────────
      `.unified-nav-surface` 靠 margin:0 auto 在 fixed 满宽容器里居中，基准默认是整页。
-     左栏占掉 240px 后，导航条的视觉重心比内容区偏左 120px。
+     左栏让位 88px 后，导航条的视觉重心比内容区偏左 44px。
      这里用 relative + left 把 surface 推到内容区中心：右移量 = 左栏宽 / 2
-     （1440×900 宽栏实测 290–1150 → 410–1270，与内容区 240–1440 同心；窄栏同理）。
+     （1440×900 实测：岛心 764 = 内容区中心）。
      两条替代路径都被否掉：
        · 给 #unified-nav-container 加 padding-left → 被 UnifiedNavbar scoped 的
          `padding: 0 !important` 压过（要赢就得也上 important，本目录不这么干）
@@ -178,27 +178,8 @@
   }
 }
 
-@media (orientation: landscape) and (min-width: 1280px) and (min-height: 600px) {
-  /* 宽档：240px 完整栏。1280 − 240 = 1040px 右区才够撑住
-     Forum 自带的两栏（主栏 + 240~320 侧栏） */
-  body.page-userspace {
-    --userspace-rail-w: 240px;
-  }
-
-  /* 右区 ≥1040px：发布会话保持全宽（不再放宽限宽档） */
-}
-
-/* 设置页横屏 → 左栏进入缩小态（2026-10-26）。
-   宽度变量在这里改：它同时被 .tab-page 的 left/width、导航岛居中偏移
-   （.unified-nav-surface 的 left: rail/2）、发布会话左边界消费 —— 一处改全都跟着走。
-   形态（图标/文字/发布按钮/角标）在 components/side-rail.css 里改，
-   两处用同一个判据 body.page-userspace.is-rail-compact，别各写一套条件。
-   特异性 0,3,0 > 上面宽档的 0,2,0，所以不管文件顺序都赢。 */
-@media (orientation: landscape) and (min-width: 1024px) and (min-height: 600px) {
-  body.page-userspace.is-rail-compact {
-    --userspace-rail-w: 88px;
-  }
-}
+/* 设置页横屏的 .is-rail-compact 不再需要单独改宽度：2026-11-26 起所有宿主的
+   内容让位统一为 88px（72px 竖排胶囊 + 左距 8 + 呼吸 8），class 只留作宿主标记。 */
 
 /* ================================================================
    他人空间（/profile/:username → body.page-userprofile）横屏同体系分栏
@@ -243,12 +224,6 @@
   }
 }
 
-@media (orientation: landscape) and (min-width: 1280px) and (min-height: 600px) {
-  body.page-userprofile {
-    --userspace-rail-w: 240px;
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .user-space-page .tab-page {
     animation-duration: 1ms;
@@ -262,7 +237,7 @@
    底栏「方块」都指 `/?view=latest`），而左栏当时只做在 UserSpace —— 于是同一个论坛
    「从 /user-space 进有左栏、从首页进没有」，横屏电脑上看着就是左右栏结构消失。
    这里把同一份 UserSpaceSideRail 挂到首页，规则与上面 UserSpace / 他人空间同构：
-     · 断点、栏宽档位（88 / 240）与 side-rail.css 完全一致，三处同步
+     · 断点与 88px 内容让位与 side-rail.css 完全一致，三处同步
      · 首页是普通长文档流（不是 100dvh 叠放层），故 rail 必须 fixed ——
        absolute 会被拉满整个文档高度，品牌位与工具组随页面滚出视口
      · 内容让位用 .home-forum-stage 的 padding-left（白底仍满宽，与 UserSpace 观感一致）
@@ -325,12 +300,6 @@
   }
 }
 
-@media (orientation: landscape) and (min-width: 1280px) and (min-height: 600px) {
-  body.page-home {
-    --userspace-rail-w: 240px;
-  }
-}
-
 /* ================================================================
    图库 / BOH Cloud+（/user-space/note → body.page-bohcloudplus）横屏左栏
    ================================================================
@@ -338,7 +307,7 @@
    之前它是唯一一条没有左栏的主页面 —— 从「我」点图库，整条导航就消失了。
    挂的是同一份 UserSpaceSideRail + 同一份 navItems（单源），current-tab='cloud'。
 
-     · 断点 / 栏宽档位与 side-rail.css 完全一致（88 → ≥1280 的 240）
+     · 断点与 88px 内容让位与 side-rail.css 完全一致
      · Cloud+ 是普通长文档流（.cloud-page min-height:100vh + body 滚动），
        故 rail 必须 fixed —— absolute 会被拉成整个文档高，品牌位与工具组随页面滚走
      · 内容让位走 .cloud-page 的 padding-left：整页右移，.cloud-shell 的
@@ -385,12 +354,6 @@
   }
 }
 
-@media (orientation: landscape) and (min-width: 1280px) and (min-height: 600px) {
-  body.page-bohcloudplus {
-    --userspace-rail-w: 240px;
-  }
-}
-
 html[data-theme='dark'] body.page-bohcloudplus {
   --rail-item-bg-hover: rgba(255, 255, 255, 0.08);
   --rail-item-bg-active: rgba(255, 255, 255, 0.12);
@@ -414,8 +377,8 @@ html[data-theme='dark'] body.page-bohcloudplus {
      · AI 自带的会话侧栏是 **Teleport 到 body** 的，body 上的 padding 管不到它 ——
        它的 left 改由 BolekSidebar 里 var(--bolek-sidebar-left) 驱动（默认 0，只有本页置位），
        于是侧栏正好接在左栏右侧，两块面板不叠
-     · 栏宽固定 88px，**不随 ≥1280 升到 240px**：AI 页本身已有一条 ~280px 的会话侧栏，
-       1280 宽下再来一条带文字的 240px 左栏会吃掉 520px，聊天区只剩一半
+     · 栏宽固定 88px（竖排胶囊 72）：AI 页本身已有一条 ~280px 的会话侧栏，
+       左栏再宽会挤压聊天区；2026-11-26 起全站也统一为这一档
      · 暗色与条目状态底色复用上面 body.page-home 的那两条规则（见文件上半部分）
    ================================================================ */
 
@@ -453,7 +416,7 @@ html[data-theme='dark'] body.page-bohcloudplus {
    规则与 UserSpace / 他人空间 / 首页 / 图库 / AI 六个宿主同构：
 
      · 断点与 side-rail.css 完全一致（三处同步：本文件 / side-rail.css / 各宿主）
-     · 栏宽两档 88 → ≥1280 的 240，与其它宿主一字不差
+     · 栏宽 88px（胶囊 72），与其它宿主一字不差
      · 周边是普通长文档流（.store-page 走 body 滚动，不是 100dvh 叠放层），
        故 rail 必须 fixed —— absolute 会被拉成整个文档高，
        品牌位与工具组随页面滚走（他人空间 / 首页 / 图库都踩过这个坑）
@@ -495,13 +458,5 @@ html[data-theme='dark'] body.page-bohcloudplus {
   /* 左栏接管导航 ⇒ 底部移动端胶囊隐藏（竖屏 / 手机横屏仍用它） */
   body.page-shop .bottom-nav-glass {
     display: none;
-  }
-}
-
-@media (orientation: landscape) and (min-width: 1280px) and (min-height: 600px) {
-  /* 宽档 240px：1280 − 240 = 1040 的内容区，周边网格自身限宽 760，
-     两侧各留 140 的呼吸，与图库 / 首页的观感一致 */
-  body.page-shop {
-    --userspace-rail-w: 240px;
   }
 }

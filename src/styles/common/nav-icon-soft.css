@@ -1,0 +1,15 @@
+/* 自绘导航图标的「软填充」层 —— 底栏与横屏左栏共用的唯一真源。
+   两条规则原在 components/UserSpace/components/bottom-nav.css（非 scoped），
+   但 AI 页直开时只挂左栏、底栏组件不加载 ⇒ 软填充整条缺失。搬到全局入口后两边同时生效。 */
+
+.bottom-nav-icon-soft {
+  fill: currentColor;
+  fill-opacity: 0;
+  transition: fill-opacity 140ms ease;
+}
+
+.nav-item.active .bottom-nav-icon-soft,
+.nav-compact .bottom-nav-icon-soft,
+.userspace-rail-item.active .bottom-nav-icon-soft {
+  fill-opacity: 0.1;
+}

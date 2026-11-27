@@ -1,0 +1,1086 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>横屏左栏对齐底栏 · 视觉预览</title>
+    <style>
+      /* ============================================================
+         预览沙盒：横屏左栏 ↔ 竖屏底栏 对齐方案（不是产物代码）
+         · 现状    ：14px 圆角淡块 + 选中描边 2.5 + lucide 细线图标
+         · 方案 A ：保留「宽栏图标左置」横排，只换选中态与图标语言
+         · 方案 B ：整栏竖过来 —— 图标上、文字下，选中为胶囊
+         ============================================================ */
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        background: #ececf0;
+        color: #1d1d1f;
+        font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'PingFang SC', sans-serif;
+      }
+      body {
+        padding: 22px 26px 60px;
+      }
+
+      .topbar {
+        position: sticky;
+        top: 0;
+        z-index: 20;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 18px;
+        padding: 12px 0 14px;
+        background: linear-gradient(#ececf0 72%, rgba(236, 236, 240, 0));
+      }
+      .topbar h1 {
+        margin: 0 10px 0 0;
+        font-size: 17px;
+        font-weight: 700;
+        letter-spacing: -0.01em;
+      }
+      .topbar .hint {
+        font-size: 12px;
+        color: #6e6e73;
+      }
+      .seg {
+        display: inline-flex;
+        padding: 3px;
+        border-radius: 999px;
+        background: rgba(15, 23, 42, 0.06);
+        box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.06);
+      }
+      .seg label {
+        position: relative;
+      }
+      .seg input {
+        position: absolute;
+        opacity: 0;
+        pointer-events: none;
+      }
+      .seg span {
+        display: block;
+        padding: 7px 14px;
+        border-radius: 999px;
+        font-size: 13px;
+        font-weight: 600;
+        color: #6e6e73;
+        cursor: pointer;
+        transition:
+          background 0.18s,
+          color 0.18s;
+      }
+      .seg input:checked + span {
+        background: #fff;
+        color: #1d1d1f;
+        box-shadow:
+          0 2px 8px rgba(15, 23, 42, 0.1),
+          inset 0 0 0 1px rgba(15, 23, 42, 0.05);
+      }
+      .seg-title {
+        font-size: 12px;
+        font-weight: 700;
+        color: #6e6e73;
+        margin-right: -8px;
+      }
+
+      .board {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 26px;
+        align-items: flex-start;
+      }
+      .col {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .col-title {
+        font-size: 13px;
+        font-weight: 700;
+      }
+      .col-title small {
+        font-weight: 500;
+        color: #6e6e73;
+        margin-left: 6px;
+      }
+
+      .frame {
+        overflow: hidden;
+        border-radius: 18px;
+        background: #fff;
+        box-shadow:
+          0 10px 30px rgba(15, 23, 42, 0.12),
+          0 0 0 1px rgba(15, 23, 42, 0.06);
+      }
+      .screen {
+        position: relative;
+        overflow: hidden;
+        transform-origin: top left;
+      }
+      .screen[data-theme='dark'] {
+        color-scheme: dark;
+      }
+
+      /* ── 模拟页面内容（给玻璃一层底）── */
+      .page {
+        position: absolute;
+        inset: 0;
+        background: #f5f5f7;
+      }
+      .page::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background:
+          radial-gradient(560px 380px at 18% 12%, #ffd9a8 0%, transparent 62%),
+          radial-gradient(640px 420px at 82% 22%, #b8d6ff 0%, transparent 66%),
+          radial-gradient(620px 520px at 46% 88%, #c9f2d8 0%, transparent 64%),
+          radial-gradient(420px 320px at 92% 78%, #ffc7d9 0%, transparent 62%);
+      }
+      .page.dark {
+        background: #0f0f14;
+      }
+      .page.dark::before {
+        opacity: 0.45;
+        filter: saturate(0.75) brightness(0.62);
+      }
+
+      .island {
+        position: absolute;
+        top: 12px;
+        z-index: 4;
+        left: calc(var(--content-left, 0px) + (100% - var(--content-left, 0px)) / 2);
+        transform: translateX(-50%);
+        display: flex;
+        gap: 6px;
+        padding: 6px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.72);
+        border: 1px solid rgba(255, 255, 255, 0.6);
+        box-shadow:
+          0 10px 30px rgba(15, 23, 42, 0.1),
+          inset 0 1px 0 rgba(255, 255, 255, 0.8);
+        backdrop-filter: blur(24px) saturate(180%);
+      }
+      .island b {
+        display: block;
+        padding: 8px 16px;
+        border-radius: 999px;
+        font-size: 13px;
+        font-weight: 600;
+        color: #6e6e73;
+        white-space: nowrap;
+      }
+      .island b.on {
+        background: rgba(29, 29, 31, 0.08);
+        color: #1d1d1f;
+      }
+      .screen[data-theme='dark'] .island {
+        background: rgba(28, 28, 36, 0.72);
+        border-color: rgba(255, 255, 255, 0.1);
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+      }
+      .screen[data-theme='dark'] .island b {
+        color: #a1a1a6;
+      }
+      .screen[data-theme='dark'] .island b.on {
+        background: rgba(255, 255, 255, 0.1);
+        color: #fff;
+      }
+
+      .content {
+        position: absolute;
+        left: var(--content-left, 0);
+        right: 0;
+        top: 84px;
+        bottom: 0;
+        padding: 0 40px 40px;
+        overflow: hidden;
+      }
+      .content .card {
+        background: rgba(255, 255, 255, 0.86);
+        border-radius: 22px;
+        padding: 18px 20px;
+        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.07);
+        margin-bottom: 14px;
+      }
+      .content .card h3 {
+        margin: 0 0 8px;
+        font-size: 15px;
+      }
+      .content .line {
+        height: 9px;
+        border-radius: 5px;
+        background: rgba(15, 23, 42, 0.09);
+        margin: 8px 0;
+      }
+      .content .line.w70 {
+        width: 70%;
+      }
+      .content .line.w45 {
+        width: 45%;
+      }
+      .screen[data-theme='dark'] .content .card {
+        background: rgba(40, 40, 52, 0.8);
+      }
+      .screen[data-theme='dark'] .content .line {
+        background: rgba(255, 255, 255, 0.12);
+      }
+
+      /* ══════════════════════════════════════════════════════════
+         左栏本体
+         ══════════════════════════════════════════════════════════ */
+      .rail {
+        position: absolute;
+        inset: 0 auto 0 0;
+        z-index: 3;
+        width: var(--rail-w);
+        display: flex;
+        flex-direction: column;
+        padding: var(--rail-top) var(--pad-x) 16px;
+        border-radius: 0 24px 24px 0;
+        border-right: 1px solid rgba(255, 255, 255, 0.65);
+        background: rgba(255, 255, 255, 0.72);
+        backdrop-filter: blur(28px) saturate(180%);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.86);
+      }
+      .screen[data-theme='dark'] .rail {
+        background: rgba(28, 28, 36, 0.72);
+        border-right-color: rgba(255, 255, 255, 0.12);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+      }
+
+      .brand {
+        position: absolute;
+        top: 34px;
+        left: var(--pad-x);
+        right: var(--pad-x);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+      }
+      .mark {
+        width: 26px;
+        height: 26px;
+        border-radius: 7px;
+        background: #1d1d1f;
+        color: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 14px;
+        font-weight: 800;
+        flex: 0 0 auto;
+      }
+      .screen[data-theme='dark'] .mark {
+        background: #f5f5f7;
+        color: #1d1d1f;
+      }
+      .brand .bname {
+        display: none;
+        font-size: 14px;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+        color: #1d1d1f;
+        white-space: nowrap;
+      }
+      .screen[data-theme='dark'] .brand .bname {
+        color: #f5f5f7;
+      }
+      .screen[data-width='wide'] .brand {
+        justify-content: flex-start;
+        gap: 10px;
+        top: 36px;
+      }
+      .screen[data-width='wide'] .mark {
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
+      }
+      .screen[data-width='wide'] .brand .bname {
+        display: block;
+        font-size: 16px;
+      }
+
+      .scroll {
+        position: relative;
+        flex: 1 1 auto;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        overflow: hidden;
+      }
+      .group {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        gap: var(--group-gap);
+      }
+      .group.footer {
+        margin-top: auto;
+      }
+      .divider {
+        height: 0;
+        margin: 10px 0;
+      }
+
+      .indicator {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        z-index: 0;
+        border-radius: var(--pill-radius, 14px);
+        background: rgba(15, 23, 42, 0.075);
+        pointer-events: none;
+        transition: transform 0.34s cubic-bezier(0.23, 1, 0.32, 1);
+      }
+      .screen[data-theme='dark'] .indicator {
+        background: rgba(255, 255, 255, 0.12);
+      }
+
+      .item {
+        position: relative;
+        z-index: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+        gap: var(--item-gap, 0);
+        width: 100%;
+        height: var(--item-h);
+        padding: var(--item-pad, 6px 2px);
+        border: 0;
+        border-radius: var(--item-radius, 14px);
+        background: transparent;
+        color: #6e6e73;
+        font-family: inherit;
+        cursor: pointer;
+        transition:
+          background-color 0.16s ease,
+          color 0.16s ease,
+          transform 0.14s ease;
+      }
+      .screen[data-theme='dark'] .item {
+        color: #a1a1a6;
+      }
+      .item:hover {
+        background: rgba(15, 23, 42, 0.05);
+      }
+      .screen[data-theme='dark'] .item:hover {
+        background: rgba(255, 255, 255, 0.08);
+      }
+      .item:active {
+        transform: scale(0.97);
+      }
+      .item.active {
+        color: #1d1d1f;
+        background: transparent;
+      }
+      .screen[data-theme='dark'] .item.active {
+        color: #f5f5f7;
+      }
+
+      .item svg {
+        width: var(--icon);
+        height: var(--icon);
+        flex: 0 0 auto;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 1.9;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        transition:
+          transform 0.24s cubic-bezier(0.34, 1.3, 0.64, 1),
+          fill-opacity 0.16s ease;
+      }
+      .item .soft {
+        fill: currentColor;
+        fill-opacity: 0;
+      }
+      .item.active .soft {
+        fill-opacity: 0.1;
+      }
+      .item .label {
+        font-size: var(--label-size);
+        font-weight: 500;
+        letter-spacing: 0.01em;
+        line-height: 1.2;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 100%;
+      }
+      .item.active .label {
+        font-weight: 600;
+      }
+
+      .badge {
+        position: absolute;
+        top: 6px;
+        right: 8px;
+        min-width: 16px;
+        height: 16px;
+        padding: 0 4px;
+        border-radius: 8px;
+        background: #ff3b30;
+        color: #fff;
+        font-size: 10px;
+        font-weight: 700;
+        line-height: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid rgba(255, 255, 255, 0.78);
+        box-shadow: 0 2px 6px rgba(255, 59, 48, 0.5);
+      }
+
+      .more-wrap {
+        position: relative;
+        flex: none;
+        margin-top: 6px;
+      }
+      .more-icon circle {
+        fill: currentColor;
+        stroke: none;
+      }
+
+      /* ── 宽度档 ── */
+      .screen[data-width='wide'] {
+        --rail-w: 240px;
+        --pad-x: 12px;
+        --rail-top: 152px;
+        --group-gap: 6px;
+        --content-left: 240px;
+      }
+      .screen[data-width='narrow'] {
+        --rail-w: 88px;
+        --pad-x: 10px;
+        --rail-top: 150px;
+        --group-gap: 6px;
+        --content-left: 88px;
+      }
+
+      /* ── 现状 ── */
+      .screen[data-variant='current'] .indicator {
+        --pill-radius: 14px;
+      }
+      .screen[data-variant='current'][data-width='wide'] .item {
+        --icon: 24px;
+        --label-size: 16px;
+        --item-h: 58px;
+        --item-pad: 13px 16px;
+        --item-gap: 15px;
+        flex-direction: row;
+        justify-content: flex-start;
+      }
+      .screen[data-variant='current'][data-width='wide'] .badge {
+        position: static;
+        margin-left: auto;
+      }
+      .screen[data-variant='current'][data-width='narrow'] .item {
+        --icon: 20px;
+        --label-size: 13px;
+        --item-h: 56px;
+      }
+      .screen[data-variant='current'] .item .label {
+        display: block;
+      }
+      .screen[data-variant='current'][data-width='narrow'] .item .label {
+        display: none;
+      }
+      .screen[data-variant='current'] .item.active svg {
+        stroke-width: 2.5;
+      }
+
+      /* ── 方案 A：横排保留，只换语言 ── */
+      .screen[data-variant='A'] .indicator,
+      .screen[data-variant='B'] .indicator,
+      .screen[data-variant='C'] .indicator,
+      .screen[data-variant='D'] .indicator {
+        --pill-radius: 999px;
+        background: rgba(29, 29, 31, 0.08);
+        box-shadow:
+          inset 0 0 0 1px rgba(29, 29, 31, 0.1),
+          0 6px 18px rgba(29, 29, 31, 0.08);
+      }
+      .screen[data-theme='dark'][data-variant='A'] .indicator,
+      .screen[data-theme='dark'][data-variant='B'] .indicator,
+      .screen[data-theme='dark'][data-variant='C'] .indicator,
+      .screen[data-theme='dark'][data-variant='D'] .indicator {
+        background: rgba(255, 255, 255, 0.1);
+        box-shadow:
+          inset 0 0 0 1px rgba(255, 255, 255, 0.14),
+          0 8px 22px rgba(0, 0, 0, 0.28);
+      }
+      .screen[data-variant='A'][data-width='wide'] .item {
+        --icon: 24px;
+        --label-size: 16px;
+        --item-h: 60px;
+        --item-pad: 14px 16px;
+        --item-gap: 15px;
+        --item-radius: 999px;
+        flex-direction: row;
+        justify-content: flex-start;
+      }
+      .screen[data-variant='A'][data-width='narrow'] .item {
+        --icon: 22px;
+        --item-h: 52px;
+        --item-radius: 999px;
+      }
+      .screen[data-variant='A'] .item .label {
+        display: block;
+      }
+      .screen[data-variant='A'][data-width='narrow'] .item .label {
+        display: none;
+      }
+      .screen[data-variant='A'] .item.active svg {
+        transform: scale(1.12);
+      }
+
+      /* ── 方案 B：整栏竖过来，图标上 / 文字下 ── */
+      .screen[data-variant='B'][data-width='wide'] .item {
+        --icon: 24px;
+        --label-size: 15px;
+        --item-h: 64px;
+        --item-gap: 4px;
+        --item-pad: 10px 8px;
+        --item-radius: 999px;
+      }
+      .screen[data-variant='B'][data-width='narrow'] .item {
+        --icon: 22px;
+        --label-size: 11px;
+        --item-h: 58px;
+        --item-gap: 3px;
+        --item-pad: 8px 4px;
+        --item-radius: 999px;
+      }
+      .screen[data-variant='B'] .item .label {
+        display: block;
+      }
+      .screen[data-variant='B'] .item.active svg {
+        transform: scale(1.12);
+      }
+
+      /* ── 方案 C：竖排形态，但窄栏保持纯图标 ── */
+      .screen[data-variant='C'][data-width='wide'] .item {
+        --icon: 24px;
+        --label-size: 15px;
+        --item-h: 64px;
+        --item-gap: 4px;
+        --item-pad: 10px 8px;
+        --item-radius: 999px;
+      }
+      .screen[data-variant='C'][data-width='narrow'] .item {
+        --icon: 22px;
+        --item-h: 56px;
+        --item-radius: 999px;
+      }
+      .screen[data-variant='C'] .item .label {
+        display: block;
+      }
+      .screen[data-variant='C'][data-width='narrow'] .item .label {
+        display: none;
+      }
+      .screen[data-variant='C'] .item.active svg {
+        transform: scale(1.12);
+      }
+
+      /* ── 方案 D：浮动脉囊条 —— 高度由内容决定、垂直居中，不再占满栏 ── */
+      .screen[data-variant='D'] {
+        --content-left: 96px;
+      }
+      .screen[data-variant='D'] .rail {
+        inset: 50% auto auto 12px;
+        transform: translateY(-50%);
+        width: 72px;
+        padding: 10px 8px;
+        border: 1px solid rgba(255, 255, 255, 0.65);
+        border-radius: 36px;
+        box-shadow:
+          0 18px 44px rgba(15, 23, 42, 0.16),
+          inset 0 1px 0 rgba(255, 255, 255, 0.86);
+      }
+      .screen[data-theme='dark'][data-variant='D'] .rail {
+        border-color: rgba(255, 255, 255, 0.12);
+        box-shadow:
+          0 18px 44px rgba(0, 0, 0, 0.4),
+          inset 0 1px 0 rgba(255, 255, 255, 0.12);
+      }
+      .screen[data-variant='D'] .brand {
+        position: static;
+        justify-content: center;
+        padding: 0 0 6px;
+      }
+      .screen[data-variant='D'] .brand .bname {
+        display: none;
+      }
+      .screen[data-variant='D'] .mark {
+        width: 24px;
+        height: 24px;
+        border-radius: 7px;
+        font-size: 13px;
+      }
+      .screen[data-variant='D'] .scroll {
+        flex: none;
+        overflow: visible;
+      }
+      .screen[data-variant='D'] .scroll > .group:not(.main) {
+        display: none;
+      }
+      .screen[data-variant='D'] .divider {
+        display: none;
+      }
+      .screen[data-variant='D'] .group.main {
+        gap: 4px;
+      }
+      .screen[data-variant='D'] .item {
+        --icon: 22px;
+        --item-h: 46px;
+        --item-gap: 0;
+        --item-pad: 0;
+        --item-radius: 999px;
+      }
+      .screen[data-variant='D'] .item .label {
+        display: none;
+      }
+      .screen[data-variant='D'] .item.active svg {
+        transform: scale(1.12);
+      }
+      .screen[data-variant='D'] .more-wrap {
+        margin-top: 4px;
+      }
+
+      /* ── 发布（CTA 蓝，保留身份）── */
+      .screen[data-variant='current'] .item.compose,
+      .screen[data-variant='A'] .item.compose,
+      .screen[data-variant='B'] .item.compose,
+      .screen[data-variant='C'] .item.compose,
+      .screen[data-variant='D'] .item.compose {
+        background: #0071e3;
+        color: #fff;
+      }
+      .screen[data-variant='current'] .item.compose:hover,
+      .screen[data-variant='A'] .item.compose:hover,
+      .screen[data-variant='B'] .item.compose:hover,
+      .screen[data-variant='C'] .item.compose:hover,
+      .screen[data-variant='D'] .item.compose:hover {
+        background: #0f5fc4;
+        color: #fff;
+      }
+      .screen[data-variant='current'][data-width='wide'] .item.compose,
+      .screen[data-variant='A'][data-width='wide'] .item.compose {
+        --item-h: 48px;
+        --item-pad: 12px 16px;
+        border-radius: 999px;
+      }
+      .screen[data-variant='current'][data-width='narrow'] .item.compose,
+      .screen[data-variant='A'][data-width='narrow'] .item.compose {
+        width: 40px;
+        height: 40px;
+        margin: 4px auto;
+        padding: 0;
+        border-radius: 50%;
+      }
+      .screen[data-variant='current'][data-width='narrow'] .item.compose .label,
+      .screen[data-variant='A'][data-width='narrow'] .item.compose .label {
+        display: none;
+      }
+      .screen[data-variant='B'] .item.compose,
+      .screen[data-variant='C'] .item.compose,
+      .screen[data-variant='D'] .item.compose {
+        border-radius: 999px;
+      }
+
+      .screen[data-width='portrait'] {
+        --content-left: 0px;
+      }
+      .screen[data-theme='dark'] .page {
+        background: #0f0f14;
+      }
+      .screen[data-theme='dark'] .page::before {
+        opacity: 0.45;
+        filter: saturate(0.75) brightness(0.62);
+      }
+
+      /* ══ 竖屏底栏（参照） ══ */
+      .bn {
+        position: absolute;
+        left: 20px;
+        right: 20px;
+        bottom: 20px;
+        height: 62px;
+        padding: 7px;
+        z-index: 3;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.72);
+        backdrop-filter: blur(28px) saturate(180%);
+        border: 1px solid rgba(255, 255, 255, 0.5);
+        box-shadow:
+          0 14px 36px rgba(15, 23, 42, 0.14),
+          inset 0 1px 0 rgba(255, 255, 255, 0.8);
+      }
+      .screen[data-theme='dark'] .bn {
+        background: rgba(24, 26, 32, 0.72);
+        border-color: rgba(255, 255, 255, 0.1);
+        box-shadow:
+          0 18px 38px rgba(0, 0, 0, 0.34),
+          inset 0 1px 0 rgba(255, 255, 255, 0.08);
+      }
+      .bn-items {
+        position: relative;
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        height: 100%;
+        align-items: center;
+      }
+      .bn-pill {
+        position: absolute;
+        top: 2px;
+        bottom: 2px;
+        left: 0;
+        width: calc(100% / 5 - 6px);
+        border-radius: 999px;
+        background: rgba(29, 29, 31, 0.08);
+        box-shadow:
+          inset 0 0 0 1px rgba(29, 29, 31, 0.1),
+          0 6px 18px rgba(29, 29, 31, 0.08);
+        transform: translateX(calc(var(--i, 0) * (100% + 6px)));
+      }
+      .screen[data-theme='dark'] .bn-pill {
+        background: rgba(255, 255, 255, 0.1);
+        box-shadow:
+          inset 0 0 0 1px rgba(255, 255, 255, 0.14),
+          0 8px 22px rgba(0, 0, 0, 0.28);
+      }
+      .bn-item {
+        position: relative;
+        z-index: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 0;
+        background: transparent;
+        padding: 0;
+        color: #8e8e93;
+      }
+      .bn-item.active {
+        color: #1d1d1f;
+      }
+      .screen[data-theme='dark'] .bn-item {
+        color: #a1a1aa;
+      }
+      .screen[data-theme='dark'] .bn-item.active {
+        color: #fff;
+      }
+      .bn-item svg {
+        width: 22px;
+        height: 22px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 1.9;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        transition: transform 0.24s cubic-bezier(0.34, 1.3, 0.64, 1);
+      }
+      .bn-item .soft {
+        fill: currentColor;
+        fill-opacity: 0;
+      }
+      .bn-item.active .soft {
+        fill-opacity: 0.1;
+      }
+      .bn-item.active svg {
+        transform: translateY(-3px) scale(1.14);
+      }
+
+      .notes {
+        margin-top: 26px;
+        max-width: 940px;
+        display: grid;
+        gap: 8px;
+      }
+      .notes p {
+        margin: 0;
+        font-size: 13px;
+        line-height: 1.75;
+        color: #3a3a3d;
+      }
+      .notes b {
+        font-weight: 700;
+      }
+      .notes .tag {
+        display: inline-block;
+        padding: 1px 8px;
+        border-radius: 999px;
+        background: rgba(15, 23, 42, 0.07);
+        font-size: 11px;
+        font-weight: 700;
+        margin-right: 6px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="topbar">
+      <h1>横屏左栏 ↔ 竖屏底栏 · 对齐预览</h1>
+      <div>
+        <span class="seg-title">方案</span>
+        <div class="seg" id="variant-seg">
+          <label><input type="radio" name="variant" value="current" /><span>现状</span></label>
+          <label
+            ><input type="radio" name="variant" value="A" /><span>方案 A · 横排保留</span></label
+          >
+          <label
+            ><input type="radio" name="variant" value="B" /><span
+              >方案 B · 图标上文字下</span
+            ></label
+          >
+          <label
+            ><input type="radio" name="variant" value="C" /><span>方案 C · 窄栏纯图标</span></label
+          >
+          <label
+            ><input type="radio" name="variant" value="D" checked /><span
+              >方案 D · 浮动脉囊条</span
+            ></label
+          >
+        </div>
+      </div>
+      <div>
+        <span class="seg-title">主题</span>
+        <div class="seg" id="theme-seg">
+          <label><input type="radio" name="theme" value="light" checked /><span>亮色</span></label>
+          <label><input type="radio" name="theme" value="dark" /><span>暗色</span></label>
+        </div>
+      </div>
+      <span class="hint">仅视觉预览，不是产物代码</span>
+    </div>
+
+    <div class="board" id="board"></div>
+
+    <div class="notes">
+      <p>
+        <span class="tag">现状</span>14px 圆角淡块、选中靠描边 2.5；便捷 / 工具区是 lucide
+        细线图标。
+      </p>
+      <p>
+        <span class="tag">方案 A</span>保留宽栏「图标左置」的横排；选中改成底栏那套
+        <b>胶囊 + 内描边 + 软填充 + 图标放大 1.12</b>，全部自绘图标；窄栏仍纯图标（20 → 22）。
+      </p>
+      <p>
+        <span class="tag">方案 B</span>整栏竖过来：宽栏<b>图标在上、文字在下</b>（行高 64），
+        窄栏也显示 11px 文字（行高 58）；选中与 A 完全同一套胶囊。
+      </p>
+      <p>
+        <span class="tag">方案 C</span>与 B 同形，但窄栏保持<b>纯图标</b>（行高 56、图标 22）， 避免
+        88px 栏里塞 11px 字导致识别变慢。
+      </p>
+      <p>
+        <span class="tag">方案 D</span>单胶囊、纯图标：宽 72 / 圆角 36，<b>5 席 + 更多</b> 共 6 项约
+        346 高，垂直居中； 发布 / 资产 / 首页 / 主题 / 退出登录全部收进「更多」菜单。
+      </p>
+      <p>
+        共同项：品牌位与玻璃材质保留（D 的品牌标留在胶囊顶部）。A/B/C 保留蓝色发布 CTA； D 把发布 /
+        资产 / 首页 / 主题 / 退出全部收进「更多」。B 在 900 高下 9 项约 794px，D 只有 348px。
+      </p>
+    </div>
+
+    <script>
+      const ICONS = {
+        community:
+          '<path d="m3.5 10 8.5-7 8.5 7"/><path class="soft" d="M5.5 9v11h13V9"/><path d="M9.5 20v-6h5v6"/>',
+        messages:
+          '<path class="soft" d="M5 4h14a3 3 0 0 1 3 3v8a3 3 0 0 1-3 3h-7l-5 3v-3H5a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3Z"/><circle cx="8" cy="11.5" r="1.1" fill="currentColor" stroke="none"/><circle cx="12" cy="11.5" r="1.1" fill="currentColor" stroke="none"/><circle cx="16" cy="11.5" r="1.1" fill="currentColor" stroke="none"/>',
+        shop: '<path class="soft" d="M5 8h14l1 12H4L5 8Z"/><path d="M9 9V6a3 3 0 0 1 6 0v3"/>',
+        cloud:
+          '<rect x="7" y="2.5" width="14.5" height="14.5" rx="3"/><rect class="soft" x="2.5" y="7" width="14.5" height="14.5" rx="3"/><circle cx="7.5" cy="11.5" r="1.2" fill="currentColor" stroke="none"/><path d="m3.5 18.5 4.5-4.5 3.5 3.5 2.5-2.5 3 3.5"/>',
+        posts:
+          '<circle class="soft" cx="12" cy="8" r="4"/><path d="M4.5 21v-2a7.5 7.5 0 0 1 15 0v2"/>',
+        compose:
+          '<path class="soft" d="M4 20l1.2-4.6L15.8 4.8a2.4 2.4 0 0 1 3.4 3.4L8.6 18.8 4 20Z"/><path d="m13.6 7 3.4 3.4"/><path d="M4 20h16"/>',
+        assets:
+          '<rect class="soft" x="3" y="6" width="18" height="13" rx="3"/><path d="M3 10h18"/><path d="M16.5 14.5h1.5"/>',
+        home: '<path d="M4.5 11 12 4.5 19.5 11"/><path class="soft" d="M6 10v9.5h12V10"/><path d="M12 19v-5"/><path d="m9.6 15.6 2.4-2.4 2.4 2.4"/>',
+        more: '<circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/>',
+      };
+
+      const MAIN = [
+        { id: 'community', label: '内容' },
+        { id: 'messages', label: '消息', badge: 3 },
+        { id: 'shop', label: '周边' },
+        { id: 'cloud', label: '图库' },
+        { id: 'posts', label: '我' },
+      ];
+      const ACTIONS = [
+        { id: 'compose', label: '发布', cta: true },
+        { id: 'assets', label: '资产' },
+      ];
+
+      const svg = (id, cls = '') =>
+        `<svg${cls ? ` class="${cls}"` : ''} viewBox="0 0 24 24" aria-hidden="true">${ICONS[id] || ''}</svg>`;
+
+      const railMarkup = (active = 'community') => {
+        const items = MAIN.map(
+          (it) => `
+          <button class="item${it.id === active ? ' active' : ''}" data-tab="${it.id}" type="button">
+            ${svg(it.id)}
+            <span class="label">${it.label}</span>
+            ${it.badge ? `<span class="badge">${it.badge}</span>` : ''}
+          </button>`,
+        ).join('');
+        const actions = ACTIONS.map(
+          (a) => `
+          <button class="item${a.cta ? ' compose' : ''}" data-rail-action="${a.id}" type="button">
+            ${svg(a.id)}<span class="label">${a.label}</span>
+          </button>`,
+        ).join('');
+        const home = `
+          <button class="item" data-rail-action="home" type="button">
+            ${svg('home')}<span class="label">首页</span>
+          </button>`;
+        const more = `
+          <button class="item" data-rail-action="more" type="button">
+            ${svg('more', 'more-icon')}<span class="label">更多</span>
+          </button>`;
+        return `
+        <aside class="rail">
+          <div class="brand"><span class="mark">方</span><span class="bname">方块之家</span></div>
+          <div class="scroll">
+            <nav class="group main" aria-label="主导航">
+              <span class="indicator" aria-hidden="true"></span>
+              ${items}
+            </nav>
+            <div class="divider" aria-hidden="true"></div>
+            <nav class="group" aria-label="便捷操作">${actions}</nav>
+            <div class="divider" aria-hidden="true"></div>
+            <nav class="group footer" aria-label="工具">${home}</nav>
+          </div>
+          <div class="more-wrap">${more}</div>
+        </aside>`;
+      };
+
+      const pageMarkup = () => `
+        <div class="page">
+          <div class="island"><b>最新</b><b class="on">关注</b><b>官方</b><b>成员</b></div>
+          <div class="content">
+            <div class="card"><h3>今天的方块</h3><div class="line"></div><div class="line w70"></div><div class="line w45"></div></div>
+            <div class="card"><h3>社区广播</h3><div class="line"></div><div class="line w70"></div></div>
+            <div class="card"><h3>八周年</h3><div class="line w70"></div><div class="line w45"></div></div>
+          </div>
+        </div>`;
+
+      const bottomMarkup = () => `
+        <div class="bn">
+          <div class="bn-items" style="--i:0">
+            <span class="bn-pill" aria-hidden="true"></span>
+            ${MAIN.map(
+              (it, i) =>
+                `<button class="bn-item${i === 0 ? ' active' : ''}" data-tab="${it.id}" type="button">${svg(it.id)}</button>`,
+            ).join('')}
+          </div>
+        </div>`;
+
+      const FRAMES = [
+        {
+          kind: 'rail',
+          width: 1440,
+          height: 900,
+          scale: 0.46,
+          dataWidth: 'wide',
+          title: '宽栏 240',
+          sub: '1440×900',
+        },
+        {
+          kind: 'rail',
+          width: 1100,
+          height: 800,
+          scale: 0.52,
+          dataWidth: 'narrow',
+          title: '窄栏 88',
+          sub: '1100×800',
+        },
+        {
+          kind: 'bottom',
+          width: 390,
+          height: 844,
+          scale: 0.58,
+          dataWidth: 'portrait',
+          title: '竖屏底栏（参照）',
+          sub: '390×844',
+        },
+      ];
+
+      const board = document.getElementById('board');
+      for (const f of FRAMES) {
+        const col = document.createElement('div');
+        col.className = 'col';
+        const head = document.createElement('div');
+        head.className = 'col-title';
+        head.dataset.role = 'col-title';
+        head.innerHTML = `${f.title} <small>${f.sub}</small>`;
+        const frame = document.createElement('div');
+        frame.className = 'frame';
+        frame.style.width = `${Math.round(f.width * f.scale)}px`;
+        frame.style.height = `${Math.round(f.height * f.scale)}px`;
+        const screen = document.createElement('div');
+        screen.className = 'screen';
+        screen.dataset.width = f.dataWidth;
+        screen.dataset.baseTitle = f.title;
+        screen.dataset.sub = f.sub;
+        screen.dataset.variant = 'A';
+        screen.dataset.theme = 'light';
+        screen.style.width = `${f.width}px`;
+        screen.style.height = `${f.height}px`;
+        screen.style.transform = `scale(${f.scale})`;
+        screen.innerHTML =
+          f.kind === 'rail' ? pageMarkup() + railMarkup() : pageMarkup() + bottomMarkup();
+        frame.appendChild(screen);
+        col.append(head, frame);
+        board.appendChild(col);
+      }
+
+      function syncIndicators() {
+        document.querySelectorAll('.rail').forEach((rail) => {
+          const screen = rail.closest('.screen');
+          const group = rail.querySelector('.group.main');
+          const active = group && group.querySelector('.item.active');
+          const ind = group && group.querySelector('.indicator');
+          if (!active || !ind) return;
+          const variant = screen.dataset.variant;
+          const narrow = screen.dataset.width === 'narrow';
+          const inset = variant === 'current' ? 0 : variant === 'D' ? 2 : narrow ? 3 : 4;
+          ind.style.opacity = '1';
+          ind.style.transform = `translateY(${Math.round(active.offsetTop + inset)}px)`;
+          ind.style.height = `${Math.round(active.offsetHeight - inset * 2)}px`;
+          ind.style.borderRadius = variant === 'current' ? '14px' : '999px';
+        });
+      }
+
+      function applyState() {
+        const variant = document.querySelector('input[name="variant"]:checked').value;
+        const theme = document.querySelector('input[name="theme"]:checked').value;
+        document.querySelectorAll('.screen').forEach((s) => {
+          s.dataset.variant = variant;
+          s.dataset.theme = theme;
+        });
+        document.querySelectorAll('[data-role="col-title"]').forEach((h) => {
+          const screen = h.parentElement.querySelector('.screen');
+          if (!screen) return;
+          const capsule = variant === 'D' && screen.dataset.width !== 'portrait';
+          h.innerHTML = `${capsule ? '胶囊条 72' : screen.dataset.baseTitle} <small>${screen.dataset.sub}</small>`;
+        });
+        requestAnimationFrame(() => requestAnimationFrame(syncIndicators));
+      }
+
+      document
+        .querySelectorAll('input[name="variant"], input[name="theme"]')
+        .forEach((input) => input.addEventListener('change', applyState));
+      applyState();
+    </script>
+  </body>
+</html>

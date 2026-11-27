@@ -9,17 +9,30 @@
          一级首页才有「设置」标题 + 大返回 + 搜索；往下每一层只有一个返回条。 -->
     <!-- 页头只在一级首页出现（2026-11-10 用户口径）：二级 / 三级页不显示「设置」标题、
          大返回与搜索 —— 子页的返回交给它们自己的返回条（.gs-inline-bar）。 -->
-    <!-- 页头用过渡收起（2026-11-10：「点进二级页整页会顿一下再上移」——
-         原来 v-if 一刀切掉 76px 高的页头，内容瞬间上跳。现在高度/透明度一起过渡）。 -->
-    <Transition name="gs-header-collapse">
-      <UserCenterPageHeader
-        v-if="isHome"
-        title="设置"
-        max-width="1200px"
-        :show-back="showBack"
-        @back="handleBack"
-      />
-    </Transition>
+    <!-- 页头**不做高度动画**（2026-11-26 实测修正）：
+         2026-11-10 曾用 `<Transition name="gs-header-collapse">` 让高度/透明度一起过渡，
+         想消除「点进二级页整页上跳」。逐帧实测（390×844，rAF 采样）发现那套从来没生效过，
+         而且反而制造了用户这次报的「卡一下再上移」：
+
+           t≈0ms    点组行 → gs-main 顶部 250 → 178px（搜索框 v-if 卸载，**瞬间** -72px）
+           t=15ms   页头拿到 gs-header-collapse-leave-*，但 height **恒 72px 不动**
+                    （它自己的 `min-height: 72px` 把 max-height 动画完全压住），
+                    而 leave-from 的 max-height: 130px 又比真实高度多 58px
+                    ⇒ 前约 130ms 完全没变化，这就是「卡一下」
+           t=15→264ms 只剩 padding-top 78→0 在走，内容缓慢上移 78px
+           t≈264ms  页头终于卸载，gs-main 顶部 158 → 70px，**再瞬间跳 88px**
+
+         即：一次点击 = 两个瞬跳夹着一段空转 + 一段慢移。任何「让高度过渡更平滑」的
+         写法都改不掉本质 —— 塌陷动画本身就是用户说的「选项上移到顶部」。
+         正确做法照 iOS push：**布局同帧一步到位，只留横向滑入**（见下方 gsPaneForward）。
+         ⇒ 这里直接 v-if，不要加回 Transition；padding-top 的过渡也一并删掉。 -->
+    <UserCenterPageHeader
+      v-if="isHome"
+      title="设置"
+      max-width="1200px"
+      :show-back="showBack"
+      @back="handleBack"
+    />
 
     <div class="profile-subpage-body">
       <HomeCatMascot
@@ -420,6 +433,18 @@ const props = defineProps({
     type: String,
     default: '',
   },
+  /**
+   * 二级组页 id（'' = 一级首页）—— **由 URL 的 `?group=` 决定，不再是纯内存态**
+   * （2026-11-26 修「刷新后落回一级页」）。
+   * 组件自己只读它、不写它：写入一律 emit('open-group', id)，由宿主落 URL，
+   * 再流回来。这样「刷新 / 前进后退 / 深链」与「点进去」走的是同一条路径。
+   * ⚠️ 空串是合法值（= 首页），别写成 `default: null` 再从 null 归一 —— 那会让
+   *    「返回首页」与「没传」两种状态无法区分。
+   */
+  activeGroup: {
+    type: String,
+    default: '',
+  },
   hideOnlineStatus: {
     type: Boolean,
     default: false,
@@ -505,6 +530,9 @@ const props = defineProps({
 });
 
 const emit = defineEmits([
+  /** 2026-11-26：二级组页进出改由 URL `?group=` 承载，组件只发意图、不自己改状态 */
+  'open-group',
+  'close-group',
   'back',
   'open-theme',
   'open-cloud',
@@ -624,8 +652,17 @@ const GROUPS = [
 ];
 const GROUP_LABEL = Object.fromEntries(GROUPS.map((group) => [group.id, group.label]));
 
-/** 当前打开的二级页 / 详情（'' = 首页；桌面下 = 右栏「概览」） */
-const activeEntryId = ref('');
+/** 当前打开的二级页 / 详情 —— **镜像 props.activeGroup，本身不再持有层级真源**
+    （2026-11-26 修「在通行密钥页刷新，回来却是更换邮箱」）。
+    真源是 URL 的 `?group=`：进/出都经宿主落 URL，再由 props 流回来。
+    这里只做两件 props 做不到的事：归一成 catalog 认识的 id（脏值一律当首页）、
+    以及记住方向（props 只带「现在在哪一层」，带不了「从哪边进来的」）。 */
+const activeEntryId = computed(() => {
+  const raw = String(props.activeGroup || '').trim();
+  if (!raw) return '';
+  const hit = catalog.value.find((entry) => entry.id === raw && entry.kind === 'group');
+  return hit ? hit.id : '';
+});
 /** 进入 = forward（新内容从右滑入），返回 = back（从左滑回）—— iOS push/pop 的方向记忆 */
 const paneDirection = ref('forward');
 const panelRootRef = ref(null);
@@ -770,11 +807,13 @@ onBeforeUnmount(() => {
 onDeactivated(() => setSettingsImmersive(false));
 onActivated(() => setSettingsImmersive(immersiveSubpage.value));
 
-/* 横竖切换时清掉选中态：竖屏没有「右栏详情」，留着会在转回横屏时莫名其妙地打开一项 */
+/* 横竖切换：竖屏没有「右栏详情」。二级组页现在住 URL（props.activeGroup），
+   本组件已经不能自己清它了 —— 交给宿主在断点变化时清 `?group=`
+   （见 UserSpaceMain 的 settingsWideViewport watch）。这里只负责把方向复位， */
 watch(
   () => props.twoPane,
   () => {
-    activeEntryId.value = '';
+    paneDirection.value = 'forward';
   },
 );
 
@@ -1281,9 +1320,9 @@ const shellStyle = computed(() => {
 });
 
 /* 把「我在竖屏子页里」广播给 App 级导航岛。
-   ⚠️ 竖屏点组行进二级页**不改 URL**（openEntry 是纯内存态），所以 App 那边没法靠
-      路由判断 —— 必须由面板主动写。immediate 让深链直达子页时首帧就是沉浸态，
-      不会「先挂一帧岛再消失」。
+   ⚠️ 2026-11-26 起二级页住 URL（`?group=`），但**沉浸态仍然不能只靠路由判据**：
+      `?group=` 是「哪一层」，而沉浸态还要看 `twoPane` 与 edit/inline 三种形态，
+      路由里没有这些。所以这条广播保留，只是它的输入已有一半来自路由。
    ⚠️ 卸载时必须复位：本面板被 KeepAlive 缓存，离开「我」页不会触发 onUnmounted，
       但会触发 onDeactivated（下面 watch 里一并处理）—— 否则岛会在别的 tab 上继续隐藏。 */
 watch(immersiveSubpage, (active) => setSettingsImmersive(active), { immediate: true });
@@ -1431,7 +1470,9 @@ const openEntry = (item) => {
   if (props.editOpen) emit('close-edit');
   if (props.inlinePanel) emit('close-panel');
   paneDirection.value = 'forward';
-  activeEntryId.value = item.id;
+  /* 不在这里改 activeEntryId —— 它是 props.activeGroup 的镜像（computed，不可写）。
+     交给宿主落 URL，再流回来；这样刷新 / 前进后退和点击是同一条路径。 */
+  emit('open-group', item.id);
   resetPaneScroll();
 };
 
@@ -1440,7 +1481,7 @@ const showOverview = () => {
   if (props.editOpen) emit('close-edit');
   if (props.inlinePanel) emit('close-panel');
   paneDirection.value = 'back';
-  activeEntryId.value = '';
+  emit('close-group');
   resetPaneScroll();
 };
 
@@ -1489,8 +1530,14 @@ const handleBack = () => {
      同时改写 --user-center-nav-offset，让 sticky 的页头也停在导航栏下方。 */
   --user-center-nav-offset: var(--userspace-nav-h, 78px);
   padding-top: var(--userspace-nav-h, 78px);
-  /* 进出子页时留白 78 ↔ 0 会变：做成过渡，避免整页「硬跳一下」 */
-  transition: padding-top 240ms cubic-bezier(0.32, 0.72, 0, 1);
+  /* ⚠️ 这里**刻意没有 transition**（2026-11-26 实测删除）。
+     原来写着 `transition: padding-top 240ms`，想让「进子页留白 78 ↔ 0」不硬跳。
+     逐帧实测的结论相反：它正是用户报的「卡一下然后选项上移到顶部」的主体 ——
+     页头那套高度过渡实际没生效（min-height 压住 max-height），屏幕上唯一在动的
+     就是这个 padding，于是 240ms 里内容以 78px 的幅度**缓慢上爬**，
+     看起来像「卡了一下才开始挪」。留白是布局量，不是可动画的视觉量：
+     它一变，内容位置就必须同帧到位，否则每个中间帧都是「位置不对」的画面。
+     ⇒ 留白一步到位，位移感交给横向滑入（见下方 gsPaneForward）。 */
 }
 
 /* 竖屏子页沉浸态（2026-11-24）：导航岛已卸载 ⇒ 留白归零（值由 shellStyle 写死，
@@ -1503,32 +1550,7 @@ const handleBack = () => {
   padding-top: max(8px, env(safe-area-inset-top, 0px));
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .profile-subpage-shell {
-    transition: none;
-  }
-}
-
-/* 页头收起 / 展开：进出二级页时高度渐变，避免内容整体上跳 */
-.gs-header-collapse-enter-active,
-.gs-header-collapse-leave-active {
-  overflow: hidden;
-  transition:
-    max-height 240ms cubic-bezier(0.32, 0.72, 0, 1),
-    opacity 180ms ease;
-}
-
-.gs-header-collapse-enter-from,
-.gs-header-collapse-leave-to {
-  max-height: 0;
-  opacity: 0;
-}
-
-.gs-header-collapse-enter-to,
-.gs-header-collapse-leave-from {
-  max-height: 130px;
-  opacity: 1;
-}
+/* reduced-motion：本外壳已无 transition，这条只留作「别再加回来」的显式声明 */
 
 /* ---------- 设置搜索 ---------- */
 .gs-search {
@@ -1681,42 +1703,44 @@ const handleBack = () => {
   gap: 26px;
 }
 
-/* 单栏钻取动效（2026-10-29 第二版：方向化 + 错峰） ----------
-   第一版是无方向淡入，用户读不出「我是在前进还是后退」，所以显得不够优雅。
-   现在照 iOS push/pop 的方向记忆：
-     · 进入（forward）= 从右滑入 32px —— 新内容「来自你点的那一侧」
-     · 返回（back）   = 从左滑回 24px —— 幅度略小，返回比前进更轻
-   缓动用 iOS 导航曲线 cubic-bezier(0.32, 0.72, 0, 1)：先快后长尾，比 ease-out 从容。
-   多张卡片按 45ms/张错峰进场 —— 「依次浮现」比「一坨同时弹出来」优雅得多。
-   为什么仍是 CSS animation 而不是 <Transition>：分支是 v-if / v-else-if，切换时元素
-   本来就是新建的，animation 自动播放；Transition 必须包一层 div，会打断 .gs-main
-   的 flex gap（组间 26px 全靠它）。
-   ⚠️ 双栏切分类不会重播：那边是 v-show（isGroupVisible），元素没重建。 */
-.gs-main.is-direction-forward > section,
-.gs-main.is-direction-forward > .gs-identity {
-  animation: gsPaneForward 280ms cubic-bezier(0.32, 0.72, 0, 1) both;
+/* 单栏钻取动效（2026-11-26 第三版：布局瞬变 + 整体横移） ----------
+   ⚠️ 这一版推翻了前两版的**前提**，理由必须留在这里：
+
+   前两版（2026-10-29 无方向淡入 → 第二版方向化 + 45ms 错峰）都在「让内容改变位置的
+   过程变平滑」，逐帧实测（390×844，rAF 采样，见 v2 的 64 帧记录）证明那条路走不通：
+     · 一次点击里有**三处**位置变化，彼此不同步 —— 搜索框卸载(-72px，瞬跳)、
+       padding-top 走过渡(-78px，慢爬 240ms)、页头卸载(-88px，瞬跳)。
+       把其中一段动画化，只是把「一次硬跳」变成「硬跳 + 慢移 + 硬跳」。
+     · 错峰 45/90ms 让最后一张卡片要 370ms 才到位，读起来更慢，不是更顺。
+
+   iOS push 模型（本版）：**新页面在它最终的位置上被组出来，只做横向进入**。
+   位置变化不进动画 —— 布局同帧一步到位（页头 v-if、留白无 transition，见上两处注释），
+   屏幕上唯一的连续变化就是横向位移。这样任何一个中间帧都是「一次导航中的一个瞬间」，
+   而不是「还没挪到位」。
+
+   两个刻意选择：
+     · **不再从 opacity 0 起**：repo 里已记过多次「入场从 0 起 = 白帧」
+       （见 UserSpaceMain 的 tab-no-replay 长注释）。这里从 0.55 起 —— 内容始终可见，
+       只承担「新的一层压上来」的层次感，不出空屏。
+     · **取消错峰**：所有直接子元素同一时长、同一曲线一起走，整块读成「一页」。
+       （`.gs-inline-bar` 也是直接子元素，随之一起进 —— 页头固定而内容在动会更像慢加载。）
+
+   ⚠️ 双栏切分类不会重播：那边是 v-show（isGroupVisible），元素没重建。
+   ⚠️ 为什么仍是 CSS animation 而不是 <Transition>：分支是 v-if / v-else-if，切换时元素
+      本来就是新建的，animation 自动播放；Transition 必须包一层 div，会打断 .gs-main
+      的 flex gap（组间 26px 全靠它）。 */
+.gs-main.is-direction-forward > * {
+  animation: gsPaneForward 240ms cubic-bezier(0.32, 0.72, 0, 1) both;
 }
 
-.gs-main.is-direction-back > section,
-.gs-main.is-direction-back > .gs-identity {
-  animation: gsPaneBack 280ms cubic-bezier(0.32, 0.72, 0, 1) both;
-}
-
-/* 错峰：首张立即，其后每张 +45ms（下标从第 2 个子元素起算） */
-.gs-main.is-direction-forward > *:nth-child(2),
-.gs-main.is-direction-back > *:nth-child(2) {
-  animation-delay: 45ms;
-}
-
-.gs-main.is-direction-forward > *:nth-child(3),
-.gs-main.is-direction-back > *:nth-child(3) {
-  animation-delay: 90ms;
+.gs-main.is-direction-back > * {
+  animation: gsPaneBack 240ms cubic-bezier(0.32, 0.72, 0, 1) both;
 }
 
 @keyframes gsPaneForward {
   from {
-    opacity: 0;
-    transform: translateX(32px);
+    opacity: 0.55;
+    transform: translateX(20px);
   }
 
   to {
@@ -1727,8 +1751,8 @@ const handleBack = () => {
 
 @keyframes gsPaneBack {
   from {
-    opacity: 0;
-    transform: translateX(-24px);
+    opacity: 0.6;
+    transform: translateX(-14px);
   }
 
   to {

@@ -391,17 +391,7 @@
     color 140ms ease;
 }
 
-.bottom-nav-icon-soft {
-  fill: currentColor;
-  fill-opacity: 0;
-  transition: fill-opacity 140ms ease;
-}
-
-.nav-item.active .bottom-nav-icon-soft,
-.nav-compact .bottom-nav-icon-soft,
-.userspace-rail-item.active .bottom-nav-icon-soft {
-  fill-opacity: 0.1;
-}
+/* 自绘图标的软填充层已收口到 styles/common/nav-icon-soft.css（底栏 + 横屏左栏共用） */
 
 .nav-item.active .nav-icon {
   transform: translateY(-3px) scale(1.14);

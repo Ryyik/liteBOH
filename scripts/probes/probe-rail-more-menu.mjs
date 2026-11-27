@@ -2,15 +2,11 @@ import { chromium } from 'playwright';
 import fs from 'node:fs';
 
 // =====================================================================
-// 探针：横屏左栏「更多」（主题 / 退出登录）浮层可见性
-//   回归对象（2026-10-11 用户报障「折叠/窄栏下内容显示不全」）：
-//   `.userspace-rail-menu` 挂在 `.userspace-rail-scroll`（overflow-x: hidden +
-//   overflow-y: auto）内部，绝对定位向右/向上展开时被滚动容器的 padding box 裁掉，
-//   表现为窄栏（88px）下只剩图标 + 半个字（「深色模式」→「深」）。
-//   断言口径：浮层矩形必须完整落在**所有裁剪祖先的交集**内，且菜单项文字
-//   本身没有被压缩（scrollWidth ≤ clientWidth）。
-//   反证：COUNTERPROOF=1 时注入 `.userspace-rail-scroll{overflow:visible!important}`
-//   让裁剪消失——不对，反证方向相反，见文件末尾说明。
+// 探针：横屏左栏「更多」浮层可见性（2026-11-26 胶囊版）
+//   左栏已是 72px 竖排胶囊：收起 5 席 + 更多，发布/资产/首页/主题/退出全在菜单里。
+//   回归对象仍是「浮层被裁剪 / 被内容层遮挡」——胶囊很窄，菜单 172px 必然向右越出，
+//   所以断言口径是：矩形完整落在所有裁剪祖先的交集内、右端内侧仍命中菜单自身。
+//   反证在文末：给胶囊注入 overflow:hidden，测量必须报出 widthLoss > 0。
 // =====================================================================
 const BASE = 'http://[::1]:5173';
 const OUT = 'debug-screenshots/rail-more-menu';
@@ -321,21 +317,18 @@ const measureMenu = (page) =>
   await context.close();
 }
 
-// ───────── 档 4：反证自检（把浮层搬回滚动容器 ⇒ 断言必须能测出裁剪） ─────────
-//   这条不是测产品，是测**本探针有牙**：DOM 还原成 2026-10-11 之前的层级
-//   （more-wrap 作为 .userspace-rail-scroll 的子元素），同一套测量函数必须报出
-//   widthLoss > 0。它防的是「入口搬家 / 测量口径写错导致断言永远绿」。
+// ───────── 档 4：反证自检（给胶囊加 overflow:hidden ⇒ 断言必须能测出裁剪） ─────────
+//   2026-11-26 改版后左栏不再有滚动容器（`.userspace-rail-scroll` 已删除），
+//   浮层直接挂在 72px 胶囊里。反证改为给胶囊注入 overflow:hidden：
+//   同一套测量函数必须报出 widthLoss > 0 —— 防「测量口径写错导致断言永远绿」。
 {
   const { context, page } = await open(1100, 800, 'counterproof');
-  await page.evaluate(() => {
-    const wrap = document.querySelector('.userspace-rail-more-wrap');
-    document.querySelector('.userspace-rail-scroll').appendChild(wrap);
-  });
+  await page.addStyleTag({ content: '.userspace-rail { overflow: hidden !important; }' });
   await page.click('.userspace-rail-more');
   await page.waitForTimeout(260);
   const m = await measureMenu(page);
   check(
-    'R1 反证：浮层搬回滚动容器后，测量必须报出裁剪（widthLoss > 0）',
+    'R1 反证：胶囊加 overflow:hidden 后，测量必须报出裁剪（widthLoss > 0）',
     m.menuExists && m.widthLoss > 0,
     `宽度损失 ${m.widthLoss}px / 浮层 ${m.menu?.width}px`,
   );

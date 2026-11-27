@@ -94,18 +94,6 @@ const gateNewContext = async (options = {}) => {
     } catch {
       /* about:blank 等无 storage 场景忽略 */
     }
-    try {
-      /* 抑制「概览加载岛」：首页登录后 Home 会调 maybeShowOverviewIsland() →
-         showIsland.custom(OverviewIslandLoading)，导航会被撑成 has-custom-card 展开态。
-         开屏在场时这段不跑（本次改动前探针从没撞上它），开屏一跳过它就跟着跑，
-         A 组「首帧 mini」测量会随机量到展开态的中间值。
-         预置「本会话已弹过」标记 = 稳定复现真实老用户的状态。
-         userId 与下方 injectAuth 注入的 probe_user 是同一个（改一处要一起改）；
-         有专门测概览岛的探针，它们不走这个 helper，不受影响。 */
-      sessionStorage.setItem('boh_overview_island:00ac36b4-6594-440f-a9c1-38b7bd47ee8b', '1');
-    } catch {
-      /* ignore */
-    }
   });
   return ctx;
 };

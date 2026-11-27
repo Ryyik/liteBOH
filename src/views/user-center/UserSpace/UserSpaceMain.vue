@@ -301,8 +301,11 @@
             :edit-open="settingsSection === 'edit-profile'"
             :inline-panel="settingsInlinePanel"
             :inline-panel-title="settingsInlinePanelTitle"
+            :active-group="settingsGroupId"
             @back="switchTab('posts')"
             @close-panel="backToProfileSettings"
+            @open-group="openSettingsGroup"
+            @close-group="closeSettingsGroup"
             @change-avatar="handleAvatarClick"
             @open-avatar-frames="openAvatarFramePanel"
             @open-edit-profile="openEditProfileModal"
@@ -896,8 +899,14 @@ const SETTINGS_SECTIONS = [
   'cloud-plus',
 ];
 /** 账户与隐私的子面板（2026-10-26 起全部在设置页右栏内展开，不再跳独立路由页）。
-    只存内存、不进 URL：`?panel=` 已属资产页语义，混用会互相清参。 */
+ *  2026-11-26：**改由 URL `?panel=` 承载**（原先只存内存 ⇒ 在「通行密钥」页刷新，
+ *  回来永远是默认的「更换邮箱」，用户报了这条）。
+ *  ⚠️ 与资产页共用 `?panel=` 是刻意的：两者互斥（`panel` 只在对应 tab 下有效，
+ *     切 tab 时由 applyAssetsViewToQuery / withSectionQuery 各自清理）。
+ *     不要再起第三个参数名 —— 同一语义两个名字是这仓库反复踩的坑。 */
 const settingsSecurityPanel = ref('email');
+/** 二级组页 id（2026-11-26）：`?group=` 的真值镜像。空串 = 一级首页。 */
+const settingsGroupId = ref('');
 /** 右栏子页 id（空 = 分组列表）；标题与归属分类见下面两个 computed */
 const settingsInlinePanel = computed(() =>
   [
@@ -1099,11 +1108,11 @@ const resolveSectionFromRoute = () => {
     if (settingsSection.value === 'edit-profile') {
       prepareEditProfileForm();
     }
-    // ?view=account-security 只是「打开账户与隐私子页」的深链，开哪一屏不进 URL（见内存态注释）
-    if (settingsSection.value === 'account-security') {
-      settingsSecurityPanel.value =
-        normalizeAccountSecurityPanel(settingsSecurityPanel.value) || 'email';
-    }
+    /* 2026-11-26：`?view=account-security` 只是「打开账户与隐私子页」的深链，
+       具体开哪一屏（email / password / passkey / sessions / delete）由 `?panel=` 给。
+       这就是「在通行密钥页刷新却回到更换邮箱」的修复点：刷新后 panel 从 URL 读回来，
+       不再回落到默认 'email'。 */
+    syncSettingsLayersFromRoute();
   }
 };
 
@@ -1158,6 +1167,74 @@ const handleAssetsViewChange = (view) => {
   router.replace({ query: nextQuery });
 };
 
+/* ---------- 设置层级（`?group=` / `?panel=`，2026-11-26）----------
+   背景：用户报「在通行密钥页刷新，回来却是更换邮箱」。根因是这两层**全在内存**——
+   刷新等于把内存清空，于是回落到 settingsSection 的初值（account-security + email）。
+   现在把它们搬进 URL，四条路径（点击 / 刷新 / 前进后退 / 深链）走同一份真源。
+
+   参数分工（不要再起新名字）：
+     · `?view=`    → 一级分区（home / edit-profile / data-export / account-security …）
+     · `?group=`   → 二级组页 id（g-security 这种；空 = 一级首页）
+     · `?panel=`   → 账户与隐私里具体开哪一屏（email / password / passkey / sessions / delete）
+    ⚠️ `panel` 与资产页共用语义：只在 `tab=settings` 或 `tab=assets` 下有意义，
+       另一侧的参数由 applyAssetsViewToQuery / applySettingsLayersToQuery 互相清理。 */
+
+/** 内存层级 → query（`group` / `panel`；非设置页一律清除，不留悬挂参数） */
+const applySettingsLayersToQuery = (nextQuery) => {
+  const isSettings = nextQuery.tab === 'settings';
+  if (!isSettings) {
+    delete nextQuery.group;
+    delete nextQuery.panel;
+    return nextQuery;
+  }
+  const group = String(settingsGroupId.value || '').trim();
+  if (group) nextQuery.group = group;
+  else delete nextQuery.group;
+
+  /* panel 只在「账户与隐私」这一屏有意义；其余设置分区带着它就是脏参 */
+  const panel =
+    nextQuery.view === 'account-security'
+      ? normalizeAccountSecurityPanel(settingsSecurityPanel.value) || 'email'
+      : '';
+  if (panel) nextQuery.panel = panel;
+  else delete nextQuery.panel;
+  return nextQuery;
+};
+
+/** URL → 内存层级（仅在设置页生效）。写在 resolveSectionFromRoute 之前/之后都可以，
+    这里只做纯搬运：值域归一交给 config/account-security-panels.js。 */
+const syncSettingsLayersFromRoute = () => {
+  if (currentTab.value !== 'settings') {
+    settingsGroupId.value = '';
+    return;
+  }
+  settingsGroupId.value = String(route.query.group || '').trim();
+  if (settingsSection.value === 'account-security') {
+    settingsSecurityPanel.value =
+      normalizeAccountSecurityPanel(route.query.panel) ||
+      normalizeAccountSecurityPanel(settingsSecurityPanel.value) ||
+      'email';
+  }
+};
+
+/** 进 / 出二级组页的唯一写入口（面板 emit → 这里落 URL，再流回 props） */
+const openSettingsGroup = (groupId) => {
+  const next = String(groupId || '').trim();
+  if (!next) return;
+  settingsGroupId.value = next;
+  const nextQuery = applySettingsLayersToQuery({ ...route.query, tab: 'settings' });
+  if (String(nextQuery.group || '') === String(route.query.group || '')) return;
+  router.replace({ query: nextQuery });
+};
+
+const closeSettingsGroup = () => {
+  settingsGroupId.value = '';
+  const nextQuery = { ...route.query };
+  if (!nextQuery.group) return;
+  delete nextQuery.group;
+  router.replace({ query: nextQuery });
+};
+
 /** 把某 tab 的当前分区按统一口径写进 query：等于默认值则删 view，否则写 view */
 const withSectionQuery = (baseQuery, tabId) => {
   const nextQuery = { ...baseQuery };
@@ -1175,7 +1252,11 @@ const setSectionRoute = (tabId, section) => {
   } else {
     nextQuery.view = section;
   }
-  router.replace({ query: applyAssetsViewToQuery(nextQuery) });
+  /* 2026-11-26：换一级分区 = 离开当前二级层，旧 group/panel 必须一起清
+     （否则从「账户与安全 → 通行密钥」跳到「数据」后，URL 里还挂着 panel=passkey） */
+  const leavingNested = String(nextQuery.view || '') !== String(route.query.view || '');
+  if (leavingNested) delete nextQuery.group;
+  router.replace({ query: applySettingsLayersToQuery(applyAssetsViewToQuery(nextQuery)) });
 };
 
 const jumpWithSection = (tabId, section) => {
@@ -2116,6 +2197,11 @@ const openProfileDataManagement = () => {
  * （「所有子页都用左右栏，不单独另开一页」）。表单实现仍只有 AccountSecurityPanel 一份，
  * 这里只负责记下「开哪一屏」并切到 account-security 子页。
  * panel 走白名单归一，未知值回落「更换邮箱」。
+ *
+ * ⚠️ 2026-11-26：`panel` 必须落到 URL（原来只写内存 ⇒ 在「通行密钥」页一刷新，
+ *    内存清空回落到默认 'email'，用户看到的是「更换邮箱」页）。
+ *    `jumpWithSection` 内部的 setSectionRoute 会经 applySettingsLayersToQuery 把它带进
+ *    query —— 所以这里**先写内存、再跳分区**的顺序不能反。
  */
 const openAccountSecurityPanel = (panel) => {
   settingsSecurityPanel.value = normalizeAccountSecurityPanel(panel) || 'email';
@@ -2610,6 +2696,11 @@ const syncUserSpaceTabRoute = (tabId) => {
   // 资产段内层面板：仅在「posts + view=assets」保留，其余一并清除
   applyAssetsViewToQuery(nextQuery);
 
+  /* 设置层级（2026-11-26）：`group` / `panel` 只在 tab=settings 下保留；
+     本函数是「切 tab 后重写 URL」的收口，所以清理必须挂在这里 ——
+     否则从「设置/通行密钥」切到「内容」，URL 会留着 `?group=&panel=passkey`。 */
+  applySettingsLayersToQuery(nextQuery);
+
   const currentRouteTab = String(route.query.tab || '');
   const currentSection = String(route.query.section || '');
   const nextSection = String(nextQuery.section || '');
@@ -2617,11 +2708,14 @@ const syncUserSpaceTabRoute = (tabId) => {
   const nextView = String(nextQuery.view || '');
   const currentPanel = String(route.query.panel || '');
   const nextPanel = String(nextQuery.panel || '');
+  const currentGroup = String(route.query.group || '');
+  const nextGroup = String(nextQuery.group || '');
   if (
     currentRouteTab === tabId &&
     currentSection === nextSection &&
     currentView === nextView &&
-    currentPanel === nextPanel
+    currentPanel === nextPanel &&
+    currentGroup === nextGroup
   )
     return;
 
@@ -2690,6 +2784,10 @@ const switchTab = (tabId) => {
     // 资产的内层档位（hub / sponsor）是纯内存态，回默认值即可，没有 SECTION_DEFAULTS 条目
     assetsSection.value = 'hub';
     settingsSection.value = SECTION_DEFAULTS.settings;
+    /* 2026-11-26：设置的两层钻取也回默认 —— 否则「切到别的 tab 再切回来」会停在
+       上次的二级页（而 URL 已被 syncUserSpaceTabRoute 写成无 group，两边不一致）。 */
+    settingsGroupId.value = '';
+    settingsSecurityPanel.value = 'email';
   }
   pendingSectionTab = null;
   if (tabId === 'posts') {
@@ -2773,6 +2871,15 @@ watch(
   isSettingsTwoPane,
   (next) => {
     document.body.classList.toggle('is-rail-compact', next);
+    /* 2026-11-26：横竖切换清掉二级层（原来由 ProfileSettingsPanel 自己清
+       activeEntryId，现在层级住 URL ⇒ 必须由持有 URL 的宿主来清）。
+       竖屏没有「右栏详情」，留着会在转回横屏时莫名其妙地打开一组。 */
+    if (!next && settingsGroupId.value) {
+      settingsGroupId.value = '';
+      const nextQuery = { ...route.query };
+      delete nextQuery.group;
+      void router.replace({ query: nextQuery });
+    }
   },
   { immediate: true },
 );
@@ -3797,8 +3904,23 @@ watch(
 
 // 资产段内层面板：view 不变的纯 panel 变化（前进/后退、同页改 URL）也要同步到组件；
 // view 同时变化的情形已由上面一条 watch 覆盖（resolveSectionFromRoute 内含面板同步）。
+// ⚠️ 2026-11-26：`panel` 现在也承载「账户与隐私开哪一屏」——
+//    resolveSectionFromRoute 内部调 syncSettingsLayersFromRoute 一并同步，
+//    所以这条不需要为设置页再写一份。
 watch(
   () => route.query.panel,
+  () => {
+    if (route.name !== 'UserSpace') return;
+    resolveSectionFromRoute();
+  },
+);
+
+/* 二级组页（`?group=`）：**只在这一层变化时同步** —— view 不变，
+   resolveSectionFromRoute 的 view watch 抓不到（前进/后退、深链、手改 URL 都要靠这条）。
+   ⚠️ resolveSectionFromRoute 里有「URL 的 tab 与当前 tab 不一致就不采信」的闸门，
+      正好挡住「切 tab 途中 URL 还没落地」的那一帧，这里直接复用。 */
+watch(
+  () => route.query.group,
   () => {
     if (route.name !== 'UserSpace') return;
     resolveSectionFromRoute();

@@ -1,121 +1,66 @@
 <template>
   <aside class="userspace-rail liquid-glass" aria-label="用户空间导航">
-    <!-- 品牌位：占进「与内容区首屏对齐」留出的顶部空白，绝对定位、不进文档流 ——
-         因此不增加内容高度、也不推挤首个条目（实测首项 top 不变）。
-         2026-10-08：原来这里还挂着一个「更多」（主题 / 退出登录）按钮，
-         已搬到滚动区**最底部** —— 低频 + 破坏性操作靠底是惯例，且底部菜单向上弹，
-         不会再像挂在品牌位时那样横向跑出 88px 窄栏、被视口裁掉。 -->
+    <!-- 品牌位：胶囊顶部。文字在 72px 宽下隐藏（按钮自带 aria-label / title）。 -->
     <div class="userspace-rail-brand">
       <img
         class="userspace-rail-brand-mark"
         :src="brandMarkUrl"
         alt=""
-        width="26"
-        height="26"
+        width="24"
+        height="24"
         aria-hidden="true"
       />
       <span class="userspace-rail-brand-name">方块之家</span>
     </div>
 
-    <div class="userspace-rail-scroll">
-      <nav ref="navGroupRef" class="userspace-rail-group" aria-label="主导航">
-        <span
-          class="userspace-rail-indicator"
-          :class="{ 'no-anim': indicatorSettled === false }"
-          :style="indicatorStyle"
+    <nav ref="navGroupRef" class="userspace-rail-group" aria-label="主导航">
+      <span
+        class="userspace-rail-indicator"
+        :class="{ 'no-anim': indicatorSettled === false }"
+        :style="indicatorStyle"
+        aria-hidden="true"
+      ></span>
+      <button
+        v-for="item in navItems"
+        :key="item.id"
+        type="button"
+        class="userspace-rail-item"
+        :class="{ active: currentTab === item.id }"
+        :aria-current="currentTab === item.id ? 'page' : undefined"
+        :aria-label="item.label"
+        :title="item.label"
+        :data-tab="item.id"
+        @pointerenter="$emit('preload-tab', item.id)"
+        @focus="$emit('preload-tab', item.id)"
+        @click.stop="handleNavClick(item.id)"
+      >
+        <component
+          :is="item.icon"
+          class="userspace-rail-icon"
+          :size="22"
+          :stroke-width="1.9"
           aria-hidden="true"
-        ></span>
-        <button
-          v-for="item in navItems"
-          :key="item.id"
-          type="button"
-          class="userspace-rail-item"
-          :class="{ active: currentTab === item.id }"
-          :aria-current="currentTab === item.id ? 'page' : undefined"
-          :aria-label="item.label"
-          :title="item.label"
-          :data-tab="item.id"
-          @pointerenter="$emit('preload-tab', item.id)"
-          @focus="$emit('preload-tab', item.id)"
-          @click.stop="handleNavClick(item.id)"
-        >
-          <component
-            :is="item.icon"
-            class="userspace-rail-icon"
-            :size="18"
-            :stroke-width="1.9"
-            aria-hidden="true"
-          />
-          <span class="userspace-rail-label">{{ item.label }}</span>
-          <span v-if="item.id === 'messages' && hasUnreadMessages" class="userspace-rail-badge">
-            {{ unreadCount > 99 ? '99+' : unreadCount }}
-          </span>
-        </button>
-      </nav>
+        />
+        <span class="userspace-rail-label">{{ item.label }}</span>
+        <span v-if="item.id === 'messages' && hasUnreadMessages" class="userspace-rail-badge">
+          {{ unreadCount > 99 ? '99+' : unreadCount }}
+        </span>
+      </button>
+    </nav>
 
-      <div class="userspace-rail-divider" aria-hidden="true"></div>
-
-      <nav class="userspace-rail-group" aria-label="便捷操作">
-        <button
-          v-for="action in quickActionItems"
-          :key="action.id"
-          type="button"
-          class="userspace-rail-item"
-          :class="{ active: activeAction === action.id }"
-          :aria-current="activeAction === action.id ? 'true' : undefined"
-          :aria-label="action.label"
-          :title="action.label"
-          :data-rail-action="action.id"
-          @click.stop="$emit('action', action.id)"
-        >
-          <component
-            :is="action.icon"
-            class="userspace-rail-icon"
-            :size="18"
-            :stroke-width="1.9"
-            aria-hidden="true"
-          />
-          <span class="userspace-rail-label">{{ action.label }}</span>
-        </button>
-      </nav>
-
-      <div class="userspace-rail-divider" aria-hidden="true"></div>
-
-      <nav class="userspace-rail-group userspace-rail-group--footer" aria-label="工具">
-        <button
-          type="button"
-          class="userspace-rail-item"
-          data-rail-action="home"
-          aria-label="首页"
-          title="首页"
-          @click.stop="$emit('action', 'home')"
-        >
-          <House class="userspace-rail-icon" :size="18" :stroke-width="1.9" aria-hidden="true" />
-          <span class="userspace-rail-label">首页</span>
-        </button>
-      </nav>
-    </div>
-
-    <!-- 更多（主题 / 退出登录）：收低频偏好与破坏性操作 —— 要两步才登出，
-         这是用一点点可用性换误触成本，取舍已确认。菜单**向上**弹。
-
-         ⚠️ 它必须是 .userspace-rail-scroll 的**兄弟**、不能放在滚动容器里面
-         （2026-10-11 修）：滚动容器是 `overflow-x: hidden + overflow-y: auto`
-         （见 side-rail.css），绝对定位的后代会被它的 padding box 裁掉 ——
-         88px 窄栏下浮层宽 172px，实际只剩 68px 可见，用户看到的是
-         「深色模式 → 深」「退出登录 → 退」这种只剩图标 + 半个字的残条。
-         240px 宽栏恰好没暴露（滚动容器 215px > 浮层 172px），所以此前三处
-         探针全绿。挂在 scroll 外面后浮层不再受裁剪，窄栏下正常向右展开盖住内容区
-         （左栏 z-index 2 高于内容层）；「更多」按钮同时变成常驻栏底、不再随内容滚走。 -->
+    <!-- 第 6 行：更多。发布 / 资产 / 首页 / 主题 / 退出全部收进这里，
+         低频偏好与破坏性操作要两步才登出。菜单向上弹。 -->
     <div ref="moreWrapRef" class="userspace-rail-more-wrap">
       <button
         ref="moreBtnRef"
         type="button"
         class="userspace-rail-item userspace-rail-more"
+        :class="{ active: moreOpen || !!activeAction }"
         data-rail-action="more"
         :aria-expanded="moreOpen ? 'true' : 'false'"
         aria-haspopup="menu"
         aria-label="更多"
+        title="更多"
         @click.stop="toggleMore"
       >
         <svg
@@ -130,6 +75,38 @@
         <span class="userspace-rail-label">更多</span>
       </button>
       <div v-if="moreOpen" class="userspace-rail-menu" role="menu">
+        <button
+          type="button"
+          role="menuitem"
+          class="userspace-rail-menu-item"
+          :class="{ 'is-active': activeAction === 'compose' }"
+          data-rail-action="compose"
+          @click.stop="pickAction('compose')"
+        >
+          <PenLine :size="16" :stroke-width="1.9" aria-hidden="true" />
+          <span>发布</span>
+        </button>
+        <button
+          type="button"
+          role="menuitem"
+          class="userspace-rail-menu-item"
+          data-rail-action="assets"
+          @click.stop="pickAction('assets')"
+        >
+          <Wallet :size="16" :stroke-width="1.9" aria-hidden="true" />
+          <span>资产</span>
+        </button>
+        <button
+          type="button"
+          role="menuitem"
+          class="userspace-rail-menu-item"
+          data-rail-action="home"
+          @click.stop="pickAction('home')"
+        >
+          <House :size="16" :stroke-width="1.9" aria-hidden="true" />
+          <span>首页</span>
+        </button>
+        <div class="userspace-rail-menu-divider" aria-hidden="true"></div>
         <button
           type="button"
           role="menuitem"
@@ -167,7 +144,7 @@
 // · 便捷/工具区的动作统一走 action 事件，由 UserSpaceMain 分发到已有 handler
 // 可见性由 side-rail.css 的媒体查询决定（默认 display:none），不新增任何状态或请求
 import { House, LogOut, Moon, PenLine, Sun, Wallet } from 'lucide-vue-next';
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 /* 品牌位那枚 26px 图标：改用打包进产物的 64px webp（872 B，小于 4096 的内联阈值
    ⇒ 直接内联进本 chunk，**零额外请求**），不再指向 public/favicon.png
    （8.2 KiB 的 1024px 大图；它在 index.html 里曾同时被 4 条 icon 声明引用，
@@ -175,22 +152,10 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import brandMarkUrl from '@/assets/images/brand-mark-64.webp';
 
 /**
- * 便捷区：**全站一份，发布 / 资产**（2026-10-26 用户纠偏后收敛）。
- *
- * 原先这里是「发布 / 搜索」，且允许宿主用 `quick-actions` 覆盖 —— 「我的」页传了
- * 「发布 / 资产」，于是同一个左栏在首页/他人空间/BOH 主区显示「搜索」、进「我」页
- * 又变成「资产」。用户读成 bug（「为啥我有时候还是会看到搜索，点击别的之后就会变成资产」）。
- *
- * 现在：左栏是**全局导航**，位置固定、内容也固定 —— 两个入口在所有宿主里一致：
- *   · 发布 → 有本地发布器的宿主自己开；没有的（他人空间 / 图库）走 `/?compose=1` 深链
- *   · 资产 → `/user-space?tab=assets`（全局可达，不会变成死按钮）
- * 搜索不再占左栏席位：它是论坛的能力，论坛自己的顶栏/`?search=1` 深链仍在。
+ * 便捷 / 工具入口（发布 / 资产 / 首页）已收进「更多」菜单（2026-11-26）：
+ * 左栏只保留 5 席主导航 + 更多，宽度从 240/88 收成 72 的竖排胶囊。
+ * 这些入口仍走 `action` 事件，由宿主分发到已有 handler。
  */
-const DEFAULT_QUICK_ACTIONS = [
-  { id: 'compose', label: '发布', icon: PenLine },
-  { id: 'assets', label: '资产', icon: Wallet },
-];
-
 const emit = defineEmits(['preload-tab', 'nav-click', 'action']);
 
 const props = defineProps({
@@ -230,18 +195,16 @@ const props = defineProps({
 });
 
 /**
- * ⚠️ 默认值**不能**写在 defineProps 里（`default: () => DEFAULT_QUICK_ACTIONS`）——
+ * ⚠️ 默认值**不能**写在 defineProps 里（`default: () => …`）——
  * `<script setup>` 的 defineProps 会被提升到 setup 之外，引用本地常量直接编译失败
  * （实测整页 500：`defineProps() cannot reference locally declared variables`）。
- * 所以常量只在 setup 内使用，模板读 computed。
  */
-const quickActionItems = computed(() => DEFAULT_QUICK_ACTIONS);
 
-/* 滑动玻璃胶囊指示器：nav group 内 absolute（z0 在条目文字之下），
-   offsetTop/offsetHeight 定位——随内容流天然跟随内层滚动，无需 scroll 监听；
-   切 tab 240ms 滑动；首次定位与 ResizeObserver（宽窄栏断点 1280 / 字体重排）走 no-anim */
+/* 滑动胶囊指示器：nav group 内 absolute（z0 在条目文字之下），
+   offsetTop/offsetHeight 定位——切 tab 320ms 滑动；首次定位与 ResizeObserver 走 no-anim。
+   胶囊内缩 2px（与竖屏底栏的选中框内缩同口径），高度取条目高 - 4。 */
 const navGroupRef = ref(null);
-const indicatorStyle = ref({ transform: 'translateY(0px)', height: '56px', opacity: 0 });
+const indicatorStyle = ref({ transform: 'translateY(0px)', height: '42px', opacity: 0 });
 const indicatorSettled = ref(true);
 let resizeObserver = null;
 
@@ -254,8 +217,8 @@ const syncIndicator = async () => {
     return;
   }
   indicatorStyle.value = {
-    transform: `translateY(${Math.round(active.offsetTop)}px)`,
-    height: `${Math.round(active.offsetHeight)}px`,
+    transform: `translateY(${Math.round(active.offsetTop + 2)}px)`,
+    height: `${Math.round(active.offsetHeight - 4)}px`,
     opacity: 1,
   };
 };

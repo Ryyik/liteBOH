@@ -367,8 +367,9 @@ body.page-aichat.nav-orb-mode {
   --bolek-standalone-nav-height: 0px;
 }
 
-/* AI 页的球位 = **左栏品牌 logo 位**（用户口径「在侧边导航栏 logo 的位置」）。
-   左栏恒 88px ⇒ 品牌位 center + logo 26px ⇒ 中心 (44, 47)，球 52px ⇒ left 18 / top 21。
+/* AI 页的球位：导航收起后的**左上角锚点**（原导航岛位置）。
+   2026-11-26 左栏改为垂直居中的 72px 胶囊，品牌标已不在 top 34 ⇒
+   球与 logo 不再同位，固定 left 18 / top 21（52px 球）作为收起入口。
    与 style.scoped.css 的默认值同一组变量，FLIP 也读它。 */
 @media (orientation: landscape) and (min-width: 1024px) and (min-height: 600px) {
   body.page-aichat #unified-nav-container {

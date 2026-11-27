@@ -17,13 +17,18 @@ const COUNTERPROOF = process.env.COUNTERPROOF === '1';
 let pass = 0;
 let fail = 0;
 const check = (name, cond, detail) => {
-  if (cond) { pass += 1; console.log('PASS ', name, detail === undefined ? '' : '— ' + detail); }
-  else { fail += 1; console.log('FAIL ', name, detail === undefined ? '' : '— ' + detail); }
+  if (cond) {
+    pass += 1;
+    console.log('PASS ', name, detail === undefined ? '' : '— ' + detail);
+  } else {
+    fail += 1;
+    console.log('FAIL ', name, detail === undefined ? '' : '— ' + detail);
+  }
 };
 
 const browser = await chromium.launch({
   channel: 'chrome',
-  args: ['--no-proxy-server', '--proxy-server=direct://', '--proxy-bypass-list=*']
+  args: ['--no-proxy-server', '--proxy-server=direct://', '--proxy-bypass-list=*'],
 });
 const errors = [];
 
@@ -52,7 +57,7 @@ const PROBE_PROFILE = {
   hide_follow_data: false,
   profile_background_url: '',
   points_card_skin: 'blank',
-  points_card_image_url: ''
+  points_card_image_url: '',
 };
 
 const json = (body, range = '*/0') => ({
@@ -60,9 +65,9 @@ const json = (body, range = '*/0') => ({
   headers: {
     'Content-Type': 'application/json',
     'Access-Control-Expose-Headers': 'Content-Range',
-    'Content-Range': range
+    'Content-Range': range,
   },
-  body: JSON.stringify(body)
+  body: JSON.stringify(body),
 });
 
 async function open(width, height, tag, theme) {
@@ -86,7 +91,9 @@ async function open(width, height, tag, theme) {
   await page.route('**://*/functions/v1/**', (route) => route.fulfill({ status: 404, body: '{}' }));
 
   await page.goto(`${BASE}/#/profile/probe_user`, { waitUntil: 'domcontentloaded' });
-  await page.waitForFunction(() => document.querySelector('#app')?.__vue_app__, null, { timeout: 30000 });
+  await page.waitForFunction(() => document.querySelector('#app')?.__vue_app__, null, {
+    timeout: 30000,
+  });
   await page.evaluate(() => {
     const pinia = document.querySelector('#app').__vue_app__.config.globalProperties.$pinia;
     const auth = pinia.state.value.auth;
@@ -95,58 +102,70 @@ async function open(width, height, tag, theme) {
       id: crypto.randomUUID(),
       username: 'probe_visitor',
       role: 'user',
-      points: 42
+      points: 42,
     });
   });
   await page.waitForSelector('.profile-page', { timeout: 20000 });
   if (theme === 'dark') {
     // 不能手动 setAttribute：:data-theme="currentTheme" 是 Vue 绑定，数据加载
     // 触发重渲染时会改回 light。派发真实事件走 onThemeChanged 同步 ref → 绑定生效
-    await page.evaluate(() => window.dispatchEvent(new CustomEvent('theme-changed', { detail: { theme: 'dark' } })));
+    await page.evaluate(() =>
+      window.dispatchEvent(new CustomEvent('theme-changed', { detail: { theme: 'dark' } })),
+    );
   }
   if (COUNTERPROOF) {
     // 模拟「撤掉修复」：rail 隐藏 + 内容左移归零 —— 全部走注入，源码零改动
     await page.addStyleTag({
-      content: '.profile-page { padding-left: 0 !important; } .userspace-rail { display: none !important; }'
+      content:
+        '.profile-page { padding-left: 0 !important; } .userspace-rail { display: none !important; }',
     });
   }
   await page.waitForTimeout(2400);
   return { context, page };
 }
 
-const measure = (page) => page.evaluate(() => {
-  const rail = document.querySelector('.userspace-rail');
-  const page_ = document.querySelector('.profile-page');
-  const shell = document.querySelector('.profile-home-shell');
-  const headerInner = document.querySelector('.user-center-page-header-inner');
-  const indicator = document.querySelector('.userspace-rail-indicator');
-  const R = (el) => (el ? el.getBoundingClientRect() : null);
-  const rr = R(rail); const sr = R(shell); const hr = R(headerInner);
-  const brand = document.querySelector('.userspace-rail-brand');
-  const navItem = document.querySelector('.userspace-rail-item[data-tab="posts"]');
-  const homeItem = document.querySelector('.userspace-rail-item[data-rail-action="home"]');
-  return {
-    pageExists: !!page_,
-    railExists: !!rail,
-    railDisplay: rail ? getComputedStyle(rail).display : null,
-    railPosition: rail ? getComputedStyle(rail).position : null,
-    railW: rr ? Math.round(rr.width) : null,
-    railRight: rr ? Math.round(rr.right) : null,
-    railTop: rr ? Math.round(rr.top) : null,
-    railBottom: rr ? Math.round(rr.bottom) : null,
-    brandVisible: !!brand && brand.getBoundingClientRect().top >= 0 && brand.getBoundingClientRect().top < window.innerHeight,
-    navItemVisible: !!navItem && navItem.getBoundingClientRect().top >= 0 && navItem.getBoundingClientRect().top < window.innerHeight,
-    homeItemTop: homeItem ? Math.round(homeItem.getBoundingClientRect().top) : null,
-    padLeft: page_ ? getComputedStyle(page_).paddingLeft : null,
-    shellLeft: sr ? Math.round(sr.left) : null,
-    shellCenter: sr ? Math.round(sr.left + sr.width / 2) : null,
-    headerCenter: hr ? Math.round(hr.left + hr.width / 2) : null,
-    indicatorOpacity: indicator ? getComputedStyle(indicator).opacity : null,
-    pillBg: page_ ? getComputedStyle(page_).getPropertyValue('--rail-pill-bg').trim() : null,
-    bodyPageClass: document.body.className,
-    viewportW: window.innerWidth
-  };
-});
+const measure = (page) =>
+  page.evaluate(() => {
+    const rail = document.querySelector('.userspace-rail');
+    const page_ = document.querySelector('.profile-page');
+    const shell = document.querySelector('.profile-home-shell');
+    const headerInner = document.querySelector('.user-center-page-header-inner');
+    const indicator = document.querySelector('.userspace-rail-indicator');
+    const R = (el) => (el ? el.getBoundingClientRect() : null);
+    const rr = R(rail);
+    const sr = R(shell);
+    const hr = R(headerInner);
+    const brand = document.querySelector('.userspace-rail-brand');
+    const navItem = document.querySelector('.userspace-rail-item[data-tab="posts"]');
+    const moreItem = document.querySelector('.userspace-rail-more');
+    return {
+      pageExists: !!page_,
+      railExists: !!rail,
+      railDisplay: rail ? getComputedStyle(rail).display : null,
+      railPosition: rail ? getComputedStyle(rail).position : null,
+      railW: rr ? Math.round(rr.width) : null,
+      railRight: rr ? Math.round(rr.right) : null,
+      railTop: rr ? Math.round(rr.top) : null,
+      railBottom: rr ? Math.round(rr.bottom) : null,
+      brandVisible:
+        !!brand &&
+        brand.getBoundingClientRect().top >= 0 &&
+        brand.getBoundingClientRect().top < window.innerHeight,
+      navItemVisible:
+        !!navItem &&
+        navItem.getBoundingClientRect().top >= 0 &&
+        navItem.getBoundingClientRect().top < window.innerHeight,
+      homeItemTop: moreItem ? Math.round(moreItem.getBoundingClientRect().top) : null,
+      padLeft: page_ ? getComputedStyle(page_).paddingLeft : null,
+      shellLeft: sr ? Math.round(sr.left) : null,
+      shellCenter: sr ? Math.round(sr.left + sr.width / 2) : null,
+      headerCenter: hr ? Math.round(hr.left + hr.width / 2) : null,
+      indicatorOpacity: indicator ? getComputedStyle(indicator).opacity : null,
+      pillBg: page_ ? getComputedStyle(page_).getPropertyValue('--rail-pill-bg').trim() : null,
+      bodyPageClass: document.body.className,
+      viewportW: window.innerWidth,
+    };
+  });
 
 // ───────── 档 1：1440×900 宽栏（明） ─────────
 {
@@ -154,32 +173,57 @@ const measure = (page) => page.evaluate(() => {
   const m = await measure(page);
   check('A1 body 挂 page-userprofile', /page-userprofile/.test(m.bodyPageClass), m.bodyPageClass);
   check('A2 rail 渲染且可见', m.railDisplay === 'flex', m.railDisplay);
-  check('A3 宽档栏宽 240', m.railW === 240, m.railW + 'px');
-  check('B1 内容右移：padding-left = 栏宽', m.padLeft === `${m.railW}px`, m.padLeft);
-  check('B2 内容与 rail 无重叠（shell 左缘 ≥ rail 右缘）',
+  check('A3 胶囊宽 72（内容让位 88）', m.railW === 72, m.railW + 'px');
+  check('B1 内容右移：padding-left = 内容让位 88', m.padLeft === '88px', m.padLeft);
+  check(
+    'B2 内容与 rail 无重叠（shell 左缘 ≥ rail 右缘）',
     m.shellLeft !== null && m.railRight !== null && m.shellLeft >= m.railRight - 1,
-    `shell.left=${m.shellLeft} rail.right=${m.railRight}`);
-  check('B3 限宽内容居中于右区（非整页）',
-    m.shellCenter !== null && Math.abs(m.shellCenter - (240 + 1440) / 2) <= 8,
-    `shell.center=${m.shellCenter} right.center=${(240 + 1440) / 2}`);
-  check('B4 sticky 页头同相位（中心与内容中心一致）',
-    m.headerCenter !== null && m.shellCenter !== null && Math.abs(m.headerCenter - m.shellCenter) <= 8,
-    `header.center=${m.headerCenter}`);
+    `shell.left=${m.shellLeft} rail.right=${m.railRight}`,
+  );
+  check(
+    'B3 限宽内容居中于右区（非整页）',
+    m.shellCenter !== null && Math.abs(m.shellCenter - (88 + 1440) / 2) <= 8,
+    `shell.center=${m.shellCenter} right.center=${(88 + 1440) / 2}`,
+  );
+  check(
+    'B4 sticky 页头同相位（中心与内容中心一致）',
+    m.headerCenter !== null &&
+      m.shellCenter !== null &&
+      Math.abs(m.headerCenter - m.shellCenter) <= 8,
+    `header.center=${m.headerCenter}`,
+  );
   check('C1 无选中高亮（指示器隐藏）', m.indicatorOpacity === '0', m.indicatorOpacity);
-  check('C2 亮色淡染变量挂载', /(\b|[^0-9.])\.?0?75\b/.test(m.pillBg.replace(/\s/g, '')) && /rgba|hsla/.test(m.pillBg), m.pillBg);
+  check(
+    'C2 亮色淡染变量挂载',
+    /(\b|[^0-9.])\.?0?75\b/.test(m.pillBg.replace(/\s/g, '')) && /rgba|hsla/.test(m.pillBg),
+    m.pillBg,
+  );
   check('C3 rail 锁视口（fixed 而非 absolute）', m.railPosition === 'fixed', m.railPosition);
-  check('C4 rail 高度=视口（top 0 / bottom 0）',
-    m.railTop === 0 && m.railBottom === 900, `top=${m.railTop} bottom=${m.railBottom}`);
+  check(
+    'C4 胶囊高度由内容决定且垂直居中（不再占满栏）',
+    m.railTop !== null &&
+      m.railBottom !== null &&
+      Math.abs((m.railTop + m.railBottom) / 2 - 450) <= 2 &&
+      m.railBottom - m.railTop <= 500,
+    `top=${m.railTop} bottom=${m.railBottom}`,
+  );
 
   // 滚动场景：页面滚到中部，rail 必须钉在视口（品牌位/导航组/首页按钮都可见）
   await page.evaluate(() => window.scrollTo(0, 800));
   await page.waitForTimeout(400);
   const s = await measure(page);
-  check('H1 滚动 800px 后 rail 仍贴视口顶（top 0）', s.railTop === 0, `top=${s.railTop}`);
+  check(
+    'H1 滚动 800px 后胶囊仍钉在原位（fixed）',
+    Math.abs(s.railTop - m.railTop) <= 1,
+    `before=${m.railTop} after=${s.railTop}`,
+  );
   check('H2 滚动后品牌位仍在视口内', s.brandVisible === true);
   check('H3 滚动后主导航条目仍在视口内', s.navItemVisible === true);
-  check('H4 滚动后首页按钮仍在视口内（非文档底部）',
-    s.homeItemTop !== null && s.homeItemTop > 0 && s.homeItemTop < 900, `top=${s.homeItemTop}`);
+  check(
+    'H4 滚动后「更多」仍在视口内（非文档底部）',
+    s.homeItemTop !== null && s.homeItemTop > 0 && s.homeItemTop < 900,
+    `top=${s.homeItemTop}`,
+  );
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.waitForTimeout(300);
 
@@ -187,7 +231,11 @@ const measure = (page) => page.evaluate(() => {
   await page.click('.userspace-rail-item[data-tab="posts"]');
   await page.waitForTimeout(900);
   const navUrl = await page.evaluate(() => location.hash);
-  check('D1 点击主导航跳转我的空间对应 tab', navUrl.includes('/user-space') && navUrl.includes('tab=posts'), navUrl);
+  check(
+    'D1 点击主导航跳转我的空间对应 tab',
+    navUrl.includes('/user-space') && navUrl.includes('tab=posts'),
+    navUrl,
+  );
   await page.screenshot({ path: `${OUT}/wide1440-light.png` }).catch(() => {});
   await context.close();
 }
@@ -196,7 +244,11 @@ const measure = (page) => page.evaluate(() => {
 {
   const { context, page } = await open(1440, 900, 'wide1440-dark', 'dark');
   const m = await measure(page);
-  check('E1 暗色淡染 = 白染 0.12', /(\b|[^0-9.])\.?0?12\b/.test(m.pillBg.replace(/\s/g, '')), m.pillBg);
+  check(
+    'E1 暗色淡染 = 白染 0.12',
+    /(\b|[^0-9.])\.?0?12\b/.test(m.pillBg.replace(/\s/g, '')),
+    m.pillBg,
+  );
   await page.screenshot({ path: `${OUT}/wide1440-dark.png` }).catch(() => {});
   await context.close();
 }
@@ -204,13 +256,21 @@ const measure = (page) => page.evaluate(() => {
 // ───────── 档 3：主题切换（rail more 菜单 → theme） ─────────
 {
   const { context, page } = await open(1440, 900, 'theme-toggle');
-  const before = await page.evaluate(() => document.querySelector('.profile-page')?.getAttribute('data-theme'));
+  const before = await page.evaluate(() =>
+    document.querySelector('.profile-page')?.getAttribute('data-theme'),
+  );
   await page.click('.userspace-rail-more');
   await page.waitForTimeout(240);
   await page.click('.userspace-rail-menu-item[data-rail-action="theme"]');
   await page.waitForTimeout(400);
-  const after = await page.evaluate(() => document.querySelector('.profile-page')?.getAttribute('data-theme'));
-  check('F1 rail 更多菜单切换主题', !!before && !!after && before !== after, `${before} → ${after}`);
+  const after = await page.evaluate(() =>
+    document.querySelector('.profile-page')?.getAttribute('data-theme'),
+  );
+  check(
+    'F1 rail 更多菜单切换主题',
+    !!before && !!after && before !== after,
+    `${before} → ${after}`,
+  );
   await context.close();
 }
 
@@ -219,14 +279,15 @@ const measure = (page) => page.evaluate(() => {
   const { context, page } = await open(390, 844, 'portrait');
   const m = await measure(page);
   check('G1 竖屏 rail 不可见', m.railDisplay === 'none' || m.railDisplay === null, m.railDisplay);
-  check('G2 竖屏内容不右移（padding-left 0）',
-    m.padLeft === '0px', m.padLeft);
+  check('G2 竖屏内容不右移（padding-left 0）', m.padLeft === '0px', m.padLeft);
   await page.screenshot({ path: `${OUT}/portrait.png` }).catch(() => {});
   await context.close();
 }
 
 // ───────── 汇总 ─────────
-const realErrors = errors.filter((e) => !/Failed to load resource|net::|the server responded with a status/.test(e));
+const realErrors = errors.filter(
+  (e) => !/Failed to load resource|net::|the server responded with a status/.test(e),
+);
 console.log('\n──── 汇总 ────');
 console.log(`PASS ${pass} / FAIL ${fail}`);
 if (realErrors.length) {

@@ -21,6 +21,7 @@ import './styles/vendor/unified-nav.css';
 // ============================================
 import './styles/common/glass-ui.css';
 import './styles/common/liquid-glass.css';
+import './styles/common/nav-icon-soft.css';
 import './styles/common/animations.css';
 // Boh UI Kit 过渡预设（plans/045）：boh-pop / boh-fade / boh-slide-up / stagger
 import './components/ui/motion.css';
