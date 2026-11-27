@@ -33,8 +33,6 @@ const ROUTES = [
   '/birthday',
   '/join',
   '/history',
-  '/ai-intro',
-  '/boh-8-years-event',
   '/boh-8-years-journey',
   '/anniversary-cafe',
   '/shows',

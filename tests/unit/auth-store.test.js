@@ -420,6 +420,43 @@ describe('auth store', () => {
       expect(store.userInfo.isBohCreator).toBe(true);
       expect(store.userInfo.creatorPlatformIds.bilibili).toBe('12345');
     });
+
+    /* 2026-11-26 报障：「隐藏在线状态」开关点不动（点了弹回原状态）。
+       真因是**两层**缺漏，任一层没修都表现为同一个症状：
+         ① 本 store 的 dbUpdates 是字段白名单式（逐个 if），漏了 hide_online_status
+            ⇒ update({}) ⇒ 影响 0 行、回读还是旧值 ⇒ 开关弹回；
+         ② 线上 authenticated 对 profiles 该列没有列级 UPDATE（迁移 2026112607 已补）。
+       本用例锁 ①：断言 payload **真的带了**这一列，而不是被静默丢弃。
+       ⚠️ 别写成「测 store.userInfo 变了」—— 回读成功分支会把它覆盖成服务端值，
+          那样即使白名单漏了也照样绿（假测试）。必须断言发给库的 payload。 */
+    it('把 hide_online_status 真的写进 update payload（不是被白名单丢掉）', async () => {
+      store.userInfo.id = 'user-123';
+      const updatePayload = vi.fn(() => ({
+        eq: vi.fn().mockResolvedValue({ error: null }),
+      }));
+
+      mockSupabase.from.mockReturnValue({
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            single: vi.fn().mockResolvedValue({
+              data: { id: 'user-123', username: 'TestUser', hide_online_status: true },
+              error: null,
+            }),
+          })),
+        })),
+        update: updatePayload,
+      });
+
+      const result = await store.updateUserProfile({ hide_online_status: true });
+
+      expect(result.success).toBe(true);
+      expect(updatePayload).toHaveBeenCalledTimes(1);
+      const sent = updatePayload.mock.calls[0][0];
+      expect(sent).toHaveProperty('hide_online_status', true);
+      // 反向断言：payload 不能是空的（空对象 = 典型的「白名单漏列」症状）
+      expect(Object.keys(sent)).not.toHaveLength(0);
+      expect(store.userInfo.hideOnlineStatus).toBe(true);
+    });
   });
 
   // --- deleteAccount ---
@@ -492,8 +529,8 @@ describe('auth store', () => {
   // 2026-10-17 全面审查 P2-9：登出再登录后浏览器生命周期监听永久丢失
   //   根因：只有 initLoginState 会 ensureBrowserLifecycleSync()，而 resetState()
   //   会 removeEventListener + 复位 browserLifecycleBound ⇒ 同标签页「登出→再登录」
-  //   之后 visibilitychange / online / pagehide 全没了（静默：切走不再补写
-  //   last_active_at、last_online_day 游标不推进、断网恢复不同步）。
+  //   之后 visibilitychange / online 全没了（静默：切走不再补写 last_active_at、
+  //   断网恢复不同步）。
   //   修复点：updateLocalState 的登录分支统一重绑（幂等守卫在函数内部）。
   // ============================================================
   describe('浏览器生命周期监听（P2-9）', () => {
@@ -519,22 +556,22 @@ describe('auth store', () => {
       });
     };
 
-    it('登出再登录后会重新绑定 visibilitychange / online / pagehide', async () => {
+    it('登出再登录后会重新绑定 visibilitychange / online', async () => {
       const { added, removed } = stubBrowserGlobals();
       await signInOk();
 
       const first = await store.login('testuser', 'pass', false);
       expect(first.success).toBe(true);
-      expect(added).toEqual(expect.arrayContaining(['visibilitychange', 'online', 'pagehide']));
+      expect(added).toEqual(expect.arrayContaining(['visibilitychange', 'online']));
 
       await store.resetState();
-      expect(removed).toEqual(expect.arrayContaining(['visibilitychange', 'online', 'pagehide']));
+      expect(removed).toEqual(expect.arrayContaining(['visibilitychange', 'online']));
 
       // 第二次登录：修复前这里一个监听都不会加（added 为空）⇒ 本断言必红
       added.length = 0;
       const second = await store.login('testuser', 'pass', false);
       expect(second.success).toBe(true);
-      expect(added).toEqual(expect.arrayContaining(['visibilitychange', 'online', 'pagehide']));
+      expect(added).toEqual(expect.arrayContaining(['visibilitychange', 'online']));
 
       vi.unstubAllGlobals();
     });
@@ -821,8 +858,7 @@ describe('auth store: 登录跃迁写活跃时间', () => {
 
   beforeEach(() => {
     // 同步完成 mock 复位与装实现：不留 await 缝隙，避免上一个用例的
-    // void 异步尾随（refreshOverviewMarks → mark_overview_state）插进
-    // reset 与装实现之间踩出「无实现窗口」（其 TypeError 被静默吞掉）。
+    // void 异步尾随插进 reset 与装实现之间踩出「无实现窗口」。
     mockSupabase.from.mockReset();
     mockSupabase.rpc.mockReset();
     mockSupabase.rpc.mockResolvedValue({ data: null, error: null });
@@ -859,8 +895,7 @@ describe('auth store: 登录跃迁写活跃时间', () => {
       },
       { timeout: 5000 },
     );
-    // 排空本用例异步尾随（refreshOverviewMarks 等）后按函数名取基准——
-    // 不等 mark_overview_state：它是 void 尾随，落账时序不可靠，与被测行为无关
+    // 排空本用例异步尾随后按函数名取基准，避免把上一条用例的写入算进来。
     await new Promise((resolve) => setImmediate(resolve));
     await new Promise((resolve) => setTimeout(resolve, 20));
     const updateCallsBefore = countUpdateCalls();

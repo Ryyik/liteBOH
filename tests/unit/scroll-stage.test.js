@@ -17,7 +17,8 @@ import {
 // 本文件锁两件事：
 //   ① 进度换算与 reduce 读取的**纯函数契约** —— 逻辑都在这里，且不依赖 DOM；
 //   ② **接线守卫** —— 机制真的收在 composable 里（加/摘 html 类、rAF 节流、卸载清理），
-//      且两个宿主**不再各写一份**（BOHApp / AIPlaza 已迁走，用反证式断言钉住）。
+//      且宿主**不再自写一份**（BOHApp 是现存唯一宿主；AIPlaza 已于 2026-11-26 整页退场），
+//      用反证式断言钉住。
 //
 // ⚠️ 测试环境是 node（本仓没有 jsdom / happy-dom / @vue/test-utils）⇒ 不挂载组件；
 //    生命周期钩子的接线用源码守卫锁，行为部分用纯函数覆盖。
@@ -28,7 +29,6 @@ const read = (relPath) => readFileSync(resolve(import.meta.dirname, '../..', rel
 const COMPOSABLE = 'src/composables/useScrollStage.js';
 const CONSUMERS = [
   { path: 'src/views/BOHApp/index.vue', scrollClass: 'boh-app-scroll', stageRef: 'stageRef' },
-  { path: 'src/views/AIPlaza/index.vue', scrollClass: 'ai-intro-scroll', stageRef: 'modesSection' },
 ];
 
 describe('clamp01 · 进度截断', () => {
@@ -155,7 +155,7 @@ describe('useScrollStage · 机制收口在 composable 里（源码守卫）', (
   });
 });
 
-describe('两个宿主的接线（源码守卫）', () => {
+describe('宿主的接线（源码守卫）', () => {
   it.each(CONSUMERS)(
     '$path 从单一真源引入并传自己的 scrollClass',
     ({ path, scrollClass, stageRef }) => {
@@ -168,7 +168,7 @@ describe('两个宿主的接线（源码守卫）', () => {
 
   // 反证式断言：这三件正是被抽走的机制，宿主必须不再自己写。
   // ⚠️ 别顺手加 `requestAnimationFrame` 或 `getBoundingClientRect` 的否定断言 ——
-  //    AIPlaza 仍在用它们做**别的事**（首屏进场标记 / 点档位时把滚动位置搬过去），
+  //    宿主仍可能用它们做**别的事**（首屏进场标记 / 特定区块的滚动定位），
   //    那是宿主自己的语义，不属于被抽走的机制（2026-10-12 实测踩过）。
   it.each(CONSUMERS)('$path 不再自写滚动机制（抽了必须真的接线）', ({ path }) => {
     const code = squeezeSource(stripComments(scriptSection(read(path))));
@@ -178,12 +178,9 @@ describe('两个宿主的接线（源码守卫）', () => {
     expect(code).not.toContain("addEventListener('scroll'"); // 进度滚动监听
   });
 
-  it('两个宿主各自的样式里放开 body overflow（类名与传参一致）', () => {
+  it('宿主的样式里放开 body overflow（类名与传参一致）', () => {
     expect(squeezeSource(read('src/views/BOHApp/style.scoped.css'))).toContain(
       squeezeSource(':global(html.boh-app-scroll body)'),
-    );
-    expect(squeezeSource(read('src/views/AIPlaza/index.vue'))).toContain(
-      squeezeSource(':global(html.ai-intro-scroll body)'),
     );
   });
 });

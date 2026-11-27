@@ -231,7 +231,7 @@ export function normalizeDbError(error, fallbackMessage = '请求失败') {
   const errorCode = String(error.code || '').toUpperCase();
 
   /* ── 会话过期先于 RLS 判定（2026-10-17 全面审查 P2-8）─────────────────────
-     症状：`/overview` 在未登录 / 会话过期时提示「您的账号已被封禁或禁言」。
+     症状：受保护页面在未登录 / 会话过期时提示「您的账号已被封禁或禁言」。
      根因：会话失效时 PostgREST 也回 **42501**（匿名角色没有策略），旧代码把
      「42501 / row-level security」一律当成封禁 —— 真实用户被严重误导。
      判据：JWT 失效有自己的一组信号（PGRST301/PGRST302、401、jwt expired…），

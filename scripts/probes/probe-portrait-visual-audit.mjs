@@ -41,7 +41,6 @@ const PAGES = [
     waitSel: '.home',
   },
   { name: '02-forum-list', hash: '/?view=latest', auth: 'user', shots: ['top', 'mid', 'bottom'] },
-  { name: '03-ai-intro', hash: '/ai-intro', auth: 'none', shots: ['top', 'mid', 'bottom'] },
   {
     name: '04-ai-chat',
     hash: '/ai-chat',
@@ -97,7 +96,6 @@ const PAGES = [
     stubAdmin: true,
     shots: ['top'],
   },
-  { name: '13-overview', hash: '/overview', auth: 'user', shots: ['top', 'mid'] },
   { name: '14-activities', hash: '/activities', auth: 'none', shots: ['top', 'mid'] },
   { name: '15-lotteries', hash: '/lotteries', auth: 'none', shots: ['top', 'mid'] },
   { name: '16-shop', hash: '/shop', auth: 'none', shots: ['top', 'mid'] },

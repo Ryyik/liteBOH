@@ -22,7 +22,7 @@
  *   - `getCloudinaryTransformedUrl` 对非 Cloudinary 地址是**恒等变换**（内部走 getCloudinaryDisplayUrl）。
  * 反过来先改写，`@/assets/...` 会被 `new URL()` 抛错吞掉，永远进不了本地解析分支。
  *
- * 收敛进度（2026-09-29）：SmartOverview 与 forum-format 的同类实现已改为调用本模块；
+ * 收敛进度（2026-09-29）：forum-format 的同类实现已改为调用本模块；
  * `Newsroom/index.vue` 的 `getNewsImageUrl` 与 `Newsroom/NewsDetailPage.vue` 的 `coverUrl`
  * 仍是内联副本（逻辑等价），待后续一并收敛。
  */

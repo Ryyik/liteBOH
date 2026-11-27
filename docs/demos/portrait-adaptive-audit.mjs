@@ -42,7 +42,6 @@ const PAGES = [
   { name: 'lotteries', hash: '/lotteries', auth: 'none' },
   { name: 'activities', hash: '/activities', auth: 'none' },
   { name: 'newsroom', hash: '/newsroom', auth: 'none' },
-  { name: 'overview', hash: '/overview', auth: 'user' },
   { name: 'albums', hash: '/albums', auth: 'user' },
   { name: 'cloud-plus', hash: '/user-space?tab=cloud', auth: 'user' },
   { name: 'uspace-settings', hash: '/user-space?tab=settings', auth: 'user' },

@@ -34,9 +34,9 @@
   /* Easing — UI 强曲线 */
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
-  --ease-emphasized: cubic-bezier(0.16, 1, 0.3, 1);  /* 博莱克既有 emphasized，保留 */
-  --ease-standard: cubic-bezier(0.2, 0, 0, 1);       /* 博莱克既有 standard，保留 */
-  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);     /* iOS-like drawer 曲线 */
+  --ease-emphasized: cubic-bezier(0.16, 1, 0.3, 1); /* 博莱克既有 emphasized，保留 */
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1); /* 博莱克既有 standard，保留 */
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1); /* iOS-like drawer 曲线 */
   /* 形变专用：drawer 曲线在 45% 时间点就走完 94% 的位移，用它做「卡片长大」
      会变成「亮起来的时候已经基本长完了」＝ 看着像一闪而过。这条把速度峰值
      压到 30–45% 区间，全程都有可见运动（实测 0.15→0.18、0.45→0.79、0.6→0.91）。 */
@@ -50,12 +50,12 @@
   --ease-morph-out: cubic-bezier(0.32, 0.72, 0, 1);
 
   /* Duration — UI 动画 < 300ms */
-  --duration-press: 160ms;     /* 按钮按压反馈 */
-  --duration-tooltip: 200ms;   /* tooltip / 小 popover */
-  --duration-fast: 180ms;      /* hover / color change */
-  --duration-base: 240ms;      /* dropdown / popover */
-  --duration-slow: 360ms;      /* modal / drawer */
-  --duration-page: 500ms;      /* 整页过渡上限 */
+  --duration-press: 160ms; /* 按钮按压反馈 */
+  --duration-tooltip: 200ms; /* tooltip / 小 popover */
+  --duration-fast: 180ms; /* hover / color change */
+  --duration-base: 240ms; /* dropdown / popover */
+  --duration-slow: 360ms; /* modal / drawer */
+  --duration-page: 500ms; /* 整页过渡上限 */
 
   /* Motion Ladder — 空间形变的节奏真源（plans/035 §4 L0，2026-10-31 定稿）
      档位历史：慢速 640/480/480/360 → **标准 460/380/340**（同日用户定稿）
@@ -87,13 +87,13 @@
      同日三改（用户逐条反馈）：「打开速度可以」→ 入场保持 620；
      「回到列表动画速度过慢」→ 出场单独降到 360（480 → 360，-25%）。
      **出场不再跟入场同档**：进 > 出 ≈ 1.7:1，关闭不耐等（与上面口径一致）。 */
-  --motion-morph-in: 620ms;         /* 卡片 → 详情（跨屏） */
-  --motion-morph-in-near: 480ms;    /* 卡片 → 详情（短距离） */
-  --motion-morph-out: 360ms;        /* 详情 → 卡片 */
-  --motion-enter: 320ms;            /* 局部块出现：评论 / 回复框 / 图片切换 */
-  --motion-exit: 240ms;             /* 局部块消失 */
-  --motion-stagger: 55ms;           /* 列表 stagger 步长 */
-  --motion-stagger-max: 6;          /* stagger 最多叠加 6 项，第 7 项起不再加延迟 */
+  --motion-morph-in: 620ms; /* 卡片 → 详情（跨屏） */
+  --motion-morph-in-near: 480ms; /* 卡片 → 详情（短距离） */
+  --motion-morph-out: 360ms; /* 详情 → 卡片 */
+  --motion-enter: 320ms; /* 局部块出现：评论 / 回复框 / 图片切换 */
+  --motion-exit: 240ms; /* 局部块消失 */
+  --motion-stagger: 55ms; /* 列表 stagger 步长 */
+  --motion-stagger-max: 6; /* stagger 最多叠加 6 项，第 7 项起不再加延迟 */
 
   /* 形变纵深：窗口展开时内容额外从 scale(1.12) 收回到 1，以卡片中心为原点。
      1 = 纯窗口（内容全程静止），越大越像「从远处推近」。
@@ -142,6 +142,13 @@
      ⚠️ 首屏骨架（index.html 内联 .boh-boot 底色）必须与本值一致，
      由 scripts/check-first-paint.mjs 断言 —— 改这里就要同步改那里。 */
   --boh-page-bg: #ffffff;
+
+  /* 纯黑表面层（亮色档）—— 暗色真源在下方 [data-theme="dark"]，这里只给亮色取值，
+     保证 var(--boh-surface-*) 在亮色下也能解析（不写会在亮色档变成空串 ⇒ 底色消失，
+     2026-11-24 云页踩过同类坑）。 */
+  --boh-surface-page: #ffffff;
+  --boh-surface-card: #ffffff;
+  --boh-surface-float: #ffffff;
 
   /* Heatmap — 活跃热力图五档色阶（0=无活动 → 4=最活跃）
      消费方：views/user-center/UserSpace/components/ActivityHeatmap.vue
@@ -254,12 +261,33 @@
 }
 
 [data-theme="dark"] {
-  --boh-login-island-bg: #1c1c1e;
-  --liquid-bg: rgba(28, 28, 36, 0.72);
-  --liquid-bg-strong: rgba(40, 40, 52, 0.84);
-  --liquid-bg-subtle: rgba(38, 38, 48, 0.58);
-  --liquid-bg-nested: rgba(38, 38, 48, 0.42);
-  --liquid-bg-overlay: rgba(18, 18, 26, 0.68);
+  /* ── 纯黑表面层（2026-11-26 暗色重做 · 唯一取色处）──────────────────────────
+     用户口径：「暗色体验不理想，论坛甚至有多个色块拼接，就想要纯黑配色和白色文字」。
+
+     真因不是「黑得不够」，而是**一屏里共存了四套互相不认识的黑**：
+     页面底 暖炭 #16120e（红棕偏）/ 论坛容器 藏青 #0d1117（蓝偏）/
+     帖子卡 中性 #1c1c1e / 论坛页根 紫黑 #0d0d12。四者亮度差不到 5%，
+     色相却各不相同 ⇒ 相邻处必然读成「拼接」。
+
+     所以这一层只做一件事：**把色相全部归零，只剩一条中性灰阶**。
+     三级抬升（0 → 3% → 7%），相邻差 < 8%，肉眼读成「同一块黑上的层次」
+     而不是「两块不同颜色」。浮层用 #121212（唯一允许明显高于页底的面）。
+
+     ⚠️ 抬升幅度别加大：一旦超过 ~10%，纯黑底上的面板又会读成灰块。
+     ⚠️ 新增/调整一律走这几个 token，页面文件里不要再写裸黑（check:dark-tokens 会记账）。 */
+  --boh-surface-page: #000000;
+  --boh-surface-card: #0a0a0a;
+  --boh-surface-float: #121212;
+
+  --boh-login-island-bg: var(--boh-surface-float);
+  /* 玻璃族：**色相归零**（原来 28,28,36 / 40,40,52 带蓝紫偏，在纯黑上会显成
+     「灰紫块」—— 那正是用户说的色块）。α 全部保留，玻璃行为不变：
+     叠在滚动内容上仍是暗色遮罩，叠在纯黑页面上则还原成纯黑（隐形边界靠描边）。 */
+  --liquid-bg: rgba(0, 0, 0, 0.72);
+  --liquid-bg-strong: rgba(0, 0, 0, 0.84);
+  --liquid-bg-subtle: rgba(0, 0, 0, 0.58);
+  --liquid-bg-nested: rgba(255, 255, 255, 0.045);
+  --liquid-bg-overlay: rgba(0, 0, 0, 0.68);
   --liquid-border: rgba(255, 255, 255, 0.12);
   --liquid-border-strong: rgba(255, 255, 255, 0.18);
   --liquid-border-hairline: rgba(255, 255, 255, 0.08);
@@ -270,10 +298,12 @@
   --liquid-shadow-overlay: 0 24px 80px rgba(0, 0, 0, 0.42);
   /* 文字色必须派生：暗玻璃上的亮色文字若不翻转，会沿用 #1d1d1f 变成黑字压暗底。
      primary 与 themes/dark-mode.css 的 --boh-text-primary 暗色值保持一致。
-     三级在暗玻璃(~#1c1c24)上的对比度分别约 15:1 / 6.4:1 / 4.6:1，均达 WCAG AA。 */
-  --liquid-text-primary: #f5f5f7;
-  --liquid-text-secondary: #a1a1a6;
-  --liquid-text-tertiary: #8a919c;
+     ⚠️ 用 #f0f0f0 而非纯 #ffffff：纯白在 #000 上是 21:1，长文会「发肿刺眼」；
+         #f0f0f0 = 17.9:1，肉眼几乎无差但久读舒服。纯 #fff 只留给强调态。
+         三级在纯黑上的对比度分别约 17.9:1 / 8.2:1 / 4.7:1，均达 WCAG AA。 */
+  --liquid-text-primary: #f0f0f0;
+  --liquid-text-secondary: #a8a8a8;
+  --liquid-text-tertiary: #8a8a8a;
 
   /* 语义色层暗色覆写（plans/045）：accent 压深保白字 AA，彩字换浅变体，五类语义提亮 */
   --boh-accent: #0a72da;
@@ -443,4 +473,56 @@
   --liquid-blur-sm: calc(8px * var(--glass-blur-scale));
   --liquid-blur-lg: calc(12px * var(--glass-blur-scale));
   --liquid-saturate: 140%;
+}
+
+/* ==============================================
+ * 5. Forum Apple Minimal Tokens — 论坛极简卡（plans/051）
+ *    帖子卡片 / 卡内评论区 / 详情页的唯一色源。
+ *    消费方：src/components/forum/*（批 1 起）与 PostCard/CommentThread。
+ *    规则：论坛极简面禁止再写裸色字面量，一律引用 --appl-*；
+ *          dark 段与 light 段成对维护，改一处必须看另一处。
+ * ============================================== */
+:root {
+  --appl-canvas: #f5f5f7;
+  --appl-card: #ffffff;
+  --appl-subtle: #f2f2f7;
+  --appl-nav-glass: rgba(245, 245, 247, 0.78);
+  --appl-text-1: #1d1d1f;
+  --appl-text-2: #3a3a3c;
+  --appl-text-3: #6e6e73;
+  --appl-text-4: #86868b;
+  --appl-blue: #0071e3;
+  --appl-red: #ff3b30;
+  --appl-hairline: rgba(0, 0, 0, 0.06);
+  --appl-shadow-card: 0 1px 3px rgba(0, 0, 0, 0.04), 0 8px 24px rgba(0, 0, 0, 0.02);
+  --appl-shadow-card-hover: 0 2px 6px rgba(0, 0, 0, 0.05), 0 12px 32px rgba(0, 0, 0, 0.04);
+  --appl-radius-card: 22px;
+  --appl-radius-inner: 12px;
+  --appl-avatar-lg: 40px;
+  --appl-avatar-md: 28px;
+  --appl-avatar-sm: 20px;
+  /* Ultra 独占卡色（plans/051 §3.2：pro/max 卡色已删，全站只有这一档染卡）。
+     2026-11-26 用户追加：粉色降饱和 —— 只留一点暖意，接近中性白。 */
+  --appl-ultra-card: #fcf7f8;
+  --appl-ultra-quote: rgba(252, 247, 248, 0.95);
+}
+
+[data-theme="dark"] {
+  --appl-canvas: #000000;
+  /* 2026-11-26 纯黑收敛：卡片不再靠「比页底亮一档的灰」浮起（那正好读成色块），
+     改由 --appl-hairline 描边 + 轻微投影定边界。0a0a0a 只作极轻的抬升暗示。 */
+  --appl-card: #0a0a0a;
+  --appl-subtle: #141414;
+  --appl-nav-glass: rgba(0, 0, 0, 0.78);
+  --appl-text-1: #f0f0f0;
+  --appl-text-2: #d4d4d8;
+  --appl-text-3: #9a9a9f;
+  --appl-text-4: #6b6b70;
+  --appl-blue: #0a84ff;
+  --appl-red: #ff453a;
+  --appl-hairline: rgba(255, 255, 255, 0.09);
+  --appl-shadow-card: 0 0 0 1px rgba(255, 255, 255, 0.04), 0 1px 2px rgba(0, 0, 0, 0.6);
+  --appl-shadow-card-hover: 0 0 0 1px rgba(255, 255, 255, 0.08), 0 4px 16px rgba(0, 0, 0, 0.55);
+  --appl-ultra-card: rgba(255, 255, 255, 0.03);
+  --appl-ultra-quote: rgba(255, 255, 255, 0.03);
 }

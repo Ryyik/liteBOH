@@ -12,8 +12,8 @@
  * 队列仍然在 navbar 内（单一真源），本模块是**纯函数 + 一个会话级计数器**。
  *
  * ⚠️ 探针旁路：`window.__BOH_ISLAND_POLICY_OFF__ = true` 后全部放行。
- *    现有 9 个探针/脚本依赖通知岛按时出现（island-smoke、probe-global-search、
- *    probe-overview-island-guards 等），加闸门后连续触发两条会被吞掉 ⇒ 断言随机红。
+ *    现有探针/脚本依赖通知岛按时出现（island-smoke、probe-global-search 等），
+ *    加闸门后连续触发两条会被吞掉 ⇒ 断言随机红。
  *    探针要测时序时应显式打开旁路，而不是放宽断言。
  */
 

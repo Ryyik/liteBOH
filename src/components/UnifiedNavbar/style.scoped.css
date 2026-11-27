@@ -880,11 +880,6 @@
      代价大于收益。所以 mini 宽度按「user-info 恒 58」算（见 --nav-mini-width 注释）。 */
 }
 
-/* DEV 测试按钮会撑宽 mini 胶囊，mini 未展开态隐藏（横屏/展开态照旧） */
-:global(#unified-nav-container .nav-mini-caps:not(.nav-expanded) .nav-dev-island-btn) {
-  display: none;
-}
-
 /* 全局搜索按钮同理：--nav-mini-width 是按「logo + 头像 + 汉堡」精算出来的
    （188px / ≤480 档 168px，164px 时就已让头像与汉堡重叠），再塞一个 34px 圆按钮会直接撑爆。
    mini 未展开态隐藏，展开成长条或横屏时照常显示；移动端仍可经展开态进入搜索。 */
@@ -1343,14 +1338,6 @@
   display: none !important;
 }
 
-:global(
-  #unified-nav-container.nav-immersive-on
-    .unified-nav-surface:not(.nav-expanded)
-    .nav-dev-island-btn
-) {
-  display: none !important;
-}
-
 /* 展开态：白条归位 + surface 回到流内居中胶囊（默认样式接管） */
 :global(#unified-nav-container.nav-immersive-on.nav-immersive-expanded .unified-nav) {
   background-color: rgba(255, 255, 255, 0.92) !important;
@@ -1387,6 +1374,7 @@
   :global(#unified-nav-container .unified-nav-surface.nav-mini-caps) {
     --nav-mini-width: 168px;
   }
+
 }
 
 /* ============================================
@@ -1563,38 +1551,6 @@
   border: 1.5px solid rgba(255, 255, 255, 0.8);
   box-shadow: 0 0 4px rgba(255, 77, 79, 0.4);
   z-index: 10;
-}
-
-/* ============================================
-   DEV-TEST：智能概览灵动岛测试按钮（仅开发环境，上线前整块删除）
-   ============================================ */
-.nav-dev-island-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  height: 30px;
-  padding: 0 10px;
-  border: 1px dashed #ff9500;
-  border-radius: 999px;
-  background: rgba(255, 149, 0, 0.08);
-  color: #b25000;
-  font-size: 12px;
-  font-weight: 600;
-  line-height: 1;
-  cursor: pointer;
-  flex-shrink: 0;
-  transition:
-    background 0.15s ease,
-    transform 0.15s ease;
-}
-
-.nav-dev-island-btn:hover {
-  background: rgba(255, 149, 0, 0.18);
-  transform: translateY(-1px);
-}
-
-.nav-dev-island-btn:active {
-  transform: scale(0.95);
 }
 
 /* 博莱克灵动岛（BolekIsland 宿主形态）已随 plans/038 P3 入口收敛退场：

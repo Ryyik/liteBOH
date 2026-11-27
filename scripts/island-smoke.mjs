@@ -337,9 +337,12 @@ const main = async () => {
     const customOk = await page.evaluate(async () => {
       try {
         const mod = await import(
-          /* @vite-ignore */ '/src/components/UnifiedNavbar/OverviewIslandLoading.vue'
+          /* @vite-ignore */ '/src/components/UnifiedNavbar/NotificationSuggestIsland.vue'
         );
-        window.__smokeCustom = window.__island.custom(mod.default, {});
+        window.__smokeCustom = window.__island.custom(mod.default, {
+          unreadCount: 1,
+          lingerMs: 60000,
+        });
         return Boolean(window.__smokeCustom);
       } catch {
         return false;
@@ -379,9 +382,12 @@ const main = async () => {
     const mounted = await page.evaluate(async () => {
       try {
         const mod = await import(
-          /* @vite-ignore */ '/src/components/UnifiedNavbar/OverviewIslandLoading.vue'
+          /* @vite-ignore */ '/src/components/UnifiedNavbar/NotificationSuggestIsland.vue'
         );
-        window.__smokeCustom8 = window.__island.custom(mod.default, {});
+        window.__smokeCustom8 = window.__island.custom(mod.default, {
+          unreadCount: 1,
+          lingerMs: 60000,
+        });
         return Boolean(window.__smokeCustom8);
       } catch {
         return false;

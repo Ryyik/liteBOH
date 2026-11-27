@@ -26,7 +26,6 @@ import {
   searchBirthdayWishes,
   searchBirthdayEvents,
   searchAvatarFrames,
-  searchForumWeeklyReports,
   searchComments,
   searchMyCloudEntries,
 } from '@/utils/api/site-search-api';
@@ -577,23 +576,6 @@ export const SITE_SEARCH_SOURCES: SiteSearchSource[] = [
           badge: '祝福',
         })),
       ].slice(0, limit);
-    },
-  },
-  {
-    id: 'weekly',
-    label: '论坛周报',
-    group: 'deferred',
-    async search(query, { limit, signal }) {
-      const rows = await searchForumWeeklyReports(query, { limit, signal });
-      return rows.map((row) => ({
-        key: `weekly-${row.id}`,
-        source: 'weekly',
-        title: `周报 ${row.week_start || ''} ~ ${row.week_end || ''}`.trim(),
-        excerpt: buildLocalExcerpt(row.summary || '', query),
-        meta: '',
-        route: '/overview',
-        badge: '周报',
-      }));
     },
   },
   {

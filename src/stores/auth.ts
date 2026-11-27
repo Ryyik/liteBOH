@@ -3,7 +3,7 @@ import { computed, ref, reactive } from 'vue';
 import { logger } from '@/utils/logger.js';
 import { validateCurrentPassword } from '@/utils/auth-validation.js';
 import { notify } from '@/utils/notify.js';
-import { getLocalDayKey, writeLastOnlineDay } from '@/utils/overview-day-marker.js';
+import { getLocalDayKey } from '@/utils/local-day-key.js';
 import type { UserInfo, LoginResult, AsyncOpResult } from '@/types';
 import type * as AuthModule from '@/utils/auth.js';
 
@@ -17,8 +17,8 @@ const SESSION_HEARTBEAT_INTERVAL_MS = 2 * 60 * 1000;
 const ACTIVE_WRITE_DEBOUNCE_MS = 30 * 1000;
 // 「上次在线」锚点的**重取**阈值（2026-10-05）：
 // 锚点原先是「每个实例只取一次」，而长生命周期实例（PWA / 从不刷新的标签页）实测能挂两周以上，
-// 于是「天天回来」的用户一直看到实例启动那一刻的旧日期（用户报障：DB 里 last_active_at 已是当天，
-// 智能概览还写 9月22日）。跨过「一次访问」的边界就必须重取 —— 判据有两条，都按本阈值：
+// 于是「天天回来」的用户一直看到实例启动那一刻的旧日期。跨过「一次访问」的边界就必须重取
+// —— 判据有两条，都按本阈值：
 //   ① 页面被隐藏/无写入的时长（切走 10 秒不算新访问，隔夜/隔天才算）；
 //   ② 本机自然日翻页（实例挂过零点）。
 const ANCHOR_REARM_GAP_MS = 30 * 60 * 1000;
@@ -184,8 +184,7 @@ export const useAuthStore = defineStore(
       bannedUntil: null,
       mutedUntil: null,
     });
-    // 离线概览锚点：在写 last_active_at 之前快照「上一段连续在线的结束时刻」，供智能概览页的
-    // 「上次在线」与灵动岛的「你离开了 N 天」展示，并撑开离线内容窗口。
+    // 在写 last_active_at 之前快照「上一段连续在线的结束时刻」，供论坛「上次看到这里」分隔线使用。
     // 不持久化（persist paths 只含 isLoggedIn/userInfo）。
     // ⚠️ 不能只在实例首次加载时取一次（2026-10-05 修）：长生命周期实例（PWA / 从不刷新的标签页）
     // 能挂两周以上，只取一次会让锚点永远停在实例启动那一刻的旧值。跨过「一次访问」边界要重取，
@@ -196,19 +195,8 @@ export const useAuthStore = defineStore(
     // 页面最后一次转入隐藏的时刻（0 = 当前可见）：用于量出「本次回到页面」的间隔
     let hiddenSinceAt = 0;
     // 真·首次登录（DB profiles.last_active_at 为空，注册触发器不写该列）：
-    // 此时离线锚点是「now - 7 天」的**合成值**，只用于撑开推送窗口，
-    // 不能当作真实离线时间展示（否则新账号会看到「你离开了 7 天」）。
-    // 智能概览据此改说欢迎文案，见 useOverviewIsland.js。
+    // 此时离线锚点是「now - 7 天」的合成值，分隔线据此不画「上次看到这里」。
     const isFirstLoginSession = ref(false);
-    // 跨设备天粒度标记（服务端 profiles.last_online_day / overview_checked_day，Asia/Shanghai 自然日）：
-    // 每次会话经 mark_overview_state 拉取；不持久化。
-    // 会话内「上次在线日」以首次取回的值为准——心跳/可见性刷新拿到的已是「今天」，
-    // 覆盖写会把真实的上次在线日抹成今天，长离线窗口随之塌成 0。
-    const overviewMarks = ref<{
-      today: string;
-      previousOnlineDay: string;
-      checkedDay: string;
-    } | null>(null);
 
     const isAdmin = computed(() => {
       if (!isInitialized.value) return false;
@@ -261,12 +249,6 @@ export const useAuthStore = defineStore(
     let browserLifecycleBound = false;
     let browserLifecycleHandlers: Record<string, any> | null = null;
     let lastActiveWriteAt = 0;
-    // 天粒度标记的并发去重（见 refreshOverviewMarks）：只对「读旧值 + 写今天」这一类调用生效
-    let overviewMarksInFlight: Promise<{
-      today: string;
-      previousOnlineDay: string;
-      checkedDay: string;
-    } | null> | null = null;
     const profileCacheMeta = reactive<ProfileCacheMeta>({
       userId: '',
       fetchedAt: 0,
@@ -403,23 +385,10 @@ export const useAuthStore = defineStore(
         void updateOnlineStatus();
       };
 
-      // 会话结束（关闭标签 / 刷新 / 站外跳转）时把「上次在线日」游标推进到当天，语义=该日及之前已浏览。
-      // 时机必须是「离开时」而不能是在线中：上线就写会把当天的推送窗口掐掉
-      // （今天在线 ≠ 今天稍后发布的内容已读），灵动岛将永远弹不出来。
-      // 有了这条记录，长离线账号的「你离开了 N 天」不再依赖易失的秒级心跳锚点
-      // （profiles.last_active_at 会被登录与每次刷新后的会话顶成今天）。
-      const handlePageHide = () => {
-        if (!isLoggedIn.value) return;
-        const userId = userInfo.id;
-        if (!userId) return;
-        writeLastOnlineDay(userId, getLocalDayKey());
-      };
-
       window.addEventListener('visibilitychange', handleVisibilityChange);
       window.addEventListener('online', handleOnline);
-      window.addEventListener('pagehide', handlePageHide);
 
-      browserLifecycleHandlers = { handleVisibilityChange, handleOnline, handlePageHide };
+      browserLifecycleHandlers = { handleVisibilityChange, handleOnline };
     };
 
     const clearBrowserLifecycleSync = (): void => {
@@ -429,7 +398,6 @@ export const useAuthStore = defineStore(
         browserLifecycleHandlers.handleVisibilityChange,
       );
       window.removeEventListener('online', browserLifecycleHandlers.handleOnline);
-      window.removeEventListener('pagehide', browserLifecycleHandlers.handlePageHide);
       browserLifecycleHandlers = null;
       browserLifecycleBound = false;
     };
@@ -691,11 +659,10 @@ export const useAuthStore = defineStore(
           userInfo.email = String(u.email || '');
           ensureSessionHeartbeat();
           /* 2026-10-17（全面审查 P2-9）：**所有**「会话被采纳」的路径都要重绑浏览器生命周期监听。
-             报障：同标签页「登出 → 再登录」后，visibilitychange / online / pagehide 监听永久丢失
+             报障：同标签页「登出 → 再登录」后，visibilitychange / online 监听永久丢失
              —— `resetState()` 会 removeEventListener 并复位 `browserLifecycleBound`，而此前只有
              `initLoginState`（启动时跑一次）会绑定，login / loginWithPasskey 都不重绑。
-             后果静默：切走页面不再立即补写 last_active_at（只剩 2min 心跳）、`last_online_day`
-             游标不推进（长离线「你离开了 N 天」与推送窗口算错）、断网恢复不同步。
+             后果静默：切走页面不再立即补写 last_active_at（只剩 2min 心跳）、断网恢复不同步。
              放在这里而不是两个 login 里各写一遍：令牌登录（verifyOtp/recovery）、OAuth 回跳、
              初始化恢复会话都会经过 updateLocalState ⇒ 一处覆盖全部入口；函数自带
              `browserLifecycleBound` 幂等守卫，重复调用无副作用。 */
@@ -1016,58 +983,6 @@ export const useAuthStore = defineStore(
     };
 
     /**
-     * 同步跨设备天粒度标记（智能概览用）：
-     * mark_overview_state 一次往返完成「读旧值 + 写今天」——必须原子，先写后读窗口就没了。
-     * - 会话启动/在线心跳：p_checked=false，取回「上次在线日」；
-     * - 概览检查成功后：p_checked=true，额外把「当日已检查」推进到今天（跨设备同日去重）。
-     */
-    const runRefreshOverviewMarks = async (
-      markChecked: boolean,
-    ): Promise<typeof overviewMarks.value> => {
-      if (!isLoggedIn.value || !userInfo.id) return null;
-      try {
-        const { supabase } = await loadAuthApi();
-        const { data, error } = await supabase.rpc('mark_overview_state', {
-          p_checked: markChecked,
-        });
-        if (error) throw error;
-        const payload = (data && typeof data === 'object' ? data : {}) as Record<string, unknown>;
-        const today = String(payload.today || '');
-        const previousOnlineDay = String(payload.previous_online_day || '');
-        const checkedDay = String(payload.checked_day || '');
-        overviewMarks.value = {
-          today,
-          // 会话内首次值优先：后续调用返回的「上次在线日」已经是今天，不代表真实上次在线日
-          previousOnlineDay: overviewMarks.value?.previousOnlineDay || previousOnlineDay,
-          checkedDay: markChecked ? today : checkedDay || overviewMarks.value?.checkedDay || '',
-        };
-        return overviewMarks.value;
-      } catch (error) {
-        // 跨设备标记是增强项：失败时前端回落到本机 localStorage 游标与会话锚点
-        logger.warn('auth-store', '同步智能概览天粒度标记失败', error);
-        return null;
-      }
-    };
-
-    const refreshOverviewMarks = ({ markChecked = false } = {}): Promise<
-      typeof overviewMarks.value
-    > => {
-      // 「读旧值 + 写今天」这类调用（markChecked=false）彼此完全等价，并发时复用同一往返：
-      // 启动期 updateOnlineStatus 与灵动岛的首次检查会同时来要它（2026-09-30 起灵动岛改为
-      // 登录/进站自动触发，撞车成为常态），各发一次既多一个 RPC，又让灵动岛白白多等一个往返。
-      // markChecked=true 有副作用（把当日已检查推进到今天），必须各自真实执行，不并入去重。
-      if (markChecked) return runRefreshOverviewMarks(true);
-      if (overviewMarksInFlight) return overviewMarksInFlight;
-      const run = runRefreshOverviewMarks(false);
-      overviewMarksInFlight = run;
-      const clear = () => {
-        if (overviewMarksInFlight === run) overviewMarksInFlight = null;
-      };
-      void run.then(clear, clear);
-      return run;
-    };
-
-    /**
      * 捕获 / 重取「上次在线」锚点。
      * 真源是 userInfo.lastActiveAt —— 每次写库成功后本地同步为同一时刻，因此在一段新访问开始时
      * 它正好等于「上一段在线结束的时刻」（离开时的补写 / 上一次心跳）。
@@ -1084,14 +999,11 @@ export const useAuthStore = defineStore(
       // 已有锚点却拿不到真值（异常路径）：保留旧锚点，别把展示倒退成合成的 7 天
       if (hasAnchor) return;
       // 全新账号（DB 无 last_active_at）：紧接着的 update_last_active_at RPC
-      // 会立刻把 DB 写成 now，get_offline_overview 的 first_login 分支因此
-      // 永远不可达、概览恒为空。这里在写库前主动放一个 7 天锚点，
-      // 让首次登录能看到最近 7 天的内容。
+      // 会立刻把 DB 写成 now。这里在写库前放一个 7 天合成锚点，供分隔线识别首次登录。
       // ⚠️ 这条兜底只在「还没有锚点」时生效：重取判据（访问边界/翻页）在首帧必然为真，
-      // 若按 rearm 就 return，新账号会连合成锚点都拿不到（首帧空窗 + 文案错档）。
+      // 若按 rearm 就 return，新账号会连合成锚点都拿不到。
       offlineAnchorAt.value = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
       anchorDayKey = getLocalDayKey();
-      // 标记该锚点是合成值：窗口照用，但展示层不得把它当成「真实离开 7 天」
       isFirstLoginSession.value = true;
     };
 
@@ -1121,11 +1033,9 @@ export const useAuthStore = defineStore(
         userInfo.lastActiveAt = new Date().toISOString();
         lastActiveWriteAt = Date.now();
         anchorDayKey = getLocalDayKey();
-        // 顺带同步跨设备天粒度标记（上次在线日 / 当日已检查），供智能概览的窗口与同日去重使用
-        void refreshOverviewMarks();
       } catch (error) {
         // 非关键功能，不中断会话，但不能无声：写库静默失败会让 DB 的 last_active_at
-        // 整段会话陈旧，其他设备/概览读到的「上次在线」就是错的（在线时间准确性专项 2026-09-29）。
+        // 整段会话陈旧，论坛分隔线读到的「上次在线」就是错的（在线时间准确性专项 2026-09-29）。
         // RPC 恒写 now、幂等 —— 心跳 / 可见性 / 网络恢复的下一次调用天然就是补写。
         logger.warn(
           'auth-store',
@@ -1202,8 +1112,6 @@ export const useAuthStore = defineStore(
       anchorDayKey = '';
       hiddenSinceAt = 0;
       isFirstLoginSession.value = false;
-      overviewMarks.value = null;
-      overviewMarksInFlight = null;
       clearSessionHeartbeat();
       clearBrowserLifecycleSync();
       authStateSubscription?.unsubscribe?.();
@@ -1280,6 +1188,16 @@ export const useAuthStore = defineStore(
         }
         if (updates.hide_follow_data !== undefined) {
           dbUpdates.hide_follow_data = Boolean(updates.hide_follow_data);
+        }
+        /* 2026-11-26：「隐藏在线状态」开关点了没反应 —— 白名单里根本没有这一列。
+           store 是**字段白名单式**的（逐个 if），漏一列的表现就是「请求成功但什么都没改」：
+           dbUpdates 为空 ⇒ `.update({})` ⇒ postgrest 返回 200、影响 0 行、
+           回读 profile 还是旧值，UI 上的开关弹回去。见 toggleHideOnlineStatus。
+           ⚠️ 注意这一列在线上还有第二道门：2026090803_security_hardening 收窄了
+              authenticated 的列级 UPDATE，`hide_online_status` **不在**授权列表里
+              （只有 hide_follow_data 在）。所以这里补上之后仍需 RPC（见迁移 2026112601）。 */
+        if (updates.hide_online_status !== undefined) {
+          dbUpdates.hide_online_status = Boolean(updates.hide_online_status);
         }
 
         const { error } = await supabase.from('profiles').update(dbUpdates).eq('id', userInfo.id);
@@ -1375,6 +1293,11 @@ export const useAuthStore = defineStore(
           if (updates.hide_follow_data !== undefined) {
             userInfo.hideFollowData = Boolean(updates.hide_follow_data);
           }
+          /* 回读失败时的本地兜底 —— 与上面各列同一套写法。
+             2026-11-26 补：漏了这一列会让开关在「回读失败」时纹丝不动。 */
+          if (updates.hide_online_status !== undefined) {
+            userInfo.hideOnlineStatus = Boolean(updates.hide_online_status);
+          }
         }
 
         if (userInfo.username) {
@@ -1406,8 +1329,6 @@ export const useAuthStore = defineStore(
       initLoginState,
       offlineAnchorAt,
       isFirstLoginSession,
-      overviewMarks,
-      refreshOverviewMarks,
       refreshCurrentUserProfile,
       ensureAdminAccess,
       deductPoints,

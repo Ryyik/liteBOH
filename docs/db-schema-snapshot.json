@@ -4463,16 +4463,6 @@
         "column": "avatar_frame_url",
         "type": "text",
         "nullable": "YES"
-      },
-      {
-        "column": "last_online_day",
-        "type": "date",
-        "nullable": "YES"
-      },
-      {
-        "column": "overview_checked_day",
-        "type": "date",
-        "nullable": "YES"
       }
     ],
     "push_outbox": [

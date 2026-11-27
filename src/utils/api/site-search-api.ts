@@ -235,30 +235,6 @@ export const searchAvatarFrames = (
   );
 };
 
-/** 论坛周报（`forum_weekly_reports`，仅 published）→ /overview */
-export const searchForumWeeklyReports = (
-  query: string,
-  { limit = DEFAULT_LIMIT, signal }: SiteSearchQueryOptions = {},
-) => {
-  const p = buildSearchPattern(query);
-  if (!p) return Promise.resolve<SiteSearchRow[]>([]);
-  return runQuery(
-    '论坛周报',
-    () =>
-      withSignal(
-        supabase
-          .from('forum_weekly_reports')
-          .select('id,summary,week_start,week_end')
-          .eq('status', 'published')
-          .ilike('summary', p)
-          .order('week_end', { ascending: false })
-          .limit(limit),
-        signal,
-      ),
-    signal,
-  );
-};
-
 /**
  * 活动（新平台 `activity_campaigns`）→ /activities-wall
  * 2026092704 起 RLS 已收紧：`stage='draft'` 仅管理端可见（见迁移头注释）。

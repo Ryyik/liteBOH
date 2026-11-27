@@ -4,12 +4,6 @@ import type { RouteRecordRaw } from 'vue-router';
 // 单一登记处（2026-10-15 起）—— 本文件只放真页面，别再往回加 redirect。
 export const communityRoutes: RouteRecordRaw[] = [
   {
-    path: '/overview',
-    name: 'SmartOverview',
-    component: () => import('../../views/SmartOverview/index.vue'),
-    meta: { requiresLogin: true },
-  },
-  {
     // 资讯页（2026-10-20 内容页合并）：新闻 + 节目混排（?tab=feed 默认）+ 活动（?tab=activities）。
     // 原 /activities-wall 独立页已收编进本页活动段，旧路径的重定向登记在 compat.ts。
     path: '/newsroom',

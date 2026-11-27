@@ -48,7 +48,7 @@ const optVal = (name, fallback) => {
   const inline = args.find((a) => a.startsWith(name + '='));
   return inline ? inline.slice(name.length + 1) : fallback;
 };
-const ROUTES = (optVal('--routes', null) || '/,/forum,/user-space,/overview')
+const ROUTES = (optVal('--routes', null) || '/,/forum,/user-space')
   .split(',')
   .map((r) => r.trim())
   .filter(Boolean);

@@ -205,7 +205,7 @@ const SHELL_CHUNKS = [
   // 2026-11-01：`ui-sanitize` 已移出本名单。它当初进名单（74a76038）是因为
   // dompurify 属于**入口静态依赖**，却被 manualChunks 单独拆成 chunk 而漏配
   // globPatterns —— 弱网/离线时应用壳缺模块、整站白屏。
-  // 现在 dompurify 只被 Login / Newsroom / SmartOverview 三个**懒加载路由**引用，
+  // 现在 dompurify 只被 Login / Newsroom 两个**懒加载路由**引用，
   // 不在入口静态 import 图里（check:shell-precache 的断言 B 从产物反推可证），
   // 留它只为让每个访客首次访问多下 11KB gzip。
   // ⚠️ 若将来入口又静态引用 dompurify，断言 B 会立刻变红，届时加回本名单即可。

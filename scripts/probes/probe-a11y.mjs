@@ -27,7 +27,7 @@ import { join } from 'node:path';
 //      互相抵消，棘轮当场失去意义。
 //
 //   覆盖页面选的是**不需要登录、无首屏 gate 阻塞**的公开页；
-//     首页 `#/` 有开场 gate（见 AGENTS.md 的智能概览条目），
+//     首页 `#/` 有开场 gate（见 AGENTS.md 的首页开场条目），
 //     所以额外采一次 `/?view=latest` 拿论坛列表态。
 // =====================================================================
 const BASE = process.env.PROBE_BASE || 'http://localhost:5173';

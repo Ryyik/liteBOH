@@ -4,7 +4,7 @@ import { createPinia, setActivePinia } from 'pinia';
 // ============================================================
 // 「上次在线」锚点必须跟着「访问边界」重取（2026-10-05）
 //
-// 报障：用户隔三差五上线，智能概览的「上次在线」却一直是 9月22日。
+// 报障：用户隔三差五上线，论坛分隔线的「上次在线」锚点却一直是 9月22日。
 // 根因不在写库（线上 RPC / ACL 已实测正常，DB 里 last_active_at 已是当天），而在锚点：
 // `offlineAnchorAt` 原先是「每个实例只取一次」（`if (!offlineAnchorAt.value)`），而长生命周期
 // 实例（PWA / 从不刷新的标签页）实测能挂两周以上 —— 实例不重建就永远不重取，展示的
@@ -228,7 +228,7 @@ describe('auth store: 「上次在线」锚点跨访问边界重取（2026-10-05
 
   // 重取判据在首帧必然为真（anchorDayKey 还是空串），所以「重取」不能把首次登录的
   // 合成 7 天锚点吞掉：全新账号 DB 无 last_active_at，若按 rearm 直接 return，
-  // 锚点会一直为 null，而首帧那次 RPC 已把 DB 写成 now ⇒ 概览窗口塌成 0、文案错档。
+  // 锚点会一直为 null，而首帧那次 RPC 已把 DB 写成 now ⇒ 首次登录标记丢失。
   it('全新账号（DB 无 last_active_at）：首帧仍拿到合成 7 天锚点并标记首次登录', async () => {
     installSessionAndProfile({ lastActiveAt: null });
 

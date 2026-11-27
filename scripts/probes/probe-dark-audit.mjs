@@ -17,7 +17,6 @@ if (!fs.existsSync(SHOT_DIR)) fs.mkdirSync(SHOT_DIR, { recursive: true });
 const PAGES = [
   { path: '/', name: 'home' },
   { path: '/newsroom', name: 'newsroom' },
-  { path: '/overview', name: 'overview' },
   { path: '/forum', name: 'forum' },
   { path: '/forum/post/1', name: 'post-detail' },
   { path: '/lotteries', name: 'lotteries' },
@@ -38,8 +37,6 @@ const PAGES = [
   { path: '/shows', name: 'shows' },
   { path: '/character-book', name: 'character-book' },
   { path: '/ai-chat', name: 'ai-chat' },
-  { path: '/ai-intro', name: 'ai-intro' },
-  { path: '/boh-8-years-event', name: 'boh-8-years' },
   { path: '/boh-8-years-journey', name: 'boh-8-years-journey' },
   { path: '/lab', name: 'lab' },
   { path: '/user-space', name: 'user-space' },

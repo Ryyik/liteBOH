@@ -119,7 +119,6 @@ import { FORUM_DEFAULT_SECTION, resolveForumSection } from '@/config/forum-secti
 import { BOTTOM_NAV_ITEMS } from '@/config/bottom-nav';
 import { ensureNotificationStore, getNotificationStoreRef } from '@/stores/notification-loader';
 import { showIsland } from '@/composables/useIsland.js';
-import { useOverviewIsland } from '@/composables/useOverviewIsland.js';
 
 /* 横屏左栏的页面级规则（body.page-home 段）与 UserSpace / 他人空间共用同一份，
    断点与栏宽档位只在这一个文件里定义。
@@ -204,29 +203,6 @@ const handleGateCta = () => {
   if (target.to) router.push(target.to).catch(() => {});
   else if (target.href) window.open(target.href, '_blank', 'noopener');
 };
-
-// ============================================
-// 智能概览灵动岛：唯一自动触发点 =「进入论坛」（首屏解锁落定）
-// ============================================
-/* 2026-09-30 口径：从「登录 / 进站即弹」改为「进论坛即弹」——用户希望弹点跟「开始看内容」
-   这个动作绑定，而不是跟「打开站点」绑定（后者像一条登录欢迎弹窗，随时会打断人）。
-   gateSettled 是首屏解锁的落定信号，两条路径都覆盖：
-     · 首次访问 / 超过 24h 重播：开场遮罩淡出并卸载后为 true；
-     · 24h 内回访（gateAlreadyPassed）：开场画本来就不播、论坛即首屏 → setup 时就是 true。
-   登录态由 auth 异步解析，与 gateSettled 谁后到位都可能，所以两者任一变化都要再判一次
-   （immediate 覆盖「已登录 + 首屏已解锁」的冷启动）。
-   重复由 useOverviewIsland 内部三道守卫兜住（会话标记 + 「当日已检查」天粒度游标 + 5min 冷却），
-   所以这里只管「到点就调一次」，不需要自己记状态。 */
-const { maybeShowOverviewIsland } = useOverviewIsland();
-
-watch(
-  [gateSettled, isLoggedIn],
-  ([settled, loggedIn]) => {
-    if (!settled || !loggedIn) return;
-    maybeShowOverviewIsland({ currentPath: route.path });
-  },
-  { immediate: true },
-);
 
 // ============================================
 // 论坛分区：URL 的 view 是唯一真源（/?view=official 深链直达）

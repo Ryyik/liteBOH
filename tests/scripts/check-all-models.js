@@ -16,7 +16,7 @@ const envMap = Object.fromEntries(
     .map((line) => {
       const idx = line.indexOf('=');
       return [line.slice(0, idx).trim(), line.slice(idx + 1).trim()];
-    })
+    }),
 );
 
 const API_KEY = envMap.VITE_SILICON_CLOUD_API_KEY;
@@ -36,16 +36,10 @@ const CHAT_MODELS = [
   'Qwen/Qwen2.5-7B-Instruct',
   'nex-agi/Nex-N2-Pro', // 新增
   'THUDM/GLM-4-9B-0414',
-  'tencent/Hunyuan-MT-7B'
+  'tencent/Hunyuan-MT-7B',
 ];
 
-// AIPlaza 额外有的模型
-const EXTRA_AIPLAZA_MODELS = [
-  'deepseek-ai/DeepSeek-R1-Distill-Qwen-7B',
-  'internlm/internlm2_5-7b-chat'
-];
-
-const ALL_MODELS = [...CHAT_MODELS, ...EXTRA_AIPLAZA_MODELS];
+const ALL_MODELS = [...CHAT_MODELS];
 
 const testPrompt = '用一句话自我介绍，不要超过30字。';
 
@@ -60,18 +54,18 @@ const callModel = async (modelId) => {
       signal: controller.signal,
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${API_KEY}`
+        Authorization: `Bearer ${API_KEY}`,
       },
       body: JSON.stringify({
         model: modelId,
         messages: [
           { role: 'system', content: '<role>你是一个简洁的助手。</role>' },
-          { role: 'user', content: testPrompt }
+          { role: 'user', content: testPrompt },
         ],
         max_tokens: 80,
         temperature: 0.5,
-        stream: false
-      })
+        stream: false,
+      }),
     });
     const elapsed = Date.now() - startTime;
     const text = await res.text();
@@ -79,24 +73,26 @@ const callModel = async (modelId) => {
       return { ok: false, status: res.status, elapsed, raw: text.slice(0, 300) };
     }
     let payload;
-    try { payload = JSON.parse(text); } catch (_e) { payload = null; }
-    const content = payload?.choices?.[0]?.message?.content
-      || payload?.choices?.[0]?.text
-      || '';
+    try {
+      payload = JSON.parse(text);
+    } catch (_e) {
+      payload = null;
+    }
+    const content = payload?.choices?.[0]?.message?.content || payload?.choices?.[0]?.text || '';
     return {
       ok: true,
       status: res.status,
       elapsed,
       reply: String(content).trim().slice(0, 100),
       finishReason: payload?.choices?.[0]?.finish_reason,
-      usage: payload?.usage || null
+      usage: payload?.usage || null,
     };
   } catch (err) {
     return {
       ok: false,
       status: 'ERR',
       elapsed: Date.now() - startTime,
-      raw: err?.name === 'AbortError' ? 'TIMEOUT 30s' : (err?.message || String(err))
+      raw: err?.name === 'AbortError' ? 'TIMEOUT 30s' : err?.message || String(err),
     };
   } finally {
     clearTimeout(timeoutId);
@@ -107,7 +103,7 @@ const main = async () => {
   console.log('═'.repeat(70));
   console.log(`SiliconFlow 模型健康检查`);
   console.log(`API URL: ${API_URL}`);
-  console.log(`模型数: ${ALL_MODELS.length}（含 2 个 AIPlaza 专属）`);
+  console.log(`模型数: ${ALL_MODELS.length}`);
   console.log(`提示词: "${testPrompt}"`);
   console.log('═'.repeat(70));
 
@@ -141,10 +137,12 @@ const main = async () => {
   }
 
   console.log('\n按耗时排序:');
-  [...results].sort((a, b) => a.elapsed - b.elapsed).forEach((r) => {
-    const flag = r.ok ? '✅' : '❌';
-    console.log(`  ${flag} ${String(r.elapsed).padStart(5)}ms  ${r.modelId}`);
-  });
+  [...results]
+    .sort((a, b) => a.elapsed - b.elapsed)
+    .forEach((r) => {
+      const flag = r.ok ? '✅' : '❌';
+      console.log(`  ${flag} ${String(r.elapsed).padStart(5)}ms  ${r.modelId}`);
+    });
 };
 
 main().catch((err) => {

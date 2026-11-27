@@ -33,7 +33,6 @@ export const SITE_NAV_ITEMS: SiteNavNode[] = [
     name: 'community',
     label: '社区',
     children: [
-      { name: 'smart-overview', path: '/overview', label: '智能概览' },
       // 2026-10-20 内容页合并：原「新闻&节目」+「活动」两项并为一页「资讯」
       // （/newsroom?tab=activities 是活动段；/activities-wall 已退场，见 compat.ts）
       { name: 'newsroom', path: '/newsroom', label: '资讯' },
