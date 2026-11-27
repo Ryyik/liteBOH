@@ -14,15 +14,20 @@ import { resolveForumSection } from '../../config/forum-sections';
  *   · 改动本文件的验收：单测 tests/unit/compat-routes.test.js（折叠覆盖 + 落点对照）
  *     + 全量 verify。
  *
- * 现行清单（22 条 = 2 参数化 + 20 直条）：
+ * 现行清单（24 条 = 2 参数化 + 22 直条）：
  *   · 旧用户中心 /user-center/*（引入 ≤2026-06）：12 条折叠为 2 条（见下方分节）
  *   · 旧用户空间深链（引入 2026-09-30，tab 语义迁移）：8 条
  *   · Beta 6 退场（引入 2026-09-27）：/forum、/activities(×3)、/block-wall、/tutorial
  *   · 实验室退场（引入 2026-10-19）：/lab → 博莱克 Work
  *   · 礼物中心退场（引入 2026-11-02）：/user-space/gifts → 购物袋「订单」/ 商城「地址」
  *   · 管理台补漏（引入 2026-11-14）：/admin → /admin/overview（裸路径原先 404）
+ *   · 孤儿页退场（引入 2026-11-26）：/ai-intro、/boh-8-years-event（全站零入口，仅 sitemap 深链）
  *
  * 变更史：
+ *   2026-11-26 新增 2 条：/ai-intro（BOH AI 介绍页退场，AI 入口已由 /ai-chat 承接）、
+ *     /boh-8-years-event（八周年活动页退场，八周年内容仍在 /boh-8-years-journey）。
+ *     两页全站零 UI 入口（无导航/跳转/守卫指向），但都在 public/sitemap.xml 里挂着
+ *     ⇒ 外部搜索引擎有索引，按孤儿页收编惯例留重定向再靠 unknown_route 埋点量决定续或删。
  *   2026-11-02 新增 1 条：/user-space/gifts（礼物中心整页废弃）→ 礼物与历史礼物并入
  *     周边购物袋订单（礼物读的是 user_gifts 全量，含 is_active=false 的归档记录），
  *     收货地址并入 /shop?tab=address；旧 `?tab=address` 深链按 query 分流。
@@ -148,6 +153,23 @@ export const compatRoutes: RouteRecordRaw[] = [
     path: '/user-space/account-security',
     name: 'AccountSecurity',
     redirect: toUserSpace({ tab: 'settings', view: 'account-security' }),
+  },
+
+  // ═══ 孤儿页退场（2026-11-26）═══════════════════════════════════════════
+  // 引入 2026-11-26 · 到期 2027-05-26（沿用 IA 类改造 6 个月生命期）
+  {
+    // BOH AI 介绍页退场兼容（2026-11-26）：全站零 UI 入口（孤儿页），AI 能力入口
+    // 已由 /ai-chat（博莱克对话）承接；老链接/搜索引擎索引一律落到对话页。
+    path: '/ai-intro',
+    name: 'AiIntro',
+    redirect: '/ai-chat',
+  },
+  {
+    // 八周年活动页退场兼容（2026-11-26）：全站零 UI 入口（孤儿页）；
+    // 八周年主题内容仍在 /boh-8-years-journey（八周年旅程页，未退场）。
+    path: '/boh-8-years-event',
+    name: 'BOH8YearsEvent',
+    redirect: '/boh-8-years-journey',
   },
 
   // ═══ Beta 6 退场（2026-09-27）═══════════════════════════════════════════

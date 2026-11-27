@@ -200,6 +200,13 @@ describe('compat route registry（兼容层唯一登记处）', () => {
     });
   });
 
+  it('孤儿页退场（2026-11-26）：AI 介绍页落博莱克对话，八周年活动落八周年旅程', () => {
+    // 两页全站零 UI 入口但挂在 sitemap 里（外部索引存在）⇒ 按 /user-space/partners
+    // 先例留重定向，靠 unknown_route 埋点量决定续或删。
+    expect(findCompat('/ai-intro').redirect).toBe('/ai-chat');
+    expect(findCompat('/boh-8-years-event').redirect).toBe('/boh-8-years-journey');
+  });
+
   it('/shop/bag?view=orders 在路由层转去「订单」分区（订单已不是购物袋的第二段）', () => {
     const bag = findPublic('/shop/bag');
     expect(bag.beforeEnter).toBeTypeOf('function');

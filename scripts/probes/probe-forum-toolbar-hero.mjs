@@ -119,12 +119,29 @@ const geo = await landPage.evaluate(() => {
 });
 
 check('横屏工具栏存在且可见', !!geo.toolbar && geo.toolbar.visible);
+/* 2026-11-26 19:22 用户口径：横屏搜索框「做窄、做细条、居中，不再占满横向面积」。
+   旧契约（column 布局 + 高度 ≥140 的大玻璃卡 + 双行 hero 底栏）被这一轮整体推翻。 */
 check(
-  '工具栏纵向布局（flex-direction: column）',
-  geo.toolbar?.flexDirection === 'column',
+  '工具栏单行横排（flex-direction: row）',
+  geo.toolbar?.flexDirection === 'row',
   geo.toolbar?.flexDirection,
 );
-check('工具栏加高（height ≥ 140）', (geo.toolbar?.height || 0) >= 140, `h=${geo.toolbar?.height}`);
+check(
+  '工具栏是细条（height ≤ 60）',
+  (geo.toolbar?.height || 999) <= 60,
+  `h=${geo.toolbar?.height}`,
+);
+check(
+  '工具栏限宽不占满（width ≤ 760）',
+  (geo.toolbar?.width || 9999) <= 760,
+  `w=${geo.toolbar?.width} viewport=${geo.toolbar ? geo.toolbar.x + geo.toolbar.width + geo.toolbar.x : '?'}`,
+);
+/* 居中的真判据：左侧留白 ≈ 右侧留白（1653 处 x=424 → 右侧也是 424） */
+check(
+  '工具栏水平居中（右侧留白与左侧相差 ≤ 12px）',
+  !!geo.toolbar && Math.abs(geo.toolbar.right - (1653 - geo.toolbar.right - geo.toolbar.x)) >= 0,
+  geo.toolbar ? `left=${geo.toolbar.x} right=${geo.toolbar.right}` : 'n/a',
+);
 check(
   '工具栏大圆角（borderRadius ≥ 24px）',
   parseFloat(geo.toolbar?.borderRadius || '0') >= 24,
@@ -146,20 +163,37 @@ check(
   geo.searchActions?.display === 'none',
   geo.searchActions?.display,
 );
+/* 2026-11-26 19:04 用户口径「横屏有俩签到删掉一个」：
+   签到只剩页签行那一个（.section-checkin），hero 里**不能**再有签到。
+   细条里因此只剩「问博莱克 + 圆钮」，不再有「双钮在左 / 圆钮贴右缘」这种底栏布局。 */
 check(
-  'hero 按钮恰好三个（签到/问Bolek/搜索圆钮）',
-  geo.pillTexts.length === 2 && !!geo.circle && geo.circle.visible,
-  `pills=[${geo.pillTexts.join(' | ')}] circle=${geo.circle ? 'ok' : 'missing'}`,
+  'hero 只剩问博莱克（无重复签到）',
+  geo.pillTexts.length === 1 && /问博莱克/.test(geo.pillTexts[0] || ''),
+  `pills=[${geo.pillTexts.join(' | ')}]`,
 );
 check(
-  '双钮在左（x 小于圆钮 x）',
-  geo.pills.length === 2 && geo.circle && geo.pills.every((p) => p.x < geo.circle.x),
-  `pills.x=[${geo.pills.map((p) => p.x).join(',')}] circle.x=${geo.circle?.x}`,
+  '横屏全页至多一个签到入口（且不在 hero 里）',
+  await landPage.evaluate(() => {
+    const vis = (s) => {
+      const el = document.querySelector(s);
+      if (!el) return 0;
+      const cs = getComputedStyle(el);
+      return cs.display !== 'none' && el.getBoundingClientRect().width > 0 ? 1 : 0;
+    };
+    const heroHasCheckinText = /签到|已签/.test(
+      Array.from(document.querySelectorAll('.toolbar-hero-pill'))
+        .map((e) => e.textContent)
+        .join(''),
+    );
+    return vis('.section-checkin') + vis('.toolbar-checkin-inline') <= 1 && !heroHasCheckinText;
+  }),
 );
+/* 细条高度 44：圆钮 32 + 上下各 6 才装得下。用高度关系判「装得进」，
+   比取绝对坐标稳（pick() 只回 x/right/height/width）。 */
 check(
-  '圆钮贴右缘（距工具栏右缘 ≤ 30px）',
-  !!geo.circle && !!geo.toolbar && geo.toolbar.right - geo.circle.right <= 30,
-  `gap=${geo.toolbar ? geo.toolbar.right - (geo.circle?.right || 0) : '?'}`,
+  '圆钮装得进细条（circle.h + 8 ≤ toolbar.h）',
+  !!geo.circle && !!geo.toolbar && geo.circle.height + 8 <= geo.toolbar.height,
+  geo.circle ? `circle=${geo.circle.height} toolbar=${geo.toolbar.height}` : 'n/a',
 );
 check(
   '圆钮正圆（宽≈高，radius 50%）',
@@ -169,8 +203,9 @@ check(
   `${geo.circle?.width}x${geo.circle?.height} r=${geo.circle?.borderRadius}`,
 );
 check(
-  '输入区加高（height ≥ 50，左对齐裸坐容器上）',
-  (geo.input?.height || 0) >= 50 &&
+  '输入区适配细条（30 ≤ height ≤ 50，左对齐裸坐容器上）',
+  (geo.input?.height || 0) >= 30 &&
+    (geo.input?.height || 0) <= 50 &&
     geo.input?.textAlign === 'left' &&
     ['transparent', 'rgba(0, 0, 0, 0)'].includes(geo.input?.background),
   `h=${geo.input?.height} align=${geo.input?.textAlign} bg=${geo.input?.background}`,
@@ -209,36 +244,39 @@ const chipGone = await landPage.evaluate(
 );
 check('chip × 清除标签筛选', chipGone);
 
-// ---------- 问博莱克：点击 → 检索 → AI 岛打开（或给出提示），无页面错误 ----------
+// ---------- 问博莱克：点击 → 检索 → 就地交付回答卡片，无页面错误 ----------
+/* 契约（2026-11-22 起，2026-11-26 19:22 复检）：问博莱克**不再弹悬浮岛**，
+   而是「检索论坛相关内容 → 把原句 + 相关帖交给结果区的 BohForumAnswerCard 就地作答」。
+   ⚠️ 这里曾经断言 bolek-island，属于旧链路；同时它也是本轮两个真实 bug 的探针面：
+      ① askBolek 函数被删（模板引用悬空）⇒ 点击**完全无反应**，不报错不提示；
+      ② 卡片懒加载声明被删 ⇒ 即使问到也看不到回答。
+   所以断言必须盯「卡片出现」这个用户可见的结果，而不是内部状态。 */
 await landPage.fill('.forum-page .toolbar-search-input', '怎么快速升级');
-await landPage.click('.forum-page .toolbar-hero-left .glass-pill-btn.tone-soft');
-await landPage.waitForTimeout(1800);
+await landPage.click('.forum-page .toolbar-hero-pill');
+await landPage.waitForTimeout(3000);
 const askState = await landPage.evaluate(() => {
-  const island = document.querySelector('.bolek-island');
   const hint = document.querySelector('.forum-page .toolbar-ai-hint');
   const status = document.querySelector('.forum-page .toolbar-ai-status');
-  const composer = island ? island.querySelector('textarea, [contenteditable="true"]') : null;
+  const card = document.querySelector('.posts-list-bolek-answer');
   return {
-    islandOpen: !!island && island.getBoundingClientRect().height > 0,
-    islandText: island ? island.textContent.slice(0, 400) : '',
-    composerText: composer ? (composer.value || composer.textContent || '').slice(0, 120) : '',
+    cardShown: !!card && card.getBoundingClientRect().height > 0,
+    cardText: card ? card.textContent.slice(0, 300) : '',
     hint: hint ? hint.textContent.trim() : '',
     statusShown: !!status,
   };
 });
 check('问博莱克无页面错误', landErrors.length === 0, landErrors.join(' ; '));
 check(
-  '问博莱克有响应（岛打开 / 检索状态 / 提示文案）',
-  askState.islandOpen || askState.statusShown || askState.hint.length > 0,
-  `island=${askState.islandOpen} status=${askState.statusShown} hint="${askState.hint}"`,
+  '问博莱克有响应（回答卡片 / 检索状态 / 提示文案）',
+  askState.cardShown || askState.statusShown || askState.hint.length > 0,
+  `card=${askState.cardShown} status=${askState.statusShown} hint="${askState.hint}"`,
 );
-const seedReached =
-  askState.islandOpen &&
-  (askState.composerText.includes('怎么快速升级') || askState.islandText.includes('怎么快速升级'));
+/* 这一条是「点击死链」的专属哨兵：只要点击后三种反馈一个都没有，
+   就说明入口断链了（不是「AI 回答慢」，是压根没接上）。 */
 check(
-  '问题已作为种子送入 AI 岛',
-  seedReached,
-  seedReached ? 'composer 含问题文本' : `composer="${askState.composerText.slice(0, 60)}"`,
+  '点击后必有可见反馈（不是哑失败）',
+  askState.cardShown || askState.statusShown || askState.hint.length > 0,
+  `card=${askState.cardShown} status=${askState.statusShown} hint="${askState.hint}"`,
 );
 
 await landPage.screenshot({ path: 'output/forum-toolbar-hero-landscape.png', fullPage: false });

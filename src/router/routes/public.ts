@@ -135,6 +135,14 @@ export const publicRoutes: RouteRecordRaw[] = [
     component: () => import('../../views/BOHApp/index.vue'),
   },
   {
+    // 全屏搜索页（plans/052）：论坛工具栏的搜索输入框升级为独立页面 ——
+    // 首屏顶部只留一枚入口图标（ForumToolbar），点进来才见到完整搜索体验。
+    // 分类 chips：帖子 / 博莱克 / 资讯 / 周边 / 活动（数据源见 SearchPage.vue 头注释）。
+    path: '/search',
+    name: 'Search',
+    component: () => import('../../views/Search/SearchPage.vue'),
+  },
+  {
     path: '/character-book',
     name: 'CharacterBook',
     component: () => import('../../views/CharacterBook/index.vue'),
@@ -159,17 +167,6 @@ export const publicRoutes: RouteRecordRaw[] = [
     meta: { immersiveNav: true, keepAlive: true, keepAliveName: 'BolekChatPage' },
     component: () => import('../../views/Bolek/Bolek/index.vue'),
   },
-  {
-    path: '/ai-intro',
-    name: 'AiIntro',
-    component: () => import('../../views/AIPlaza/index.vue'),
-  },
-  {
-    path: '/boh-8-years-event',
-    name: 'BOH8YearsEvent',
-    component: () => import('../../views/BOH8YearsEvent/index.vue'),
-  },
-
   {
     path: '/boh-8-years-journey',
     name: 'BOH8YearsJourney',
