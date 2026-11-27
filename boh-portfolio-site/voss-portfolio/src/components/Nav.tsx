@@ -7,6 +7,7 @@ export function Nav() {
   const [scrolled, setScrolled] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const menuBtnRef = useRef<HTMLButtonElement>(null)
+  const dialogRef = useRef<HTMLDivElement>(null)
   const location = useLocation()
   const { enabled, systemReduced, lowPower, toggle } = useMotionControl()
 
@@ -19,17 +20,36 @@ export function Nav() {
 
   useEffect(() => {
     if (!menuOpen) return
+    const dialog = dialogRef.current
+    const focusable = () =>
+      Array.from(dialog?.querySelectorAll<HTMLElement>('a[href], button:not([disabled])') || [])
+    const frame = requestAnimationFrame(() => focusable()[0]?.focus())
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         setMenuOpen(false)
         menuBtnRef.current?.focus()
+        return
+      }
+      if (event.key !== 'Tab') return
+      const items = focusable()
+      if (!items.length) return
+      const first = items[0]
+      const last = items[items.length - 1]
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault()
+        first.focus()
       }
     }
     document.addEventListener('keydown', onKey)
     document.body.style.overflow = 'hidden'
     return () => {
+      cancelAnimationFrame(frame)
       document.removeEventListener('keydown', onKey)
       document.body.style.overflow = ''
+      menuBtnRef.current?.focus()
     }
   }, [menuOpen])
 
@@ -76,7 +96,7 @@ export function Nav() {
       </header>
 
       {menuOpen && (
-        <div className="menu-overlay" id="mobile-menu" role="dialog" aria-modal="true" aria-label="导航菜单">
+        <div ref={dialogRef} className="menu-overlay" id="mobile-menu" role="dialog" aria-modal="true" aria-label="导航菜单">
           <ul>
             {site.nav.map((item) => (
               <li key={item.href}>

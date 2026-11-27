@@ -633,6 +633,15 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 500; line-height: 1.
   .h-viewport { overflow: hidden; }
 }
 
+html[data-motion='off'] .h-pin { height: auto; }
+html[data-motion='off'] .h-viewport {
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  overscroll-behavior-x: contain;
+}
+html[data-motion='off'] .h-track { transform: none !important; }
+html[data-motion='off'] .h-card { scroll-snap-align: center; }
+
 .poster-field { position: absolute; inset: 0; overflow: hidden; background: var(--bg); }
 .poster-canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
 .hero-pin { position: relative; height: 100svh; }

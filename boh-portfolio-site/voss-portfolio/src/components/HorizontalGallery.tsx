@@ -4,6 +4,7 @@ import { CustomEase } from 'gsap/CustomEase'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import { projects, studies } from '../content/site'
 import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion'
+import { useMotionControl } from './MotionProvider'
 import { GlassEdge } from './GlassEdge'
 
 gsap.registerPlugin(ScrollTrigger, CustomEase)
@@ -15,6 +16,7 @@ export function HorizontalGallery() {
   const viewport = useRef<HTMLDivElement>(null)
   const track = useRef<HTMLDivElement>(null)
   const reduced = usePrefersReducedMotion()
+  const { enabled } = useMotionControl()
 
   const items = projects.slice(0, 5).map((p) => ({
     src: p.cover, alt: p.coverAlt, caption: `${p.title} — ${p.category}`,
@@ -24,7 +26,7 @@ export function HorizontalGallery() {
     const sec = section.current
     const tr = track.current
     const vp = viewport.current
-    if (!sec || !tr || !vp || reduced) return
+    if (!sec || !tr || !vp || reduced || !enabled) return
     const intro = sec.querySelector<HTMLElement>('.h-intro')!
 
     const mm = gsap.matchMedia()
@@ -104,7 +106,7 @@ export function HorizontalGallery() {
       }
     })
     return () => mm.revert()
-  }, [reduced])
+  }, [reduced, enabled])
 
   return (
     <section className="h-gallery" ref={section} aria-label="空间作品画廊">

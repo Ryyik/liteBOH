@@ -7,6 +7,24 @@
       "why": "CI/部署链路改动必须过构建门禁"
     },
     {
+      "glob": "boh-portfolio-site/**",
+      "run": [
+        "npm --prefix boh-portfolio-site/voss-portfolio test",
+        "npm --prefix boh-portfolio-site/voss-portfolio run build"
+      ],
+      "why": "独立 React/TypeScript 作品集：内容/动效单测 + 类型检查与生产构建"
+    },
+    {
+      "glob": "lite/**",
+      "run": ["npm run build:apus", "npm run probe:apus"],
+      "why": "BOH Apus 独立站：品牌元信息、轻量资产、移动菜单/登录弹窗/抽奖链路"
+    },
+    {
+      "glob": "vite.lite.config.js",
+      "run": ["npm run build:apus", "npm run probe:apus"],
+      "why": "Apus 独立构建配置与运行时探针"
+    },
+    {
       "glob": "src/App.vue",
       "run": ["npm run probe:route-switch"],
       "why": "路由组件 key / <RouterView> 切换"
@@ -27,7 +45,6 @@
     {
       "glob": "src/components/UnifiedNavbar/**",
       "run": [
-        "node scripts/probes/probe-global-search.mjs",
         "node scripts/probes/probe-nav-mobile-menu.mjs",
         "node scripts/probes/probe-responsive-tiers.mjs"
       ],
@@ -35,7 +52,7 @@
     },
     {
       "glob": "src/utils/global-navbar-visibility.js",
-      "run": ["node scripts/probes/probe-global-search.mjs"],
+      "run": ["node scripts/probes/probe-nav-mobile-menu.mjs"],
       "why": "可见性唯一真源"
     },
     {
