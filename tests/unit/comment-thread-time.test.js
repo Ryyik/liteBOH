@@ -17,8 +17,9 @@ const read = (rel) => readFileSync(resolve(root, rel), 'utf8');
  *    这条断言只锁顺序，不锁实现细节 —— 谁把 getChildReplyState 挪回 useTierMap 后面，立刻红。
  *
  * ② 时间必须渲染（同日报障「评论区评论不显示时间」）：
- *    顶层评论与楼中楼各有一处时间；且时间与「赞 / 回复」同处 .comment-foot 一行
- *    （原先时间独占一个 meta 行，视觉上像一条孤立灰线，容易被读成「没有时间」）。
+ *    plans/051 批 3 起时间并入身份行（ReplyIdentityRow 的 :time 传参），
+ *    顶层评论与楼中楼各有一处，且各自取自该行的 created_at；
+ *    .comment-foot 只承担操作行（赞 / 回复 / 删除入口）。
  */
 describe('CommentThread：setup 定义顺序 + 评论时间渲染', () => {
   const source = () => read('src/views/PostDetail/components/CommentThread.vue');
@@ -35,25 +36,27 @@ describe('CommentThread：setup 定义顺序 + 评论时间渲染', () => {
     expect(childStateAt).toBeLessThan(tierMapAt);
   });
 
-  it('顶层评论与楼中楼都必须渲染时间，且时间取自各自行的 created_at', () => {
+  it('顶层评论与楼中楼都必须渲染时间，且时间取自各自行的 created_at（经身份行 :time 传入）', () => {
     const tpl = template();
-    expect(tpl).toContain('formatDate(reply.created_at)');
-    expect(tpl).toContain('formatDate(child.created_at)');
-    // 时间标签只该有这两处（新增渲染点必须同步补断言）
-    expect(tpl.match(/class="comment-date"/g) || []).toHaveLength(2);
+    expect(tpl).toContain(':time="formatDate(reply.created_at)"');
+    expect(tpl).toContain(':time="formatDate(child.created_at)"');
+    // 旧的时间标签已并入身份行，不允许残留第二处渲染点
+    expect(tpl.match(/class="comment-date"/g) || []).toHaveLength(0);
   });
 
-  it('时间与赞/回复同处 .comment-foot 一行', () => {
+  it('身份行（含时间）在操作行之前：先读到是谁·何时，再看到操作', () => {
     const tpl = template();
+    // 每条评论行：身份行（:time → ReplyIdentityRow）在前，操作行（comment-foot）在后
+    expect(tpl.match(/:time="formatDate\(/g) || []).toHaveLength(2);
+    const identityAt = tpl.indexOf('<ReplyIdentityRow');
+    const footAt = tpl.indexOf('class="comment-foot"');
+    expect(identityAt).toBeGreaterThan(-1);
+    expect(footAt).toBeGreaterThan(identityAt);
+    // comment-foot 内只有操作（赞 / 回复 / 删除入口），不再有时间标签
     const chunks = tpl.split('class="comment-foot"').slice(1);
     expect(chunks).toHaveLength(2);
-    // 每段只取紧随其后的 600 字符窗口（该窗口内一定包含时间与操作行的开头），
-    // 要求时间在左、操作在右 —— 只认结构顺序，不认文案。
     chunks.forEach((chunk) => {
-      const window = chunk.slice(0, 600);
-      expect(window).toContain('comment-date');
-      expect(window).toContain('comment-actions');
-      expect(window.indexOf('comment-date')).toBeLessThan(window.indexOf('comment-actions'));
+      expect(chunk.slice(0, 900)).not.toContain('comment-date');
     });
   });
 });

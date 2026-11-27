@@ -1,139 +1,27 @@
-/* Reply Input V2 */
-.reply-input-section-v2 {
-  margin-top: 20px;
-  padding: 16px;
-  /* 液态玻璃：替代原先突兀的灰色实底 */
-  background: var(--glass-bg, rgba(255, 255, 255, 0.72));
-  backdrop-filter: var(--glass-filter-sm, blur(18px) saturate(180%));
-  -webkit-backdrop-filter: var(--glass-filter-sm, blur(18px) saturate(180%));
-  border: 1px solid var(--liquid-border-hairline, rgba(15, 23, 42, 0.06));
-  border-radius: 16px;
-}
-
-.reply-textarea-v2 {
-  width: 100%;
-  border: none;
-  border-radius: 12px;
-  padding: 12px;
-  font-size: 15px;
-  outline: none;
-  resize: none;
-  margin-bottom: 12px;
-  /* 多字扩展（2026-09-30）：高度由 composables/useAutoGrowTextarea.js 按内容写入。
-     这里只声明**上限** —— 上限是断点相关的，留在 CSS 才是单一真源（JS 读 computed style 取用，
-     不在 JS 里写第二份像素值）。高度只在「换行那一刻」变化，不是每键都变，
-     所以 180ms 过渡不会让框在打字时滞后。
-     reduce-motion 不需要在这里再写一条：animations.css 的全局 `*` 规则已把
-     transition-duration 压到 100ms（单源，别再抄一份）。 */
-  max-height: 240px;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  transition: height var(--duration-fast, 180ms) var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1));
-}
-
-/* 竖屏：键盘约占 300px，输入框 + 操作行不应吃掉半个屏 */
-@media (max-width: 768px) {
-  .reply-textarea-v2 {
-    max-height: min(168px, 30dvh);
-  }
-}
-
-.reply-actions-v2 {
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-}
-
-.cancel-reply-btn-v2 {
-  background: none;
-  border: none;
-  color: #86868b;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.submit-reply-btn-v2 {
-  background: #1d1d1f;
-  color: #fff;
-  border: none;
-  padding: 8px 20px;
-  border-radius: 10px;
-  font-weight: 700;
-  cursor: pointer;
-}
+/* 旧输入区（reply-input-section-v2 等 6 组）已随 plans/051 批 2 删除 ——
+   职责由 src/components/forum/ReplyComposer.vue 唯一承接（含自动增高上限）。 */
 
 .reply-item-v2 {
-  padding: 14px 0;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  padding: 12px 0;
+  border-bottom: 1px solid var(--appl-hairline);
   background: transparent;
   border-radius: 0;
   margin-bottom: 0;
+}
+
+/* plans/051 §0：二级回复 29px 左缩进（不画树状连线） */
+.reply-item-v2.is-child {
+  margin-left: 29px;
 }
 
 .reply-item-v2:last-child {
   border-bottom: none;
 }
 
-.reply-header-v2 {
-  display: flex;
-  gap: 12px;
-  align-items: flex-start;
-}
-
-.reply-avatar {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  background: #1d1d1f;
-  color: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 800;
-  font-size: 15px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-  overflow: hidden;
-  flex-shrink: 0;
-}
-
-.reply-content-wrapper {
-  flex: 1;
-  min-width: 0;
-}
-
-.reply-user-info {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  margin-bottom: 4px;
-}
-
-.reply-author-v2 {
-  font-weight: 700;
-  font-size: 14px;
-  color: var(--liquid-text-primary, #1d1d1f);
-  cursor: pointer;
-}
-
-.reply-to-tag {
-  font-size: 12px;
-  color: #86868b;
-}
-
-.target-name {
-  color: #0071e3;
-  font-weight: 600;
-}
-
 .reply-meta-v2 {
   display: flex;
   align-items: center;
   gap: 12px;
-}
-
-.reply-date-v2 {
-  font-size: 12px;
-  color: #86868b;
 }
 
 .reply-action-btn {
@@ -145,7 +33,12 @@
   cursor: pointer;
   padding: 4px 8px;
   border-radius: 6px;
-  transition: transform 0.2s, opacity 0.2s, background-color 0.2s, border-color 0.2s, box-shadow 0.2s;
+  transition:
+    transform 0.2s,
+    opacity 0.2s,
+    background-color 0.2s,
+    border-color 0.2s,
+    box-shadow 0.2s;
 }
 
 .reply-action-btn:hover {
@@ -155,22 +48,48 @@
 .reply-text-v2 {
   font-size: 15px;
   line-height: 1.5;
-  color: #333;
-  margin: 0;
+  color: var(--appl-text-2);
+  margin: 4px 0 0;
 }
 
+/* 删除入口（用户口径 2026-11-26）：点自己的评论才浮出「删除」文字钮，非常驻 × */
 .delete-comment-btn-v2 {
   background: none;
   border: none;
-  color: #ff3b30;
-  font-size: 16px;
+  color: var(--appl-red);
+  font-size: 12px;
+  font-weight: 600;
   cursor: pointer;
-  padding: 0 4px;
-  opacity: 0.5;
+  padding: 4px 8px;
+  border-radius: 6px;
+  animation: deleteReveal 0.16s var(--ease-out, ease);
 }
 
 .delete-comment-btn-v2:hover {
-  opacity: 1;
+  opacity: 0.8;
+}
+
+@keyframes deleteReveal {
+  from {
+    opacity: 0;
+    transform: translateX(-3px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* 本人评论可点出操作态：给一个克制的可点暗示（hover 底色），不常驻图标 */
+.reply-item-v2.is-actions-open {
+  background: color-mix(in srgb, var(--appl-blue) 4%, transparent);
+  border-radius: var(--appl-radius-inner);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .delete-comment-btn-v2 {
+    animation: none;
+  }
 }
 
 /* 回复输入提示 */
@@ -204,33 +123,55 @@
 
 /* Replies List */
 .replies-list {
-  margin-top: 24px;
-  padding: 12px 18px;
-  /* 透明化：直接透出帖子卡片本身的玻璃底，不再叠灰色实底 */
-  background: transparent;
-  border-radius: 18px;
-  border: 1px solid rgba(0, 0, 0, 0.04);
+  /* plans/051 §0：去外层灰底与圆角框，顶部仅用 1px 发丝线分隔 */
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--appl-hairline);
   max-height: 500px;
   overflow-y: auto;
 }
 
+/* 空态 + 常驻输入区 + 未登录提示（plans/051 拍板 1/3） */
+.replies-empty {
+  margin: 0;
+  padding: 10px 0 4px;
+  font-size: 14px;
+  color: var(--appl-text-4);
+}
+
+.replies-composer {
+  margin-top: 10px;
+}
+
+.replies-login-hint {
+  margin-top: 10px;
+  width: 100%;
+  border: none;
+  background: var(--appl-subtle);
+  color: var(--appl-blue);
+  border-radius: var(--appl-radius-inner);
+  padding: 11px 14px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+}
+
 .more-replies-link-v2 {
   width: 100%;
-  margin-top: 8px;
+  margin-top: 10px;
   border: none;
-  border-radius: 12px;
-  background: rgba(15, 23, 42, 0.05);
-  color: #3b4a5a;
-  padding: 10px 14px;
+  background: none;
+  color: var(--appl-blue);
+  padding: 6px 0;
   font-size: 14px;
-  font-weight: 700;
+  font-weight: 600;
+  text-align: left;
   cursor: pointer;
-  transition: background-color 0.2s, transform 0.2s;
 }
 
 .more-replies-link-v2:hover {
-  background: rgba(15, 23, 42, 0.09);
-  transform: translateY(-1px);
+  opacity: 0.8;
 }
 
 .reply-item {
@@ -341,7 +282,9 @@
   /* 纯白底：无渐变、无色斑；液态玻璃质感由圆角玻璃面板（顶栏/设置组/图片卡）提供 */
   background: #ffffff;
   color: var(--liquid-text-primary, #0f1419);
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro SC", "PingFang SC", "HarmonyOS Sans SC", "MiSans", "Microsoft YaHei", "Helvetica Neue", sans-serif;
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro SC', 'PingFang SC',
+    'HarmonyOS Sans SC', 'MiSans', 'Microsoft YaHei', 'Helvetica Neue', sans-serif;
   /* 安全区由底部动作栏自己补（只在 editor-footer 的 padding-bottom 出现一次）；
      overlay 只管键盘抬升，避免两者相加后把胶囊顶得离底部一大截。 */
   padding-bottom: var(--kb-inset, 0px);
@@ -352,7 +295,7 @@
   font-family: inherit;
 }
 
-[data-theme="dark"] .mobile-composer-overlay {
+[data-theme='dark'] .mobile-composer-overlay {
   background: #16161e;
   /* 文字色继承 tokens.css [data-theme="dark"] 派生的 --liquid-text-*：
      自定义属性沿 DOM 继承，Teleport 到 body 的弹层同样拿得到，
@@ -360,7 +303,7 @@
   color: var(--liquid-text-primary);
 }
 
-[data-theme="dark"] .mobile-composer-section .user-avatar {
+[data-theme='dark'] .mobile-composer-section .user-avatar {
   background: #3a3a46;
   color: #f2f4f7;
   border-color: rgba(255, 255, 255, 0.14);
@@ -393,10 +336,12 @@
   grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 12px;
   align-items: center;
-  border: 1px solid var(--liquid-border, rgba(255,255,255,0.65));
+  border: 1px solid var(--liquid-border, rgba(255, 255, 255, 0.65));
   border-radius: 22px;
-  background: var(--liquid-bg, rgba(255,255,255,0.72));
-  box-shadow: var(--liquid-highlight, inset 0 1px 0 rgba(255,255,255,0.86)), var(--liquid-shadow-sm, 0 8px 24px rgba(15,23,42,0.06));
+  background: var(--liquid-bg, rgba(255, 255, 255, 0.72));
+  box-shadow:
+    var(--liquid-highlight, inset 0 1px 0 rgba(255, 255, 255, 0.86)),
+    var(--liquid-shadow-sm, 0 8px 24px rgba(15, 23, 42, 0.06));
   backdrop-filter: var(--liquid-filter-sm);
   -webkit-backdrop-filter: var(--liquid-filter-sm);
 }
@@ -449,7 +394,10 @@
   cursor: pointer;
   /* 扁平：实心反色本身就说明了层级，不再叠外投影与内侧高光
      （2026-11-16「极简扁平」改版；暗色对比靠下面那行 token 反色保证）。 */
-  transition: transform 0.2s, opacity 0.2s, background-color 0.2s;
+  transition:
+    transform 0.2s,
+    opacity 0.2s,
+    background-color 0.2s;
 }
 
 .mobile-composer-submit:active:not(:disabled) {
@@ -773,17 +721,18 @@
     animation-name: composerMobileCatBreathe;
   }
 
-  [data-theme="dark"] .mobile-composer-section .composer-theme-cat {
+  [data-theme='dark'] .mobile-composer-section .composer-theme-cat {
     mix-blend-mode: screen;
     opacity: 0.14;
   }
 
-  [data-theme="dark"] .mobile-composer-section .composer-theme-cat.is-awake {
+  [data-theme='dark'] .mobile-composer-section .composer-theme-cat.is-awake {
     opacity: 0.2;
   }
 
   @keyframes composerMobileCatBreathe {
-    0%, 100% {
+    0%,
+    100% {
       transform: translateY(0) rotate(7deg) scale(1);
     }
     50% {
@@ -847,8 +796,8 @@
        底部安全区只在这里补一次，避免与 overlay 的 padding 叠加。 */
     margin: 0 -16px;
     padding: 8px 16px calc(8px + env(safe-area-inset-bottom, 0px));
-    border-top: 1px solid var(--liquid-border-hairline, rgba(15,23,42,0.06));
-    background: var(--liquid-bg, rgba(255,255,255,0.72));
+    border-top: 1px solid var(--liquid-border-hairline, rgba(15, 23, 42, 0.06));
+    background: var(--liquid-bg, rgba(255, 255, 255, 0.72));
     backdrop-filter: var(--liquid-filter-sm);
     -webkit-backdrop-filter: var(--liquid-filter-sm);
   }
@@ -868,15 +817,19 @@
   }
 
   /* 竖屏问候行：纯用户名 */
-  .mobile-composer-section .greeting-full { display: none; }
-  .mobile-composer-section .greeting-name { display: inline; }
+  .mobile-composer-section .greeting-full {
+    display: none;
+  }
+  .mobile-composer-section .greeting-name {
+    display: inline;
+  }
 
   .mobile-composer-section .user-avatar {
     width: 44px;
     height: 44px;
     border-radius: 999px;
     font-size: 16px;
-    border: 1px solid var(--liquid-border, rgba(255,255,255,0.65));
+    border: 1px solid var(--liquid-border, rgba(255, 255, 255, 0.65));
     box-shadow: var(--liquid-shadow-sm);
   }
 
@@ -905,8 +858,13 @@
     overflow: hidden;
     font-family: inherit;
   }
-  .mobile-composer-section .post-title-input::placeholder { color: var(--liquid-text-tertiary, #8b9098); font-weight: 500; }
-  .mobile-composer-section .post-content-input::placeholder { color: var(--liquid-text-tertiary, #8b9098); }
+  .mobile-composer-section .post-title-input::placeholder {
+    color: var(--liquid-text-tertiary, #8b9098);
+    font-weight: 500;
+  }
+  .mobile-composer-section .post-content-input::placeholder {
+    color: var(--liquid-text-tertiary, #8b9098);
+  }
 
   .mobile-composer-section .post-content-input {
     font-size: 16px;
@@ -1226,7 +1184,6 @@
   .reply-item-v2 {
     padding: 12px 0;
   }
-
 }
 
 @media (min-width: 769px) and (max-width: 1024px) and (orientation: portrait) {
@@ -1306,7 +1263,6 @@
     min-height: 34vh;
     overflow: visible;
   }
-
 }
 
 @media (max-width: 420px) and (orientation: portrait) {
@@ -1341,7 +1297,6 @@
     padding-left: 7px;
     padding-right: 7px;
   }
-
 }
 
 /* ── 图文格式：底栏必须留发布按钮 ──────────────────────────────────────────

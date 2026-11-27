@@ -14,18 +14,10 @@ import {
 import { useRoute, useRouter } from 'vue-router';
 import { invalidateByTags } from '@/utils/request-core.js';
 import { runWhenIdle } from '@/utils/idle-task.js';
-import {
-  ArrowUpRight,
-  BookOpen,
-  CloudOff,
-  Inbox,
-  Newspaper,
-  RotateCw,
-  SearchX,
-  Sparkles,
-  X,
-} from 'lucide-vue-next';
+import { ArrowUpRight, CloudOff, Inbox, RotateCw } from 'lucide-vue-next';
 import { createPanelAsync } from '@/utils/async-component.js';
+import { getBolekModelStatus } from '@/utils/bolek-model-client.js';
+import ForumToolbar from './components/ForumToolbar.vue';
 import PostCard from './components/PostCard.vue';
 import AlbumPostCard from './components/AlbumPostCard.vue';
 import AlbumReader from './components/AlbumReader.vue';
@@ -39,9 +31,7 @@ import {
 import { resolveFrameForAuthor } from '@/composables/useAvatarFrame.js';
 import ShareIsland from '@/components/UnifiedNavbar/ShareIsland.vue';
 import AdSlot from './components/AdSlot.vue';
-import ForumToolbar from './components/ForumToolbar.vue';
 import ForumImageViewer from './components/ForumImageViewer.vue';
-import CheckinRewardStage from './components/CheckinRewardStage.vue';
 import ForumSeenDivider from './components/ForumSeenDivider.vue';
 import { resolveForumSeenDivider } from '@/composables/useForumSeenDivider.js';
 import { useForumPublishQueueStore } from '@/stores/forumPublishQueue.js';
@@ -59,7 +49,6 @@ import { useActiveAds } from './composables/useActiveAds.js';
 import { useUserTier } from '@/composables/useUserTier.js';
 import { getAvatarUrl } from '@/utils/avatar.js';
 import { getImageUrl } from '@/utils/asset-helper.js';
-import { preloadPointsCardAssets } from '@/utils/points-card-assets.js';
 // 展示口径的标题/正文 + 内容类型派生（均单源；别名保持调用点不变）
 import {
   deriveForumPostKind,
@@ -75,6 +64,8 @@ import { acquireBodyScrollLock } from '@/composables/useBodyScrollLock.js';
 import { openForumPost, loadPostDetailPanel } from '@/composables/usePostDetailModal.js';
 import { shouldSkipPrefetch } from '@/utils/route-prefetch.js';
 import CommonAlertModal from '../../components/CommonAlertModal.vue';
+import ReportPostModal from '@/components/forum/ReportPostModal.vue';
+import { notify } from '@/utils/notify.js';
 import HomeCatMascot from '@/components/HomeCatMascot.vue';
 import {
   getPosts,
@@ -85,10 +76,9 @@ import {
   createQuoteRepost,
   getUserPosts,
   deleteComment,
-  getLatestForumWeeklyReport,
+  deletePost,
+  reportPost,
   getPostEngagementStats,
-  getWeeklyCheckinStatus,
-  submitWeeklyCheckin,
   getForumPostDraft,
   upsertForumPostDraft,
   deleteForumPostDraft,
@@ -136,7 +126,7 @@ import { supabase } from '../../utils/supabase-client.js';
 import { themeManager } from '@/utils/theme-manager.js';
 import { getHomeCatAsset, isHomeCatTheme } from '@/utils/home-cat-theme.js';
 import anniversaryForumImage from '@/assets/images/blockschool.webp';
-import { addExperience, XP_REWARDS } from '../../utils/xp.js';
+import { addExperience } from '../../utils/xp.js';
 import { logger } from '@/utils/logger.js';
 import { getFollowing } from '@/utils/api/profile-api.js';
 import {
@@ -153,8 +143,6 @@ import {
   POSTS_PER_PAGE,
   buildForumFeedParams,
 } from './forum-config.js';
-import { applyPoints, readPoints } from './forum-points.js';
-import { getBolekModelStatus } from '@/utils/bolek-model-client.js';
 
 import { useForumImageModerationPreload } from './composables/useForumImageModerationPreload.js';
 
@@ -164,12 +152,17 @@ const props = defineProps({
   embedded: { type: Boolean, default: false },
   // 外部接管「最新/关注/新闻/活动」筛选（用户空间社区段控驱动）：非空时隐藏内部筛选钮并跟随
   externalFeed: { type: String, default: '' },
+  /* 周签到：**唯一实例在 ForumSectionShell**（分区 tab 行左侧那颗签到按钮用它），
+     本组件的工具栏只读这个状态、点击向上转发。
+     ⚠️ 不要在这里再 useWeeklyCheckin() 一次 —— 两层各持一份 ref 会出现
+     「shell 显示已签、工具栏还显示签到」的双状态（2026-11-26 踩过）。 */
+  hasSignedThisWeek: { type: Boolean, default: false },
 });
 // composer-state：发布会话（.mobile-composer-overlay）开关状态外报。
 // 它被 Teleport 到 body，横屏下会盖住右区，外层（首页 / UserSpace 的左栏）
 // 必须知道它开没开 —— 一是切换落点前要先收掉，二是左栏「发布」项的选中态。
 // 真源只有本文件的 isMobileComposerOpen，外层一律经 ForumSectionShell 透传，别自己推。
-const emit = defineEmits(['island-message', 'composer-state']);
+const emit = defineEmits(['island-message', 'composer-state', 'open-weekly-checkin']);
 
 /* ── 发帖面板按需加载 ────────────────────────────────────────────────
    它只在 `isMobileComposerOpen` 为真时才渲染（模板里 <Transition> + v-if），
@@ -187,13 +180,17 @@ const PostComposer = createPanelAsync(() => import('./components/PostComposer.vu
   silent: true,
 });
 
-/* 论坛「问博莱克」内联回答卡片（2026-11-22）：必须懒加载 ——
+/* 论坛「问博莱克」内联回答卡片：必须懒加载 ——
    它 import 了 boh-markdown（markdown-vendor + ui-sanitize），静态引入会把这两个
-   chunk 拽进 ForumMain 图（BohIsland.vue 头注释的前车之鉴）；首次「问博莱克」才下载。 */
+   chunk 拽进 ForumMain 图；首次「问博莱克」才下载。
+   ⚠️ 2026-11-26 19:22 恢复：上一轮迁移时声明被连带删除，只剩模板引用。 */
 const BohForumAnswerCard = createPanelAsync(() => import('./components/BohForumAnswerCard.vue'), {
   label: 'forum-bolek-answer-card',
 });
 
+/* 论坛「问博莱克」内联回答卡片（2026-11-22）：必须懒加载 ——
+   它 import 了 boh-markdown（markdown-vendor + ui-sanitize），静态引入会把这两个
+   chunk 拽进 ForumMain 图（BohIsland.vue 头注释的前车之鉴）；首次「问博莱克」才下载。 */
 /* ── 底栏切回「内容」：整页重挂不重播入场（2026-10-31）────────────────
    底栏「内容 / 我 / 图库」是独立路由，来回切 = 本组件整页重挂，
    `.posts-feed` 的 fade-in-up（1s + inline delay 0.2s）和卡片入场从 opacity 0
@@ -289,6 +286,9 @@ const disarmFeedSwap = () => {
   }
 };
 
+/* plans/052：搜索迁出全屏页后，原先「关键词一变就挂起入场动画」的触发源没了。
+   等价触发源落在这里 —— 列表内容整体换掉时（换排序 / 换分区 / 换标签 / 关注流）
+   照样播一次入场。恢复返回态不播（见 suppressFeedSwapArm）。 */
 const armFeedSwap = () => {
   pendingFeedSwap = true;
   if (feedSwapArmTimer) clearTimeout(feedSwapArmTimer);
@@ -296,7 +296,7 @@ const armFeedSwap = () => {
   feedSwapArmTimer = setTimeout(disarmFeedSwap, FEED_SWAP_ARM_MS);
 };
 
-/** 恢复返回态时的关键词赋值不算「用户搜索」，不挂起动画。 */
+/** 恢复返回态时的筛选赋值不算「用户操作」，不挂起动画。 */
 let suppressFeedSwapArm = false;
 
 const playFeedSwap = () => {
@@ -313,14 +313,8 @@ const playFeedSwap = () => {
   });
 };
 
-watch(searchKeyword, (next, prev) => {
-  if (String(next || '').trim() === String(prev || '').trim()) return;
-  if (suppressFeedSwapArm) return;
-  armFeedSwap();
-});
-
-/* 关键词一变就收卡 + 清 hint（2026-11-22）：内联卡片回答的是「这一问」，
-   换词 / 清词后留着就是张过期答案。不设 suppressFeedSwapArm 豁免 ——
+/* 关键词一变就收卡 + 清 hint（2026-11-22 / 2026-11-26 恢复）：
+   内联卡片回答的是「这一问」，换词 / 清词后留着就是张过期答案。
    详情返回恢复的是同一个词（watch 不触发），真变了就说明语境已经换了。 */
 watch(searchKeyword, () => {
   dismissInlineAsk();
@@ -332,9 +326,6 @@ watch(forumData, () => {
   disarmFeedSwap();
   playFeedSwap();
 });
-const forumWeeklyReport = ref(null);
-const isWeeklyReportLoading = ref(false);
-const isWeeklyReportOpen = ref(false);
 const forumPageRef = ref(null);
 const forumContainerRef = ref(null);
 const { clearForumImageModerationPreloadTask, scheduleForumImageModerationPreload } =
@@ -388,6 +379,16 @@ const getForumScrollContainer = () => {
   const overflowY = window.getComputedStyle(tabPage).overflowY;
   return ['auto', 'scroll', 'overlay'].includes(overflowY) ? tabPage : window;
 };
+/* 横屏判据的**响应式**版本（2026-10-31）：`isForumLandscape()` 是时点函数，
+   直接塞进 computed 不会随旋屏 / 拖窗重算 —— FAB 就会在转回竖屏后仍然不出现。
+   刷新点复用已有的 resize / orientationchange 通道（updateMobileStatus，同一帧内
+   只跑一次 rAF），判据本身仍取自 forum-viewport.js 的单源 query，不另写 matchMedia。
+
+   ⚠️ 声明位置（2026-11-26）：必须在 useForumVirtualFeed 调用**之前** ——
+   横屏三栏要把 `disableVirtualization` 传进去，晚声明就是 TDZ
+   （本文件头部对「先用后声明」有同款警告）。 */
+const isLandscapeViewport = ref(isForumLandscape());
+
 const {
   activeForumWindowIndex,
   visibleForumPosts,
@@ -410,6 +411,9 @@ const {
   hasMoreData,
   getScrollContainer: getForumScrollContainer,
   onLoadMore: () => fetchForumData(true),
+  /* 横屏三栏禁用虚拟化（多栏与虚拟化的两个前提都冲突，见 composable 里的长注释）。
+     `isLandscapeViewport` 的声明已上提到本调用之前（见上）。 */
+  disableVirtualization: isLandscapeViewport,
 });
 
 // ===== 广告：列表信息流（当前落地订阅计划广告）=====
@@ -440,6 +444,35 @@ const feedWithAds = computed(() => {
     }
   });
   return out;
+});
+
+/* ══ 横屏三栏（用户构思图 · plans/052）══════════════════════════════
+   草图：左侧导航条 + 顶部 tab 区 + 搜索框 + **三栏「轻微错位」帖子流**。
+   错位不是瀑布流（同顶线、只底部不齐），而是**各列出发点就错开**：
+   左栏贴顶、中栏下沉一档、右栏再略回收 —— 三列顶端呈台阶状。
+
+   为什么不用 CSS `columns`：多列布局强制各列从同一顶线开始，
+   做不出「起点参差」；且卡片跨列断行控制脆弱。这里改成
+   **按索引取模分列 + 各列独立 padding-top**，卡片模板零改动。
+
+   只在横屏生效；竖屏返回 null，模板走原来的单列扁平流（零行为变化）。 */
+const FEED_COLUMN_COUNT = 3;
+
+const feedColumns = computed(() => {
+  if (!isLandscapeViewport.value) return null;
+  const columns = Array.from({ length: FEED_COLUMN_COUNT }, () => []);
+  /* 🔴 必须用**绝对下标**（getVisiblePostIndex）分列，绝不能用遍历的相对下标。
+     相对下标随虚拟窗口平移：窗口滑动一条，所有卡片的 `index % 3` 全部改值，
+     同一张卡下一次渲染就换到另一列 —— 用户看到的就是「整屏内容在闪」。
+     绝对下标由帖子在 forumData 里的位置决定，与窗口怎么滑都无关。
+     广告没有 visIndex（不参与虚拟窗口），退化为按渲染序占位即可。 */
+  feedWithAds.value.forEach((item, renderIndex) => {
+    const absoluteIndex = item.isAd
+      ? feedWithAds.value.length + renderIndex // 广告：稳定的兜底下标
+      : getVisiblePostIndex(item.visIndex);
+    columns[absoluteIndex % FEED_COLUMN_COUNT].push(item);
+  });
+  return columns;
 });
 
 /* 「上次看到这里」分隔线（2026-11-10）：判定真源在 @/composables/useForumSeenDivider.js，
@@ -548,8 +581,6 @@ const buildForumReturnState = (postId = '') => ({
   scrollY: getCurrentPageScrollY(),
   viewMode: viewMode.value,
   sortMode: sortMode.value,
-  searchQuery: searchQuery.value,
-  searchKeyword: searchKeyword.value,
   selectedTagFilter: selectedTagFilter.value,
   selectedContentType: selectedContentType.value,
   feedMode: feedMode.value,
@@ -558,13 +589,11 @@ const buildForumReturnState = (postId = '') => ({
 });
 
 const applyForumReturnStateFilters = (state = {}) => {
-  // 这一路上的关键词赋值是「恢复」，不是用户搜索：不挂起结果入场动画，
-  // 否则「带着关键词去详情再返回」会给整屏播一次入场（2026-10-31 复核发现）。
+  // 这一路上的筛选赋值是「恢复」，不是用户操作：不挂起结果入场动画，
+  // 否则「带着筛选去详情再返回」会给整屏播一次入场（2026-10-31 复核发现）。
   suppressFeedSwapArm = true;
   viewMode.value = state.viewMode === 'my' ? 'my' : 'all';
   sortMode.value = normalizeForumSortMode(state.sortMode, 'latest');
-  searchQuery.value = String(state.searchQuery ?? state.searchKeyword ?? '');
-  searchKeyword.value = String(state.searchKeyword ?? state.searchQuery ?? '').trim();
   selectedTagFilter.value = normalizeForumTagValue(state.selectedTagFilter || '');
   const savedContentType = String(state.selectedContentType || '')
     .trim()
@@ -698,46 +727,7 @@ const forumMentionUsers = computed(() => {
   return users;
 });
 
-// 本周签到 / 问博莱克状态
-const isWeeklyCheckinLoading = ref(false);
-const isWeeklyCheckinSubmitting = ref(false);
-/* 签到成功舞台（卡面 3D）。open 为 true 时组件才挂载 —— 挂载即起播，
-   所以「资源就绪」必须在把它置 true **之前**完成（见 handleCheckinClick）。 */
-const checkinReward = ref({
-  open: false,
-  pointsAfter: 0,
-  awardAmount: 0,
-  /* true = 「再看一遍」重播：文案换成已签到，不显示到账数字 */
-  alreadySigned: false,
-  assetsReady: true,
-});
-const isAiSearchLoading = ref(false);
-const aiSearchHint = ref('');
-
-/* 「问博莱克」内联回答卡片（2026-11-22）：检索完成后把「原句 + 相关帖」交给
-   BohForumAnswerCard（懒加载）就地流式作答；不再弹悬浮岛。
-   nonce 参与卡片 :key —— 再次提问 = 新卡片实例 = 新快速会话，旧卡片随 key 变化卸载
-   （其引擎经 onScopeDispose 自行中止流）。 */
-const inlineAsk = ref(null);
-let inlineAskNonce = 0;
-
-const dismissInlineAsk = () => {
-  inlineAsk.value = null;
-};
-
-const createDefaultWeeklyCheckinStatus = () => ({
-  hasSignedThisWeek: false,
-  streakTotal: 0,
-  currentStreak: 0,
-  cycleProgress: 0,
-  cycleSize: 4,
-  rewardCompletedThisWeek: false,
-  pointsAwarded: 0,
-  currentPoints: Number(userInfo.points || 0),
-  nextRewardIn: 4,
-  currentWeekStart: null,
-});
-const weeklyCheckinStatus = ref(createDefaultWeeklyCheckinStatus());
+/* 签到逻辑已迁 src/views/Forum/composables/useWeeklyCheckin.js（plans/052）。 */
 
 const newPost = ref({ title: '', content: '' });
 const selectedPostTag = ref('daily');
@@ -1373,12 +1363,6 @@ const isMobile = ref(
   typeof window !== 'undefined' ? window.innerWidth <= MOBILE_BREAKPOINT : false,
 );
 let resizeRafId = null;
-/* 横屏判据的**响应式**版本（2026-10-31）：`isForumLandscape()` 是时点函数，
-   直接塞进 computed 不会随旋屏 / 拖窗重算 —— FAB 就会在转回竖屏后仍然不出现。
-   刷新点复用已有的 resize / orientationchange 通道（updateMobileStatus，同一帧内
-   只跑一次 rAF），判据本身仍取自 forum-viewport.js 的单源 query，不另写 matchMedia。 */
-const isLandscapeViewport = ref(isForumLandscape());
-
 const updateMobileStatus = () => {
   if (resizeRafId) return;
   resizeRafId = requestAnimationFrame(() => {
@@ -1491,14 +1475,8 @@ const handleAlbumReaderComment = (post) => {
   openPostDetail(post);
 };
 
-// 外部搜索入口（横屏左栏）：embedded 下论坛工具栏常驻，滚到搜索框并聚焦。
-// 工具栏未渲染时静默返回 false，不抛错、不新增状态。
 const focusForumSearch = () => {
-  if (typeof document === 'undefined') return false;
-  const input = document.querySelector('.forum-page .toolbar-search-input');
-  if (!(input instanceof HTMLInputElement)) return false;
-  input.scrollIntoView({ block: 'center', behavior: 'smooth' });
-  input.focus({ preventScroll: true });
+  router.push('/search');
   return true;
 };
 
@@ -1570,8 +1548,6 @@ const handleForumRefreshRequest = async () => {
   nextPageCursor.value = '';
   hasMoreData.value = true;
   forumLoadError.value = '';
-  searchQuery.value = '';
-  searchKeyword.value = '';
   /* ⚠️ 必须先显式失效再取数（2026-11-15 修）。
      getPosts 走 executeRead，TTL = LIST_DATA(30s)，cache key 只由查询条件决定 ——
      查询条件没变就等于「同一个请求」。不失效的话，用户点「我的方块」刷新时
@@ -1701,21 +1677,18 @@ onMounted(() => {
   // 草稿跨实例同步：另一个宿主实例保存/清空草稿时，本实例跟着收敛（见 draftHostId 区块）
   window.addEventListener(FORUM_POST_DRAFT_CHANGE_EVENT, applyExternalDraftChange);
 
-  /* 周报（右栏）与广告（第 5 条之后）都不在首屏可见区，却原本和 feed 同一 tick 发请求。
-     实测（2026-11-16，本地 dev 探针）：挂载后 6 条请求同时在空中 ——
-     avatar_frames / news / activities / posts / forum_weekly_reports / advertisements，
-     request-core 的 6 个并发槽正好被占满，紧随其后的 get_user_subscription_tiers 与
+  /* 信息流广告（第 5 条之后）不在首屏可见区，却原本和 feed 同一 tick 发请求。
+     实测（2026-11-16，本地 dev 探针）：挂载后多条请求同时在空中，
+     request-core 的并发槽被占满，紧随其后的 get_user_subscription_tiers 与
      comments 只能排队等槽位。
      ⇒ 改成「首屏 feed 落地（isLoading 由真变假）之后再取」。
-       ⚠️ 只用 requestIdleCallback 不够：主线程空闲时它 5ms 就会触发（实测周报 823ms
-         与 posts 818ms 几乎同时），必须挂在「feed 落地」这个真实信号上。
+       ⚠️ 只用 requestIdleCallback 不够：主线程空闲时它 5ms 就会触发，
+         必须挂在「feed 落地」这个真实信号上。
        ⚠️ 必须先建 watch 再调 initializeForumData：命中会话快照的分支会**同步**把
          isLoading 置假，晚建 watch 就永远收不到这次状态变化（只剩 6s 兜底）。
-     isWeeklyReportLoading 先置真 ⇒ 骨架屏高度不变，延后不会引起布局位移；
      广告插在第 5 条帖子之后（feed_interval 默认 5，最少 2），落在首屏折叠线以下，
      晚到也不会顶动可见内容。
-     6000ms 兜底：feed 请求挂死时不能让周报永远停在骨架屏。 */
-  isWeeklyReportLoading.value = true;
+     （周报已于 2026-11-26 整体退场：改由博莱克发布并在那边查看，本页不再拉取。） */
   stopDeferredSidebarWatch = watch(isLoading, (loading) => {
     if (!loading) startDeferredSidebarLoad();
   });
@@ -1725,7 +1698,6 @@ onMounted(() => {
   setupForumLoadMoreObserver();
   setupForumWindowObserver();
   if (isLoggedIn.value) {
-    loadWeeklyCheckinStatus();
     scheduleForumImageModerationPreload();
   }
 });
@@ -1828,8 +1800,6 @@ onUnmounted(() => {
   releaseComposerScrollLock();
   void discardDraftPostImages({ silent: true });
   // 摘掉 setup 里打的「应用内导航返回」标记（见上方 setup 注释），别泄漏给下一个页面
-  delete document.documentElement.dataset.bohNavReturning;
-  cancelPendingSearch();
   if (postDraftSaveTimer) {
     clearTimeout(postDraftSaveTimer);
     postDraftSaveTimer = null;
@@ -1901,13 +1871,11 @@ watch(isLoggedIn, (loggedIn) => {
     postDraftSaveTimer = null;
   }
   if (loggedIn) {
-    loadWeeklyCheckinStatus();
     restorePostDraft();
     scheduleForumImageModerationPreload();
     return;
   }
   void discardDraftPostImages({ silent: true });
-  weeklyCheckinStatus.value = createDefaultWeeklyCheckinStatus();
   feedMode.value = 'posts';
   resetComposerEditorForAccountSwitch();
   restorePostDraft();
@@ -1923,9 +1891,6 @@ watch(
     if (previousUserId && previousUserId !== userId) {
       void discardDraftPostImages({ silent: true });
       resetComposerEditorForAccountSwitch();
-    }
-    if (isLoggedIn.value && userId) {
-      loadWeeklyCheckinStatus();
     }
     restorePostDraft();
   },
@@ -1998,6 +1963,23 @@ watch(
       showFollowingOnly.value = false;
     }
     activeForumWindowIndex.value = 0;
+  },
+);
+
+/* 列表整体换内容 → 播一次入场（旧实现在 searchKeyword watch 里，搜索迁出后搬到这里）。
+   覆盖：换排序 / 换内容分区 / 换标签 / 关注流切换 / 搜索词经深链带入。 */
+watch(
+  () => [
+    sortMode.value,
+    selectedTagFilter.value,
+    selectedContentType.value,
+    showFollowingOnly.value,
+    searchKeyword.value,
+  ],
+  (next, prev) => {
+    if (!prev) return; // 首次求值不是用户操作
+    if (suppressFeedSwapArm) return;
+    armFeedSwap();
   },
 );
 
@@ -2342,154 +2324,6 @@ const ensureQuotedPostsForReposts = async () => {
   }
 };
 
-/**
- * 「再看一遍」：已签到用户再点签到时的重播。
- * 不提交、不弹提示岛 —— 直接把同一套舞台重播，文案换成「已签到」。
- * 这是用户明确要的（2026-10-29）：卡面旋转是彩蛋，不该一周只能看一次。
- */
-const replayCheckinStage = async () => {
-  if (checkinReward.value.open) return;
-  // 资源走同一个 preload：命中模块级缓存时几乎瞬时，没命中也不会白屏（超时降级 blank）
-  const assets = await preloadPointsCardAssets({
-    skin: userInfo.pointsCardSkin || 'blank',
-    imageUrl: userInfo.pointsCardImageUrl || '',
-  }).catch(() => ({ ready: false, failed: [], timedOut: false }));
-
-  checkinReward.value = {
-    open: true,
-    pointsAfter:
-      readPoints(weeklyCheckinStatus.value.currentPoints) ?? (Number(userInfo.points) || 0),
-    awardAmount: 0,
-    alreadySigned: true,
-    assetsReady: assets.ready,
-  };
-};
-
-/**
- * 签到入口（2026-10-29 起一步到位）：点按钮即提交，不再开面板。
- * 已签 → 走 replayCheckinStage（重播舞台，文案「已签到」）；未登录 → 登录弹窗。
- */
-const handleCheckinClick = () => {
-  if (!isLoggedIn.value) {
-    showLoginModal.value = true;
-    return;
-  }
-  if (isWeeklyCheckinSubmitting.value) return;
-
-  if (weeklyCheckinStatus.value.hasSignedThisWeek) {
-    void replayCheckinStage();
-    return;
-  }
-
-  // 状态可能因上次加载失败而停在「未签到」，顺手自愈一次（失败不阻塞本次提交）
-  if (!isWeeklyCheckinLoading.value) void loadWeeklyCheckinStatus();
-  void handleWeeklyCheckin();
-};
-
-const closeCheckinReward = () => {
-  checkinReward.value = { ...checkinReward.value, open: false };
-};
-
-const loadWeeklyCheckinStatus = async () => {
-  if (!isLoggedIn.value) {
-    weeklyCheckinStatus.value = createDefaultWeeklyCheckinStatus();
-    return;
-  }
-  // 已登录但 id 尚未就绪：保持现状，等 userInfo.id 的 watcher 再拉。
-  // 这里若重置成默认值，会把「后端已确认本周已签」的本地状态抹掉 → 按钮重新可点。
-  if (!userInfo.id) return;
-
-  isWeeklyCheckinLoading.value = true;
-  try {
-    const { ok, data, error } = await getWeeklyCheckinStatus(userInfo.id);
-    if (!ok || error || !data) {
-      // 拉取失败就保持现状，绝不用默认值覆盖 —— 覆盖等于「假装没签过」
-      logger.error('forum', '加载周签到状态失败:', error);
-      return;
-    }
-
-    weeklyCheckinStatus.value = {
-      ...createDefaultWeeklyCheckinStatus(),
-      ...data,
-    };
-
-    // 只有后端真的回了余额才写回；缺字段时写 0 会把界面余额清零（2026-09-29 事故）
-    applyPoints(userInfo, data.currentPoints);
-  } catch (error) {
-    logger.error('forum', '加载周签到状态异常:', error);
-  } finally {
-    isWeeklyCheckinLoading.value = false;
-  }
-};
-
-const handleWeeklyCheckin = async () => {
-  if (isWeeklyCheckinSubmitting.value) return;
-
-  isWeeklyCheckinSubmitting.value = true;
-  try {
-    // 卡面预取与提交**并行**：等 RPC 回来再开始下图片等于白等一个 RTT。
-    // preload 自身永不 reject；再兜一层，任何注入实现抛错都不能吞掉「签到成功」。
-    const assetsPromise = preloadPointsCardAssets({
-      skin: userInfo.pointsCardSkin || 'blank',
-      imageUrl: userInfo.pointsCardImageUrl || '',
-    }).catch(() => ({ ready: false, failed: [], timedOut: false }));
-
-    const { ok, data, error, alreadySigned } = await submitWeeklyCheckin();
-    if (!ok || error || !data) {
-      // 「本周已签」不是失败，是后端明确告知该行已存在。
-      // 用它把本地状态钉成已签到 —— 否则按钮会一直可点，用户每点一次都「签到成功」
-      // 却拿不到积分（2026-09-29 线上事故：签到可以一直签到 + 余额被清零）。
-      if (alreadySigned || data?.alreadySigned) {
-        weeklyCheckinStatus.value = { ...weeklyCheckinStatus.value, hasSignedThisWeek: true };
-        // 尽力把余额同步回真值；这一步失败也不影响上面「已签到」的判定
-        void loadWeeklyCheckinStatus();
-        // 不弹提示岛：既然用户点的是签到，就给他看舞台（已签到版），和「再看一遍」同一套反馈
-        const assets = await assetsPromise;
-        checkinReward.value = {
-          open: true,
-          pointsAfter: readPoints(data?.currentPoints) ?? (Number(userInfo.points) || 0),
-          awardAmount: 0,
-          alreadySigned: true,
-          assetsReady: assets.ready,
-        };
-        return;
-      }
-      throw error || new Error('签到失败，请稍后重试');
-    }
-
-    weeklyCheckinStatus.value = {
-      ...createDefaultWeeklyCheckinStatus(),
-      ...data,
-    };
-
-    applyPoints(userInfo, data.currentPoints);
-
-    // 只有卡面「可绘制」后才允许起播（preload 内部等的是 decode，不是 onload）。
-    // 预算 1.5s；超时 / 失败 → assets.ready=false，舞台降级成 blank 卡面，动画照播。
-    const assets = await assetsPromise;
-
-    const awarded = Number(data.pointsAwarded || 0);
-    emitProfileSync({
-      userId: userInfo.id,
-      username: userInfo.username,
-      reason: awarded > 0 ? 'weekly_checkin_reward' : 'weekly_checkin',
-    });
-
-    checkinReward.value = {
-      open: true,
-      pointsAfter: readPoints(data.currentPoints) ?? (Number(userInfo.points) || 0),
-      awardAmount: awarded,
-      alreadySigned: false,
-      assetsReady: assets.ready,
-    };
-  } catch (error) {
-    logger.error('forum', '周签到失败:', error);
-    showModal('error', '签到失败', error?.message || '请稍后重试');
-  } finally {
-    isWeeklyCheckinSubmitting.value = false;
-  }
-};
-
 const fetchForumData = async (isLoadMore = false, { background = false } = {}) => {
   const requestSeq = ++forumFetchSeq;
   if (!isLoadMore && forumFetchAbortController) {
@@ -2655,18 +2489,6 @@ const cdnDeliveryBase = computed(() => {
   return cloudName ? `https://res.cloudinary.com/${cloudName}` : '';
 });
 
-const loadForumWeeklyReport = async () => {
-  isWeeklyReportLoading.value = true;
-  try {
-    const result = await getLatestForumWeeklyReport();
-    if (!result.error) forumWeeklyReport.value = result.data;
-  } catch (error) {
-    logger.warn('forum', '加载论坛周报失败:', error);
-  } finally {
-    isWeeklyReportLoading.value = false;
-  }
-};
-
 /**
  * 首屏 feed 落地后，再把右栏周报与信息流广告放进空闲队列取。
  * 幂等：watch(isLoading) 与 6s 兜底定时器都会调它，只会真正跑一次。
@@ -2683,28 +2505,12 @@ const startDeferredSidebarLoad = () => {
   cancelDeferredSidebarLoad = runWhenIdle(
     () => {
       cancelDeferredSidebarLoad = null;
-      void loadForumWeeklyReport();
+      /* 周报已整体退场（2026-11-26 用户口径 17:52：以后由博莱克发布并在那里查看）
+         —— 这里只剩信息流广告。 */
       void loadActiveAds();
     },
     { timeout: 2000 },
   );
-};
-
-const formatReportPeriod = (report) => {
-  if (!report?.week_start || !report?.week_end) return '上一完整周';
-  return `${String(report.week_start).replace(/-/g, '.')} - ${String(report.week_end).replace(/-/g, '.')}`;
-};
-
-const reportMetric = (key) => Number(forumWeeklyReport.value?.metrics?.[key] || 0);
-const openWeeklyReport = () => {
-  if (forumWeeklyReport.value) isWeeklyReportOpen.value = true;
-};
-const closeWeeklyReport = () => {
-  isWeeklyReportOpen.value = false;
-};
-const openReportPost = (postId) => {
-  closeWeeklyReport();
-  if (postId) openPostDetail(postId);
 };
 
 const modalState = ref({ show: false, type: 'success', title: '', message: '' });
@@ -3333,7 +3139,7 @@ const submitReply = async (post) => {
       showModal('success', '回复成功', '你的声音已被听到');
     }
 
-    addExperience(supabase, userInfo.id, XP_REWARDS.REPLY);
+    addExperience(supabase, 'REPLY');
     addUiMarker(replySuccessPostIds, post.id, 1800, 'reply-success');
     emitProfileSync({
       userId: userInfo.id,
@@ -3398,7 +3204,7 @@ const handleToggleLike = async (post) => {
       post.like_count = calculateOptimisticLikeCount(prevCount, action, data?.likeCount);
       post.isLiked = action === 'liked';
       if (action === 'liked') {
-        addExperience(supabase, userInfo.id, XP_REWARDS.LIKE);
+        addExperience(supabase, 'LIKE');
       }
       triggerRef(forumData);
 
@@ -3422,11 +3228,11 @@ const handleToggleLike = async (post) => {
 // 就地挂载而不是挪到 setup 尾部：注入项（fetchForumData / focusForumSearch / isLoggedIn /
 // 标签归一）都在本行之上声明完毕；挪到尾部会让下方 askBolek 里的 stripTagTokens 变成
 // 「先用后声明」。状态 ref 仍归宿主（虚拟列表接线要先用到它们），这里只拿引用。
+/* 搜索框留在论坛页（用户口径 18:08）⇒ 查询层的全部手柄都要用到：
+   原地过滤 / 最近搜索 / 标签 chip / 排序切换都在 ForumToolbar 里接。 */
 const {
   setSortMode,
-  setFeedMode,
   setTagFilter,
-  setContentType,
   clearTagFilter,
   emptyFilterTitle,
   emptyFilterDesc,
@@ -3435,7 +3241,6 @@ const {
   onSearchFocus,
   onSearchBlur,
   applyHistoryKeyword,
-  historySuggestion,
   clearSearchHistory,
   handleSearch,
   clearSearchInput,
@@ -3456,6 +3261,67 @@ const {
   getForumTagLabel,
   focusForumSearch,
 });
+
+/* ══════════════════════════════════════════════════════════════════════
+   问博莱克（搜索框内入口）：先在论坛库检索相关内容，再交给结果区的
+   BohForumAnswerCard 就地流式作答。
+   ⚠️ 2026-11-26 19:22 恢复：上一轮做搜索页迁移时这段被连带删掉，
+      留下模板里 `@ask-bolek="askBolek"` 指向一个不存在的函数 ——
+      点击**完全无反应**（不报错、不提示，最难查的那种哑失败）。
+      探针 probe-forum-toolbar-hero 的「问博莱克有响应」正是被这一条拖红的。
+   ══════════════════════════════════════════════════════════════════════ */
+const isAiSearchLoading = ref(false);
+const aiSearchHint = ref('');
+
+/* 内联回答卡片：nonce 参与卡片 :key —— 再次提问 = 新卡片实例 = 新会话，
+   旧卡片随 key 变化卸载（其引擎经 onScopeDispose 自行中止流）。 */
+const inlineAsk = ref(null);
+let inlineAskNonce = 0;
+
+const dismissInlineAsk = () => {
+  inlineAsk.value = null;
+};
+
+const askBolek = async () => {
+  if (isAiSearchLoading.value) return;
+  const question = stripTagTokens(searchQuery.value);
+  if (!question) {
+    aiSearchHint.value = '先在搜索框输入你的问题，再问博莱克。';
+    return;
+  }
+  if (!getBolekModelStatus().hasConfig) {
+    aiSearchHint.value = '博莱克模型暂未配置，暂时无法回答。';
+    return;
+  }
+  cancelPendingSearch();
+
+  isAiSearchLoading.value = true;
+  aiSearchHint.value = '博莱克正在检索论坛相关内容...';
+
+  try {
+    const tagFromInput = deriveTagFilterFromInput(searchQuery.value);
+    const { data: relatedPosts } = await getPosts(null, {
+      page: 1,
+      pageSize: 5,
+      searchQuery: question,
+      tagFilter: tagFromInput ?? selectedTagFilter.value ?? '',
+      sortMode: 'hottest',
+    });
+    const posts = (Array.isArray(relatedPosts) ? relatedPosts : []).slice(0, 5);
+    // 交付即收 hint：等待动画 / 回答状态全部由卡片自己呈现
+    aiSearchHint.value = '';
+    inlineAsk.value = {
+      nonce: (inlineAskNonce += 1),
+      question,
+      posts,
+    };
+  } catch (error) {
+    logger.warn('forum', '问博莱克失败:', error);
+    aiSearchHint.value = '博莱克检索论坛内容失败，请稍后再试。';
+  } finally {
+    isAiSearchLoading.value = false;
+  }
+};
 
 const handleDeleteComment = async (comment, post) => {
   if (!comment?.id || !post?.id) return;
@@ -3482,6 +3348,86 @@ const handleDeleteComment = async (comment, post) => {
     await refreshPostEngagementStats(post);
   } catch (error) {
     logger.error('forum', '删除评论失败:', error);
+    showModal('error', '删除失败', error?.message || '请稍后重试');
+  }
+};
+
+/* ── 卡片 ⋯ 菜单动作（plans/051 拍板 7：低频操作收口）────────────────── */
+const copyPostLink = async (post) => {
+  if (!post?.id) return;
+  const url = `${window.location.origin}/#/forum/post/${post.id}`;
+  try {
+    await navigator.clipboard.writeText(url);
+    notify('链接已复制', 'success');
+    // 与分享岛共用同一「已复制」点亮通道（标准速 plans/035 §L5）
+    addUiMarker(shareCopiedPostIds, post.id, 1600, 'share-copied');
+  } catch {
+    // 剪贴板被拒（HTTP / 权限）→ 退回分享岛，它有自己的降级路径
+    sharePost(post);
+  }
+};
+
+const cardReportState = ref({ open: false, post: null });
+const isCardReportSubmitting = ref(false);
+
+const openCardReportModal = (post) => {
+  if (!isLoggedIn.value) {
+    showLoginModal.value = true;
+    return;
+  }
+  if (!post?.author_id) {
+    showModal('warning', '无法举报', '官方发布的内容不支持举报');
+    return;
+  }
+  if (String(post.author_id) === String(userInfo.id)) {
+    showModal('warning', '无法举报', '不能举报自己的帖子');
+    return;
+  }
+  cardReportState.value = { open: true, post };
+};
+
+const closeCardReportModal = () => {
+  if (isCardReportSubmitting.value) return;
+  cardReportState.value = { open: false, post: null };
+};
+
+const submitCardReport = async ({ reason, detail }) => {
+  const post = cardReportState.value.post;
+  if (!post?.id) return;
+  isCardReportSubmitting.value = true;
+  try {
+    const result = await reportPost(post.id, reason, detail);
+    if (!result.success) {
+      showModal('error', '举报失败', result.error?.message || '请稍后重试');
+      return;
+    }
+    cardReportState.value = { open: false, post: null };
+    showModal('success', '举报已提交', result.data?.message || '感谢你的反馈，我们会继续核查');
+  } catch (error) {
+    showModal('error', '举报失败', error?.message || '请稍后重试');
+  } finally {
+    isCardReportSubmitting.value = false;
+  }
+};
+
+const handleCardDeletePost = async (post) => {
+  if (!post?.id) return;
+  const confirmed = await requestConfirm({
+    title: '删除帖子',
+    message: '帖子和评论将一并删除，且无法恢复，确定继续吗？',
+    confirmText: '删除',
+  });
+  if (!confirmed) return;
+  try {
+    const { success, error } = await deletePost(post.id, userInfo.id, userInfo.role);
+    if (!success) {
+      showModal('error', '删除失败', error || '请稍后重试');
+      return;
+    }
+    // 本地移除：虚拟流下一帧就不渲染（数据真源 forumData）
+    forumData.value = forumData.value.filter((p) => String(p?.id) !== String(post.id));
+    notify('帖子已删除', 'success');
+  } catch (error) {
     showModal('error', '删除失败', error?.message || '请稍后重试');
   }
 };
@@ -3547,53 +3493,6 @@ const submitQuoteRepost = async () => {
   closeQuoteRepost();
   showModal('success', '转发成功', '你的留言已生成一条新的论坛帖子');
   await fetchForumData(false, { background: true });
-};
-
-// 问博莱克（2026-11-22 内联卡片版）：先在论坛库中检索相关内容，然后把「原句 + 相关帖」
-// 交给结果区里的 BohForumAnswerCard 就地流式作答 —— 不再弹悬浮岛（旧 showIsland.ai
-// 链路整体退场；悬浮岛仍是下拉 / ⌘K 的对话入口，与本流程无关）。
-// 职责分界：本函数只负责「检索」（不消耗额度）+ 交付；发问 / 流式 / 交接全在卡片内
-// （BohForumAnswerCard：原句进引擎，检索证据走 attachedContext 的 evidenceBlock 进
-// system prompt，回答走用户 AI 额度、恒 balance 档 —— 档位契约在卡片 onMounted）。
-const askBolek = async () => {
-  if (isAiSearchLoading.value) return;
-  const question = stripTagTokens(searchQuery.value);
-  if (!question) {
-    aiSearchHint.value = '先在搜索框输入你的问题，再问博莱克。';
-    return;
-  }
-  if (!getBolekModelStatus().hasConfig) {
-    aiSearchHint.value = '博莱克模型暂未配置，暂时无法回答。';
-    return;
-  }
-  cancelPendingSearch();
-
-  isAiSearchLoading.value = true;
-  aiSearchHint.value = '博莱克正在检索论坛相关内容...';
-
-  try {
-    const tagFromInput = deriveTagFilterFromInput(searchQuery.value);
-    const { data: relatedPosts } = await getPosts(null, {
-      page: 1,
-      pageSize: 5,
-      searchQuery: question,
-      tagFilter: tagFromInput ?? selectedTagFilter.value ?? '',
-      sortMode: 'hottest',
-    });
-    const posts = (Array.isArray(relatedPosts) ? relatedPosts : []).slice(0, 5);
-    // 交付即收 hint：等待动画 / 回答状态全部由卡片自己呈现
-    aiSearchHint.value = '';
-    inlineAsk.value = {
-      nonce: (inlineAskNonce += 1),
-      question,
-      posts,
-    };
-  } catch (error) {
-    logger.warn('forum', '问博莱克失败:', error);
-    aiSearchHint.value = '博莱克检索论坛内容失败，请稍后再试。';
-  } finally {
-    isAiSearchLoading.value = false;
-  }
 };
 
 /* 按下卡片即预取详情面板 chunk（2026-11-20）。
@@ -3699,7 +3598,6 @@ const {
   emitProfileSync,
   isLikelyNetworkError,
   shouldCleanupImagesAfterPostError,
-  loadForumWeeklyReport,
   persistForumFeedSnapshot,
   showEmbeddedSuccessIsland,
 });
@@ -3749,12 +3647,19 @@ const {
 
       <!-- 主要内容区 -->
       <main class="forum-main-grid">
-        <!-- 搜索工具栏：桌面 / 横屏下跨栏独占一行（base.css 的 grid-template-areas 负责布置）。
-             单列时它在 DOM 里仍排在列表之前 → 手机端视觉顺序不变 -->
+        <!-- 搜索框：**竖屏首屏不再渲染**（2026-11-26 21:45 用户线框图口径）
+             线框：首屏「tab 区」最右一颗放大镜 → 点它进新的全屏搜索页；
+             搜索框只存在于那个整页里。所以嵌入论坛（首页 / 用户空间）的竖屏下，
+             这条搜索框是**重复入口**，整条隐藏 —— 入口唯一在
+             ForumSectionShell 页签行的 `.section-search`。
+             横屏保留这条细胶囊：那一档没有页签行（三栏布局），细条就是唯一入口。
+             ⚠️ 判据用 isLandscapeViewport（forum-viewport 单源），不要用 innerWidth，
+                否则「窄横屏」会跟着竖屏一起消失。 -->
         <ForumToolbar
-          v-model:searchQuery="searchQuery"
+          v-if="!props.embedded || isLandscapeViewport"
+          v-model:search-query="searchQuery"
           :is-logged-in="isLoggedIn"
-          :has-signed-this-week="weeklyCheckinStatus.hasSignedThisWeek"
+          :has-signed-this-week="hasSignedThisWeek"
           :sort-mode="sortMode"
           :selected-tag-filter="selectedTagFilter"
           :is-ai-search-loading="isAiSearchLoading"
@@ -3769,7 +3674,7 @@ const {
           @search-blur="onSearchBlur"
           @apply-history-keyword="applyHistoryKeyword"
           @clear-search-history="clearSearchHistory"
-          @open-weekly-checkin="handleCheckinClick"
+          @open-weekly-checkin="emit('open-weekly-checkin')"
           @set-sort-mode="setSortMode"
           @set-tag-filter="setTagFilter"
         />
@@ -3791,50 +3696,13 @@ const {
             :class="{ 'is-feed-entering': feedEntering }"
             style="animation-delay: var(--feed-enter-delay, 0.2s)"
           >
-            <div v-if="!externalFeed" class="feed-mode-tabs">
-              <button
-                class="feed-mode-tab"
-                :class="{ active: selectedContentType === '' }"
-                @click="setContentType('')"
-              >
-                全部
-              </button>
-              <button
-                class="feed-mode-tab"
-                :class="{ active: selectedContentType === 'post' }"
-                @click="setContentType('post')"
-              >
-                论坛
-              </button>
-              <button
-                class="feed-mode-tab"
-                :class="{ active: selectedContentType === 'news' }"
-                @click="setContentType('news')"
-              >
-                新闻
-              </button>
-              <button
-                class="feed-mode-tab"
-                :class="{ active: selectedContentType === 'activity' }"
-                @click="setContentType('activity')"
-              >
-                活动
-              </button>
-              <template v-if="isLoggedIn">
-                <span class="feed-mode-tab-divider" aria-hidden="true"></span>
-                <button
-                  class="feed-mode-tab"
-                  :class="{ active: showFollowingOnly }"
-                  :title="showFollowingOnly ? '返回全部内容' : '只看关注的人的动态'"
-                  @click="setFeedMode(showFollowingOnly ? 'latest' : 'following')"
-                >
-                  关注
-                </button>
-              </template>
+            <div
+              v-if="$slots['top-cards']"
+              class="forum-top-cards-slot"
+              :class="{ 'is-multi': !!feedColumns }"
+            >
+              <slot name="top-cards" />
             </div>
-
-            <!-- 最近搜索面板不在这里：它在 ForumToolbar 内部贴着搜索框展开
-                 （放信息流顶部会被手机底栏压住，且与输入框隔着一个发帖框）。 -->
 
             <!-- 结果计数：2026-10-22 按用户要求整条移除（理由见 script 里那段注释） -->
 
@@ -3881,12 +3749,6 @@ const {
                     :stroke-width="1.7"
                     aria-hidden="true"
                   />
-                  <SearchX
-                    v-else-if="searchKeyword.trim()"
-                    :size="23"
-                    :stroke-width="1.7"
-                    aria-hidden="true"
-                  />
                   <Inbox v-else :size="23" :stroke-width="1.7" aria-hidden="true" />
                 </div>
 
@@ -3900,35 +3762,6 @@ const {
                   >
                     <RotateCw :size="14" :stroke-width="2.2" aria-hidden="true" />
                     <span>重试</span>
-                  </button>
-                </template>
-
-                <!-- 有关键词却没结果：给两条出路（问博莱克 / 退回全部），
-                     而不是只丢一句「换个条件试试」让用户自己想办法 -->
-                <template v-else-if="searchKeyword.trim()">
-                  <p class="forum-empty-title">没有找到「{{ searchKeyword }}」相关内容</p>
-                  <p class="forum-empty-desc">试试更短的关键词，或让博莱克在论坛里找一遍</p>
-                  <div class="empty-state-actions">
-                    <button
-                      type="button"
-                      class="empty-action-btn is-primary"
-                      :disabled="isAiSearchLoading"
-                      @click="askBolek"
-                    >
-                      <Sparkles :size="14" :stroke-width="2" aria-hidden="true" />
-                      <span>问博莱克</span>
-                    </button>
-                    <button type="button" class="empty-action-btn" @click="clearSearchInput">
-                      清除搜索
-                    </button>
-                  </div>
-                  <button
-                    v-if="historySuggestion"
-                    type="button"
-                    class="empty-history-hint"
-                    @click="applyHistoryKeyword(historySuggestion)"
-                  >
-                    换个词试试「{{ historySuggestion }}」
                   </button>
                 </template>
 
@@ -3951,9 +3784,9 @@ const {
                 </template>
               </div>
 
-              <!-- 论坛「问博莱克」内联回答卡片（2026-11-22）：位置在空态之后、帖子之前 ——
-                   有结果 = 帖子列表最前面一张卡；无结果 = 「没有找到」空态的下方。
-                   nonce 进 :key：再次提问 = 新实例 = 新快速会话；换关键词由 watch 收卡。 -->
+              <!-- 问博莱克内联回答卡片：位置在空态之后、帖子之前 ——
+                   有结果 = 帖子列表最前面一张卡；无结果 = 「没有找到」空态下方。
+                   nonce 进 :key：再次提问 = 新实例 = 新快速会话。 -->
               <BohForumAnswerCard
                 v-if="inlineAsk"
                 :key="inlineAsk.nonce"
@@ -3969,250 +3802,271 @@ const {
                 aria-hidden="true"
               ></div>
 
-              <template v-for="item in feedWithAds" :key="item.key">
-                <AdSlot v-if="item.isAd" :ad="item.ad" />
+              <!-- 竖屏：单列（feedColumns 为 null ⇒ 退回扁平 feedWithAds）；
+                   横屏：三栏（feedColumns 驱动，各列起点阶梯错位，见样式） -->
+              <div class="feed-columns" :class="{ 'is-multi': !!feedColumns }">
                 <div
-                  v-else
-                  class="forum-virtual-post"
-                  :data-forum-virtual-index="getVisiblePostIndex(item.visIndex)"
+                  v-for="(column, columnIndex) in feedColumns || [feedWithAds]"
+                  :key="columnIndex"
+                  class="feed-column"
+                  :class="`feed-column--${columnIndex}`"
                 >
-                  <!-- 「上次看到这里」：插在**第一条旧帖**之前（绝对下标 = splitIndex）。
-                       虚拟列表下它只在窗口覆盖到该下标时才渲染 —— 用户已经滚过去时它本就
-                       在视口上方，不渲染是对的，不要为了让线「一直在」而按相对下标判断。 -->
-                  <ForumSeenDivider
-                    v-if="
-                      forumSeenDivider.visible &&
-                      getVisiblePostIndex(item.visIndex) === forumSeenDivider.splitIndex
-                    "
-                    :anchor-iso="seenAnchorIso"
-                    :new-count="forumSeenDivider.newCount"
-                  />
-                  <article
-                    v-if="item.post._optimistic"
-                    class="post-card-v2 glass-panel optimistic-post-card"
-                    :class="{
-                      'is-failed': item.post._publishState === 'failed',
-                      'is-moderation': item.post._failType === 'moderation',
-                    }"
-                    :data-forum-post-id="item.post.id"
-                    @click.stop
-                  >
-                    <div class="optimistic-progress-track">
-                      <i
-                        class="optimistic-progress-fill"
-                        :class="
-                          item.post._failType === 'moderation'
-                            ? 'is-moderation'
-                            : item.post._publishState === 'failed'
-                              ? 'is-failed'
-                              : item.post._publishState === 'success'
-                                ? 'is-success'
-                                : 'is-sending'
-                        "
-                        :style="{ width: Math.round(item.post._progress || 0) + '%' }"
-                      ></i>
-                    </div>
-                    <div class="post-header-v2">
-                      <div class="post-author-section">
-                        <div class="post-author-avatar">
-                          <img
-                            v-if="
-                              getAvatarUrl(item.post.author_avatar_url || userInfo.avatarUrl, 'sm')
-                            "
-                            :src="
-                              getAvatarUrl(item.post.author_avatar_url || userInfo.avatarUrl, 'sm')
-                            "
-                            class="avatar-image"
-                            loading="eager"
-                          />
-                          <span v-else>{{
-                            item.post.author_username
-                              ? item.post.author_username.charAt(0).toUpperCase()
-                              : 'U'
-                          }}</span>
-                        </div>
-                        <div class="post-author-info">
-                          <span class="post-author-v2">{{ '@' + item.post.author_username }}</span>
-                          <span class="post-date-v2">刚刚 · 仅你可见</span>
-                        </div>
-                        <span
-                          class="optimistic-badge"
-                          :class="
-                            item.post._publishState === 'failed'
-                              ? item.post._failType === 'moderation'
-                                ? 'moderation'
-                                : 'failed'
-                              : item.post._publishState === 'success'
-                                ? 'success'
-                                : 'sending'
-                          "
-                        >
-                          <template
-                            v-if="
-                              item.post._publishState === 'failed' &&
-                              item.post._failType === 'moderation'
-                            "
-                            >审核未通过</template
-                          >
-                          <template v-else-if="item.post._publishState === 'failed'"
-                            >发送失败</template
-                          >
-                          <template v-else-if="item.post._publishState === 'success'"
-                            >发送成功</template
-                          >
-                          <template v-else
-                            >发送中 · {{ Math.round(item.post._progress || 0) }}%</template
-                          >
-                        </span>
-                      </div>
-                    </div>
-                    <div class="post-content-v2">
-                      <h3 class="post-title-v2">{{ item.post.displayTitle }}</h3>
-                      <div v-if="item.post.tagLabel" class="post-card-tags">
-                        <span class="post-card-tag">{{ item.post.tagLabel }}</span>
-                      </div>
-                      <div
-                        v-if="item.post.allImages && item.post.allImages.length"
-                        class="image-post-strip"
-                        :class="{ 'is-single': item.post.allImages.length === 1 }"
-                      >
-                        <div
-                          v-for="(img, idx) in item.post.allImages"
-                          :key="img.id || img.url"
-                          class="image-post-thumb-shell is-loaded"
-                          :class="{
-                            'is-failed-mark':
-                              item.post._failedImageIndex === idx &&
-                              item.post._publishState === 'failed' &&
-                              item.post._failType === 'moderation',
-                          }"
-                        >
-                          <img
-                            :src="img.url"
-                            :alt="`图片 ${idx + 1}`"
-                            class="image-post-thumb is-loaded"
-                            style="opacity: 0.92"
-                          />
-                          <span
-                            v-if="
-                              item.post._failedImageIndex === idx &&
-                              item.post._publishState === 'failed' &&
-                              item.post._failType === 'moderation'
-                            "
-                            class="optimistic-fail-mark"
-                            >审核未过</span
-                          >
-                        </div>
-                      </div>
-                      <p class="post-text-v2">{{ item.post.displayBody }}</p>
-                      <div
-                        v-if="item.post._publishState === 'failed'"
-                        :data-queue-failmsg="item.post._queueId"
-                        class="optimistic-fail-msg"
-                        :class="item.post._failType === 'moderation' ? 'moderation' : 'network'"
-                      >
-                        <template v-if="item.post._failMessage">{{
-                          item.post._failMessage
-                        }}</template>
-                        <template v-else-if="item.post._failType === 'moderation'"
-                          >第 {{ (item.post._failedImageIndex || 0) + 1 }} 张图片未通过安全检测 ·
-                          可能含敏感内容，可移除该图后重试，其他内容不受影响。</template
-                        >
-                        <template v-else
-                          >网络异常，未能完成发送。请检查网络后重试，无需重新编辑。</template
-                        >
-                      </div>
-                    </div>
-                    <div class="optimistic-actions" @click.stop>
-                      <button
+                  <template v-for="item in column" :key="item.key">
+                    <AdSlot v-if="item.isAd" :ad="item.ad" />
+                    <div
+                      v-else
+                      class="forum-virtual-post"
+                      :data-forum-virtual-index="getVisiblePostIndex(item.visIndex)"
+                    >
+                      <!-- 「上次看到这里」：插在**第一条旧帖**之前（绝对下标 = splitIndex）。
+                         虚拟列表下它只在窗口覆盖到该下标时才渲染 —— 用户已经滚过去时它本就
+                         在视口上方，不渲染是对的，不要为了让线「一直在」而按相对下标判断。 -->
+                      <ForumSeenDivider
                         v-if="
-                          item.post._publishState === 'failed' &&
-                          item.post._failType === 'moderation'
+                          forumSeenDivider.visible &&
+                          getVisiblePostIndex(item.visIndex) === forumSeenDivider.splitIndex
                         "
-                        class="optimistic-btn fix"
-                        @click="fixModerationPublish(item.post._queueId)"
+                        :anchor-iso="seenAnchorIso"
+                        :new-count="forumSeenDivider.newCount"
+                      />
+                      <article
+                        v-if="item.post._optimistic"
+                        class="post-card-v2 glass-panel optimistic-post-card"
+                        :class="{
+                          'is-failed': item.post._publishState === 'failed',
+                          'is-moderation': item.post._failType === 'moderation',
+                        }"
+                        :data-forum-post-id="item.post.id"
+                        @click.stop
                       >
-                        移除该图后重试
-                      </button>
-                      <button
-                        v-if="item.post._publishState === 'failed'"
-                        class="optimistic-btn retry"
-                        @click="
-                          item.post._failType === 'moderation'
-                            ? fixModerationPublish(item.post._queueId)
-                            : retryPublish(item.post._queueId)
+                        <div class="optimistic-progress-track">
+                          <i
+                            class="optimistic-progress-fill"
+                            :class="
+                              item.post._failType === 'moderation'
+                                ? 'is-moderation'
+                                : item.post._publishState === 'failed'
+                                  ? 'is-failed'
+                                  : item.post._publishState === 'success'
+                                    ? 'is-success'
+                                    : 'is-sending'
+                            "
+                            :style="{ width: Math.round(item.post._progress || 0) + '%' }"
+                          ></i>
+                        </div>
+                        <div class="post-header-v2">
+                          <div class="post-author-section">
+                            <div class="post-author-avatar">
+                              <img
+                                v-if="
+                                  getAvatarUrl(
+                                    item.post.author_avatar_url || userInfo.avatarUrl,
+                                    'sm',
+                                  )
+                                "
+                                :src="
+                                  getAvatarUrl(
+                                    item.post.author_avatar_url || userInfo.avatarUrl,
+                                    'sm',
+                                  )
+                                "
+                                class="avatar-image"
+                                loading="eager"
+                              />
+                              <span v-else>{{
+                                item.post.author_username
+                                  ? item.post.author_username.charAt(0).toUpperCase()
+                                  : 'U'
+                              }}</span>
+                            </div>
+                            <div class="post-author-info">
+                              <span class="post-author-v2">{{
+                                '@' + item.post.author_username
+                              }}</span>
+                              <span class="post-date-v2">刚刚 · 仅你可见</span>
+                            </div>
+                            <span
+                              class="optimistic-badge"
+                              :class="
+                                item.post._publishState === 'failed'
+                                  ? item.post._failType === 'moderation'
+                                    ? 'moderation'
+                                    : 'failed'
+                                  : item.post._publishState === 'success'
+                                    ? 'success'
+                                    : 'sending'
+                              "
+                            >
+                              <template
+                                v-if="
+                                  item.post._publishState === 'failed' &&
+                                  item.post._failType === 'moderation'
+                                "
+                                >审核未通过</template
+                              >
+                              <template v-else-if="item.post._publishState === 'failed'"
+                                >发送失败</template
+                              >
+                              <template v-else-if="item.post._publishState === 'success'"
+                                >发送成功</template
+                              >
+                              <template v-else
+                                >发送中 · {{ Math.round(item.post._progress || 0) }}%</template
+                              >
+                            </span>
+                          </div>
+                        </div>
+                        <div class="post-content-v2">
+                          <h3 class="post-title-v2">{{ item.post.displayTitle }}</h3>
+                          <div v-if="item.post.tagLabel" class="post-card-tags">
+                            <span class="post-card-tag">{{ item.post.tagLabel }}</span>
+                          </div>
+                          <div
+                            v-if="item.post.allImages && item.post.allImages.length"
+                            class="image-post-strip"
+                            :class="{ 'is-single': item.post.allImages.length === 1 }"
+                          >
+                            <div
+                              v-for="(img, idx) in item.post.allImages"
+                              :key="img.id || img.url"
+                              class="image-post-thumb-shell is-loaded"
+                              :class="{
+                                'is-failed-mark':
+                                  item.post._failedImageIndex === idx &&
+                                  item.post._publishState === 'failed' &&
+                                  item.post._failType === 'moderation',
+                              }"
+                            >
+                              <img
+                                :src="img.url"
+                                :alt="`图片 ${idx + 1}`"
+                                class="image-post-thumb is-loaded"
+                                style="opacity: 0.92"
+                              />
+                              <span
+                                v-if="
+                                  item.post._failedImageIndex === idx &&
+                                  item.post._publishState === 'failed' &&
+                                  item.post._failType === 'moderation'
+                                "
+                                class="optimistic-fail-mark"
+                                >审核未过</span
+                              >
+                            </div>
+                          </div>
+                          <p class="post-text-v2">{{ item.post.displayBody }}</p>
+                          <div
+                            v-if="item.post._publishState === 'failed'"
+                            :data-queue-failmsg="item.post._queueId"
+                            class="optimistic-fail-msg"
+                            :class="item.post._failType === 'moderation' ? 'moderation' : 'network'"
+                          >
+                            <template v-if="item.post._failMessage">{{
+                              item.post._failMessage
+                            }}</template>
+                            <template v-else-if="item.post._failType === 'moderation'"
+                              >第 {{ (item.post._failedImageIndex || 0) + 1 }} 张图片未通过安全检测
+                              · 可能含敏感内容，可移除该图后重试，其他内容不受影响。</template
+                            >
+                            <template v-else
+                              >网络异常，未能完成发送。请检查网络后重试，无需重新编辑。</template
+                            >
+                          </div>
+                        </div>
+                        <div class="optimistic-actions" @click.stop>
+                          <button
+                            v-if="
+                              item.post._publishState === 'failed' &&
+                              item.post._failType === 'moderation'
+                            "
+                            class="optimistic-btn fix"
+                            @click="fixModerationPublish(item.post._queueId)"
+                          >
+                            移除该图后重试
+                          </button>
+                          <button
+                            v-if="item.post._publishState === 'failed'"
+                            class="optimistic-btn retry"
+                            @click="
+                              item.post._failType === 'moderation'
+                                ? fixModerationPublish(item.post._queueId)
+                                : retryPublish(item.post._queueId)
+                            "
+                          >
+                            {{ item.post._failType === 'moderation' ? '移除该图' : '重试' }}
+                          </button>
+                          <button
+                            v-if="item.post._publishState === 'failed'"
+                            class="optimistic-btn ghost"
+                            @click="editFailedPublish(item.post._queueId)"
+                          >
+                            编辑
+                          </button>
+                          <button
+                            class="optimistic-btn ghost"
+                            @click="cancelPublish(item.post._queueId)"
+                          >
+                            取消
+                          </button>
+                        </div>
+                      </article>
+                      <AlbumPostCard
+                        v-else-if="isAlbumPost(item.post)"
+                        :post="item.post"
+                        :is-logged-in="isLoggedIn"
+                        @open="openAlbumReader"
+                        @like="handleToggleLike"
+                      />
+                      <PostCard
+                        v-else
+                        :post="item.post"
+                        :index="getVisiblePostIndex(item.visIndex)"
+                        :is-home-cat-active="isHomeCatActive"
+                        :is-expanded="expandedPostIds.has(item.post.id)"
+                        :active-reply-target="
+                          activeReplyTarget && activeReplyTarget.postId === item.post.id
+                            ? activeReplyTarget
+                            : null
                         "
-                      >
-                        {{ item.post._failType === 'moderation' ? '移除该图' : '重试' }}
-                      </button>
-                      <button
-                        v-if="item.post._publishState === 'failed'"
-                        class="optimistic-btn ghost"
-                        @click="editFailedPublish(item.post._queueId)"
-                      >
-                        编辑
-                      </button>
-                      <button
-                        class="optimistic-btn ghost"
-                        @click="cancelPublish(item.post._queueId)"
-                      >
-                        取消
-                      </button>
+                        :reply-content="replyContent"
+                        :is-reply-submitting="isReplySubmitting"
+                        :reply-cooldown-seconds="replyCooldownSeconds"
+                        :reply-submit-label="replySubmitLabel"
+                        :is-like-submitting="!!isLikeSubmitting[item.post.id]"
+                        :is-liked-pulsing="isPostLikePulsing(item.post.id)"
+                        :is-replies-loading="!!item.post._repliesLoading"
+                        :is-share-copied="isPostShareCopied(item.post.id)"
+                        :is-highlighted="isPostHighlighted(item.post.id)"
+                        :is-reply-success="hasUiMarker(replySuccessPostIds, item.post.id)"
+                        :is-logged-in="isLoggedIn"
+                        :user-info="userInfo"
+                        :loaded-image-keys="loadedForumImageKeys"
+                        @pointerdown="prefetchDetailPanel"
+                        @click="openPostDetail"
+                        @go-to-profile="goToProfile"
+                        @toggle-like="handleToggleLike"
+                        @toggle-replies="toggleRepliesList"
+                        @toggle-reply-input="handlePostCardToggleReplyInput"
+                        @share="sharePost"
+                        @copy-link="copyPostLink"
+                        @report-post="openCardReportModal"
+                        @delete-post="handleCardDeletePost"
+                        @need-login="showLoginModal = true"
+                        @quote-repost="openQuoteRepost"
+                        @submit-reply="submitReply"
+                        @delete-comment="handleDeleteComment"
+                        @open-image-viewer="openForumImageViewer"
+                        @update:reply-content="replyContent = $event"
+                        @clear-reply-target="handlePostCardClearReplyTarget"
+                        @cancel-reply="handlePostCardCancelReply"
+                        @image-loaded="markForumImageLoaded"
+                        @lazy-image-observe="observeForumLazyImage"
+                        @load-more-images="handleStripLoadMore"
+                      />
                     </div>
-                  </article>
-                  <AlbumPostCard
-                    v-else-if="isAlbumPost(item.post)"
-                    :post="item.post"
-                    :is-logged-in="isLoggedIn"
-                    @open="openAlbumReader"
-                    @like="handleToggleLike"
-                  />
-                  <PostCard
-                    v-else
-                    :post="item.post"
-                    :index="getVisiblePostIndex(item.visIndex)"
-                    :is-home-cat-active="isHomeCatActive"
-                    :is-expanded="expandedPostIds.has(item.post.id)"
-                    :active-reply-target="
-                      activeReplyTarget && activeReplyTarget.postId === item.post.id
-                        ? activeReplyTarget
-                        : null
-                    "
-                    :reply-content="replyContent"
-                    :is-reply-submitting="isReplySubmitting"
-                    :reply-cooldown-seconds="replyCooldownSeconds"
-                    :reply-submit-label="replySubmitLabel"
-                    :is-like-submitting="!!isLikeSubmitting[item.post.id]"
-                    :is-liked-pulsing="isPostLikePulsing(item.post.id)"
-                    :is-replies-loading="!!item.post._repliesLoading"
-                    :is-share-copied="isPostShareCopied(item.post.id)"
-                    :is-highlighted="isPostHighlighted(item.post.id)"
-                    :is-reply-success="hasUiMarker(replySuccessPostIds, item.post.id)"
-                    :search-keyword="searchKeyword"
-                    :is-logged-in="isLoggedIn"
-                    :user-info="userInfo"
-                    :loaded-image-keys="loadedForumImageKeys"
-                    @pointerdown="prefetchDetailPanel"
-                    @click="openPostDetail"
-                    @go-to-profile="goToProfile"
-                    @toggle-like="handleToggleLike"
-                    @toggle-replies="toggleRepliesList"
-                    @toggle-reply-input="handlePostCardToggleReplyInput"
-                    @share="sharePost"
-                    @quote-repost="openQuoteRepost"
-                    @submit-reply="submitReply"
-                    @delete-comment="handleDeleteComment"
-                    @open-image-viewer="openForumImageViewer"
-                    @update:reply-content="replyContent = $event"
-                    @clear-reply-target="handlePostCardClearReplyTarget"
-                    @cancel-reply="handlePostCardCancelReply"
-                    @image-loaded="markForumImageLoaded"
-                    @lazy-image-observe="observeForumLazyImage"
-                    @load-more-images="handleStripLoadMore"
-                    @more-replies="openPostDetail"
-                  />
+                  </template>
                 </div>
-              </template>
+              </div>
 
               <div
                 v-if="virtualFeedBottomSpacerHeight > 0"
@@ -4244,59 +4098,6 @@ const {
             </div>
           </section>
         </div>
-
-        <!-- 右侧：AI 论坛周报 -->
-        <aside class="forum-sidebar fade-in-up" style="animation-delay: 0.3s">
-          <div class="weekly-report-card glass-panel fade-in-up" style="animation-delay: 0.35s">
-            <div class="weekly-report-card-head">
-              <div>
-                <span class="weekly-report-kicker"><Newspaper :size="14" /> AI 周报</span>
-                <h4>本周论坛周报</h4>
-              </div>
-              <span v-if="forumWeeklyReport" class="weekly-report-period">{{
-                formatReportPeriod(forumWeeklyReport)
-              }}</span>
-            </div>
-            <div
-              v-if="isWeeklyReportLoading"
-              class="weekly-report-skeleton"
-              aria-label="周报加载中"
-            >
-              <span /><span /><span />
-            </div>
-            <template v-else-if="forumWeeklyReport">
-              <p class="weekly-report-summary">{{ forumWeeklyReport.summary }}</p>
-              <div class="weekly-report-metrics">
-                <span
-                  ><strong>{{ reportMetric('post_count') }}</strong> 帖子</span
-                >
-                <span
-                  ><strong>{{ reportMetric('active_authors') }}</strong> 作者</span
-                >
-                <span
-                  ><strong>{{ reportMetric('comment_count') }}</strong> 讨论</span
-                >
-              </div>
-              <div v-if="forumWeeklyReport.topics?.length" class="weekly-report-topics">
-                <span
-                  v-for="topic in forumWeeklyReport.topics.slice(0, 3)"
-                  :key="topic.name"
-                  class="weekly-report-topic"
-                >
-                  {{ topic.name }}
-                </span>
-              </div>
-              <button type="button" class="weekly-report-open-btn" @click="openWeeklyReport">
-                <BookOpen :size="15" /> 查看完整周报 <ArrowUpRight :size="15" />
-              </button>
-            </template>
-            <div v-else class="weekly-report-empty">
-              <Newspaper :size="20" />
-              <p>本周周报正在整理中</p>
-              <span>下一次更新后会显示在这里</span>
-            </div>
-          </div>
-        </aside>
       </main>
     </div>
 
@@ -4319,109 +4120,7 @@ const {
       </Transition>
     </Teleport>
 
-    <Teleport to="body">
-      <Transition name="weekly-report-modal">
-        <div
-          v-if="isWeeklyReportOpen"
-          class="weekly-report-overlay"
-          @click.self="closeWeeklyReport"
-        >
-          <section
-            class="weekly-report-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="weekly-report-title"
-          >
-            <header class="weekly-report-modal-head">
-              <div>
-                <span class="weekly-report-kicker"><Newspaper :size="15" /> AI 论坛周报</span>
-                <h2 id="weekly-report-title">本周论坛周报</h2>
-                <p>{{ formatReportPeriod(forumWeeklyReport) }}</p>
-              </div>
-              <button
-                type="button"
-                class="weekly-report-close"
-                aria-label="关闭周报"
-                @click="closeWeeklyReport"
-              >
-                <X :size="19" />
-              </button>
-            </header>
-            <div v-if="forumWeeklyReport" class="weekly-report-modal-body">
-              <section class="weekly-report-overview">
-                <h3>本周概览</h3>
-                <p>{{ forumWeeklyReport.summary }}</p>
-                <div class="weekly-report-metric-grid">
-                  <div>
-                    <strong>{{ reportMetric('post_count') }}</strong
-                    ><span>帖子</span>
-                  </div>
-                  <div>
-                    <strong>{{ reportMetric('active_authors') }}</strong
-                    ><span>活跃作者</span>
-                  </div>
-                  <div>
-                    <strong>{{ reportMetric('comment_count') }}</strong
-                    ><span>评论</span>
-                  </div>
-                  <div>
-                    <strong>{{ reportMetric('like_count') }}</strong
-                    ><span>获赞</span>
-                  </div>
-                </div>
-              </section>
-              <section v-if="forumWeeklyReport.topics?.length" class="weekly-report-section">
-                <h3>主要讨论主题</h3>
-                <article
-                  v-for="topic in forumWeeklyReport.topics"
-                  :key="topic.name"
-                  class="weekly-report-topic-detail"
-                >
-                  <div class="weekly-report-topic-title">
-                    <strong>{{ topic.name }}</strong
-                    ><span>{{ topic.post_count || 0 }} 帖</span>
-                  </div>
-                  <p>{{ topic.summary }}</p>
-                </article>
-              </section>
-              <section
-                v-if="forumWeeklyReport.featured_posts?.length"
-                class="weekly-report-section"
-              >
-                <h3>帖子精选</h3>
-                <article
-                  v-for="post in forumWeeklyReport.featured_posts"
-                  :key="post.post_id || post.title"
-                  class="weekly-report-post-detail"
-                >
-                  <div class="weekly-report-post-title">
-                    <strong>{{ post.title }}</strong
-                    ><button type="button" @click="openReportPost(post.post_id)">
-                      查看原帖 <ArrowUpRight :size="14" />
-                    </button>
-                  </div>
-                  <p>{{ post.summary }}</p>
-                  <span v-if="post.reason" class="weekly-report-post-reason"
-                    >入选理由：{{ post.reason }}</span
-                  >
-                </article>
-              </section>
-              <section
-                v-if="forumWeeklyReport.open_questions?.length"
-                class="weekly-report-section"
-              >
-                <h3>值得继续讨论</h3>
-                <ul class="weekly-report-questions">
-                  <li v-for="question in forumWeeklyReport.open_questions" :key="question">
-                    {{ question }}
-                  </li>
-                </ul>
-              </section>
-            </div>
-          </section>
-        </div>
-      </Transition>
-    </Teleport>
+    <Teleport to="body"> </Teleport>
 
     <Teleport to="body">
       <Transition name="mobile-composer" @after-leave="releaseMobileComposerOrigin">
@@ -4502,22 +4201,6 @@ const {
       @like="handleToggleLike"
       @comment="handleAlbumReaderComment"
     />
-
-    <!-- 签到成功舞台：卡面 3D 旋转 + 极简到账提示（替代原「每周签到」弹窗）。
-         v-if 而不是 v-show —— 组件挂载即起播，资源就绪的判断在派发前已完成 -->
-    <Teleport to="body">
-      <CheckinRewardStage
-        v-if="checkinReward.open"
-        :points-after="checkinReward.pointsAfter"
-        :award-amount="checkinReward.awardAmount"
-        :already-signed="checkinReward.alreadySigned"
-        :assets-ready="checkinReward.assetsReady"
-        :username="userInfo.username || '未命名用户'"
-        :skin="userInfo.pointsCardSkin || 'blank'"
-        :image-url="userInfo.pointsCardImageUrl || ''"
-        @dismiss="closeCheckinReward"
-      />
-    </Teleport>
 
     <ForumImageViewer
       v-model:open="isForumImageViewerOpen"
@@ -4616,6 +4299,13 @@ const {
       </Transition>
     </Teleport>
   </div>
+  <!-- 卡片 ⋯ 菜单的举报弹层（plans/051 批 2；UI 单源 ReportPostModal，API 在 submitCardReport） -->
+  <ReportPostModal
+    :open="cardReportState.open"
+    :submitting="isCardReportSubmitting"
+    @close="closeCardReportModal"
+    @confirm="submitCardReport"
+  />
 </template>
 
 <style scoped>
@@ -4628,11 +4318,33 @@ const {
 @import '../../styles/common/compose-fab.css';
 @import './styles/drawers-skeletons.css';
 @import './styles/anniversary.css';
-@import './styles/weekly-report.css';
 </style>
 <style scoped>
 /* 组件私有样式：仅 ForumMain 模板使用（乐观发帖卡片）。
    前两个 style 块是多组件共享的 styles/*.css scoped @import（架构现状见 base.css 顶部说明）。 */
+.forum-top-cards-slot {
+  margin-bottom: 16px;
+}
+
+.forum-top-cards-slot.is-multi :deep(.forum-top-cards) {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+@media (min-width: 1024px) {
+  .forum-main-grid:has(.forum-top-card) {
+    row-gap: 12px;
+  }
+
+  .forum-main-grid:has(.forum-top-card) :deep(.forum-toolbar) {
+    margin-bottom: 0;
+  }
+
+  .forum-main-grid:has(.forum-top-card) .posts-feed {
+    margin-top: 0;
+  }
+}
+
 .optimistic-post-card {
   position: relative;
   overflow: hidden;

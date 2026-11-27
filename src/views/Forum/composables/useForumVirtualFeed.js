@@ -42,6 +42,9 @@ export function useForumVirtualFeed({
   hasMoreData,
   getScrollContainer,
   onLoadMore,
+  /* 宿主可以直接判定「当前布局不适合虚拟化」。
+     目前唯一用处：横屏三栏（2026-11-26）。原因见 shouldVirtualizeForumFeed 注释。 */
+  disableVirtualization = null,
 }) {
   const activeForumWindowIndex = ref(0);
   let forumLoadMoreObserver = null;
@@ -51,9 +54,26 @@ export function useForumVirtualFeed({
   let scrollFallbackRoot = null;
   let scrollFallbackRaf = 0;
 
-  const shouldVirtualizeForumFeed = computed(
-    () => feedMode.value === 'posts' && forumData.value.length > VIRTUAL_FEED_MIN_COUNT,
-  );
+  /**
+   * 是否启用虚拟化。**多栏布局必须禁用**（2026-11-26 用户报「横屏快速下滑一堆内容在闪」）：
+   *
+   * 虚拟化的两个前提都是「单列线性」：
+   *   ① 上下 spacer 用 `index * 估计卡高` 撑文档高度 —— 三栏下每列只有 1/3 高，
+   *      spacer 会把文档撑成三倍，滚动位置与真实内容脱节；
+   *   ② 滚动兜底按 `scrollTop / 卡高` 反推窗口索引 —— 多栏下同一个 scrollTop
+   *      ／对应三列里完全不同的三张卡，反推出的索引必然错。
+   *
+   * 两者叠加的表现就是「快速下滑时整屏卡片反复换位闪烁」：窗口索引一跳，
+   * 可见切片整体平移，分列下标跟着全变。
+   *
+   * 取舍：横屏放弃虚拟化 = 列表全量渲染。横屏是桌面场景，DOM 规模可接受
+   * （40~100 张卡），换「不闪」是明显划算的。竖屏仍走虚拟化，行为不变。
+   */
+  const shouldVirtualizeForumFeed = computed(() => {
+    if (feedMode.value !== 'posts') return false;
+    if (disableVirtualization?.value) return false;
+    return forumData.value.length > VIRTUAL_FEED_MIN_COUNT;
+  });
   const virtualFeedStartIndex = computed(() =>
     shouldVirtualizeForumFeed.value
       ? Math.max(0, activeForumWindowIndex.value - VIRTUAL_FEED_BEFORE)

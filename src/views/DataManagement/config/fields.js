@@ -125,6 +125,17 @@ export const TAB_WRITABLE_FIELDS = {
     'feed_interval',
     'updated_at',
   ],
+  forumCards: [
+    'label',
+    'kind',
+    'hero_id',
+    'status',
+    'priority',
+    'starts_at',
+    'ends_at',
+    'version',
+    'updated_at',
+  ],
   coreMemories: [
     'title',
     'content',

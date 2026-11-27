@@ -584,3 +584,39 @@
     background: transparent !important;
   }
 }
+
+/* ============================================================================
+   暗色骨架屏（2026-11-26 纯黑收敛时补 —— 这里**从来没有**暗色覆盖）
+   实测：暗色 + 竖屏打开社区，加载中的骨架卡是 `rgba(255,255,255,.8)` 白玻璃 +
+   `#f0f0f0` 灰条 ⇒ 纯黑页上直接糊出两块 350×500 的浅灰大板，比「内容还没出来」
+   更扎眼。这是用户说的「多个色块拼接」里最刺眼的一处，也是唯一一处会**自己消失**
+   的色块，所以最容易被漏掉。
+   ⚠️ 选择器双写：`.forum-page[data-theme=…]` 与 `[data-theme=…] .forum-page` ——
+      主题属性既可能挂在页根也可能挂在 html 上（见 forum-dark.css 文件头的同款说明）。
+   ⚠️ 不加 !important：本文件与 forum-dark.css 同为页级样式，靠特异性就够
+      （.forum-page[data-theme] + 后代 = 0,2,0 起，压得过基础类的 0,1,0）。
+   ============================================================================ */
+.forum-page[data-theme='dark'] .skeleton-post-card,
+[data-theme='dark'] .forum-page .skeleton-post-card {
+  background: var(--boh-surface-card);
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.forum-page[data-theme='dark'] .skeleton-item,
+[data-theme='dark'] .forum-page .skeleton-item {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.06) 25%,
+    rgba(255, 255, 255, 0.12) 50%,
+    rgba(255, 255, 255, 0.06) 75%
+  );
+  background-size: 200% 100%;
+}
+
+.forum-page[data-theme='dark'] .skeleton-thinking-cat,
+[data-theme='dark'] .forum-page .skeleton-thinking-cat {
+  opacity: 0.28;
+}

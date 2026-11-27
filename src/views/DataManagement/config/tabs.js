@@ -34,6 +34,7 @@ export const tabs = [
   { id: 'products', label: '商品管理', icon: '🎁', module: 'shop' },
   { id: 'forum', label: '论坛帖子', icon: '💬', module: 'community' },
   { id: 'ads', label: '广告管理', icon: '📢', module: 'community' },
+  { id: 'forumCards', label: '论坛卡片', icon: '🎄', module: 'community' },
   { id: 'forumWeeklyCheckins', label: '每周签到', icon: '📅', module: 'community' },
   { id: 'forumPostImages', label: '图片审核', icon: '🖼️', module: 'community' },
   { id: 'forumPostReports', label: '举报明细', icon: '🚩', module: 'community' },
@@ -160,6 +161,7 @@ export const tabModules = [
     tabIds: [
       'forum',
       'ads',
+      'forumCards',
       'forumWeeklyCheckins',
       'forumPostImages',
       'forumPostReports',
@@ -355,6 +357,7 @@ export const TABS_ACTIONS = {
   shopOrders: ['view', 'edit'],
   forum: ['view', 'create', 'edit', 'delete'],
   ads: ['view', 'create', 'edit', 'delete'],
+  forumCards: ['view', 'create', 'edit', 'delete'],
   forumWeeklyCheckins: ['view'],
   forumPostImages: ['view'],
   forumPostReports: ['view'],

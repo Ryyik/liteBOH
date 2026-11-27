@@ -1,12 +1,15 @@
 <script setup>
 import { computed } from 'vue';
-import { Reply, Heart } from 'lucide-vue-next';
+import { Reply } from 'lucide-vue-next';
 import { useTierMap } from '@/composables/useTierMap.js';
 import HomeCatMascot from '@/components/HomeCatMascot.vue';
 import { formatSmartTime } from '@/utils/time.js';
 import { getHomeCatAsset } from '@/utils/home-cat-theme.js';
+import { getAvatarUrl } from '@/utils/avatar.js';
 import { useUserTier } from '@/composables/useUserTier.js';
-import { shouldShowReplyTarget } from '@/utils/forum-helpers.js';
+import ReplyIdentityRow from '@/components/forum/ReplyIdentityRow.vue';
+import ReplyComposer from '@/components/forum/ReplyComposer.vue';
+import LikeButton from '@/components/forum/LikeButton.vue';
 
 const props = defineProps({
   comments: { type: Array, default: () => [] },
@@ -28,7 +31,6 @@ const props = defineProps({
   replySubmitLabel: { type: String, default: '发布' },
   childRepliesMap: { type: Object, default: () => ({}) },
   highlightedCommentId: { type: String, default: '' },
-  commentSortMode: { type: String, default: 'desc' },
   // 弹窗模式：底部操作栏是唯一输入框，抑制评论流内嵌输入框
   hideComposer: { type: Boolean, default: false },
 });
@@ -43,11 +45,10 @@ const emit = defineEmits([
   'load-child-replies',
   'delete-comment',
   'go-to-profile',
-  'change-sort-mode',
   'toggle-comment-like',
 ]);
 
-/** 删除权限：本人或 admin（「···」菜单入口）。 */
+/** 删除权限：本人或 admin（「···」入口，点击后由宿主弹确认）。 */
 const canDeleteComment = (comment) =>
   Boolean(
     props.isLoggedIn &&
@@ -55,11 +56,6 @@ const canDeleteComment = (comment) =>
     (String(comment.author_id || '') === String(props.currentUserId || '') ||
       props.currentUserRole === 'admin'),
   );
-
-const COMMENT_SORT_OPTIONS = [
-  { value: 'desc', label: '最新' },
-  { value: 'asc', label: '最早' },
-];
 
 const formatDate = formatSmartTime;
 
@@ -191,9 +187,8 @@ const loadMoreLabelMap = computed(() => {
 // 静态资源预计算，避免模板每次渲染都调用
 const successCatAsset = getHomeCatAsset('success');
 
-const onReplyInput = (event) => {
-  emit('update:replyContent', event.target.value);
-};
+const isPostAuthor = (comment) =>
+  String(comment?.author_id || '') === String(props.postAuthorId || '');
 </script>
 
 <template>
@@ -213,34 +208,28 @@ const onReplyInput = (event) => {
           loading="lazy"
         />
         <div class="reply-input-wrapper">
-          <div class="reply-context-bar">
+          <div v-if="replyToUser" class="reply-context-bar">
             <div class="reply-context-main">
-              <span class="reply-context-label">{{ replyToUser ? '正在回复' : '写评论' }}</span>
-              <span v-if="replyToUser" class="reply-context-user">@{{ replyToUser }}</span>
+              <span class="reply-context-label">正在回复</span>
+              <span class="reply-context-user">@{{ replyToUser }}</span>
             </div>
-            <p v-if="replyToUser && activeReplyQuote" class="reply-context-quote">
-              {{ activeReplyQuote }}
-            </p>
+            <p v-if="activeReplyQuote" class="reply-context-quote">{{ activeReplyQuote }}</p>
           </div>
-          <textarea
-            :value="replyContent"
-            :placeholder="replyToUser ? `回复 @${replyToUser}...` : '写下你的想法...'"
-            rows="3"
-            class="reply-textarea-x"
-            @input="onReplyInput"
-          ></textarea>
-          <div class="reply-controls">
-            <div class="btn-group">
-              <button class="cancel-reply-btn" @click="$emit('cancel-reply')">取消</button>
-              <button
-                class="submit-reply-btn"
-                :disabled="isReplySubmitting || replyCooldownSeconds > 0"
-                @click="$emit('submit-reply')"
-              >
-                {{ isReplySubmitting ? '发送中...' : replySubmitLabel }}
-              </button>
-            </div>
-          </div>
+          <ReplyComposer
+            :model-value="replyContent"
+            :placeholder="replyToUser ? `回复 @${replyToUser}…` : '写下你的想法…'"
+            :target-username="replyToUser || ''"
+            :sending="isReplySubmitting"
+            :cooldown="replyCooldownSeconds"
+            :submit-label="replySubmitLabel"
+            :logged-in="isLoggedIn"
+            :auto-focus="true"
+            :auto-focus-delay="60"
+            @update:model-value="(v) => emit('update:replyContent', v)"
+            @send="emit('submit-reply')"
+            @clear-target="emit('cancel-reply')"
+            @need-login="emit('cancel-reply')"
+          />
         </div>
       </div>
     </transition>
@@ -251,19 +240,7 @@ const onReplyInput = (event) => {
           社区回复
           <span class="comment-count-badge">{{ postCommentCount }}</span>
         </h3>
-        <div class="comment-sort-group">
-          <button
-            v-for="opt in COMMENT_SORT_OPTIONS"
-            :key="opt.value"
-            type="button"
-            class="comment-sort-btn"
-            :class="{ active: commentSortMode === opt.value }"
-            :disabled="isLoading"
-            @click="$emit('change-sort-mode', opt.value)"
-          >
-            {{ opt.label }}
-          </button>
-        </div>
+        <!-- 评论排序已按 plans/051 拍板 4 移除（只留默认序） -->
       </div>
 
       <div
@@ -300,248 +277,167 @@ const onReplyInput = (event) => {
           class="comment-item-x"
           :class="{ 'is-highlighted': highlightedCommentId === String(reply.id) }"
         >
-          <div class="ci-avatar-col">
-            <div
-              class="mini-avatar"
-              role="button"
-              tabindex="0"
-              @click="$emit('go-to-profile', reply.author_username)"
-            >
-              <img
-                v-if="reply.author_avatar_url"
-                :src="reply.author_avatar_url"
-                alt="回复者头像"
-                class="avatar-image"
-                loading="lazy"
-              />
-              <span v-else>{{ reply.author_username?.charAt(0)?.toUpperCase?.() || 'U' }}</span>
-            </div>
+          <ReplyIdentityRow
+            size="md"
+            :username="reply.author_username"
+            :avatar-url="reply.author_avatar_url ? getAvatarUrl(reply.author_avatar_url, 'xs') : ''"
+            :avatar-frame-url="reply.author_avatar_frame_url || ''"
+            :author-id="reply.author_id"
+            :banned="!!reply.author_is_banned"
+            :time="formatDate(reply.created_at)"
+            :tier-class="commentTierMap[reply.author_id] || ''"
+            :badge="isPostAuthor(reply) ? '楼主' : ''"
+            @go-to-profile="(u) => emit('go-to-profile', u)"
+          />
+          <div class="comment-content">
+            <p class="comment-text">{{ reply.content }}</p>
           </div>
-          <div class="ci-body-col">
-            <div class="comment-header">
-              <div
-                class="comment-author-info"
-                @click="$emit('go-to-profile', reply.author_username)"
-              >
-                <span class="comment-author-name" :class="commentTierMap[reply.author_id] || ''">{{
-                  reply.author_username
-                }}</span>
-                <span
-                  v-if="String(reply.author_id || '') === String(postAuthorId || '')"
-                  class="comment-author-badge"
-                  >楼主</span
-                >
-              </div>
+          <!-- 左操作 / 右删除（⋯ 点击后由宿主弹确认，不直接删） -->
+          <div class="comment-foot">
+            <div class="comment-actions">
+              <LikeButton
+                :count="Number(reply.like_count || 0)"
+                :liked="!!reply.isLiked"
+                :submitting="!!reply.isLikeSubmitting"
+                :aria-label="reply.isLiked ? '取消点赞' : '点赞'"
+                @toggle="emit('toggle-comment-like', { comment: reply })"
+              />
               <button
-                v-if="canDeleteComment(reply)"
-                class="comment-more-btn"
-                aria-label="删除评论"
-                title="删除评论"
-                @click="$emit('delete-comment', { comment: reply, parentId: null })"
+                class="comment-reply-btn-mini"
+                @click="
+                  emit('reply', {
+                    targetId: reply.id,
+                    username: reply.author_username,
+                    content: reply.content,
+                    rootAuthorUsername: reply.author_username,
+                  })
+                "
               >
-                <span></span><span></span><span></span>
+                <Reply :size="14" :stroke-width="1.8" aria-hidden="true" />
+                <span class="comment-action-label">回复</span>
+                <span
+                  v-if="Number(childReplyStateMap[reply.id]?.totalCount || 0) > 0"
+                  class="comment-reply-count"
+                  >{{ childReplyStateMap[reply.id].totalCount }}</span
+                >
               </button>
             </div>
-            <div class="comment-content">
-              <p class="comment-text">{{ reply.content }}</p>
-            </div>
-            <!-- 时间与操作合并成一行（2026-10-23）：原先「时间一行 + 操作一行」占两行，
-                 时间夹在正文与操作之间像一条孤立灰线，用户报「评论看不到时间」。
-                 现在左时间 / 右操作同一行，既是小红书式标准排版，也省掉每条评论一整行高度。 -->
-            <div class="comment-foot">
-              <span class="comment-date">{{ formatDate(reply.created_at) }}</span>
-              <div class="comment-actions">
-                <button
-                  class="comment-like-btn"
-                  :class="{ 'is-liked': reply.isLiked }"
-                  :disabled="reply.isLikeSubmitting"
-                  :aria-label="reply.isLiked ? '取消点赞' : '点赞'"
-                  @click="$emit('toggle-comment-like', { comment: reply })"
-                >
-                  <Heart
-                    :size="14"
-                    :stroke-width="1.8"
-                    :fill="reply.isLiked ? 'currentColor' : 'none'"
-                    aria-hidden="true"
-                  />
-                  <span class="comment-action-label">赞</span>
-                  <span v-if="Number(reply.like_count) > 0" class="comment-like-count">{{
-                    reply.like_count
-                  }}</span>
-                </button>
-                <button
-                  class="comment-reply-btn-mini"
-                  @click="
-                    $emit('reply', {
-                      targetId: reply.id,
-                      username: reply.author_username,
-                      content: reply.content,
-                      rootAuthorUsername: reply.author_username,
-                    })
-                  "
-                >
-                  <Reply :size="14" :stroke-width="1.8" aria-hidden="true" />
-                  <span class="comment-action-label">回复</span>
-                  <span
-                    v-if="Number(childReplyStateMap[reply.id]?.totalCount || 0) > 0"
-                    class="comment-reply-count"
-                    >{{ childReplyStateMap[reply.id].totalCount }}</span
-                  >
-                </button>
-              </div>
-            </div>
+            <button
+              v-if="canDeleteComment(reply)"
+              class="comment-more-btn"
+              aria-label="删除评论"
+              title="删除评论"
+              @click="emit('delete-comment', { comment: reply, parentId: null })"
+            >
+              <span></span><span></span><span></span>
+            </button>
+          </div>
 
+          <div
+            v-if="
+              childReplyStateMap[reply.id].totalCount > 0 || childReplyStateMap[reply.id].isLoading
+            "
+            class="child-replies-wrap"
+          >
             <div
               v-if="
-                childReplyStateMap[reply.id].totalCount > 0 ||
-                childReplyStateMap[reply.id].isLoading
+                childReplyStateMap[reply.id].isLoading &&
+                visibleChildRepliesMap[reply.id].length === 0
               "
-              class="child-replies-wrap"
+              class="child-replies-loading"
+              aria-hidden="true"
             >
               <div
-                v-if="
-                  childReplyStateMap[reply.id].isLoading &&
-                  visibleChildRepliesMap[reply.id].length === 0
-                "
-                class="child-replies-loading"
-                aria-hidden="true"
+                v-for="item in 2"
+                :key="`child-reply-loading-${reply.id}-${item}`"
+                class="child-reply-skeleton-row"
               >
-                <div
-                  v-for="item in 2"
-                  :key="`child-reply-loading-${reply.id}-${item}`"
-                  class="child-reply-skeleton-row"
-                >
-                  <div class="detail-skeleton-block skeleton-line name"></div>
-                  <div class="detail-skeleton-block skeleton-line wide"></div>
-                </div>
+                <div class="detail-skeleton-block skeleton-line name"></div>
+                <div class="detail-skeleton-block skeleton-line wide"></div>
               </div>
+            </div>
 
-              <!-- 2026-11-04 硬切审计 P0-6：子回复展开/追加原先瞬现，TransitionGroup 补 enter/move -->
-              <TransitionGroup name="cr-fade">
-                <div
-                  v-for="child in visibleChildRepliesMap[reply.id]"
-                  :key="child.id"
-                  :id="`comment-${child.id}`"
-                  class="child-reply-item"
-                  :class="{ 'is-highlighted': highlightedCommentId === String(child.id) }"
-                >
-                <div class="ci-avatar-col">
-                  <div
-                    class="mini-avatar small"
-                    role="button"
-                    tabindex="0"
-                    @click="$emit('go-to-profile', child.author_username)"
-                  >
-                    <img
-                      v-if="child.author_avatar_url"
-                      :src="child.author_avatar_url"
-                      alt="回复者头像"
-                      class="avatar-image"
-                      loading="lazy"
-                    />
-                    <span v-else>{{
-                      child.author_username?.charAt(0)?.toUpperCase?.() || 'U'
-                    }}</span>
-                  </div>
+            <!-- 2026-11-04 硬切审计 P0-6：子回复展开/追加原先瞬现，TransitionGroup 补 enter/move -->
+            <TransitionGroup name="cr-fade">
+              <div
+                v-for="child in visibleChildRepliesMap[reply.id]"
+                :key="child.id"
+                :id="`comment-${child.id}`"
+                class="child-reply-item"
+                :class="{ 'is-highlighted': highlightedCommentId === String(child.id) }"
+              >
+                <ReplyIdentityRow
+                  size="sm"
+                  :username="child.author_username"
+                  :avatar-url="
+                    child.author_avatar_url ? getAvatarUrl(child.author_avatar_url, 'xs') : ''
+                  "
+                  :avatar-frame-url="child.author_avatar_frame_url || ''"
+                  :author-id="child.author_id"
+                  :banned="!!child.author_is_banned"
+                  :time="formatDate(child.created_at)"
+                  :reply-to="child.reply_to_username"
+                  :root-author="reply.author_username"
+                  :tier-class="commentTierMap[child.author_id] || ''"
+                  :badge="isPostAuthor(child) ? '楼主' : ''"
+                  @go-to-profile="(u) => emit('go-to-profile', u)"
+                />
+                <div class="comment-content">
+                  <p class="child-reply-content">{{ child.content }}</p>
                 </div>
-                <div class="ci-body-col">
-                  <div class="comment-header">
-                    <div
-                      class="comment-author-info"
-                      @click="$emit('go-to-profile', child.author_username)"
-                    >
-                      <span
-                        class="comment-author-name"
-                        :class="commentTierMap[child.author_id] || ''"
-                        >{{ child.author_username }}</span
-                      >
-                      <span
-                        v-if="String(child.author_id || '') === String(postAuthorId || '')"
-                        class="comment-author-badge compact"
-                        >楼主</span
-                      >
-                      <span
-                        v-if="shouldShowReplyTarget(child.reply_to_username, reply.author_username)"
-                        class="child-reply-target"
-                      >
-                        回复 @{{ child.reply_to_username }}
-                      </span>
-                    </div>
+                <div class="comment-foot">
+                  <div class="comment-actions">
+                    <LikeButton
+                      :count="Number(child.like_count || 0)"
+                      :liked="!!child.isLiked"
+                      :submitting="!!child.isLikeSubmitting"
+                      :aria-label="child.isLiked ? '取消点赞' : '点赞'"
+                      @toggle="emit('toggle-comment-like', { comment: child, parentId: reply.id })"
+                    />
                     <button
-                      v-if="canDeleteComment(child)"
-                      class="comment-more-btn"
-                      aria-label="删除回复"
-                      title="删除回复"
-                      @click="$emit('delete-comment', { comment: child, parentId: reply.id })"
+                      class="comment-reply-btn-mini"
+                      @click="
+                        emit('reply', {
+                          targetId: reply.id,
+                          username: child.author_username,
+                          content: child.content,
+                          rootAuthorUsername: reply.author_username,
+                        })
+                      "
                     >
-                      <span></span><span></span><span></span>
+                      回复
                     </button>
                   </div>
-                  <div class="comment-content">
-                    <p class="child-reply-content">{{ child.content }}</p>
-                  </div>
-                  <div class="comment-foot">
-                    <span class="comment-date">{{ formatDate(child.created_at) }}</span>
-                    <div class="comment-actions">
-                      <button
-                        class="comment-like-btn"
-                        :class="{ 'is-liked': child.isLiked }"
-                        :disabled="child.isLikeSubmitting"
-                        :aria-label="child.isLiked ? '取消点赞' : '点赞'"
-                        @click="
-                          $emit('toggle-comment-like', { comment: child, parentId: reply.id })
-                        "
-                      >
-                        <Heart
-                          :size="14"
-                          :stroke-width="1.8"
-                          :fill="child.isLiked ? 'currentColor' : 'none'"
-                          aria-hidden="true"
-                        />
-                        <span>赞</span>
-                        <span v-if="Number(child.like_count) > 0" class="comment-like-count">{{
-                          child.like_count
-                        }}</span>
-                      </button>
-                      <button
-                        class="comment-reply-btn-mini"
-                        @click="
-                          $emit('reply', {
-                            targetId: reply.id,
-                            username: child.author_username,
-                            content: child.content,
-                            rootAuthorUsername: reply.author_username,
-                          })
-                        "
-                      >
-                        回复
-                      </button>
-                    </div>
-                  </div>
+                  <button
+                    v-if="canDeleteComment(child)"
+                    class="comment-more-btn"
+                    aria-label="删除回复"
+                    title="删除回复"
+                    @click="emit('delete-comment', { comment: child, parentId: reply.id })"
+                  >
+                    <span></span><span></span><span></span>
+                  </button>
                 </div>
-                </div>
-                </TransitionGroup>
+              </div>
+            </TransitionGroup>
 
-              <button
-                v-if="showExpandChildMap[reply.id]"
-                class="child-expand-link"
-                :disabled="childReplyStateMap[reply.id].isLoading"
-                @click="$emit('toggle-child-replies', reply)"
-              >
-                {{ toggleLabelMap[reply.id] }}
-              </button>
+            <button
+              v-if="showExpandChildMap[reply.id]"
+              class="child-expand-link"
+              :disabled="childReplyStateMap[reply.id].isLoading"
+              @click="emit('toggle-child-replies', reply)"
+            >
+              {{ toggleLabelMap[reply.id] }}
+            </button>
 
-              <button
-                v-if="showLoadMoreMap[reply.id]"
-                class="child-load-more-btn"
-                :disabled="childReplyStateMap[reply.id].isLoading"
-                @click="
-                  $emit('load-child-replies', { parentId: reply.id, options: { reset: false } })
-                "
-              >
-                {{ loadMoreLabelMap[reply.id] }}
-              </button>
-            </div>
+            <button
+              v-if="showLoadMoreMap[reply.id]"
+              class="child-load-more-btn"
+              :disabled="childReplyStateMap[reply.id].isLoading"
+              @click="emit('load-child-replies', { parentId: reply.id, options: { reset: false } })"
+            >
+              {{ loadMoreLabelMap[reply.id] }}
+            </button>
           </div>
         </div>
 
@@ -549,7 +445,7 @@ const onReplyInput = (event) => {
           <button
             class="load-more-comments-btn"
             :disabled="isLoading"
-            @click="$emit('load-more-comments')"
+            @click="emit('load-more-comments')"
           >
             {{ isLoading ? '加载中...' : '加载更多评论' }}
           </button>
@@ -580,7 +476,9 @@ const onReplyInput = (event) => {
 .cr-fade-enter-active,
 .cr-fade-leave-active,
 .cr-fade-move {
-  transition: opacity 0.24s var(--ease-out, ease), transform 0.24s var(--ease-out, ease);
+  transition:
+    opacity 0.24s var(--ease-out, ease),
+    transform 0.24s var(--ease-out, ease);
 }
 
 .cr-fade-enter-from,
@@ -589,31 +487,28 @@ const onReplyInput = (event) => {
   transform: translateY(6px);
 }
 
-/* 重复类名提特异性，稳压全局 .glass-panel（顺序无关，免 !important） */
+/* 重复类名提特异性，稳压全局 .glass-panel（顺序无关，免 !important）
+   plans/051 批 3：侧栏去玻璃壳 → 实色 --appl-card + 发丝线，圆角对齐极简内圆角 */
 .x-side-content.x-side-content {
   height: 100%;
   display: flex;
   flex-direction: column;
-  border: 1px solid var(--detail-line, rgba(15, 23, 42, 0.07));
-  border-radius: 26px;
-  background: rgba(255, 255, 255, 0.64);
-  box-shadow: 0 18px 55px rgba(15, 23, 42, 0.045);
+  border: 1px solid var(--appl-hairline);
+  border-radius: var(--appl-radius-card);
+  background: var(--appl-card);
+  box-shadow: var(--appl-shadow-card);
   min-height: 0;
   overflow: hidden;
 }
 
 .x-reply-box {
   padding: 14px 18px 16px;
-  border-bottom: 1px solid var(--detail-line, rgba(15, 23, 42, 0.07));
-  background: rgba(255, 255, 255, 0.5);
-}
-
-.x-reply-box:focus-within {
-  background: rgba(255, 255, 255, 0.78);
+  border-bottom: 1px solid var(--appl-hairline);
+  background: transparent;
 }
 
 .x-reply-box.is-thread-reply {
-  background: rgba(248, 251, 255, 0.72);
+  background: color-mix(in srgb, var(--appl-blue) 4%, transparent);
 }
 
 .reply-context-bar {
@@ -633,16 +528,16 @@ const onReplyInput = (event) => {
 
 .reply-context-label {
   font-size: 12px;
-  font-weight: 800;
-  color: #667085;
+  font-weight: 700;
+  color: var(--appl-text-3);
   letter-spacing: 0.02em;
 }
 
 .reply-context-user {
   min-width: 0;
   font-size: 13px;
-  font-weight: 800;
-  color: #0b64d8;
+  font-weight: 700;
+  color: var(--appl-blue);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -652,38 +547,14 @@ const onReplyInput = (event) => {
   margin: 4px 0 0;
   font-size: 12px;
   line-height: 1.45;
-  color: #667085;
+  color: var(--appl-text-3);
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 1;
   overflow: hidden;
   word-break: break-word;
   padding-left: 8px;
-  border-left: 2px solid rgba(15, 23, 42, 0.12);
-}
-
-.reply-textarea-x {
-  width: 100%;
-  border: 1px solid rgba(15, 23, 42, 0.08);
-  border-radius: 14px;
-  padding: 12px 13px;
-  font-size: 15px;
-  resize: none;
-  outline: none;
-  background: rgba(255, 255, 255, 0.72);
-  transition:
-    min-height 0.2s ease,
-    border-color 0.2s ease,
-    background-color 0.2s ease,
-    box-shadow 0.2s ease;
-  min-height: 48px;
-}
-
-.reply-textarea-x:focus {
-  border-color: rgba(0, 113, 227, 0.4);
-  background: #fff;
-  box-shadow: 0 4px 20px rgba(0, 113, 227, 0.08);
-  min-height: 88px;
+  border-left: 2px solid var(--appl-hairline);
 }
 
 .x-comments-section {
@@ -706,6 +577,7 @@ const onReplyInput = (event) => {
 .comment-item-x {
   padding: 16px 2px;
   border-bottom: none;
+  position: relative;
   transition:
     background-color 0.2s,
     padding 0.2s,
@@ -718,47 +590,30 @@ const onReplyInput = (event) => {
 
 .comment-item-x.is-highlighted,
 .child-reply-item.is-highlighted {
-  background: rgba(0, 113, 227, 0.06);
+  background: color-mix(in srgb, var(--appl-blue) 6%, transparent);
   border-radius: 12px;
   padding: 16px;
   margin: 0 -8px;
-  border: 1px solid rgba(0, 113, 227, 0.1);
+  border: 1px solid color-mix(in srgb, var(--appl-blue) 10%, transparent);
 }
 
-.comment-footer-x {
-  display: flex;
-  gap: 10px;
-  margin-top: 7px;
-  flex-wrap: wrap;
-}
-
-.comment-reply-btn-mini,
-.comment-thread-btn-mini,
-.del-comment-btn-mini {
+.comment-reply-btn-mini {
   background: transparent;
   border: none;
   font-size: 12px;
-  color: #6b7484;
+  color: var(--appl-text-3);
   cursor: pointer;
   padding: 2px 0;
   border-radius: 0;
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  transition:
-    background-color 0.15s ease,
-    border-color 0.15s ease,
-    color 0.15s ease;
+  transition: color var(--duration-fast, 180ms) ease;
 }
 
 .comment-reply-btn-mini:hover {
   background: transparent;
-  color: #334155;
-}
-
-.comment-thread-btn-mini:hover {
-  background: transparent;
-  color: #0b4f90;
+  color: var(--appl-text-1);
 }
 
 .child-load-more-btn {
@@ -766,11 +621,11 @@ const onReplyInput = (event) => {
   margin-top: 4px;
   border: none;
   border-radius: 10px;
-  background: rgba(0, 113, 227, 0.08);
-  color: #0b4f90;
+  background: color-mix(in srgb, var(--appl-blue) 8%, transparent);
+  color: var(--appl-blue);
   padding: 8px 12px;
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 600;
   cursor: pointer;
 }
 
@@ -786,26 +641,20 @@ const onReplyInput = (event) => {
   justify-content: center;
   gap: 10px;
   padding: 18px 0 6px;
-  color: var(--detail-muted, #687386);
+  color: var(--appl-text-4);
   font-size: 12px;
   letter-spacing: 2px;
 }
 
-.del-comment-btn-mini:hover {
-  background: transparent;
-  color: #f4212e;
-}
-
+/* 楼中楼容器：plans/051 §0 —— 二级回复整体 29px 左缩进，不画树状连线 */
 .child-replies-wrap {
   position: relative;
-  margin-top: 8px;
-  margin-left: 16px;
-  padding: 4px 0 4px 16px;
-  border-left: 1px solid rgba(15, 23, 42, 0.1);
+  margin: 6px 0 0;
+  margin-left: 29px;
+  padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 0;
-  background: transparent;
+  gap: 10px;
 }
 
 .child-reply-item {
@@ -813,23 +662,14 @@ const onReplyInput = (event) => {
   border: none;
   border-radius: 0;
   padding: 8px 0;
-  transition: background-color 0.2s;
-}
-
-/* 子回复出现时淡入上浮（2026-10-22）—— 原来点「展开 N 条回复」子项是瞬间冒出来的，
-   内容区突然长高一截，没有任何桥接。这里用 @starting-style 做纯 CSS 进场：
-   元素第一次渲染时取 starting-style 的值（透明、上移 4px），随后过渡到落定态。
-   · 只用 opacity + transform（合成层属性，不触发重排）；
-   · 200ms 用 --ease-out，符合「偶尔触发」这一档的预算（UI < 300ms）；
-   · 第 2、3 项各延后 30ms，形成轻微错落 —— 只给前 3 项，再多会拖慢阅读；
-   · prefers-reduced-motion 下整体关掉。 */
-.child-reply-item {
   transition:
     background-color 0.2s,
     opacity var(--duration-tooltip, 200ms) var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)),
     transform var(--duration-tooltip, 200ms) var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1));
 }
 
+/* 子回复出现时淡入上浮（2026-10-22）：@starting-style 纯 CSS 进场，
+   第 2、3 项各延后 30ms 形成轻微错落；prefers-reduced-motion 下整体关掉。 */
 @starting-style {
   .child-reply-item {
     opacity: 0;
@@ -861,86 +701,22 @@ const onReplyInput = (event) => {
   background: transparent;
 }
 
-.child-reply-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 6px;
-  cursor: pointer;
-}
-
-.child-reply-author-wrap {
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.child-reply-author {
-  font-size: 13px;
-  font-weight: 700;
-  color: #1d1d1f;
-}
-
-.comment-author-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: auto;
-  padding: 0;
-  border-radius: 0;
-  background: transparent;
-  color: #0b64d8;
-  font-size: 11px;
-  font-weight: 850;
-  line-height: 1;
-  white-space: nowrap;
-}
-
-.comment-author-badge.compact {
-  min-height: auto;
-  padding: 0;
-  font-size: 10px;
-}
-
-.child-reply-target {
-  font-size: 12px;
-  font-weight: 700;
-  color: #667085;
-}
-
-.child-reply-time {
-  flex-shrink: 0;
-  font-size: 12px;
-  color: #86868b;
-}
-
 .child-reply-content {
   margin: 0;
   font-size: 14px;
   line-height: 1.5;
-  color: #2f2f33;
+  color: var(--appl-text-2);
   overflow-wrap: anywhere;
   word-break: break-word;
 }
 
-.child-reply-actions {
-  margin-top: 6px;
-  display: flex;
-  gap: 8px;
-}
-
-.child-replies-loading,
-.child-empty-state {
+.child-replies-loading {
   font-size: 12px;
-  color: #86868b;
+  color: var(--appl-text-4);
   padding: 4px 0;
 }
 
-.top-load-more-wrap,
-.child-load-more-wrap {
+.top-load-more-wrap {
   display: flex;
   justify-content: center;
   padding: 8px 0 2px;
@@ -949,10 +725,10 @@ const onReplyInput = (event) => {
 .load-more-comments-btn {
   border: none;
   border-radius: 10px;
-  background: #f2f4f8;
-  color: #3b4a5a;
+  background: var(--appl-subtle);
+  color: var(--appl-text-2);
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 600;
   padding: 8px 14px;
   cursor: pointer;
 }
@@ -973,51 +749,17 @@ const onReplyInput = (event) => {
 
 .section-title {
   font-size: 20px;
-  font-weight: 800;
-  color: #1d1d1f;
+  font-weight: 700;
+  color: var(--appl-text-1);
   margin: 0;
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
-.comment-sort-group {
-  display: flex;
-  gap: 6px;
-}
-
-.comment-sort-btn {
-  border: none;
-  border-radius: 8px;
-  background: #f5f5f7;
-  color: #86868b;
-  font-size: 13px;
-  font-weight: 700;
-  padding: 6px 12px;
-  cursor: pointer;
-  transition:
-    background-color 0.15s ease,
-    color 0.15s ease;
-}
-
-.comment-sort-btn:hover:not(:disabled) {
-  background: #e8e8ed;
-  color: #1d1d1f;
-}
-
-.comment-sort-btn.active {
-  background: #1d1d1f;
-  color: #ffffff;
-}
-
-.comment-sort-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
 .comment-count-badge {
-  background: #f5f5f7;
-  color: #86868b;
+  background: var(--appl-subtle);
+  color: var(--appl-text-3);
   width: 24px;
   height: 24px;
   border-radius: 50%;
@@ -1025,91 +767,69 @@ const onReplyInput = (event) => {
   align-items: center;
   justify-content: center;
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
   transform: translateY(1px);
 }
 
-.comment-header {
-  display: flex;
-  justify-content: flex-start;
-  align-items: flex-start;
-  gap: 0;
-  margin-bottom: 8px;
-}
-
-.comment-author-info {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
+.comment-more-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 6px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
   cursor: pointer;
-  min-width: 0;
+  transition: background var(--duration-fast, 180ms) ease;
 }
 
-.mini-avatar {
-  width: 30px;
-  height: 30px;
-  background: #f5f5f7;
-  border: 1px solid rgba(0, 0, 0, 0.05);
+.comment-more-btn span {
+  width: 3px;
+  height: 3px;
   border-radius: 50%;
+  background: var(--appl-text-4);
+}
+
+.comment-more-btn:hover {
+  background: var(--appl-subtle);
+}
+
+/* 时间并入身份行（plans/051 §0）；左操作 / 右删除同一行 */
+.comment-foot {
   display: flex;
   align-items: center;
-  justify-content: center;
-  font-weight: 800;
-  font-size: 14px;
-  overflow: hidden;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 2px;
 }
 
-.avatar-image {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.comment-author-name {
-  font-weight: 700;
-  font-size: 14px;
-  color: #1d1d1f;
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
-.author-details {
+.comment-actions {
   display: flex;
-  flex-direction: row;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 5px;
-  min-width: 0;
+  gap: 14px;
+  margin-top: 0;
 }
 
-.author-details .comment-date::before,
-.author-details .comment-author-badge::before {
-  content: '·';
-  margin-right: 5px;
-  color: #a5adba;
-  font-weight: 700;
-}
-
-.comment-date {
-  font-size: 12px;
-  /* 2026-10-23：原来的 #86868b 在玻璃底上几乎融进背景（用户报「看不到时间」），
-     改用与操作行同一档的 --detail-muted，暗色主题仍由 post-detail-dark.css 覆盖。 */
-  color: var(--detail-muted, #687386);
-  font-weight: 500;
+/* 回复数只在「图标+数字」形态下有意义（弹窗态），默认隐藏。
+   2026-10-22：竖屏整页保留「回复」文字标签，不该多出一个数字（否则文案变成「回复 3」）。
+   弹窗态由 modal-layout.css 的 `.post-detail-page--modal :deep(.comment-reply-count)` 打开。 */
+.comment-reply-count {
+  display: none;
   font-variant-numeric: tabular-nums;
 }
 
 .comment-content {
   font-size: 16px;
   line-height: 1.6;
-  color: #333;
-  margin-bottom: 12px;
+  color: var(--appl-text-2);
+  margin: 4px 0 6px;
 }
 
 .comment-text {
   font-size: 16px;
   line-height: 1.6;
-  color: #333;
+  color: var(--appl-text-2);
   overflow-wrap: anywhere;
   word-break: break-word;
 }
@@ -1117,7 +837,7 @@ const onReplyInput = (event) => {
 .no-comments-state {
   text-align: center;
   padding: 80px 0;
-  color: #86868b;
+  color: var(--appl-text-4);
 }
 
 .no-comments-state :deep(.home-cat-mascot) {
@@ -1128,57 +848,6 @@ const onReplyInput = (event) => {
 .no-comments-icon {
   font-size: 48px;
   margin-bottom: 16px;
-}
-
-.reply-controls {
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
-  margin-top: 12px;
-}
-
-.btn-group {
-  display: flex;
-  gap: 12px;
-}
-
-.cancel-reply-btn {
-  background: none;
-  border: none;
-  color: #86868b;
-  font-weight: 600;
-  cursor: pointer;
-  padding: 10px 16px;
-  border-radius: 10px;
-  transition: all 0.2s;
-}
-
-.cancel-reply-btn:hover {
-  background: #f5f5f7;
-  color: #1d1d1f;
-}
-
-.submit-reply-btn {
-  background: #1d1d1f;
-  color: white;
-  border: none;
-  padding: 10px 24px;
-  border-radius: 12px;
-  font-weight: 700;
-  font-size: 14px;
-  cursor: pointer;
-  transition: all 0.3s;
-}
-
-.submit-reply-btn:hover:not(:disabled) {
-  background: #000;
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-}
-
-.submit-reply-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
 }
 
 .detail-reply-success-cat-img {
@@ -1211,11 +880,17 @@ const onReplyInput = (event) => {
   }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .detail-reply-success-cat-img {
+    animation-duration: 0.01s;
+  }
+}
+
 .detail-skeleton-block {
   position: relative;
   overflow: hidden;
   border-radius: 999px;
-  background: #edf1f6;
+  background: var(--appl-subtle);
 }
 
 .detail-skeleton-block::after {
@@ -1227,6 +902,10 @@ const onReplyInput = (event) => {
   animation: skeletonShimmer 1.35s ease-in-out infinite;
 }
 
+[data-theme='dark'] .detail-skeleton-block::after {
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.08), transparent);
+}
+
 .skeleton-avatar {
   width: 52px;
   height: 52px;
@@ -1235,9 +914,9 @@ const onReplyInput = (event) => {
 }
 
 .skeleton-avatar.small {
-  width: 38px;
-  height: 38px;
-  border-radius: 14px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
 }
 
 .skeleton-line {
@@ -1261,7 +940,7 @@ const onReplyInput = (event) => {
   display: flex;
   gap: 14px;
   padding: 18px 0;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  border-bottom: 1px solid var(--appl-hairline);
 }
 
 .comment-skeleton-row.inline {
@@ -1280,8 +959,8 @@ const onReplyInput = (event) => {
   flex-direction: column;
   gap: 8px;
   padding: 12px 14px;
-  border-radius: 16px;
-  background: rgba(248, 250, 252, 0.86);
+  border-radius: var(--appl-radius-inner);
+  background: var(--appl-subtle);
 }
 
 @keyframes skeletonShimmer {
@@ -1302,10 +981,6 @@ const onReplyInput = (event) => {
 }
 
 @media (max-width: 1024px) {
-  .x-side-content.x-side-content {
-    background: rgba(255, 255, 255, 0.66);
-  }
-
   .comments-list {
     overflow: visible;
   }
@@ -1320,272 +995,16 @@ const onReplyInput = (event) => {
     padding: 14px;
   }
 
-  .reply-context-bar {
-    padding: 9px 10px;
-    border-radius: 11px;
-  }
-
-  .reply-context-main {
-    align-items: flex-start;
-  }
-
   .comment-item-x {
     padding: 16px 0;
   }
 
   .child-reply-item {
-    padding: 9px 8px;
+    padding: 9px 0;
   }
 
-  .child-reply-head {
-    align-items: flex-start;
-  }
-
-  .child-reply-time {
-    font-size: 11px;
-  }
-
-  .reply-textarea-x {
-    padding: 12px;
-    font-size: 16px;
-  }
-}
-
-/* 论坛内昵称统一纯色（无动画） */
-.nickname-gold {
-  color: #c4a35a !important;
-  background: none !important;
-  -webkit-background-clip: unset !important;
-  background-clip: unset !important;
-  -webkit-text-fill-color: unset !important;
-  animation: none !important;
-}
-
-.nickname-rainbow {
-  background: linear-gradient(
-    90deg,
-    #ff6b6b,
-    #ffd93d,
-    #6bcb77,
-    #4d96ff,
-    #9b59b6,
-    #ff6b6b
-  ) !important;
-  background-size: 200% 100% !important;
-  -webkit-background-clip: text !important;
-  background-clip: text !important;
-  -webkit-text-fill-color: transparent !important;
-  animation: none !important;
-  font-weight: 700;
-}
-
-/* ---- Threads 式竖向引导线：评论头像中线连接到下一条评论 ---- */
-.comment-item-x {
-  position: relative;
-}
-
-.mini-avatar {
-  position: relative;
-  z-index: 1;
-}
-
-/* ---- 小红书式评论条：左头像列 + 右内容列 ---- */
-.comment-item-x {
-  position: relative;
-  display: grid;
-  grid-template-columns: 48px minmax(0, 1fr);
-  gap: 12px;
-  align-items: start;
-}
-
-.comment-item-x > .ci-avatar-col .mini-avatar {
-  width: 48px;
-  height: 48px;
-  font-size: 20px;
-}
-
-.ci-avatar-col {
-  min-width: 0;
-}
-
-.ci-body-col {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.comment-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 24px;
-}
-
-.comment-header .comment-author-info {
-  display: inline-flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px;
-  flex: 1;
-  min-width: 0;
-  cursor: pointer;
-}
-
-/* 长用户名允许换行，不再单行省略号截断（窄屏尤其明显） */
-.comment-header .comment-author-name {
-  overflow-wrap: anywhere;
-  white-space: normal;
-}
-
-.comment-more-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  padding: 4px 6px;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
-  cursor: pointer;
-  transition: background var(--duration-fast, 180ms) ease;
-}
-
-.comment-more-btn span {
-  width: 3px;
-  height: 3px;
-  border-radius: 50%;
-  background: var(--detail-muted, #687386);
-}
-
-.comment-more-btn:hover {
-  background: rgba(15, 23, 42, 0.05);
-}
-
-/* 时间 + 操作合并成一行（2026-10-23）：
-   原先时间独占一个 meta 行、操作再占一行，中间夹一条孤零零的灰字，
-   既像「没有时间」又多吃掉一条评论一整行高度（约 21px × 条数）。
-   现在左时间 / 右操作同一行 —— 与小红书、Threads 的评论底栏一致。 */
-.comment-foot {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-top: 2px;
-}
-
-.comment-actions {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  margin-top: 0;
-}
-
-.comment-like-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 0;
-  border: none;
-  background: transparent;
-  color: var(--detail-muted, #687386);
-  font-size: 12px;
-  cursor: pointer;
-  transition: color var(--duration-fast, 180ms) ease;
-}
-
-.comment-like-btn:hover:not(:disabled) {
-  color: #e0483f;
-}
-
-.comment-like-btn.is-liked {
-  color: #e0483f;
-}
-
-.comment-like-btn:disabled {
-  cursor: default;
-  opacity: 0.6;
-}
-
-.comment-like-count {
-  font-variant-numeric: tabular-nums;
-}
-
-/* 回复数只在「图标+数字」形态下有意义（弹窗态），默认隐藏。
-   2026-10-22：竖屏整页保留「回复」文字标签，不该多出一个数字（否则文案变成「回复 3」）。
-   弹窗态由 modal-layout.css 的 `.post-detail-page--modal :deep(.comment-reply-count)` 打开。 */
-.comment-reply-count {
-  display: none;
-  font-variant-numeric: tabular-nums;
-}
-
-.comment-replies-pill {
-  display: inline-flex;
-  align-items: center;
-  padding: 1px 8px;
-  border-radius: var(--liquid-radius-pill, 999px);
-  background: rgba(15, 23, 42, 0.045);
-  color: var(--detail-muted, #687386);
-  font-size: 11px;
-}
-
-/* 楼中楼：小头像 + 同构两栏，整体缩进到顶层内容列 */
-/* 楼中楼容器：覆盖旧版 border-left 竖线与额外缩进，子回复缩进由两栏 grid 自然形成 */
-.child-replies-wrap {
-  position: relative;
-  margin: 6px 0 0;
-  margin-left: 0;
-  padding: 0;
-  border-left: none;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.child-reply-item {
-  display: grid;
-  grid-template-columns: 32px minmax(0, 1fr);
-  gap: 10px;
-  align-items: start;
-}
-
-.child-reply-item .mini-avatar.small {
-  width: 32px;
-  height: 32px;
-  font-size: 13px;
-}
-
-.child-expand-link {
-  display: inline-flex;
-  align-items: center;
-  padding: 2px 0;
-  margin-top: 6px;
-  border: none;
-  background: transparent;
-  color: #2563eb;
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-}
-
-.child-expand-link:hover:not(:disabled) {
-  text-decoration: underline;
-}
-
-.child-expand-link:disabled {
-  opacity: 0.6;
-  cursor: default;
-}
-
-@media (max-width: 768px) {
-  .comment-item-x {
-    grid-template-columns: 40px minmax(0, 1fr);
-    gap: 10px;
-  }
-
-  .comment-item-x > .ci-avatar-col .mini-avatar {
-    width: 40px;
-    height: 40px;
-    font-size: 17px;
+  .child-replies-wrap {
+    margin-left: 24px;
   }
 }
 
@@ -1604,8 +1023,6 @@ const onReplyInput = (event) => {
     line-height: 1.6;
   }
 
-  .comment-date,
-  .comment-like-btn,
   .comment-reply-btn-mini {
     font-size: 13px;
   }

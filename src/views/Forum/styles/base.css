@@ -9,7 +9,13 @@
     radial-gradient(at 100% 0%, rgba(255, 59, 48, 0.02) 0px, transparent 50%);
   min-height: 100vh;
   padding-top: 100px;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family:
+    'Inter',
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
   color: var(--liquid-text-primary, #1d1d1f);
 }
 
@@ -69,7 +75,8 @@
 }
 
 .forum-page.embedded-mode {
-  padding-top: 80px;
+  /* 顶部避让由外层分区页签统一承担，嵌入宿主不再重复留 80px。 */
+  padding-top: 0;
   min-height: auto;
   background: transparent;
 }
@@ -98,7 +105,12 @@
 
 .fade-slide-enter-active,
 .fade-slide-leave-active {
-  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.3s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  transition:
+    transform 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+    background-color 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .fade-slide-enter-from,
@@ -162,7 +174,10 @@
   border-radius: 32px;
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.03);
   overflow: hidden;
-  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.4s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  transition:
+    transform 0.4s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.4s cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 0.4s cubic-bezier(0.16, 1, 0.3, 1);
   contain: paint;
   isolation: isolate;
 }
@@ -180,46 +195,20 @@
 /* Grid Layout */
 .forum-main-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) clamp(300px, 27vw, 380px);
+  /* 周报侧栏已整体退场（2026-11-26 用户口径 17:52：以后由博莱克发布并在那边查看），
+     第二列不复存在 ⇒ 基础态就是单列。横屏的三栏在**帖子流内部**实现
+     （.feed-columns，见 feed.css），不是这个外层网格的列。 */
+  grid-template-columns: minmax(0, 1fr);
   gap: clamp(24px, 3.2vw, 56px);
   align-items: start;
 }
 
-/* 桌面两栏档（≥1024）：搜索工具栏跨栏独占一行，
-   第二行才是「帖子列表 + 周报」。单列档（≤1023，见下方第二处）不设 areas，
-   DOM 顺序已让工具栏在列表之前。
-   阈值对齐 forum-viewport.js 单源：≥1024（桌面）与 ≤1024（竖屏编辑器判据）在 1024 点互补，
-   不再保留旧的 993/992 —— 那 31px 会让布局（两栏）与 JS 行为（移动编辑器）错位。 */
+/* 阈值对齐 forum-viewport.js 单源：≥1024（桌面）与 ≤1024（竖屏编辑器判据）在 1024 点互补。
+   两栏（main + side）随周报侧栏一起退场；横屏宽度红利现在给**帖子流三栏**，
+   外层网格保持单列，避免「外层两栏 × 内层三栏」双栅格打架。 */
 @media (min-width: 1024px) {
   .forum-main-grid {
-    grid-template-areas:
-      "search search"
-      "main side";
-    /* 行距收窄：跨栏后搜索框与列表之间用 grid 行距，不再靠工具栏自身 margin */
     row-gap: clamp(16px, 1.6vw, 24px);
-  }
-
-  .forum-main-grid > .forum-toolbar {
-    grid-area: search;
-    margin-bottom: 0;
-  }
-
-  .forum-main-grid > .forum-left-column {
-    grid-area: main;
-  }
-
-  .forum-main-grid > .forum-sidebar {
-    grid-area: side;
-  }
-
-  /* 搜索框的加高 / 居中不写在这里：base.css 是**以 scoped 方式引入**的（多个组件各引一份），
-     跨组件选择器会被附加父组件的 scope id，永远匹配不到 ForumToolbar 内部的 input。
-     那部分样式在 ForumToolbar.vue 的 scoped（@media (min-width: 1024px)）里 */
-}
-
-@media (max-width: 1200px) {
-  .forum-main-grid {
-    grid-template-columns: minmax(0, 1fr) clamp(270px, 31vw, 330px);
   }
 }
 

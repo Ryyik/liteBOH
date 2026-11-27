@@ -1,24 +1,36 @@
 <template>
-  <div ref="tabsRef" class="segment-tabs" role="tablist" :aria-label="ariaLabel">
-    <button
-      v-for="s in sections"
-      :key="s.id"
-      :ref="setItemRef"
-      type="button"
-      role="tab"
-      class="segment-tab"
-      :class="{ active: modelValue === s.id }"
-      :aria-selected="modelValue === s.id"
-      @click="$emit('update:modelValue', s.id)"
-    >
-      {{ s.label }}
-    </button>
-    <span
-      class="segment-tab-indicator"
-      :class="{ 'is-animatable': animatable }"
-      :style="indicatorStyle"
-      aria-hidden="true"
-    ></span>
+  <div class="segment-tabs-row">
+    <!-- 左侧动作位（签到）：与 tab 组同一条基线 -->
+    <div v-if="$slots['actions-start']" class="segment-tabs-action is-start">
+      <slot name="actions-start" />
+    </div>
+
+    <div ref="tabsRef" class="segment-tabs" role="tablist" :aria-label="ariaLabel">
+      <button
+        v-for="s in sections"
+        :key="s.id"
+        :ref="setItemRef"
+        type="button"
+        role="tab"
+        class="segment-tab"
+        :class="{ active: modelValue === s.id }"
+        :aria-selected="modelValue === s.id"
+        @click="$emit('update:modelValue', s.id)"
+      >
+        {{ s.label }}
+      </button>
+      <span
+        class="segment-tab-indicator"
+        :class="{ 'is-animatable': animatable }"
+        :style="indicatorStyle"
+        aria-hidden="true"
+      ></span>
+    </div>
+
+    <!-- 右侧动作位（搜索）：与 tab 组同一条基线 -->
+    <div v-if="$slots['actions-end']" class="segment-tabs-action is-end">
+      <slot name="actions-end" />
+    </div>
   </div>
 </template>
 
@@ -121,19 +133,51 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+/* 外行：左侧动作（签到） + 居中 tab 组 + 右侧动作（搜索）。
+   避让与左右呼吸由这一层承担 —— 原先写在 .segment-tabs 的 padding 上。 */
+.segment-tabs-row {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: var(
+      --segment-tabs-inset,
+      calc(var(--userspace-nav-h, 84px) + env(safe-area-inset-top, 0px) + 4px)
+    )
+    20px 2px;
+}
+
+/* 动作位：**绝对定位**贴在行两端。
+   ⚠️ 不能用 flex + margin:auto —— 签到（约 70px）与搜索（34px）宽度不等，
+   会把中间 tab 组推偏约 (70-34)/2 ≈ 18px。实测 2026-11-26：
+   横屏 tabs.cx=783 期望 764、竖屏 214 期望 195，三条探针同时红。
+   绝对定位后 tab 组由外层 justify-content:center 严格居中，与两侧按钮宽度无关。
+
+   垂直对齐：tab 有 9px 下内距，动作位补同样下内距让图标与文字同一基线。 */
+.segment-tabs-action {
+  position: absolute;
+  bottom: 2px;
+  display: flex;
+  align-items: center;
+  padding-bottom: 9px;
+}
+
+.segment-tabs-action.is-start {
+  left: 20px;
+}
+
+.segment-tabs-action.is-end {
+  right: 20px;
+}
+
 .segment-tabs {
   position: relative;
   display: flex;
   justify-content: center;
   align-items: flex-end;
   gap: clamp(20px, 5vw, 34px);
-  /* 避让 = 导航岛实测高度（--userspace-nav-h 由 UserSpaceMain ResizeObserver 写入）
-     + 刘海屏安全区（岛 fixed top:0 自身不避让）+ 呼吸 4px */
-  padding: var(
-      --segment-tabs-inset,
-      calc(var(--userspace-nav-h, 84px) + env(safe-area-inset-top, 0px) + 4px)
-    )
-    20px 2px;
+  /* 不再 flex:1 —— 宽度由内容决定，居中交给行的 justify-content */
+  min-width: 0;
 }
 
 .segment-tab {
@@ -197,8 +241,19 @@ onUnmounted(() => {
 @media (max-width: 480px) {
   .segment-tabs {
     gap: 16px;
+  }
+
+  .segment-tabs-row {
     padding-left: 14px;
     padding-right: 14px;
+  }
+
+  .segment-tabs-action.is-start {
+    left: 14px;
+  }
+
+  .segment-tabs-action.is-end {
+    right: 14px;
   }
 }
 

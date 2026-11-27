@@ -1,0 +1,1378 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>论坛卡片流 · 三档视觉对照（真实渲染）</title>
+    <style>
+      /* ============================================================
+   demo 脚手架（不属于任何一档皮肤）
+   ============================================================ */
+      :root {
+        --ui-font:
+          -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+          'Microsoft YaHei', '微软雅黑', sans-serif;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+      }
+      body {
+        font-family: var(--ui-font);
+        background: #e8e9ec;
+        color: #1d1d1f;
+        -webkit-font-smoothing: antialiased;
+      }
+      .topbar {
+        position: sticky;
+        top: 0;
+        z-index: 20;
+        display: flex;
+        align-items: center;
+        gap: 18px;
+        flex-wrap: wrap;
+        padding: 14px 24px;
+        background: rgba(255, 255, 255, 0.92);
+        -webkit-backdrop-filter: blur(14px);
+        backdrop-filter: blur(14px);
+        border-bottom: 1px solid #d9dbe0;
+      }
+      .topbar h1 {
+        font-size: 15px;
+        margin: 0 8px 0 0;
+        font-weight: 700;
+        letter-spacing: -0.01em;
+      }
+      .topbar .hint {
+        font-size: 12px;
+        color: #6b7280;
+      }
+      .ctrl {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 12px;
+        color: #4b5563;
+      }
+      .seg {
+        display: inline-flex;
+        gap: 2px;
+        padding: 2px;
+        background: #eef0f3;
+        border-radius: 10px;
+      }
+      .seg button {
+        border: 0;
+        background: none;
+        padding: 6px 12px;
+        border-radius: 8px;
+        font: inherit;
+        font-size: 13px;
+        color: #4b5563;
+        cursor: pointer;
+        white-space: nowrap;
+      }
+      .seg button.on {
+        background: #fff;
+        color: #111827;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+        font-weight: 600;
+      }
+      .chk {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 13px;
+        cursor: pointer;
+      }
+      .chk input {
+        accent-color: #111827;
+      }
+
+      .compare {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 22px;
+        max-width: 1720px;
+        margin: 0 auto;
+        padding: 22px 24px 56px;
+        align-items: start;
+      }
+      .col {
+        min-width: 0;
+      }
+      .col-head {
+        padding: 0 4px 8px;
+      }
+      .col-head h2 {
+        margin: 0 0 5px;
+        font-size: 14px;
+        font-weight: 700;
+        letter-spacing: 0.01em;
+      }
+      .col-head h2 span {
+        font-weight: 500;
+        color: #6b7280;
+        margin-left: 6px;
+        font-size: 12px;
+      }
+      .col-head p {
+        margin: 0;
+        font-size: 12px;
+        line-height: 1.55;
+        color: #5b6472;
+      }
+      .col-head code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 11px;
+        background: rgba(15, 23, 42, 0.06);
+        padding: 1px 4px;
+        border-radius: 4px;
+      }
+
+      /* 视口切换：手机档把面板压到 390 并居中 */
+      body[data-vp='phone'] .pane {
+        width: 390px;
+        margin-left: auto;
+        margin-right: auto;
+        padding: 16px 10px 42px;
+      }
+      body[data-vp='phone'] .feed {
+        max-width: 100%;
+      }
+
+      /* ============================================================
+   论坛页容器（三档共用）
+   ============================================================ */
+      .pane {
+        border-radius: 16px;
+        border: 1px solid rgba(15, 23, 42, 0.08);
+        padding: 26px 20px 64px;
+        background-color: var(--page-bg, #fbfbfd);
+        background-image: var(--page-image, none);
+        max-height: min(76vh, 920px);
+        overflow: auto;
+        overscroll-behavior: contain;
+        scrollbar-width: thin;
+      }
+      .feed {
+        max-width: 720px;
+        margin: 0 auto;
+      }
+
+      /* ============================================================
+   皮肤变量
+   —— 现状：全部取自仓库真实值
+   ============================================================ */
+      .pane.skin-current {
+        --page-bg: #fbfbfd;
+        --page-image:
+          radial-gradient(at 0% 0%, rgba(0, 113, 227, 0.03) 0px, transparent 50%),
+          radial-gradient(at 100% 0%, rgba(255, 59, 48, 0.02) 0px, transparent 50%);
+        --card-bg: rgba(255, 255, 255, 0.86);
+        --card-border: 1px solid rgba(255, 255, 255, 0.86);
+        --card-shadow: 0 3px 14px rgba(29, 29, 31, 0.045);
+        --card-blur: blur(18px);
+        --card-radius: 20px;
+        --card-pad: 24px;
+        --card-gap: 16px;
+        --strip-left: -10px;
+        --strip-right: -24px;
+        --avatar-size: 42px;
+        --title-size: 19px;
+        --text-strong: #0f172a;
+        --text-author: #111827;
+        --text-body: #4b5563;
+        --text-muted: #7c8798;
+        --hairline: rgba(15, 23, 42, 0.06);
+        --tag-bg: rgba(37, 99, 235, 0.08);
+        --tag-fg: #1d4ed8;
+        --quote-bg: rgba(246, 248, 250, 0.88);
+        --quote-border: 1px solid rgba(15, 23, 42, 0.08);
+        --quote-rule: transparent;
+        --quote-pad: 10px 12px;
+        --tabs-bg: rgba(245, 245, 247, 0.6);
+        --tab-active-bg: #ffffff;
+        --tab-active-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+        --author-weight: 800;
+        --title-weight: 800;
+        --date-weight: 650;
+        --body-ls: 0.5px;
+        --action-hover-bg: rgba(15, 23, 42, 0.045);
+        --action-pad: 5px 9px;
+        --action-radius: 8px;
+        --card-hover-shadow: 0 7px 20px rgba(29, 29, 31, 0.07);
+        --card-hover-bg: var(--card-bg);
+        --card-hover-border: rgba(15, 23, 42, 0.1);
+      }
+      /* 订阅层级卡底色：三档里只有「现状」保留（A/B 让它退出） */
+      .pane.skin-current .post-card-v2.tier-pro {
+        background: rgba(250, 248, 240, 0.86);
+      }
+      .pane.skin-current .post-card-v2.tier-max {
+        background: rgba(245, 246, 250, 0.86);
+      }
+      .pane.skin-current .post-card-v2.tier-ultra {
+        background: rgba(252, 245, 248, 0.86);
+      }
+
+      /* ---- A-：浅灰底 + 纯白卡，卡无装饰 ---- */
+      .pane.skin-a {
+        --page-bg: #edf0f3;
+        --card-bg: #ffffff;
+        --card-border: 1px solid transparent;
+        --card-shadow: none;
+        --card-blur: none;
+        --card-radius: 14px;
+        --card-pad: 20px;
+        --card-gap: 20px;
+        --strip-left: -6px;
+        --strip-right: -20px;
+        --avatar-size: 40px;
+        --title-size: 18px;
+        --author-weight: 600;
+        --title-weight: 700;
+        --date-weight: 500;
+        --body-ls: 0;
+        --hairline: transparent;
+        --tag-bg: transparent;
+        --tag-fg: #6b7280;
+        --quote-bg: transparent;
+        --quote-border: 0;
+        --quote-rule: rgba(15, 23, 42, 0.14);
+        --quote-pad: 0 0 0 12px;
+        --tabs-bg: transparent;
+        --tab-active-bg: transparent;
+        --tab-active-shadow: none;
+        --action-hover-bg: transparent;
+        --action-pad: 0;
+        --action-radius: 0;
+        --card-hover-bg: #fbfbfc;
+        --card-hover-shadow: none;
+        --card-hover-border: transparent;
+      }
+
+      /* ---- B：连续白面，容器整体退场 ---- */
+      .pane.skin-b {
+        --page-bg: #ffffff;
+        --card-bg: transparent;
+        --card-border: 0;
+        --card-shadow: none;
+        --card-blur: none;
+        --card-radius: 0;
+        --card-pad: 0;
+        --card-gap: 40px;
+        --strip-left: 0;
+        --strip-right: 0;
+        --avatar-size: 32px;
+        --title-size: 18px;
+        --author-weight: 600;
+        --title-weight: 700;
+        --date-weight: 500;
+        --body-ls: 0;
+        --hairline: transparent;
+        --tag-bg: transparent;
+        --tag-fg: #6b7280;
+        --quote-bg: transparent;
+        --quote-border: 0;
+        --quote-rule: rgba(15, 23, 42, 0.14);
+        --quote-pad: 0 0 0 12px;
+        --tabs-bg: transparent;
+        --tab-active-bg: transparent;
+        --tab-active-shadow: none;
+        --action-hover-bg: transparent;
+        --action-pad: 0;
+        --action-radius: 0;
+        --card-hover-bg: rgba(0, 0, 0, 0.018);
+        --card-hover-shadow: none;
+        --card-hover-border: transparent;
+      }
+
+      /* ============================================================
+   暗色（现状取自 forum-dark.css 真实值）
+   ============================================================ */
+      html[data-theme='dark'] body {
+        background: #141519;
+        color: #e7e7ea;
+      }
+      html[data-theme='dark'] .topbar {
+        background: rgba(20, 21, 25, 0.92);
+        border-color: #2b2d33;
+      }
+      html[data-theme='dark'] .seg {
+        background: #24262b;
+      }
+      html[data-theme='dark'] .seg button {
+        color: #b6b9c0;
+      }
+      html[data-theme='dark'] .seg button.on {
+        background: #35383f;
+        color: #fff;
+        box-shadow: none;
+      }
+      html[data-theme='dark'] .ctrl {
+        color: #b6b9c0;
+      }
+      html[data-theme='dark'] .col-head h2 {
+        color: #f0f0f3;
+      }
+      html[data-theme='dark'] .col-head p {
+        color: #9aa0aa;
+      }
+      html[data-theme='dark'] .col-head code {
+        background: rgba(255, 255, 255, 0.08);
+      }
+      html[data-theme='dark'] .pane {
+        border-color: rgba(255, 255, 255, 0.08);
+      }
+
+      html[data-theme='dark'] .pane.skin-current {
+        --page-bg: #0d0d12;
+        --page-image:
+          radial-gradient(at 0% 0%, rgba(59, 130, 246, 0.1) 0px, transparent 50%),
+          radial-gradient(at 100% 0%, rgba(255, 82, 82, 0.06) 0px, transparent 50%);
+        --card-bg: #1e1e2a;
+        --card-border: 1px solid rgba(255, 255, 255, 0.1);
+        --card-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+        --text-strong: #ffffff;
+        --text-author: #ffffff;
+        --text-body: #c4c4cc;
+        --text-muted: #a1a1aa;
+        --hairline: rgba(255, 255, 255, 0.08);
+        --tag-bg: rgba(96, 165, 250, 0.16);
+        --tag-fg: #93c5fd;
+        --quote-bg: rgba(38, 42, 52, 0.6);
+        --quote-border: 1px solid rgba(255, 255, 255, 0.1);
+        --tabs-bg: rgba(255, 255, 255, 0.06);
+        --tab-active-bg: #2a2c36;
+        --tab-active-shadow: none;
+        --action-hover-bg: rgba(255, 255, 255, 0.08);
+        --card-hover-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+        --card-hover-border: rgba(255, 255, 255, 0.15);
+      }
+      html[data-theme='dark'] .pane.skin-current .post-card-v2.tier-pro {
+        background: #262a2f;
+      }
+      html[data-theme='dark'] .pane.skin-current .post-card-v2.tier-max {
+        background: #232a36;
+      }
+      html[data-theme='dark'] .pane.skin-current .post-card-v2.tier-ultra {
+        background: #2c2430;
+      }
+
+      html[data-theme='dark'] .pane.skin-a {
+        --page-bg: #121218;
+        --card-bg: #1c1d25;
+        --text-strong: #ffffff;
+        --text-author: #f0f0f3;
+        --text-body: #c4c4cc;
+        --text-muted: #9a9aa5;
+        --tag-fg: #93c5fd;
+        --quote-rule: rgba(255, 255, 255, 0.18);
+        --card-hover-bg: #21222b;
+      }
+      html[data-theme='dark'] .pane.skin-b {
+        --page-bg: #0d0d12;
+        --text-strong: #ffffff;
+        --text-author: #f0f0f3;
+        --text-body: #c4c4cc;
+        --text-muted: #9a9aa5;
+        --tag-fg: #93c5fd;
+        --quote-rule: rgba(255, 255, 255, 0.18);
+        --card-hover-bg: rgba(255, 255, 255, 0.03);
+      }
+
+      /* ============================================================
+   Tab 行（真实 feed.css 结构）
+   ============================================================ */
+      .feed-mode-tabs {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        width: fit-content;
+        margin-bottom: 12px;
+        padding: 3px;
+        border-radius: 14px;
+        background: var(--tabs-bg);
+      }
+      .feed-mode-tab {
+        border: 0;
+        background: transparent;
+        padding: 6px 18px;
+        border-radius: 11px;
+        font: inherit;
+        font-size: 14px;
+        font-weight: 700;
+        color: var(--text-muted);
+        cursor: pointer;
+        transition:
+          background 0.2s,
+          color 0.2s,
+          box-shadow 0.2s;
+      }
+      .feed-mode-tab.active {
+        background: var(--tab-active-bg);
+        color: var(--text-strong);
+        box-shadow: var(--tab-active-shadow);
+      }
+      .feed-mode-tab-divider {
+        align-self: center;
+        flex-shrink: 0;
+        width: 1px;
+        height: 16px;
+        margin: 0 5px;
+        background: rgba(0, 0, 0, 0.1);
+      }
+
+      /* A- / B：tab 去胶囊底、去竖线 */
+      .pane.skin-a .feed-mode-tabs,
+      .pane.skin-b .feed-mode-tabs {
+        gap: 18px;
+        padding: 0;
+        border-radius: 0;
+        margin-bottom: 18px;
+      }
+      .pane.skin-a .feed-mode-tab,
+      .pane.skin-b .feed-mode-tab {
+        padding: 0;
+        font-weight: 500;
+        font-size: 14px;
+      }
+      .pane.skin-a .feed-mode-tab.active,
+      .pane.skin-b .feed-mode-tab.active {
+        font-weight: 700;
+      }
+      .pane.skin-a .feed-mode-tab-divider,
+      .pane.skin-b .feed-mode-tab-divider {
+        display: none;
+      }
+
+      /* ============================================================
+   帖子卡片（结构 / 值对齐 PostCard.vue + feed.css）
+   ============================================================ */
+      .post-card-v2 {
+        position: relative;
+        padding: var(--card-pad);
+        margin-bottom: var(--card-gap);
+        background: var(--card-bg);
+        border: var(--card-border);
+        border-radius: var(--card-radius);
+        box-shadow: var(--card-shadow);
+        -webkit-backdrop-filter: var(--card-blur);
+        backdrop-filter: var(--card-blur);
+        overflow: hidden;
+        cursor: pointer;
+        transition:
+          background-color 0.22s ease,
+          border-color 0.22s ease,
+          box-shadow 0.22s ease;
+      }
+      .post-card-v2:hover {
+        background: var(--card-hover-bg);
+        box-shadow: var(--card-hover-shadow);
+        border-color: var(--card-hover-border);
+      }
+
+      .post-header-v2 {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 16px;
+      }
+      .post-author-section {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .post-author-avatar {
+        width: var(--avatar-size);
+        height: var(--avatar-size);
+        border-radius: 50%;
+        background: #1d1d1f;
+        color: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 800;
+        font-size: calc(var(--avatar-size) * 0.43);
+        box-shadow: 0 6px 16px rgba(15, 23, 42, 0.08);
+        overflow: hidden;
+        flex-shrink: 0;
+      }
+      .post-author-avatar.is-official {
+        background: #ffffff;
+        box-shadow:
+          inset 0 0 0 1px rgba(15, 23, 42, 0.08),
+          0 6px 16px rgba(15, 23, 42, 0.08);
+      }
+      .post-author-avatar img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+      }
+      .post-author-info {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+      }
+      .post-author-v2 {
+        font-weight: var(--author-weight);
+        font-size: 14px;
+        color: var(--text-author);
+        letter-spacing: var(--body-ls);
+      }
+      .post-date-v2 {
+        font-size: 12px;
+        color: var(--text-muted);
+        font-weight: var(--date-weight);
+      }
+
+      /* A- / B：把「昵称 + 时间」两行并成一行（纯 CSS，不改 DOM） */
+      .pane.skin-a .post-author-info,
+      .pane.skin-b .post-author-info {
+        flex-direction: row;
+        align-items: baseline;
+        gap: 6px;
+      }
+      .pane.skin-a .post-date-v2::before,
+      .pane.skin-b .post-date-v2::before {
+        content: '·';
+        margin-right: 6px;
+        color: var(--text-muted);
+      }
+
+      .post-title-v2 {
+        margin: 0 0 8px;
+        font-size: var(--title-size);
+        font-weight: var(--title-weight);
+        line-height: 1.35;
+        letter-spacing: 0;
+        color: var(--text-strong);
+      }
+      .post-kind-badge {
+        display: inline-flex;
+        align-items: center;
+        margin-right: 7px;
+        padding: 3px 7px;
+        border-radius: 6px;
+        font-size: 11px;
+        line-height: 1;
+        vertical-align: 3px;
+        font-weight: 800;
+      }
+      .post-kind-badge.news {
+        color: #a23b00;
+        background: rgba(255, 159, 10, 0.16);
+      }
+      /* A- / B：徽章降级为标题前的文字前缀 */
+      .pane.skin-a .post-kind-badge,
+      .pane.skin-b .post-kind-badge {
+        padding: 0;
+        background: none;
+        vertical-align: baseline;
+        font-weight: 700;
+        color: #b45309;
+        margin-right: 4px;
+      }
+      .pane.skin-a .post-kind-badge::after,
+      .pane.skin-b .post-kind-badge::after {
+        content: '·';
+        margin-left: 4px;
+        color: var(--text-muted);
+      }
+
+      .post-card-tags {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+        margin: -2px 0 12px;
+      }
+      .post-card-tag {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        min-height: 22px;
+        padding: 4px 9px;
+        border-radius: 999px;
+        background: var(--tag-bg);
+        color: var(--tag-fg);
+        font-size: 11px;
+        font-weight: 800;
+        line-height: 1;
+      }
+      .post-card-tag svg {
+        width: 12px;
+        height: 12px;
+      }
+      /* A- / B：chip 改纯文字 + 中点分隔 */
+      .pane.skin-a .post-card-tags,
+      .pane.skin-b .post-card-tags {
+        gap: 0;
+        margin: -2px 0 14px;
+      }
+      .pane.skin-a .post-card-tag,
+      .pane.skin-b .post-card-tag {
+        padding: 0;
+        min-height: 0;
+        font-weight: 600;
+        font-size: 12px;
+      }
+      .pane.skin-a .post-card-tag + .post-card-tag::before,
+      .pane.skin-b .post-card-tag + .post-card-tag::before {
+        content: '·';
+        margin: 0 6px;
+      }
+
+      /* 图片条：值来自 feed.css#L380 起 */
+      .image-post-strip-wrap {
+        position: relative;
+        width: auto;
+        min-width: 0;
+        margin: 16px var(--strip-right) 18px var(--strip-left);
+      }
+      .image-post-strip-wrap:has(> .image-post-strip.is-single) {
+        margin-left: 0;
+        margin-right: 0;
+      }
+      .pane.skin-b .image-post-strip-wrap {
+        margin: 18px 0;
+      }
+      .image-post-strip {
+        display: flex;
+        gap: 10px;
+        min-width: 0;
+        overflow-x: auto;
+        overscroll-behavior-x: contain;
+        scroll-snap-type: x mandatory;
+        scrollbar-width: none;
+      }
+      .image-post-strip::-webkit-scrollbar {
+        display: none;
+      }
+      .image-post-thumb-shell {
+        position: relative;
+        flex: 0 0 auto;
+        width: clamp(200px, 48%, 340px);
+        aspect-ratio: 4 / 3;
+        padding: 0;
+        border: 0;
+        border-radius: 16px;
+        overflow: hidden;
+        background: #eef2f7;
+        cursor: zoom-in;
+        scroll-snap-align: start;
+      }
+      .image-post-strip.is-single .image-post-thumb-shell {
+        width: 100%;
+        aspect-ratio: 16 / 9;
+      }
+      .image-post-thumb {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+      }
+      .pane.skin-b .image-post-thumb-shell {
+        border-radius: 10px;
+      }
+      .image-strip-dots {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-bottom: 8px;
+      }
+      .image-strip-dot {
+        width: 16px;
+        height: 3px;
+        padding: 0;
+        border: 0;
+        border-radius: 999px;
+        background: rgba(15, 23, 42, 0.15);
+      }
+      .image-strip-dot.is-active {
+        background: rgba(15, 23, 42, 0.65);
+      }
+      .image-strip-indicator {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        z-index: 5;
+        display: inline-flex;
+        align-items: center;
+        min-height: 24px;
+        padding: 0 10px;
+        border-radius: 999px;
+        background: rgba(15, 23, 42, 0.55);
+        -webkit-backdrop-filter: blur(12px);
+        backdrop-filter: blur(12px);
+        color: #fff;
+        font-size: 12px;
+        font-weight: 800;
+        line-height: 1;
+        pointer-events: none;
+      }
+      .pane.skin-b .image-strip-indicator {
+        right: 12px;
+      }
+
+      /* 正文：max-height + 雾化省略号，值与 feed.css#L820-L850 一致 */
+      .post-text-v2 {
+        position: relative;
+        margin: 0 0 18px;
+        font-size: 15px;
+        line-height: 1.62;
+        letter-spacing: var(--body-ls);
+        color: var(--text-body);
+        max-height: calc(1.62em * 5);
+        overflow: hidden;
+        overflow-wrap: anywhere;
+        white-space: pre-wrap;
+      }
+      .post-text-v2.is-overflowing::after {
+        content: '…';
+        position: absolute;
+        right: 0;
+        bottom: 0;
+        min-width: 72px;
+        padding-left: 28px;
+        text-align: right;
+        color: inherit;
+        -webkit-backdrop-filter: blur(12px);
+        backdrop-filter: blur(12px);
+        -webkit-mask-image: linear-gradient(90deg, transparent, #000 45%);
+        mask-image: linear-gradient(90deg, transparent, #000 45%);
+        pointer-events: none;
+      }
+      .pane.skin-b .post-text-v2 {
+        margin-bottom: 20px;
+      }
+
+      /* 引用框 */
+      .quoted-post-box {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
+        width: 100%;
+        margin: 12px 0 2px;
+        padding: var(--quote-pad);
+        border: var(--quote-border);
+        border-left: 2px solid var(--quote-rule);
+        border-radius: 12px;
+        background: var(--quote-bg);
+        text-align: left;
+        cursor: pointer;
+        font: inherit;
+      }
+      .pane.skin-a .quoted-post-box,
+      .pane.skin-b .quoted-post-box {
+        border-radius: 0;
+      }
+      .quoted-post-author {
+        font-size: 12px;
+        font-weight: 750;
+        color: var(--text-muted);
+      }
+      .quoted-post-title {
+        font-size: 13.5px;
+        font-weight: 700;
+        color: var(--text-strong);
+        line-height: 1.4;
+      }
+      .quoted-post-body {
+        font-size: 13px;
+        color: var(--text-body);
+        line-height: 1.55;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+      }
+
+      /* 操作栏 */
+      .post-actions-v2 {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        padding-top: 12px;
+        border-top: 1px solid var(--hairline);
+      }
+      .actions-left-v2 {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex: 1;
+      }
+      .actions-right-v2 {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        flex-shrink: 0;
+      }
+      .action-item-v2 {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        min-height: 32px;
+        padding: var(--action-pad);
+        border: 0;
+        border-radius: var(--action-radius);
+        background: transparent;
+        color: var(--text-muted);
+        font: inherit;
+        font-size: 13px;
+        font-weight: 650;
+        cursor: pointer;
+        white-space: nowrap;
+        transition:
+          background-color 0.2s,
+          color 0.2s;
+      }
+      .action-item-v2:hover {
+        background: var(--action-hover-bg);
+        color: var(--text-strong);
+      }
+      .action-svg-v2 {
+        width: 17px;
+        height: 17px;
+        flex: 0 0 auto;
+      }
+      .action-count-v2 {
+        font-size: 13px;
+        font-weight: 600;
+        min-width: 16px;
+      }
+
+      /* 昵称等级 */
+      .nick-pro {
+        color: #8e9aaf;
+      }
+      .nick-max {
+        color: #b8860b;
+      }
+      .nick-ultra {
+        background: linear-gradient(90deg, #ff6b6b, #ffd93d, #6bcb77, #4d96ff, #9b59b6, #ff6b6b);
+        background-size: 200% 100%;
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+        animation: nick-rainbow 3s linear infinite;
+      }
+      .pane.skin-a .nick-ultra,
+      .pane.skin-b .nick-ultra {
+        animation: none;
+        background-position: 0 50%;
+      }
+      @keyframes nick-rainbow {
+        0% {
+          background-position: 0% 50%;
+        }
+        100% {
+          background-position: 200% 50%;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .nick-ultra {
+          animation: none;
+          background-position: 0 50%;
+        }
+      }
+
+      /* 排版收紧开关：只作用在「现状」上才看得见差异 */
+      html.tight-type .pane {
+        --author-weight: 600 !important;
+        --title-weight: 700 !important;
+        --date-weight: 500 !important;
+        --body-ls: 0px !important;
+      }
+
+      /* 页脚 */
+      .notes {
+        max-width: 1720px;
+        margin: 0 auto;
+        padding: 0 24px 64px;
+        font-size: 12px;
+        line-height: 1.7;
+        color: #5b6472;
+      }
+      .notes h3 {
+        font-size: 13px;
+        margin: 0 0 6px;
+        color: #1d1d1f;
+      }
+      .notes code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        background: rgba(15, 23, 42, 0.06);
+        padding: 1px 4px;
+        border-radius: 4px;
+        font-size: 11px;
+      }
+      html[data-theme='dark'] .notes {
+        color: #9aa0aa;
+      }
+      html[data-theme='dark'] .notes h3 {
+        color: #f0f0f3;
+      }
+      html[data-theme='dark'] .notes code {
+        background: rgba(255, 255, 255, 0.08);
+      }
+
+      @media (max-width: 1180px) {
+        .compare {
+          grid-template-columns: 1fr;
+        }
+        .pane {
+          max-height: none;
+        }
+      }
+    </style>
+  </head>
+  <body data-vp="desktop">
+    <div class="topbar">
+      <h1>论坛卡片流 · 三档视觉对照</h1>
+      <span class="hint">同一批数据、同一 DOM；右栏切换变体，只改变容器与排版</span>
+
+      <div class="ctrl">
+        <span>右栏变体</span>
+        <div class="seg" id="segVariant">
+          <button data-variant="a" class="on">A- 结构化白卡</button>
+          <button data-variant="b">B 连续白面</button>
+        </div>
+      </div>
+
+      <div class="ctrl">
+        <span>视口</span>
+        <div class="seg" id="segVp">
+          <button data-vp="desktop" class="on">横屏</button>
+          <button data-vp="phone">竖屏 390</button>
+        </div>
+      </div>
+
+      <div class="ctrl">
+        <span>主题</span>
+        <div class="seg" id="segTheme">
+          <button data-theme="light" class="on">亮</button>
+          <button data-theme="dark">暗</button>
+        </div>
+      </div>
+
+      <label class="chk">
+        <input type="checkbox" id="chkType" />
+        排版收紧（字距 0 / 作者 600）
+      </label>
+    </div>
+
+    <main class="compare">
+      <section class="col">
+        <div class="col-head">
+          <h2>现状 <span>feed.css 真实值</span></h2>
+          <p>
+            页面 <code>#fbfbfd</code>（对白卡 1.03:1）· 卡 <code>rgba(255,255,255,.86)</code> +
+            <code>1px</code> 描边 + 阴影 + <code>blur(18px)</code> · 圆角 20 · 间距 16 · 字距
+            <code>.5px</code> · 作者 800 重 · 动作栏有分隔线 · 层级卡底色
+          </p>
+        </div>
+        <div class="pane skin-current">
+          <div class="feed" id="feedCurrent"></div>
+        </div>
+      </section>
+
+      <section class="col">
+        <div class="col-head">
+          <h2 id="variantTitle">A- 结构化白卡</h2>
+          <p id="variantDesc"></p>
+        </div>
+        <div class="pane skin-a" id="variantPane">
+          <div class="feed" id="feedVariant"></div>
+        </div>
+      </section>
+    </main>
+
+    <div class="notes">
+      <h3>看什么</h3>
+      <p>
+        1. 右栏 A- 的重点不是「变白」，而是<b>卡片退到结构层</b>：没有描边、阴影、模糊，靠页面底色和
+        20px 间距分组。 2. B 档把容器整个拿掉，靠 40px 留白 +
+        头像行锚点分段；滑到长列表里，需要人眼确认「还分得清一帖的边界吗」。 3. 顶部 tab
+        的胶囊底和竖线在 A-/B 里都消失了——它们是最容易看见的「噪音」。 4.
+        点「排版收紧」只改变字体层（字距 / 作者字重），不动容器：可以先单独判断这一项值不值得做。
+      </p>
+      <h3>值从哪来（判据）</h3>
+      <p>
+        卡片装饰 <code>src/views/Forum/styles/feed.css:128-142</code> · 列表覆写
+        <code>feed.css:322-331</code> · tab <code>feed.css:1-59</code> · 正文
+        <code>feed.css:820-850</code> · 暗色 <code>src/styles/themes/forum-dark.css:360-371</code> ·
+        页面底 <code>src/views/Forum/styles/base.css:5-14</code>。 对比度算法：WCAG 相对亮度，<code
+          >#fbfbfd / #fff = 1.034</code
+        >，<code>#edf0f3 / #fff = 1.144</code>。
+      </p>
+      <h3>不要从这个演示直接推结论</h3>
+      <p>
+        这是静态对照页，不是线上组件：图中的头像是字母兜底、图片是生成的占位图； 内容列固定
+        720px，用来让两档等宽可比 —— 真实论坛列更宽，行宽会更长； 正文截断用真实
+        <code>max-height + 雾化省略号</code>，但没接图片懒加载与虚拟列表。 真改之前要人眼看亮/暗 ×
+        宽/窄四张截图，并跑 <code>probe-forum-virtual-jump</code> /
+        <code>probe-forum-viewport</code>； 卡片高度常量在
+        <code>useForumVirtualFeed.js:6</code>（300px），改矮了必须同源改 spacer。
+      </p>
+    </div>
+
+    <script>
+      /* ---------- 占位图（生成 SVG，无外链） ---------- */
+      const photoSvg = {
+        sunset:
+          "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 800 600'>" +
+          "<defs><linearGradient id='g' x1='0' y1='0' x2='0' y2='1'>" +
+          "<stop offset='0' stop-color='#f7b267'/><stop offset='.5' stop-color='#e76f51'/>" +
+          "<stop offset='1' stop-color='#1d1b26'/></linearGradient></defs>" +
+          "<rect width='800' height='600' fill='url(#g)'/>" +
+          "<circle cx='560' cy='240' r='64' fill='#ffe1a8' opacity='.9'/>" +
+          "<path d='M0 470 L150 380 L300 460 L470 395 L640 470 L800 415 L800 600 L0 600Z' fill='#23212f'/>" +
+          "<path d='M0 525 L210 470 L420 540 L640 490 L800 530 L800 600 L0 600Z' fill='#16141d'/>" +
+          '</svg>',
+        city:
+          "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 800 600'>" +
+          "<defs><linearGradient id='g' x1='0' y1='0' x2='0' y2='1'>" +
+          "<stop offset='0' stop-color='#1b2a4a'/><stop offset='1' stop-color='#070a12'/></linearGradient></defs>" +
+          "<rect width='800' height='600' fill='url(#g)'/>" +
+          "<circle cx='160' cy='120' r='46' fill='#cfd8ff' opacity='.35'/>" +
+          "<rect x='60' y='300' width='90' height='300' fill='#111827'/>" +
+          "<rect x='170' y='250' width='110' height='350' fill='#0f172a'/>" +
+          "<rect x='300' y='330' width='80' height='270' fill='#111827'/>" +
+          "<rect x='400' y='210' width='120' height='390' fill='#0d1424'/>" +
+          "<rect x='540' y='280' width='100' height='320' fill='#101827'/>" +
+          "<rect x='660' y='240' width='90' height='360' fill='#0e1626'/>" +
+          "<g fill='#ffd166' opacity='.55'>" +
+          "<rect x='84' y='330' width='10' height='14'/><rect x='112' y='380' width='10' height='14'/>" +
+          "<rect x='196' y='300' width='10' height='14'/><rect x='236' y='360' width='10' height='14'/>" +
+          "<rect x='428' y='270' width='10' height='14'/><rect x='470' y='330' width='10' height='14'/>" +
+          "<rect x='566' y='330' width='10' height='14'/><rect x='684' y='300' width='10' height='14'/>" +
+          '</g></svg>',
+        plant:
+          "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 800 600'>" +
+          "<defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'>" +
+          "<stop offset='0' stop-color='#2d6a4f'/><stop offset='1' stop-color='#081c15'/></linearGradient></defs>" +
+          "<rect width='800' height='600' fill='url(#g)'/>" +
+          "<ellipse cx='300' cy='380' rx='150' ry='80' fill='#40916c' opacity='.8' transform='rotate(-20 300 380)'/>" +
+          "<ellipse cx='520' cy='300' rx='170' ry='90' fill='#52b788' opacity='.7' transform='rotate(15 520 300)'/>" +
+          "<ellipse cx='420' cy='470' rx='120' ry='60' fill='#1b4332' opacity='.9' transform='rotate(-8 420 470)'/>" +
+          "<circle cx='600' cy='150' r='60' fill='#d8f3dc' opacity='.25'/>" +
+          '</svg>',
+        official:
+          "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'>" +
+          "<rect width='64' height='64' fill='#fff'/>" +
+          "<rect x='14' y='14' width='14' height='14' fill='#111'/>" +
+          "<rect x='36' y='14' width='14' height='14' fill='#111'/>" +
+          "<rect x='14' y='36' width='14' height='14' fill='#111'/>" +
+          "<rect x='36' y='36' width='14' height='14' fill='#111' opacity='.35'/>" +
+          '</svg>',
+      };
+
+      const dataUri = (svg) => 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+      const photo = (key) => dataUri(photoSvg[key]);
+
+      /* ---------- 图标（17px 由 .action-svg-v2 约束） ---------- */
+      const icon = {
+        heart:
+          '<svg class="action-svg-v2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+          '<path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 1 0-7.8 7.8l1.1 1L12 21l7.7-7.6 1.1-1a5.5 5.5 0 0 0 0-7.8z"/></svg>',
+        comment:
+          '<svg class="action-svg-v2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+          '<path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9 9 0 0 1-3.7-.8L3 21l1.9-5.3A8.4 8.4 0 0 1 12 3.1a8.4 8.4 0 0 1 9 8.4z"/></svg>',
+        reply:
+          '<svg class="action-svg-v2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+          '<path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 6 6v2"/></svg>',
+        share:
+          '<svg class="action-svg-v2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+          '<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>' +
+          '<path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4"/></svg>',
+        pin:
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+          '<path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 1 1 16 0z"/><circle cx="12" cy="10" r="2.4"/></svg>',
+      };
+
+      /* ---------- 示例数据 ---------- */
+      const posts = [
+        {
+          id: 'p1',
+          official: true,
+          kind: 'news',
+          tier: '',
+          author: '方块之家',
+          date: '2 小时前',
+          title: '社区版规更新：图片帖与引用转发的排版说明',
+          tags: ['公告', '站务'],
+          body:
+            '这次更新只做两件事：一是把多图帖的横滑规则写清楚，二是给引用转发补一个统一的摘录格式。\n\n' +
+            '多图帖的第一张图决定整条内容的宽度，后面的图片按 4:3 排在同一行里，向右滑动查看；单图帖保持卡片内衬，不贴边。引用转发保留原帖的作者、标题和不超过两行的摘录，正文不重复。\n\n' +
+            '如果遇到显示异常，请在评论区带上设备型号与截图，我们会按帖归档。',
+          quote: {
+            author: '@南桥',
+            title: '图片帖的呼吸感从哪来',
+            body: '留白不是把间距调大，而是让每一段的边界由内容自己决定。',
+          },
+          likes: 128,
+          comments: 24,
+        },
+        {
+          id: 'p2',
+          tier: 'max',
+          author: '江野',
+          date: '3 小时前',
+          title: '周末去了一趟四明山，秋天大概就是这样',
+          tags: ['随手拍', '宁波 · 四明山'],
+          location: true,
+          images: ['sunset', 'city', 'plant'],
+          body: '山顶的风比想象中大，云走得太快，三脚架压了两次才稳住。下山的时候遇到一群骑车的人，互相喊了一声加油。',
+          likes: 86,
+          comments: 12,
+        },
+        {
+          id: 'p3',
+          tier: 'ultra',
+          author: '半糖少冰',
+          date: '昨天 22:41',
+          title: '关于社区「慢一点」这件事',
+          tags: ['随笔'],
+          body:
+            '这两年我越来越觉得，一个社区真正稀缺的不是内容，而是让人愿意把话说完的地方。\n\n' +
+            '快有快的好处：一条消息三秒就能发出去，一张图五秒就能被看见。但快也会让人下意识地压缩表达，把一段完整的想法切成几个梗、几句反问，然后等别人来接。\n\n' +
+            '我不是反对快。我只是希望这里还留得下一种慢：可以写长一点，可以隔一天再回，可以说「我还没想清楚」。这些东西不会出现在指标里，但它们决定了一个地方像不像人待的地方。\n\n' +
+            '如果你也这么想，不用点赞，写点什么就好。',
+          likes: 302,
+          comments: 57,
+        },
+        {
+          id: 'p4',
+          tier: 'pro',
+          author: '阿澈',
+          date: '2 天前',
+          title: '有人一起拼单做头像框吗',
+          tags: ['头像框', '上海 · 徐汇'],
+          location: true,
+          body: '看中了那套冬季限定的边框，单买有点贵，想凑三个人一起做。有意向的在评论区留一下，我私信拉群。',
+          likes: 9,
+          comments: 4,
+        },
+      ];
+
+      const esc = (s) =>
+        String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+      /* ---------- 渲染（结构对齐 PostCard.vue） ---------- */
+      function renderPost(p) {
+        const tierClass = p.tier ? ' tier-' + p.tier : '';
+        const nickClass = p.tier ? ' nick-' + p.tier : '';
+        const kindHtml =
+          p.kind === 'news'
+            ? '<span class="post-kind-badge news">新闻</span>'
+            : p.kind === 'activity'
+              ? '<span class="post-kind-badge activity">活动</span>'
+              : '';
+
+        const avatarInner = p.official
+          ? '<div class="post-author-avatar is-official"><img src="' +
+            photo('official') +
+            '" alt=""></div>'
+          : '<div class="post-author-avatar"><span>' + esc(p.author.slice(0, 1)) + '</span></div>';
+
+        const tagsHtml = p.tags.length
+          ? '<div class="post-card-tags">' +
+            p.tags
+              .map(
+                (t, i) =>
+                  '<span class="post-card-tag">' +
+                  (i === 1 && p.location ? icon.pin : '') +
+                  esc(t) +
+                  '</span>',
+              )
+              .join('') +
+            '</div>'
+          : '';
+
+        const imagesHtml =
+          p.images && p.images.length
+            ? '<div class="image-post-strip-wrap">' +
+              (p.images.length > 1
+                ? '<div class="image-strip-dots">' +
+                  p.images
+                    .map(
+                      (_, i) =>
+                        '<button class="image-strip-dot' +
+                        (i === 0 ? ' is-active' : '') +
+                        '"></button>',
+                    )
+                    .join('') +
+                  '</div><span class="image-strip-indicator">1 / ' +
+                  p.images.length +
+                  '</span>'
+                : '') +
+              '<div class="image-post-strip' +
+              (p.images.length === 1 ? ' is-single' : '') +
+              '">' +
+              p.images
+                .map(
+                  (k) =>
+                    '<button class="image-post-thumb-shell"><img class="image-post-thumb" src="' +
+                    photo(k) +
+                    '" alt=""></button>',
+                )
+                .join('') +
+              '</div></div>'
+            : '';
+
+        const quoteHtml = p.quote
+          ? '<button class="quoted-post-box">' +
+            '<span class="quoted-post-author">' +
+            esc(p.quote.author) +
+            '</span>' +
+            '<span class="quoted-post-title">' +
+            esc(p.quote.title) +
+            '</span>' +
+            '<span class="quoted-post-body">' +
+            esc(p.quote.body) +
+            '</span>' +
+            '</button>'
+          : '';
+
+        return (
+          '<article class="post-card-v2 glass-panel' +
+          tierClass +
+          '" data-forum-post-id="' +
+          p.id +
+          '">' +
+          '<div class="post-header-v2"><div class="post-author-section">' +
+          '<span class="boh-avatar-wrap">' +
+          avatarInner +
+          '</span>' +
+          '<div class="post-author-info">' +
+          '<span class="post-author-v2' +
+          nickClass +
+          '">@' +
+          esc(p.author) +
+          '</span>' +
+          '<span class="post-date-v2">' +
+          esc(p.date) +
+          '</span>' +
+          '</div></div></div>' +
+          '<div class="post-content-v2">' +
+          '<h3 class="post-title-v2">' +
+          kindHtml +
+          esc(p.title) +
+          '</h3>' +
+          tagsHtml +
+          imagesHtml +
+          '<p class="post-text-v2">' +
+          esc(p.body) +
+          '</p>' +
+          quoteHtml +
+          '</div>' +
+          '<div class="post-actions-v2">' +
+          '<div class="actions-left-v2">' +
+          '<button class="action-item-v2 like-btn-v2">' +
+          icon.heart +
+          '<span class="action-count-v2">' +
+          p.likes +
+          '</span></button>' +
+          '<button class="action-item-v2 replies-btn-v2">' +
+          icon.comment +
+          '<span class="action-count-v2">' +
+          p.comments +
+          '</span></button>' +
+          '</div>' +
+          '<div class="actions-right-v2">' +
+          '<button class="action-item-v2 icon-only-action-v2">' +
+          icon.reply +
+          '</button>' +
+          '<button class="action-item-v2 icon-only-action-v2">' +
+          icon.share +
+          '</button>' +
+          '</div></div>' +
+          '</article>'
+        );
+      }
+
+      /* ---------- Tab 行（真实结构） ---------- */
+      const tabsHtml =
+        '<div class="feed-mode-tabs">' +
+        '<button class="feed-mode-tab active">推荐</button>' +
+        '<button class="feed-mode-tab">关注</button>' +
+        '<span class="feed-mode-tab-divider"></span>' +
+        '<button class="feed-mode-tab">全部</button>' +
+        '<button class="feed-mode-tab">图文</button>' +
+        '<button class="feed-mode-tab">问答</button>' +
+        '</div>';
+
+      const feedHtml = tabsHtml + posts.map(renderPost).join('');
+      const feeds = [
+        document.getElementById('feedCurrent'),
+        document.getElementById('feedVariant'),
+      ];
+      feeds.forEach((el) => (el.innerHTML = feedHtml));
+
+      /* 正文截断：用真实「scrollHeight > clientHeight」判定，不用字数估 */
+      function refresh() {
+        document.querySelectorAll('.post-text-v2').forEach((el) => {
+          el.classList.toggle('is-overflowing', el.scrollHeight > el.clientHeight + 1);
+        });
+      }
+      refresh();
+      window.addEventListener('resize', refresh);
+
+      /* ---------- 控件 ---------- */
+      const variantMeta = {
+        a: {
+          title: 'A- 结构化白卡',
+          desc:
+            '亮色：页面 <code>#edf0f3</code>（对白卡 1.144:1）· 纯白卡 无描边/无阴影/无 blur · 圆角 14 · 间距 20 · ' +
+            '字距 0 · 元信息并一行 · 动作栏无分隔线 · 层级卡底色退出',
+        },
+        b: {
+          title: 'B 连续白面',
+          desc:
+            '亮色：页面纯白 · 容器整体退场 · 帖间 40px · 32px 头像作锚点 · 无任何分隔线 · ' +
+            '图片通栏 · 等级只走昵称色',
+        },
+      };
+
+      const pane = document.getElementById('variantPane');
+
+      document.getElementById('segVariant').addEventListener('click', (e) => {
+        const btn = e.target.closest('button');
+        if (!btn) return;
+        const v = btn.dataset.variant;
+        [...e.currentTarget.children].forEach((b) => b.classList.toggle('on', b === btn));
+        pane.classList.remove('skin-a', 'skin-b');
+        pane.classList.add('skin-' + v);
+        document.getElementById('variantTitle').textContent = variantMeta[v].title;
+        document.getElementById('variantDesc').innerHTML = variantMeta[v].desc;
+        refresh();
+      });
+
+      document.getElementById('segVp').addEventListener('click', (e) => {
+        const btn = e.target.closest('button');
+        if (!btn) return;
+        [...e.currentTarget.children].forEach((b) => b.classList.toggle('on', b === btn));
+        document.body.dataset.vp = btn.dataset.vp;
+        requestAnimationFrame(refresh);
+      });
+
+      document.getElementById('segTheme').addEventListener('click', (e) => {
+        const btn = e.target.closest('button');
+        if (!btn) return;
+        [...e.currentTarget.children].forEach((b) => b.classList.toggle('on', b === btn));
+        document.documentElement.dataset.theme = btn.dataset.theme;
+      });
+
+      document.getElementById('chkType').addEventListener('change', (e) => {
+        document.documentElement.classList.toggle('tight-type', e.target.checked);
+        requestAnimationFrame(refresh);
+      });
+    </script>
+  </body>
+</html>

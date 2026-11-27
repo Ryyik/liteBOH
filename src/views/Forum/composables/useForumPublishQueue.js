@@ -28,7 +28,7 @@ import {
   enqueueForumImageRecheck,
   claimPostPublishReward,
 } from '../../../utils/api/forum-api.js';
-import { addExperience, XP_REWARDS } from '../../../utils/xp.js';
+import { addExperience } from '../../../utils/xp.js';
 import { createMyCloudEntry } from '../../../utils/api/boh-cloud-api.js';
 import { supabase } from '../../../utils/supabase-client.js';
 import { showIsland } from '@/composables/useIsland.js';
@@ -56,7 +56,6 @@ export function useForumPublishQueue(deps) {
     emitProfileSync,
     isLikelyNetworkError,
     shouldCleanupImagesAfterPostError,
-    loadForumWeeklyReport,
     persistForumFeedSnapshot,
     showEmbeddedSuccessIsland,
   } = deps;
@@ -669,7 +668,7 @@ export function useForumPublishQueue(deps) {
             await enqueueForumImageRecheck(realPost.id, 30);
           })().catch((err) => logger.warn('forum', '图片复审入队失败:', err));
           // 经验与奖励
-          void addExperience(supabase, next.authorId, XP_REWARDS.POST).catch((err) =>
+          void addExperience(supabase, 'POST').catch((err) =>
             logger.error('forum', '经验值增加失败:', err),
           );
           if (realPost.id) {
@@ -696,8 +695,7 @@ export function useForumPublishQueue(deps) {
             reason: 'post_created',
           });
           // 成功态由常驻 Airdrop 岛展示（isSuccess），不再发瞬时岛避免重叠
-          // 刷新周报但不整页重拉（避免覆盖刚插入的帖子）；后台静默刷新快照
-          void loadForumWeeklyReport();
+          // 后台静默刷新快照（周报已于 2026-11-26 退场，不再刷新）
           persistForumFeedSnapshot();
           // 成功后短暂保留队列项给常驻岛收尾（900ms），但**不要 await**：
           // 那会把队列里排队的下一篇一起冻住 900ms（连发两帖时第二篇凭空慢近 1 秒）。

@@ -32,6 +32,12 @@ const cardCode = () =>
   squeezeSource(
     stripComments(scriptSection(read('src/views/Forum/components/BohForumAnswerCard.vue'))),
   );
+/* plans/052：问博莱克的**宿主**从 ForumMain 迁到全屏搜索页 —— 检索 / 交付 inlineAsk
+   的接线断言面跟着搬（卡片本身与交接链路不变）。 */
+const searchPageCode = () =>
+  squeezeSource(stripComments(scriptSection(read('src/views/Search/SearchPage.vue'))));
+const searchPageTemplate = () =>
+  squeezeSource(stripComments(templateSection(read('src/views/Search/SearchPage.vue'))));
 const shellCode = () =>
   squeezeSource(stripComments(read('src/views/Bolek/composables/useBohShell.js')));
 
@@ -47,28 +53,43 @@ describe('ForumMain：问博莱克走内联卡片，旧弹岛链路退场', () =
     expect(code).not.toContain('用户刚在社区论坛的搜索框里提问');
   });
 
-  it('检索成功必须交付 inlineAsk（原句 + 相关帖），nonce 进 :key', () => {
+  /* ── plans/052（2026-11-26）：检索与交付已迁到全屏搜索页 ──────────────
+     旧契约（inlineAsk 在 ForumMain、watch(searchKeyword) 收卡）随搜索框一起退场：
+     搜索页用的是「换了词就重新检索」的自然语义（runSearch），不需要「收过期卡」这一层。
+     卡片本身的接线契约（下一条 describe）原样保留。 */
+  it('检索成功必须交付博莱克卡（原句 + 相关帖），nonce 进 :key —— 宿主是搜索页', () => {
+    const code = searchPageCode();
+    expect(code).toContain('bolekEvidence.value =');
+    expect(code).toContain('bolekQuestion.value =');
+    expect(code).toContain('bolekNonce.value += 1');
+    expect(searchPageTemplate()).toContain(':key="bolekNonce"');
+    expect(searchPageTemplate()).toContain(':question="bolekQuestion"');
+    expect(searchPageTemplate()).toContain(':posts="bolekEvidence"');
+  });
+
+  it('搜索页不再引用 ForumMain 的 inlineAsk 通道（职责已迁干净）', () => {
+    expect(searchPageCode()).not.toContain('dismissInlineAsk');
+    expect(searchPageCode()).not.toContain('aiSearchHint');
+  });
+
+  it('卡片由 ForumMain 经 createPanelAsync 懒加载（markdown chunk 不进首屏图）', () => {
+    /* 2026-11-26 19:22 修正：上一轮把搜索框迁去全屏页时，这条被改成
+       「ForumMain 不再持有卡片声明」—— 但搜索框随后**回到论坛页**（用户口径 18:08），
+       问博莱克的内联卡片也随之回到宿主。旧断言反向钉住了一个已不存在的迁移，
+       属于把 bug 当契约（当时 askBolek 与懒加载声明都被连带删掉，点击完全无反应）。
+       现在钉真正的不变量：卡片声明必须在宿主里、且必须是懒加载形态。 */
     const code = hostCode();
-    expect(code).toContain('inlineAsk.value = {');
-    expect(code).toContain('nonce: (inlineAskNonce += 1)');
-    expect(hostTemplateCode()).toContain(':key="inlineAsk.nonce"');
-    expect(hostTemplateCode()).toContain(':question="inlineAsk.question"');
-    expect(hostTemplateCode()).toContain(':posts="inlineAsk.posts"');
-  });
-
-  it('换关键词必须收卡 + 清 hint（watch(searchKeyword) → dismissInlineAsk）', () => {
-    const code = hostCode();
-    expect(code).toMatch(/watch\(searchKeyword, \(\) => \{[\s\S]{0,80}dismissInlineAsk/);
-  });
-
-  it('cancelPendingSearch 恰好两处（askBolek / 卸载清理）—— forum-feed-query 单源守卫同口径', () => {
-    expect(hostCode().match(/cancelPendingSearch\(\)/g)).toHaveLength(2);
-  });
-
-  it('卡片必须经 createPanelAsync 懒加载（markdown chunk 不进 ForumMain 图）', () => {
-    expect(hostCode()).toMatch(
+    expect(code).toContain('BohForumAnswerCard');
+    expect(code).toMatch(
       /const BohForumAnswerCard = createPanelAsync\( ?\(\) => import\('\.\/components\/BohForumAnswerCard\.vue'\)/,
     );
+  });
+
+  it('模板按 nonce 渲染卡片（再次提问 = 新实例 = 新会话）', () => {
+    const tpl = hostTemplateCode();
+    expect(tpl).toContain(':key="inlineAsk.nonce"');
+    expect(tpl).toContain(':question="inlineAsk.question"');
+    expect(tpl).toContain(':posts="inlineAsk.posts"');
   });
 });
 

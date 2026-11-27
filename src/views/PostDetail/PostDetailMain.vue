@@ -62,6 +62,7 @@ import {
   extractDisplayPostBody as extractPostBody,
   extractDisplayPostTitle as extractPostTitle,
 } from '@/utils/forum-post-format.js';
+import ReportPostModal from '@/components/forum/ReportPostModal.vue';
 import CommonAlertModal from '../../components/CommonAlertModal.vue';
 import HomeCatMascot from '@/components/HomeCatMascot.vue';
 import {
@@ -76,6 +77,7 @@ import {
   buildReplyDraft,
   restoreImageAtPosition,
   shouldShowReplyTarget,
+  isOfficialForumPost,
 } from '@/utils/forum-helpers.js';
 import { useUserTier } from '@/composables/useUserTier.js';
 import { isFollowing, followUser, unfollowUser } from '../../utils/api/profile-api.js';
@@ -110,12 +112,8 @@ const officialContent = ref({ type: '', html: '', paragraphs: [] });
 // 转发帖引用的原帖（repost_of_post_id 回源），渲染引用框
 const quotedPost = ref(null);
 // 官方卡（新闻/活动镜像）：作者「方块之家」无账号，头像用站点 logo
-const OFFICIAL_AUTHOR_NAME = '方块之家';
-const isOfficialCard = computed(() => {
-  const p = post.value || {};
-  if (p.post_kind === 'news' || p.post_kind === 'activity') return true;
-  return !p.author_id && String(p.author_username || '').trim() === OFFICIAL_AUTHOR_NAME;
-});
+// 官方卡判定走 forum-helpers 唯一真源（plans/051 批 2 抽出）
+const isOfficialCard = computed(() => isOfficialForumPost(post.value));
 const authorAvatarSrc = computed(() =>
   isOfficialCard.value && !post.value?.author_avatar_url
     ? getImageUrl('favicon.webp', { silent: true })
@@ -299,17 +297,7 @@ const isEditPortrait = ref(typeof window !== 'undefined' ? isForumPortraitCompos
 const isReplyExpanded = ref(false);
 let releaseEditPortraitWatch = null;
 const isReportModalOpen = ref(false);
-const reportForm = ref({
-  reason: 'other',
-  detail: '',
-});
-const reportReasons = [
-  { value: 'spam', label: '垃圾广告', description: '重复刷屏、广告推广或无关内容' },
-  { value: 'harass', label: '骚扰攻击', description: '辱骂、人身攻击、恶意挑衅' },
-  { value: 'porn', label: '不适内容', description: '色情、血腥或其他不宜展示内容' },
-  { value: 'false', label: '虚假误导', description: '造谣、误导或冒充他人' },
-  { value: 'other', label: '其他问题', description: '无法归类，但需要管理员查看' },
-];
+// 原因清单与表单 UI 已收敛到 src/components/forum/ReportPostModal.vue（plans/051 批 2）
 
 const topComments = ref([]);
 const topCommentsPage = ref(1);
@@ -2050,20 +2038,19 @@ const handleReportPost = async () => {
     return;
   }
 
-  reportForm.value = { reason: 'other', detail: '' };
   isReportModalOpen.value = true;
 };
 
 const closeReportModal = () => {
   if (isReportSubmitting.value) return;
   isReportModalOpen.value = false;
-  reportForm.value = { reason: 'other', detail: '' };
 };
 
-const submitReportPost = async () => {
+// ReportPostModal 的 confirm 回调：表单状态在组件内，这里只收 { reason, detail }
+const submitReportPost = async ({ reason: formReason, detail: formDetail } = {}) => {
   if (!post.value?.id || isReportSubmitting.value) return;
-  const reason = String(reportForm.value.reason || 'other').trim() || 'other';
-  const detail = String(reportForm.value.detail || '').trim();
+  const reason = String(formReason || 'other').trim() || 'other';
+  const detail = String(formDetail || '').trim();
 
   isReportSubmitting.value = true;
   try {
@@ -2531,15 +2518,7 @@ const handleDeleteComment = async (comment, parentId = null) => {
   }
 };
 
-const handleChangeCommentSortMode = async (mode) => {
-  const normalizedMode = String(mode || '')
-    .trim()
-    .toLowerCase();
-  if (normalizedMode !== 'asc' && normalizedMode !== 'desc') return;
-  if (commentSortMode.value === normalizedMode) return;
-  commentSortMode.value = normalizedMode;
-  await loadTopComments({ reset: true });
-};
+// 评论排序 UI 已按 plans/051 拍板 4 移除：commentSortMode 恒为 'desc'（数据侧保留默认序）。
 </script>
 
 <template>
@@ -2932,7 +2911,6 @@ const handleChangeCommentSortMode = async (mode) => {
                 :reply-submit-label="replySubmitLabel"
                 :child-replies-map="childRepliesMap"
                 :highlighted-comment-id="highlightedCommentId"
-                :comment-sort-mode="commentSortMode"
                 @reply="
                   ({ targetId, username, content, rootAuthorUsername }) =>
                     toggleReplyInput(targetId, username, content, rootAuthorUsername)
@@ -2950,7 +2928,6 @@ const handleChangeCommentSortMode = async (mode) => {
                 @load-child-replies="({ parentId, options }) => loadChildReplies(parentId, options)"
                 @delete-comment="({ comment, parentId }) => handleDeleteComment(comment, parentId)"
                 @go-to-profile="goToProfile"
-                @change-sort-mode="handleChangeCommentSortMode"
                 @toggle-comment-like="handleToggleCommentLike"
               />
             </div>
@@ -3303,7 +3280,6 @@ const handleChangeCommentSortMode = async (mode) => {
               :reply-submit-label="replySubmitLabel"
               :child-replies-map="childRepliesMap"
               :highlighted-comment-id="highlightedCommentId"
-              :comment-sort-mode="commentSortMode"
               @reply="
                 ({ targetId, username, content, rootAuthorUsername }) =>
                   toggleReplyInput(targetId, username, content, rootAuthorUsername)
@@ -3321,7 +3297,6 @@ const handleChangeCommentSortMode = async (mode) => {
               @load-child-replies="({ parentId, options }) => loadChildReplies(parentId, options)"
               @delete-comment="({ comment, parentId }) => handleDeleteComment(comment, parentId)"
               @go-to-profile="goToProfile"
-              @change-sort-mode="handleChangeCommentSortMode"
               @toggle-comment-like="handleToggleCommentLike"
             />
           </div>
@@ -3514,68 +3489,13 @@ const handleChangeCommentSortMode = async (mode) => {
       </Transition>
     </Teleport>
 
-    <!-- 举报模态框 -->
-    <div v-if="isReportModalOpen" class="modal-overlay" @click.self="closeReportModal">
-      <div
-        class="report-modal glass-panel"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="report-modal-title"
-      >
-        <div class="modal-header report-modal-header">
-          <div>
-            <h3 id="report-modal-title">举报帖子</h3>
-            <p class="report-modal-subtitle">
-              选择最接近的问题类型，管理员会结合帖子内容一起查看。
-            </p>
-          </div>
-          <button class="close-btn" :disabled="isReportSubmitting" @click="closeReportModal">
-            ×
-          </button>
-        </div>
-
-        <div class="report-reason-grid">
-          <button
-            v-for="reason in reportReasons"
-            :key="reason.value"
-            type="button"
-            class="report-reason-option"
-            :class="{ selected: reportForm.reason === reason.value }"
-            :disabled="isReportSubmitting"
-            @click="reportForm.reason = reason.value"
-          >
-            <span class="report-reason-label">{{ reason.label }}</span>
-            <span class="report-reason-description">{{ reason.description }}</span>
-          </button>
-        </div>
-
-        <label class="report-detail-field">
-          <span>补充说明</span>
-          <textarea
-            v-model="reportForm.detail"
-            class="report-detail-textarea"
-            rows="4"
-            maxlength="500"
-            placeholder="可以补充具体问题、相关上下文或希望管理员注意的地方（选填）"
-            :disabled="isReportSubmitting"
-          ></textarea>
-          <small>{{ reportForm.detail.length }}/500</small>
-        </label>
-
-        <div class="modal-footer report-modal-footer">
-          <button class="cancel-btn" :disabled="isReportSubmitting" @click="closeReportModal">
-            取消
-          </button>
-          <button
-            class="submit-btn report-submit-btn"
-            :disabled="isReportSubmitting"
-            @click="submitReportPost"
-          >
-            {{ isReportSubmitting ? '提交中...' : '提交举报' }}
-          </button>
-        </div>
-      </div>
-    </div>
+    <!-- 举报模态框（plans/051 批 2 收敛到共享组件；API 与提示留在本组件） -->
+    <ReportPostModal
+      :open="isReportModalOpen"
+      :submitting="isReportSubmitting"
+      @close="closeReportModal"
+      @confirm="submitReportPost"
+    />
 
     <ImageViewer
       :visible="isDetailImageViewerOpen"

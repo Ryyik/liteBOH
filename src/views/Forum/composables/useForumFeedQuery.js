@@ -189,9 +189,12 @@ export function useForumFeedQuery(deps) {
     persistSearchHistory();
   };
 
-  const showSearchHistory = computed(
-    () => isSearchFocused.value && !searchQuery.value.trim() && searchHistory.value.length > 0,
-  );
+  /* 面板展开条件（2026-11-26 19:06 用户口径）：
+     原来是「聚焦 + 输入为空」，但用户参考截图里的历史是**在有输入时**也铺在输入框下方的
+     （输入框与历史同处一个连续曲面）。所以改成「聚焦即展开」——
+     与历史同源的好处在横屏尤其明显：边打字边能回点历史，不用先清空再点。
+     ⚠️ 不要退回到「必须为空」：那会让用户打完字想改回上次的词时，面板先消失再出现。 */
+  const showSearchHistory = computed(() => isSearchFocused.value);
 
   const onSearchFocus = () => {
     isSearchFocused.value = true;

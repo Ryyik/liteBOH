@@ -261,12 +261,11 @@
 }
 
 .x-main-column {
-  border: 1px solid var(--detail-line);
-  border-radius: 26px;
-  background: rgba(255, 255, 255, 0.7);
-  box-shadow: 0 18px 55px rgba(15, 23, 42, 0.055);
-  backdrop-filter: var(--liquid-filter);
-  -webkit-backdrop-filter: var(--liquid-filter);
+  /* plans/051 批 3：正文列去玻璃壳 → 实色卡 + 发丝线 + 极轻阴影 */
+  border: 1px solid var(--appl-hairline);
+  border-radius: var(--appl-radius-card);
+  background: var(--appl-card);
+  box-shadow: var(--appl-shadow-card);
   overflow: visible;
 }
 
@@ -302,45 +301,11 @@
   z-index: 1;
 }
 
-/* 论坛内昵称统一纯色（无动画） */
-.nickname-gold {
-  color: #c4a35a !important;
-  background: none !important;
-  -webkit-background-clip: unset !important;
-  background-clip: unset !important;
-  -webkit-text-fill-color: unset !important;
-  animation: none !important;
-}
-
-.nickname-rainbow {
-  background: linear-gradient(
-    90deg,
-    #ff6b6b,
-    #ffd93d,
-    #6bcb77,
-    #4d96ff,
-    #9b59b6,
-    #ff6b6b
-  ) !important;
-  background-size: 200% 100% !important;
-  -webkit-background-clip: text !important;
-  background-clip: text !important;
-  -webkit-text-fill-color: transparent !important;
-  animation: none !important;
-  font-weight: 700;
-}
-
-/* 订阅等级帖子背景微色调（仅横屏整页双栏；竖屏连续内容流由 1024 断点透明化接管）
-   2026-11-24（plans/046）：`tier-plus` 那条随 Plus 并入 Pro 删除。 */
+/* 订阅等级帖子背景微色调（仅横屏整页双栏）：Ultra 独占（plans/051 拍板 6），
+   pro/max 卡色已删；色值走 tokens.css --appl-ultra-card（含 2026-11-26 降饱和） */
 @media (min-width: 1025px) {
-  .x-post-card.tier-pro {
-    background: rgba(250, 248, 240, 0.7) !important;
-  }
-  .x-post-card.tier-max {
-    background: rgba(245, 246, 250, 0.7) !important;
-  }
   .x-post-card.tier-ultra {
-    background: rgba(252, 245, 248, 0.7) !important;
+    background: var(--appl-ultra-card) !important;
   }
 }
 

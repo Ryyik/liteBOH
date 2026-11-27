@@ -155,6 +155,7 @@ export const NAV_GROUPS = [
     rows: [
       { id: 'forum', label: '论坛帖子', kind: 'tab', tabId: 'forum' },
       { id: 'ads', label: '广告管理', kind: 'tab', tabId: 'ads' },
+      { id: 'forumCards', label: '论坛卡片', kind: 'tab', tabId: 'forumCards' },
       { id: 'photoAlbums', label: '摄影集', kind: 'tab', tabId: 'photoAlbums' },
     ],
   },

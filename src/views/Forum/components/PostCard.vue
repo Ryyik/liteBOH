@@ -1,10 +1,8 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useUserTier } from '@/composables/useUserTier.js';
-import { resolveFrameForAuthor } from '@/composables/useAvatarFrame.js';
 import { useTierMap } from '@/composables/useTierMap.js';
-import { useAutoGrowTextarea } from '@/composables/useAutoGrowTextarea.js';
-import { Check, Heart, ImageOff, MapPin, MessageCircle, Reply, Share2 } from 'lucide-vue-next';
+import { ImageOff, MessageCircle } from 'lucide-vue-next';
 import { getHomeCatAsset } from '@/utils/home-cat-theme.js';
 import {
   getPostBackgroundCatSrc,
@@ -17,9 +15,13 @@ import { getAvatarUrl } from '@/utils/avatar.js';
 import { getImageUrl } from '@/utils/asset-helper.js';
 // getForumImageKey 与 ForumMain 的「写入标记」侧共用同一实现 —— 两边漂移会让
 // 图片已加载态静默失效，故收敛到 forum-helpers.js（见该函数注释）。
-import { getForumImageKey, shouldShowReplyTarget } from '@/utils/forum-helpers.js';
+import { getForumImageKey, isOfficialForumPost } from '@/utils/forum-helpers.js';
 // 展开/收起时长按**实测高度**算（真源见 utils/motion.js，plans/035 §4 L4）
-import { capMotion, collapseDuration, expandDuration } from '@/utils/motion.js';
+import { collapseDuration, expandDuration } from '@/utils/motion.js';
+import ReplyIdentityRow from '@/components/forum/ReplyIdentityRow.vue';
+import ReplyComposer from '@/components/forum/ReplyComposer.vue';
+import LikeButton from '@/components/forum/LikeButton.vue';
+import CardActionsMenu from '@/components/forum/CardActionsMenu.vue';
 
 const props = defineProps({
   post: { type: Object, required: true },
@@ -53,34 +55,36 @@ const emit = defineEmits([
   'toggle-replies',
   'toggle-reply-input',
   'share',
+  'copy-link',
+  'report-post',
+  'delete-post',
   'submit-reply',
   'delete-comment',
   'open-image-viewer',
   'update:reply-content',
   'clear-reply-target',
   'cancel-reply',
+  'need-login',
   'image-loaded',
   'lazy-image-observe',
-  'more-replies',
   'load-more-images',
 ]);
 
 const formatDate = formatSmartTime;
 
-// 回复框「多字扩展」：高度随内容长高、到上限后框内滚（真源见 composables/useAutoGrowTextarea.js）。
-// ⚠️ 必须传 value：本组件的输入框是 `:value` + `@input` 受控写法，父组件会**主动改写**
-// replyContent（切换回复对象 / 发送成功清空 / 取消），只绑 @input 的实现在这些路径上不会收缩。
-const { textareaRef: replyTextareaRef } = useAutoGrowTextarea({
-  value: () => props.replyContent,
-});
+// 回复框「多字扩展」由 ReplyComposer 内部接线（useAutoGrowTextarea getter 契约），
+// 本组件只在展开动作后负责把焦点交给它（「评论」按钮 = 展开 + 聚焦，plans/051 拍板 3）。
+const composerRef = ref(null);
 
-/* ── 两块展开动效：`:css="false"` + WAAPI（plans/035 §4 L4）────────────────
-   为什么不用 transition 类名：
-   ① **展开时长要按实测高度算**（短评 240ms / 长评 528ms），类名只能给一个固定值；
-   ② 回复框的 `transform-origin` 要取「回复」按钮的横向位置，只能在元素插入后量。
+/* ── 展开动效：`:css="false"` + WAAPI（plans/035 §4 L4）──────────────────
+   评论区展开时长按**实测高度**算（短评 240ms / 长评 528ms），类名只能给固定值。
+   必须能**放行**：动画被 cancel（用户连点、元素被替换、页面切走）时若
+   不调用 done()，Vue 会把这次过渡挂住，元素永远停在 enter 态（表现为「点不开」）。
 
-   两条都必须能**放行**：动画被 cancel（用户连点、元素被替换、页面切走）时若
-   不调用 done()，Vue 会把这次过渡挂住，元素永远停在 enter 态（表现为「点不开」）。 */
+   什么时候该播：只认「挂载之后状态被翻成展开」（2026-10-31 实测证伪了
+   「setup 时的 props.isExpanded」判据：两个 <transition> 都没有 appear，初始
+   渲染时 v-if 已为真 Vue 根本不调 @enter）。`post.replies` 异步到达引起的
+   enter 也必须放行（那是数据到达，不是用户动作）。 */
 const EASE_SOFT = 'cubic-bezier(0.32, 0.72, 0, 1)';
 
 const settleOnce = () => {
@@ -92,35 +96,20 @@ const settleOnce = () => {
   };
 };
 
-/* 什么时候该播展开动画：**只认「挂载之后状态被翻成展开」**。
- *
- * 不能拿「setup 时的 props.isExpanded」当判据（2026-10-31 实测证伪）：两个
- * `<transition>` 都没有 `appear`，初始渲染时 `v-if` 已为真 Vue 根本不调 `@enter`
- * （实测重挂载后 `getAnimations()` = 0）。于是那个快照标志在挂载时**没有任何机会
- * 被消费**，只会留着把用户真正的第一次展开静音 —— 实测：滚出虚拟窗口再滚回来
- * （卡片重挂载、仍展开）→ 收起 → 展开，`anims=0`、25ms 高度已是终值。
- *
- * 真正需要静默的是另一种 enter：`post.replies` 由 `loadPostReplyPreview` 异步填充，
- * 展开时若评论还没到，`v-if` 会在**数据到达那一刻**才翻真 —— 那是一次没有用户动作的
- * enter，重播动画就是「评论区自己冒出来」。
- *
- * 所以判据改成状态翻转：`false → true` 才算用户动作；挂载复现、异步到达都放行。 */
 let animateRepliesEnter = false;
-let animateReplyEnter = false;
-
-const replyTargetPostId = computed(() =>
-  props.activeReplyTarget ? String(props.activeReplyTarget.postId || '') : '',
-);
 
 watch(
   () => Boolean(props.isExpanded),
   (next, prev) => {
-    if (next && !prev) animateRepliesEnter = true;
+    if (next && !prev) {
+      animateRepliesEnter = true;
+      // 拍板 3：icon 回复按钮已删，「评论」按钮承担展开 + 聚焦输入框。
+      // focus 走 exposed 方法而不是 ReplyComposer 的 autoFocus prop ——
+      // 虚拟列表滚出再滚回时卡片重挂载（isExpanded 仍为 true）不该弹键盘。
+      nextTick(() => composerRef.value?.focus());
+    }
   },
 );
-watch(replyTargetPostId, (next) => {
-  if (next === String(props.post.id || '')) animateReplyEnter = true;
-});
 
 const playOnce = (el, keyframes, options, onSettled) => {
   const finish = settleOnce();
@@ -174,61 +163,96 @@ const onRepliesLeave = (el, done) => {
   );
 };
 
-const onReplyEnter = (el, done) => {
-  if (!animateReplyEnter) {
-    done();
-    return;
-  }
-  animateReplyEnter = false;
-  // 原点 = 那个「回复」按钮的横向中心（它在本组件 actions-right 里）
-  const rect = el.getBoundingClientRect();
-  const button = el.parentElement?.querySelector('.reply-btn-v2');
-  const btnRect = button?.getBoundingClientRect?.();
-  const originX =
-    btnRect && rect.width
-      ? Math.min(0.94, Math.max(0.12, (btnRect.left + btnRect.width / 2 - rect.left) / rect.width))
-      : 0.86;
-  el.style.transformOrigin = `${(originX * 100).toFixed(1)}% top`;
-  playOnce(
-    el,
-    [
-      { opacity: 0, transform: 'scale(0.72, 0.42)' },
-      { opacity: 1, transform: 'none' },
-    ],
-    { duration: capMotion(340), easing: EASE_SOFT },
-    done,
-  );
-};
-
-const onReplyLeave = (el, done) => {
-  playOnce(
-    el,
-    [
-      { opacity: 1, transform: 'none' },
-      { opacity: 0, transform: 'scale(0.92, 0.7)' },
-    ],
-    { duration: capMotion(220), easing: 'cubic-bezier(0.23, 1, 0.32, 1)' },
-    done,
-  );
-};
-
-/* ── 长帖省略号判定（2026-10-17 全面审查 P2-4）──────────────────────────────
-   症状：`.post-text-v2` 由 CSS `max-height`（5 行）截断，而「...」是否出现由
-   ForumMain 的 `isBodyPreviewOverflowLikely` 按**字数/行数估算**决定 —— 两套判据
-   不同源：估算说「不超」但实际折行更多时，文字被静默切断在句中、连省略号都没有
-   （实测有 ch=67/sh=90 的卡片）。
-   修法：判定改为 **scrollHeight > clientHeight**，与 CSS 同一条约束源。
+/* ── 长帖省略号判定（2026-10-17 全面审查 P2-4，plans/051 拍板 9 原样保留）──────
+   判定必须走 **scrollHeight > clientHeight**（与 CSS max-height 同一条约束源），
+   别改回 ForumMain 的字数估算 —— 两套判据不同源会静默切字。
    实现：ResizeObserver 管「容器变宽/变窄、展开收起」这些盒子尺寸变化；
    watch 管「内容变了但盒子没变」的场景（RO 对 max-height 钳住的元素不触发）。
    `+1` 容差吸收亚像素舍入（zoom/缩放下 scrollHeight 可能比 clientHeight 大 1px 却没有真溢出）。 */
 const bodyTextEl = ref(null);
 const bodyOverflowing = ref(false);
+/* 最后一行「实际文字的右端」距容器左边的像素值（CSS 变量喂给省略号伪元素）。
+   0 表示没算出来 —— 此时省略号退回右下角（旧行为，不会再出错）。 */
+const bodyEllipsisLeft = ref(0);
 let bodyResizeObserver = null;
 
+/**
+ * 量两件事：① 是否真的溢出（scrollHeight 比 clientHeight 大）；
+ * ② 溢出时**最后一行文字停在哪个 x 坐标**。
+ *
+ * 为什么需要 ②（2026-11-26 用户口径 18:47「省略号跟在正文截断处后面」）：
+ * 旧做法把 `...` 绝对定位在 `right: 0`，于是它永远贴在行尾最右边，
+ * 而正文在两三成位置就断掉了 —— 中间一长条空白，看着像省略号「飘」在那儿。
+ *
+ * 算法：拿第 4 行（被钳住的最后一行）的行首/行尾字符做 Range 测量。
+ * 具体做法是把可见区域的**最后一个字符节点**找出来 —— 用 Range 逐行探测太贵，
+ * 这里用「容器底部上方 1px 处的文本位置」近似：从末尾往前逐段测 Range 的
+ * rect.bottom，找到第一段底部 ≤ 可见底线（clientHeight）的位置，取它右侧最远点。
+ */
 const measureBodyOverflow = () => {
   const el = bodyTextEl.value;
-  bodyOverflowing.value = Boolean(el && el.scrollHeight > el.clientHeight + 1);
+  if (!el) {
+    bodyOverflowing.value = false;
+    bodyEllipsisLeft.value = 0;
+    return;
+  }
+  const overflowing = el.scrollHeight > el.clientHeight + 1;
+  bodyOverflowing.value = overflowing;
+  if (!overflowing) {
+    bodyEllipsisLeft.value = 0;
+    return;
+  }
+
+  const clipBottom = el.clientHeight;
+  const textNode = el.firstChild;
+  if (!textNode || textNode.nodeType !== 3) {
+    bodyEllipsisLeft.value = 0;
+    return;
+  }
+
+  const text = textNode.textContent || '';
+  const range = document.createRange();
+  const box = el.getBoundingClientRect();
+  const leftEdge = box.left;
+  /* 可见区的**绝对**底边（视口坐标）：box.top 是元素顶边，clientHeight 是钳住后的
+     可见高度，两者相加才是第 4 行的底部。rects 也是视口坐标 ⇒ 同系可比。 */
+  const visibleBottom = box.top + clipBottom;
+
+  /* 从末尾往前扫，找到「最后一段仍落在可见区内」的文字，取它最右端。
+     ⚠️ 两个坑（2026-11-26 实测）：
+       ① 不能用「整段 rects 全部在界内」判 —— pre-wrap 下换行会把一段拆成多个
+          rect，只要有一个跨行就越界，整段被误判，结果永远测不出（第一版 hasAnchor 恒 false）；
+       ② 不能取「所有可见 rect 的最右端」—— 长段落上方行尾可能比末行更靠右，
+          那样会得到 384/400 这种「贴着行尾」的值，等于没修。
+     所以：**从末尾往前找第一个可见 rect 就停**，那就是末行真正断掉的位置。 */
+  const STEP = 4;
+  let anchor = 0;
+  for (let end = text.length; end > 0; end -= STEP) {
+    const start = Math.max(0, end - STEP);
+    range.setStart(textNode, start);
+    range.setEnd(textNode, end);
+    const rects = range.getClientRects();
+    if (!rects.length) continue;
+    /* 这一段里最靠下的 rect 就是最接近末行的；它若在可见区内，即末行 */
+    let lowest = rects[0];
+    for (const rect of rects) {
+      if (rect.bottom > lowest.bottom) lowest = rect;
+    }
+    if (lowest.bottom <= visibleBottom + 1 && lowest.right > 0) {
+      anchor = lowest.right;
+      break;
+    }
+  }
+
+  bodyEllipsisLeft.value = anchor > 0 ? Math.round(anchor - leftEdge) : 0;
 };
+
+/** 省略号定位：优先贴文字末端（+ 留一点与省略号的呼吸缝），算不出则退回右下角 */
+const bodyEllipsisStyle = computed(() => {
+  const left = bodyEllipsisLeft.value;
+  if (!left) return {};
+  return { '--ellipsis-left': `${left}px` };
+});
 
 watch(
   () => [props.post?.id, props.post?.displayBody],
@@ -272,32 +296,13 @@ const quotedBody = computed(() => {
   return stripped.length > 120 ? `${stripped.slice(0, 120)}…` : stripped;
 });
 
-// 官方卡（新闻/活动镜像）：author_id 为空、作者固定「方块之家」，头像用站点 logo
-const OFFICIAL_AUTHOR_NAME = '方块之家';
-const isOfficialCard = computed(() => {
-  const p = props.post || {};
-  if (p.post_kind === 'news' || p.post_kind === 'activity') return true;
-  return !p.author_id && String(p.author_username || '').trim() === OFFICIAL_AUTHOR_NAME;
-});
+// 官方卡判定走 forum-helpers 唯一真源（plans/051 批 2 抽出）
+const isOfficialCard = computed(() => isOfficialForumPost(props.post));
 const authorAvatarSrc = computed(() =>
   isOfficialCard.value
     ? getImageUrl('favicon.webp', { silent: true })
     : getAvatarUrl(props.post?.author_avatar_url, 'sm'),
 );
-
-// 头像框：官方卡不渲染；作者=自己时走本地佩戴状态，他人走数据字段（Phase 2）
-const authorFrame = computed(() =>
-  isOfficialCard.value
-    ? null
-    : resolveFrameForAuthor(props.post?.author_avatar_frame_url, props.post?.author_id),
-);
-const replyFrameMap = computed(() => {
-  const map = new Map();
-  for (const reply of props.post?.replies || []) {
-    map.set(reply.id, resolveFrameForAuthor(reply.author_avatar_frame_url, reply.author_id));
-  }
-  return map;
-});
 
 const escapeHtml = (value) =>
   String(value || '')
@@ -317,6 +322,7 @@ const renderSearchExcerpt = (excerpt) => {
   return result;
 };
 
+// 卡片预览不再就地分页（plans/051 拍板 1）：超过预览量就给「查看全部」跳详情
 const shouldShowMoreRepliesLink = (post) => {
   const previewCount = Array.isArray(post?.replies) ? post.replies.length : 0;
   return Boolean(post?.replies_has_more || Number(post?.comment_count || 0) > previewCount);
@@ -343,35 +349,16 @@ const onLazyImageRef = (el) => {
   if (el) nextTick(() => emit('lazy-image-observe', el));
 };
 
-// 横向图片条当前页序（n/N 指示胶囊用）
+// 横向图片条当前页序（n/N 只读指示胶囊，plans/051 拍板 8：跳段移交 ForumImageViewer）
 const stripIndex = ref(0);
-// 点击分段横条时若图片尚未补全，先记下目标段，等 allImages 补全后统一滚动
-const pendingStripScrollIndex = ref(-1);
 
-// 点击跳转的高亮锁定：平滑滚动期间 scroll 折算与"到底修正"会瞬时覆盖目标段，
-// 锁定窗口（≥ smooth 滚动时长）内高亮恒为目标段
-let stripLockIndex = -1;
-let stripLockTimer = null;
-const lockStripIndex = (index) => {
-  stripLockIndex = index;
-  stripIndex.value = index;
-  if (stripLockTimer) clearTimeout(stripLockTimer);
-  stripLockTimer = setTimeout(() => {
-    stripLockIndex = -1;
-    stripLockTimer = null;
-  }, 900);
-};
-
-// 滚动跟随：更新分段横条页序；滚近右端（或整条即可见全量时）触发补全剩余图片，
-// 防抖由宿主 ForumMain 的 in-flight 去重承担
+// 滚动跟随：折算当前段点亮胶囊；滚近右端（或整条即可见全量时）触发补全剩余图片。
+// ⚠️ 补全链是红线（plans/051 §4-5）：hiddenImageCount → load-more-images 一段不能断。
 const onStripScroll = (post, event) => {
   const el = event?.target;
   if (!el) return;
-  if (stripLockIndex >= 0) return;
   const total = Math.max(1, Number(post?.imageCount || 1));
   if (post?.hasMultipleImages) {
-    // 高亮跟随：按格折算（scrollLeft / 单张步长），但滚动上限 = 总宽 - 视口宽，
-    // 视口能同时容纳多张时按格折算永远到不了末段——所以"接近最右"时强制点亮末段。
     const shell = el.querySelector('.image-post-thumb-shell');
     const gap = parseFloat(getComputedStyle(el).columnGap) || 10;
     const step = shell ? shell.offsetWidth + gap : 1;
@@ -387,47 +374,6 @@ const onStripScroll = (post, event) => {
     emit('load-more-images', post);
   }
 };
-
-const scrollToStripIndex = (strip, targetIndex) => {
-  // 用目标 shell 的真实 offsetLeft（子项累计布局值），比 i*(w+gap) 推算更准
-  const target = strip.children[targetIndex];
-  if (!target) return;
-  strip.scrollTo({ left: Math.max(0, target.offsetLeft - strip.clientLeft), behavior: 'smooth' });
-};
-
-// 点击分段横条跳转到对应图；目标图尚未补全时先触发补全，完成后由 watch 接力滚动
-const goToStripIndex = (post, targetIndex, event) => {
-  const strip = event?.currentTarget
-    ?.closest?.('.image-post-strip-wrap')
-    ?.querySelector('.image-post-strip');
-  if (!strip) return;
-  // 高亮锁定目标段，滚动结束（窗口到期）后恢复折算跟随
-  lockStripIndex(targetIndex);
-  if (post?.hiddenImageCount > 0) {
-    pendingStripScrollIndex.value = targetIndex;
-    emit('load-more-images', post);
-    return;
-  }
-  scrollToStripIndex(strip, targetIndex);
-};
-
-watch(
-  () => props.post?.allImages?.length,
-  () => {
-    const target = pendingStripScrollIndex.value;
-    if (target < 0) return;
-    pendingStripScrollIndex.value = -1;
-    lockStripIndex(target);
-    nextTick(() => {
-      const strip = props.post
-        ? document.querySelector(
-            `[data-forum-post-id="${CSS.escape(String(props.post.id))}"] .image-post-strip`,
-          )
-        : null;
-      if (strip) scrollToStripIndex(strip, target);
-    });
-  },
-);
 
 const { fetchUserTier, fetchUserTiersBatch, getNicknameClass } = useUserTier();
 const authorTierClass = ref('');
@@ -447,7 +393,8 @@ watch(
     if (id) {
       const tier = await fetchUserTier(id);
       authorTierClass.value = getNicknameClass(id);
-      authorTierCode.value = tier;
+      // plans/051 拍板 6：卡色 Ultra 独占，pro/max 不再上卡
+      authorTierCode.value = tier === 'ultra' ? 'ultra' : '';
     } else {
       authorTierClass.value = '';
       authorTierCode.value = '';
@@ -463,7 +410,7 @@ const replyTierMap = useTierMap(
   fetchUserTiersBatch,
 );
 
-// 引用框随原帖作者订阅层级显示卡色（与帖子卡片 tier 微色调同源）
+// 引用框随原帖作者订阅层级显示卡色 —— 同拍板 6，只认 Ultra
 const quotedTierCode = ref('');
 const quotedNickClass = ref('');
 watch(
@@ -475,25 +422,87 @@ watch(
       return;
     }
     const tier = await fetchUserTier(id);
-    // 2026-11-24（plans/046）：plus 已并入 pro —— `fetchUserTier` 走归一表，
-    // 历史 `plan_code='plus'` 的用户拿到的就是 'pro'，白名单不需要 plus 这一项。
-    quotedTierCode.value = ['pro', 'max', 'ultra'].includes(tier) ? tier : '';
+    quotedTierCode.value = tier === 'ultra' ? 'ultra' : '';
     quotedNickClass.value = getNicknameClass(id);
   },
   { immediate: true },
 );
+
+/* ── 卡片 ⋯ 菜单（plans/051 拍板 7：低频操作收口）────────────────────── */
+const canManagePost = computed(
+  () =>
+    props.isLoggedIn &&
+    (String(props.post?.author_id || '') === String(props.userInfo?.id || '') ||
+      props.userInfo?.role === 'admin'),
+);
+const canReportPost = computed(
+  () =>
+    props.isLoggedIn &&
+    !!props.post?.author_id &&
+    String(props.post.author_id) !== String(props.userInfo?.id || ''),
+);
+const actionMenuItems = computed(() => {
+  const items = [
+    { key: 'share', label: '分享…' },
+    { key: 'copy-link', label: '复制链接' },
+  ];
+  if (canReportPost.value) items.push({ key: 'report', label: '举报' });
+  if (canManagePost.value) items.push({ key: 'delete', label: '删除', danger: true });
+  return items;
+});
+
+const onMenuSelect = (key) => {
+  const post = props.post;
+  if (!post) return;
+  if (key === 'share') emit('share', post);
+  else if (key === 'copy-link') emit('copy-link', post);
+  else if (key === 'report') emit('report-post', post);
+  else if (key === 'delete') emit('delete-post', post);
+};
+
+/* ── 卡内回复输入（ReplyComposer 唯一真源）────────────────────────────── */
+// 目标只来自评论区行内的「回复」按钮（父级 activeReplyTarget，postId 匹配本卡才生效）
+const composerTarget = computed(() => {
+  const t = props.activeReplyTarget;
+  if (t && String(t.postId || '') === String(props.post.id || '')) return t;
+  return null;
+});
+
+const composerPlaceholder = computed(() =>
+  composerTarget.value?.username ? `回复 @${composerTarget.value.username}…` : '写下你的回复…',
+);
+
+const onSubmitReply = () => {
+  emit('submit-reply', props.post);
+};
+
+const onClearReplyTarget = () => {
+  emit('clear-reply-target', props.post.id);
+};
+
+/* ── 删除入口（用户口径 2026-11-26）：不直接显示 ×，点击自己发的评论才浮出「删除」──
+   只有本人 / admin 的评论可点出操作态；再点一次或点别的评论即收起。 */
+const ownReplyActionsId = ref(null);
+
+const isOwnReply = (reply) =>
+  props.isLoggedIn &&
+  (String(reply?.author_id || '') === String(props.userInfo?.id || '') ||
+    props.userInfo?.role === 'admin');
+
+const onReplyBodyClick = (reply) => {
+  if (!isOwnReply(reply)) return;
+  ownReplyActionsId.value = ownReplyActionsId.value === reply.id ? null : reply.id;
+};
 </script>
 
 <template>
   <article
-    class="post-card-v2 glass-panel"
+    class="post-card-v2"
     :data-forum-post-id="post.id"
     :class="{
       'image-post-card-v2': post.hasImages,
       'is-expanded': isExpanded || (activeReplyTarget && activeReplyTarget.postId === post.id),
       'is-new-post': isHighlighted,
-      'tier-pro': authorTierCode === 'pro',
-      'tier-max': authorTierCode === 'max',
       'tier-ultra': authorTierCode === 'ultra',
     }"
     :style="{ '--post-appear-delay': `${Math.min(index, 8) * 45}ms` }"
@@ -514,46 +523,20 @@ watch(
     >
       <img :src="getPostBackgroundCatSrc(post, index)" alt="" draggable="false" loading="lazy" />
     </figure>
+
     <div class="post-header-v2">
-      <div class="post-author-section">
-        <span class="boh-avatar-wrap">
-          <div class="post-author-avatar" :class="{ 'is-official': isOfficialCard }">
-            <img
-              v-if="authorAvatarSrc"
-              :src="authorAvatarSrc"
-              alt="作者头像"
-              class="avatar-image"
-              loading="lazy"
-              decoding="async"
-              fetchpriority="low"
-            />
-            <span v-else>{{
-              post.author_username ? post.author_username.charAt(0).toUpperCase() : 'U'
-            }}</span>
-          </div>
-          <span
-            v-if="authorFrame"
-            class="boh-avatar-frame"
-            :style="{
-              '--boh-avatar-frame-url': `url(${authorFrame.url})`,
-              '--boh-avatar-frame-scale': String(authorFrame.scale),
-            }"
-            aria-hidden="true"
-          ></span>
-        </span>
-        <div class="post-author-info">
-          <span
-            class="post-author-v2"
-            :class="authorTierClass"
-            @click.stop="isOfficialCard ? undefined : emit('go-to-profile', post.author_username)"
-            >@{{ post.author_username }}</span
-          >
-          <span v-if="post.author_is_banned" class="author-banned-pill" title="该账号已被封禁"
-            >已封禁</span
-          >
-          <span class="post-date-v2">{{ formatDate(post.created_at) }}</span>
-        </div>
-      </div>
+      <ReplyIdentityRow
+        size="lg"
+        :username="post.author_username"
+        :avatar-url="authorAvatarSrc"
+        :avatar-frame-url="isOfficialCard ? '' : post.author_avatar_frame_url"
+        :author-id="post.author_id"
+        :banned="!!post.author_is_banned"
+        :time="formatDate(post.created_at)"
+        :tier-class="authorTierClass"
+        :profile-clickable="!isOfficialCard"
+        @go-to-profile="(u) => emit('go-to-profile', u)"
+      />
     </div>
 
     <div class="post-content-v2">
@@ -563,31 +546,9 @@ watch(
         {{ post.displayTitle }}
         <span v-if="post.status === 'limited'" class="post-status-pill limited">仅自己可见</span>
       </h3>
-      <div v-if="post.tagLabel || post.location_name" class="post-card-tags">
-        <span v-if="post.tagLabel" class="post-card-tag">{{ post.tagLabel }}</span>
-        <span v-if="post.location_name" class="post-card-tag location-tag"
-          ><MapPin :size="12" :stroke-width="2.5" /> {{ post.location_name }}</span
-        >
-      </div>
-      <!-- wrap 不滚动：n/N 指示胶囊锚在可视区右上角，不会随内容滚走 -->
+      <!-- wrap 不滚动：n/N 只读指示胶囊锚在可视区右上角，不会随内容滚走。
+           分段横条已按 plans/051 拍板 8 删除，跳段能力由 ForumImageViewer 承接。 -->
       <div v-if="post.hasImages" class="image-post-strip-wrap">
-        <!-- 分段横条位置指示：随滑动高亮当前段，点击可跳转到对应图 -->
-        <div
-          v-if="post.hasMultipleImages"
-          class="image-strip-dots"
-          :aria-label="`图片位置指示，共 ${post.imageCount} 张`"
-        >
-          <button
-            v-for="dotIndex in post.imageCount"
-            :key="dotIndex"
-            type="button"
-            class="image-strip-dot"
-            :class="{ 'is-active': stripIndex === dotIndex - 1 }"
-            :aria-label="`查看第 ${dotIndex} 张图片`"
-            :aria-current="stripIndex === dotIndex - 1"
-            @click.stop="goToStripIndex(post, dotIndex - 1, $event)"
-          ></button>
-        </div>
         <span v-if="post.hasMultipleImages" class="image-strip-indicator" aria-hidden="true">
           {{ stripIndex + 1 }} / {{ post.imageCount }}
         </span>
@@ -678,16 +639,21 @@ watch(
         v-html="renderSearchExcerpt(post.search_excerpt)"
       ></p>
       <!-- ⚠️ is-overflowing 由本组件实测 scrollHeight>clientHeight 决定（P2-4），
-           别改回 ForumMain 的字数估算 —— 那套判据与 CSS 的 5 行 max-height 不同源。 -->
-      <p ref="bodyTextEl" class="post-text-v2" :class="{ 'is-overflowing': bodyOverflowing }">
+           别改回 ForumMain 的字数估算 —— 那套判据与 CSS 的 4 行 max-height 不同源。 -->
+      <p
+        ref="bodyTextEl"
+        class="post-text-v2"
+        :class="{ 'is-overflowing': bodyOverflowing, 'has-ellipsis-anchor': bodyEllipsisLeft > 0 }"
+        :style="bodyEllipsisStyle"
+      >
         {{ post.displayBody }}
       </p>
-      <!-- 转发帖引用框：转发文字在上，原帖信息框在下，点击进原帖详情 -->
+      <!-- 转发帖引用框：降阶灰底块（plans/051 §0），Ultra 独占染色，点击进原帖详情 -->
       <button
         v-if="post.quotedPost"
         type="button"
         class="quoted-post-box"
-        :class="[quotedTierCode ? `tier-${quotedTierCode}` : '']"
+        :class="[quotedTierCode === 'ultra' ? 'tier-ultra' : '']"
         aria-label="查看被转发的原帖"
         @click.stop="emit('click', post.quotedPost.id)"
       >
@@ -699,78 +665,41 @@ watch(
       </button>
     </div>
 
-    <!-- 操作栏 -->
+    <!-- 操作栏（拍板 3：赞 / 评 / ⋯ 三件，无顶部分割线靠留白分隔） -->
     <div class="post-actions-v2" @click.stop>
       <div class="actions-left-v2">
+        <LikeButton
+          :count="post.like_count || 0"
+          :liked="!!post.isLiked"
+          :pulsing="isLikedPulsing"
+          :submitting="isLikeSubmitting"
+          :cat-src="isHomeCatActive ? getHomeCatAsset('like') : ''"
+          @toggle="emit('toggle-like', post)"
+        />
         <button
-          class="action-item-v2 like-btn-v2"
-          @click="emit('toggle-like', post)"
-          :class="{ 'is-liked': post.isLiked, 'is-pulsing': isLikedPulsing }"
-          :disabled="isLikeSubmitting"
-        >
-          <img
-            v-if="isHomeCatActive && isLikedPulsing"
-            class="like-pop-cat-img"
-            :src="getHomeCatAsset('like')"
-            alt=""
-            draggable="false"
-            loading="lazy"
-          />
-          <Heart
-            class="action-svg-v2"
-            :size="17"
-            :stroke-width="1.8"
-            :fill="post.isLiked ? 'currentColor' : 'none'"
-            aria-hidden="true"
-          />
-          <span class="action-count-v2">{{ post.like_count || 0 }}</span>
-        </button>
-
-        <button
+          type="button"
           class="action-item-v2 replies-btn-v2"
           @click="emit('toggle-replies', post)"
           aria-label="查看评论"
         >
           <MessageCircle class="action-svg-v2" :size="17" :stroke-width="1.8" aria-hidden="true" />
-          <span class="action-count-v2">{{ post.comment_count || 0 }}</span>
+          <span v-if="Number(post.comment_count || 0) > 0" class="action-count-v2">{{
+            post.comment_count
+          }}</span>
         </button>
       </div>
-
       <div class="actions-right-v2">
-        <button
-          class="action-item-v2 icon-only-action-v2 reply-btn-v2"
-          @click="emit('toggle-reply-input', post.id)"
-          aria-label="回复"
-          title="回复"
-        >
-          <Reply class="action-svg-v2" :size="17" :stroke-width="1.8" aria-hidden="true" />
-        </button>
-        <button
-          class="action-item-v2 icon-only-action-v2 share-btn-v2"
-          :class="{ 'is-copy-success': isShareCopied }"
-          :aria-label="isShareCopied ? '链接已复制' : '分享'"
-          :title="isShareCopied ? '已复制' : '分享'"
-          @click="emit('share', post)"
-        >
-          <Check
-            v-if="isShareCopied"
-            class="action-svg-v2"
-            :size="17"
-            :stroke-width="2"
-            aria-hidden="true"
-          />
-          <Share2 v-else class="action-svg-v2" :size="17" :stroke-width="1.8" aria-hidden="true" />
-        </button>
+        <transition name="copy-hint">
+          <span v-if="isShareCopied" class="copy-hint-pill" aria-live="polite">已复制</span>
+        </transition>
+        <CardActionsMenu :items="actionMenuItems" @select="onMenuSelect" />
       </div>
     </div>
 
-    <!-- 回复输入 (支持多级回复) -->
-    <transition :css="false" @enter="onReplyEnter" @leave="onReplyLeave">
-      <div
-        v-if="activeReplyTarget && activeReplyTarget.postId === post.id"
-        class="reply-input-section-v2"
-        @click.stop
-      >
+    <!-- 评论区（拍板 1：卡片只预览，「查看全部」跳详情；输入框常驻底部） -->
+    <transition :css="false" @enter="onRepliesEnter" @leave="onRepliesLeave">
+      <div v-if="isExpanded" class="replies-list" @click.stop>
+        <!-- home-cat 回复成功猫弹层（拍板 5：动画全保留；样式真源 feed.css .reply-success-pop-cat-img） -->
         <img
           v-if="isHomeCatActive && isReplySuccess"
           class="reply-success-pop-cat-img"
@@ -779,224 +708,106 @@ watch(
           draggable="false"
           loading="lazy"
         />
-        <div v-if="activeReplyTarget.username" class="reply-target-hint">
-          正在回复 <span class="target-user">@{{ activeReplyTarget.username }}</span>
-          <button class="clear-target-btn" @click="emit('clear-reply-target', post.id)">×</button>
-        </div>
-        <textarea
-          ref="replyTextareaRef"
-          :value="replyContent"
-          @input="emit('update:reply-content', $event.target.value)"
-          :placeholder="
-            activeReplyTarget.username
-              ? `回复 @${activeReplyTarget.username}...`
-              : '写下你的回复...'
-          "
-          class="reply-textarea-v2"
-          rows="2"
-          enterkeyhint="send"
-          autocapitalize="off"
-          autocorrect="off"
-        ></textarea>
-        <div class="reply-actions-v2">
-          <button class="cancel-reply-btn-v2" @click="emit('cancel-reply')">取消</button>
-          <button
-            class="submit-reply-btn-v2"
-            @click="emit('submit-reply', post)"
-            :disabled="isReplySubmitting || replyCooldownSeconds > 0"
+        <template v-if="post.replies && post.replies.length > 0">
+          <div
+            v-for="reply in post.replies"
+            :key="reply.id"
+            class="reply-item-v2"
+            :class="{
+              'is-child': !!reply.parent_id,
+              'is-actions-open': ownReplyActionsId === reply.id,
+            }"
+            @click.stop="onReplyBodyClick(reply)"
           >
-            {{ isReplySubmitting ? '发送中...' : replySubmitLabel }}
-          </button>
-        </div>
-      </div>
-    </transition>
-
-    <!-- 回复列表 (优化多级显示) -->
-    <transition :css="false" @enter="onRepliesEnter" @leave="onRepliesLeave">
-      <div
-        v-if="isExpanded && post.replies && post.replies.length > 0"
-        class="replies-list"
-        @click.stop
-      >
-        <div v-for="reply in post.replies" :key="reply.id" class="reply-item-v2">
-          <div class="reply-header-v2">
-            <span class="boh-avatar-wrap">
-              <div class="reply-avatar">
-                <img
-                  v-if="reply.author_avatar_url"
-                  :src="getAvatarUrl(reply.author_avatar_url, 'xs')"
-                  alt="回复者头像"
-                  class="avatar-image"
-                  loading="lazy"
-                  decoding="async"
-                  fetchpriority="low"
-                />
-                <span v-else>{{
-                  reply.author_username ? reply.author_username.charAt(0).toUpperCase() : 'U'
-                }}</span>
-              </div>
-              <span
-                v-if="replyFrameMap.get(reply.id)"
-                class="boh-avatar-frame"
-                :style="{
-                  '--boh-avatar-frame-url': `url(${replyFrameMap.get(reply.id).url})`,
-                  '--boh-avatar-frame-scale': String(replyFrameMap.get(reply.id).scale),
-                }"
-                aria-hidden="true"
-              ></span>
-            </span>
-            <div class="reply-content-wrapper">
-              <div class="reply-user-info">
-                <span
-                  class="reply-author-v2"
-                  :class="replyTierMap[reply.author_id] || ''"
-                  @click="emit('go-to-profile', reply.author_username)"
-                  >{{ reply.author_username }}</span
-                >
-                <span
-                  v-if="reply.author_is_banned"
-                  class="author-banned-pill"
-                  title="该账号已被封禁"
-                  >已封禁</span
-                >
-                <span
-                  v-if="
-                    shouldShowReplyTarget(
-                      reply.reply_to_username,
-                      reply.parent_id ? null : reply.author_username,
-                    )
-                  "
-                  class="reply-to-tag"
-                >
-                  回复 <span class="target-name">@{{ reply.reply_to_username }}</span>
-                </span>
-              </div>
-              <p class="reply-text-v2">{{ reply.content }}</p>
-              <div class="reply-meta-v2">
-                <span class="reply-date-v2">{{ formatDate(reply.created_at) }}</span>
-                <button
-                  class="reply-action-btn"
-                  @click="
-                    emit(
-                      'toggle-reply-input',
-                      post.id,
-                      reply.parent_id || reply.id,
-                      reply.author_username,
-                      reply.content,
-                      reply.parent_id ? null : reply.author_username,
-                    )
-                  "
-                >
-                  回复
-                </button>
-                <button
-                  v-if="
-                    isLoggedIn && (reply.author_id === userInfo.id || userInfo.role === 'admin')
-                  "
-                  class="delete-comment-btn-v2"
-                  @click="emit('delete-comment', reply, post)"
-                >
-                  ×
-                </button>
-              </div>
+            <ReplyIdentityRow
+              size="md"
+              :username="reply.author_username"
+              :avatar-url="
+                reply.author_avatar_url ? getAvatarUrl(reply.author_avatar_url, 'xs') : ''
+              "
+              :avatar-frame-url="reply.author_avatar_frame_url || ''"
+              :author-id="reply.author_id"
+              :banned="!!reply.author_is_banned"
+              :time="formatDate(reply.created_at)"
+              :reply-to="reply.reply_to_username"
+              :root-author="reply.parent_id ? null : reply.author_username"
+              :tier-class="replyTierMap[reply.author_id] || ''"
+              @go-to-profile="(u) => emit('go-to-profile', u)"
+            />
+            <p class="reply-text-v2">{{ reply.content }}</p>
+            <div class="reply-meta-v2">
+              <button
+                type="button"
+                class="reply-action-btn"
+                @click.stop="
+                  emit(
+                    'toggle-reply-input',
+                    post.id,
+                    reply.parent_id || reply.id,
+                    reply.author_username,
+                    reply.content,
+                    reply.parent_id ? null : reply.author_username,
+                  )
+                "
+              >
+                回复
+              </button>
+              <!-- 删除入口（用户口径）：点自己的评论才浮出，不是常驻 × -->
+              <button
+                v-if="ownReplyActionsId === reply.id"
+                class="delete-comment-btn-v2"
+                @click.stop="emit('delete-comment', reply, post)"
+              >
+                删除
+              </button>
             </div>
           </div>
+          <button
+            v-if="shouldShowMoreRepliesLink(post)"
+            type="button"
+            class="more-replies-link-v2"
+            @click.stop="emit('click', post.id)"
+          >
+            查看全部 {{ post.comment_count }} 条评论 ›
+          </button>
+        </template>
+        <!-- 骨架占位：先展开后加载期间的即时反馈（数据回来即被真实列表替换） -->
+        <div v-else-if="isRepliesLoading" class="replies-skeleton" aria-hidden="true">
+          <div v-for="n in 2" :key="n" class="reply-skeleton-item">
+            <span class="reply-skeleton-avatar"></span>
+            <span class="reply-skeleton-body">
+              <span class="reply-skeleton-line is-short"></span>
+              <span class="reply-skeleton-line is-long"></span>
+            </span>
+          </div>
         </div>
-        <button
-          v-if="shouldShowMoreRepliesLink(post)"
-          class="more-replies-link-v2"
-          @click="emit('more-replies', post.id)"
-        >
-          查看更多回复
+        <p v-else class="replies-empty">还没有评论，来抢沙发</p>
+
+        <ReplyComposer
+          v-if="isLoggedIn"
+          ref="composerRef"
+          class="replies-composer"
+          :model-value="replyContent"
+          :placeholder="composerPlaceholder"
+          :target-username="composerTarget?.username || ''"
+          :sending="isReplySubmitting"
+          :cooldown="replyCooldownSeconds"
+          :submit-label="replySubmitLabel"
+          @update:model-value="(v) => emit('update:reply-content', v)"
+          @send="onSubmitReply"
+          @clear-target="onClearReplyTarget"
+        />
+        <button v-else type="button" class="replies-login-hint" @click.stop="emit('need-login')">
+          登录后参与讨论
         </button>
-      </div>
-      <!-- 骨架占位：先展开后加载期间的即时反馈（数据回来即被上面的真实列表替换） -->
-      <div
-        v-else-if="isExpanded && isRepliesLoading"
-        class="replies-list replies-skeleton"
-        @click.stop
-        aria-hidden="true"
-      >
-        <div v-for="n in 2" :key="n" class="reply-skeleton-item">
-          <span class="reply-skeleton-avatar"></span>
-          <span class="reply-skeleton-body">
-            <span class="reply-skeleton-line is-short"></span>
-            <span class="reply-skeleton-line is-long"></span>
-          </span>
-        </div>
       </div>
     </transition>
   </article>
 </template>
 
 <style scoped>
-.post-author-section {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.author-banned-pill {
-  display: inline-flex;
-  align-items: center;
-  padding: 1px 6px;
-  font-size: 11px;
-  font-weight: 600;
-  line-height: 1.4;
-  color: #fff;
-  background: linear-gradient(135deg, #ef4444, #b91c1c);
-  border-radius: 6px;
-  margin-left: 6px;
-  letter-spacing: 0.2px;
-  vertical-align: middle;
-}
-
-.post-author-avatar {
-  width: 42px;
-  height: 42px;
-  border-radius: 50%;
-  background: #1d1d1f;
-  color: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 800;
-  font-size: 18px;
-  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.08);
-  overflow: hidden;
-  flex-shrink: 0;
-}
-
-.reply-avatar {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  background: #1d1d1f;
-  color: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 800;
-  font-size: 15px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-  overflow: hidden;
-  flex-shrink: 0;
-}
-
-.avatar-image {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-
 /* 评论区骨架占位（先展开后加载）：与列表同构，避免展开瞬间高度塌成 0。
-   中性灰 + alpha，浅色/深色主题都读得清；自身类名自成一套，不依赖 drawers-skeletons.css。 */
-.replies-skeleton {
-  /* 盒子（margin/padding/边框/圆角）复用 .replies-list，骨架与真实列表同形 */
-  display: block;
-}
-
+   灰底走 --appl-subtle token（plans/051 §3.3），浅色/深色主题都读得清。 */
 .reply-skeleton-item {
   display: flex;
   align-items: flex-start;
@@ -1005,15 +816,15 @@ watch(
 }
 
 .reply-skeleton-item + .reply-skeleton-item {
-  border-top: 1px solid rgba(127, 140, 160, 0.14);
+  border-top: 1px solid var(--appl-hairline);
 }
 
 .reply-skeleton-avatar {
-  flex: 0 0 36px;
-  width: 36px;
-  height: 36px;
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
-  background: rgba(127, 140, 160, 0.18);
+  background: var(--appl-subtle);
 }
 
 .reply-skeleton-body {
@@ -1029,7 +840,7 @@ watch(
   display: block;
   height: 10px;
   border-radius: 5px;
-  background: rgba(127, 140, 160, 0.18);
+  background: var(--appl-subtle);
 }
 
 .reply-skeleton-line.is-short {
@@ -1054,14 +865,6 @@ watch(
   }
   50% {
     opacity: 1;
-  }
-}
-
-@media (max-width: 768px) {
-  .post-author-avatar {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
   }
 }
 </style>

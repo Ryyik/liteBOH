@@ -317,118 +317,191 @@ try {
     const { ctx, page } = await newPage(browser);
     await openCommunity(page);
 
-    const opened = await page.evaluate(() => {
-      const btn = document.querySelector('.post-card-v2 .reply-btn-v2');
-      if (!btn) return false;
-      btn.click();
-      return true;
-    });
-    if (!opened)
-      throw new Error('找不到 .post-card-v2 .reply-btn-v2 —— 论坛卡片未渲染或选择器已改');
-    await page.waitForSelector('.reply-input-section-v2 .reply-textarea-v2', { timeout: 10000 });
-    await sleep(SETTLE);
-
-    const api = await runGrowthChecks(page, {
-      selector: '.reply-input-section-v2 .reply-textarea-v2',
-      label: '论坛卡片回复框',
-    });
-    report.info.cardBox = {
-      H0: api.H0,
-      maxHeight: api.MAX,
-      samples: api.samples,
-      capped: api.capped,
-    };
-    await page.screenshot({ path: `${OUT}/probe-reply-autogrow-capped.png` });
-
-    // ---------- F 竖屏键盘遮挡：只测量并报告 ----------
-    const occl = await page.evaluate(() => {
-      const el = document.querySelector('.reply-input-section-v2 .reply-textarea-v2');
-      const actions = document.querySelector('.reply-input-section-v2 .reply-actions-v2');
-      if (!el || !actions) return null;
-      const vv = window.visualViewport;
-      const visibleBottom = vv ? vv.offsetTop + vv.height : window.innerHeight;
-      return {
-        innerHeight: window.innerHeight,
-        visualViewportHeight: vv ? Math.round(vv.height) : null,
-        textareaBottom: Math.round(el.getBoundingClientRect().bottom),
-        actionsBottom: Math.round(actions.getBoundingClientRect().bottom),
-        visibleBottom: Math.round(visibleBottom),
-        actionsOccluded: actions.getBoundingClientRect().bottom > visibleBottom,
-      };
-    });
-    report.info.keyboardOcclusion = occl;
-    console.log(
-      `INFO  键盘遮挡测量（未断言）：textarea 底边 ${occl?.textareaBottom} / 操作行底边 ${occl?.actionsBottom} / 可视底 ${occl?.visibleBottom} → 遮挡=${occl?.actionsOccluded}`,
-    );
-
-    // ---------- E 父组件改写内容：切到嵌套回复后必须回落 ----------
-    // 路径：同卡点嵌套回复的「回复」按钮 → toggleReplyInput(postId, parentId, username)
-    // → postId 不变、v-if 仍成立 → **同一个 textarea 元素**留在原地，但 replyContent 被
-    // buildReplyDraft(username) 换成 '@user '。这是 `:value` 受控写法下唯一会命中
-    // watch(value) 的真实路径，只绑 @input 的实现在这里不会收缩。
+    // plans/051 拍板 3：icon 回复按钮已删 ——「评论」按钮展开评论区，
+    // iMessage 输入框（ReplyComposer）常驻评论区底部，展开即聚焦。
+    //
+    // ⚠️ 选卡纪律：展开是「先展开后加载」——回复预览拉空/失败的卡会**自动收起**
+    // （ForumMain toggleRepliesList 的既有语义）。首卡常是官方新闻卡，探针环境里
+    // 其回复加载可能失败 ⇒ 不能锁死第一张，要挑一张「展开后稳住」的卡，
+    // 再把其余卡收起，让「文档里第一个 .replies-composer」唯一落在目标卡上。
     await page.evaluate(() => {
       const cards = [...document.querySelectorAll('.post-card-v2')].slice(0, 6);
       for (const card of cards) card.querySelector('.replies-btn-v2')?.click();
     });
-    const nestedReady = await waitForInPage(
+    // 等加载竞态走完：目标卡要「展开 + 回复行已渲染 + 输入框在」三者齐备。
+    // 拉空/失败的卡会被 toggleRepliesList 自动收起 —— 轮询最多 15s，别用固定 sleep
+    // （慢网下 fetch 3s 内回不来，固定等待会把「还在加载」的卡误判成稳定卡）。
+    const stableIdx = await waitForInPage(
       page,
       () => {
-        const btn = document.querySelector('.reply-item-v2 .reply-action-btn');
-        if (!btn) return { done: false };
-        const card = btn.closest('.post-card-v2');
-        return {
-          done: true,
-          cardIndex: [...document.querySelectorAll('.post-card-v2')].indexOf(card),
-        };
+        const cards = [...document.querySelectorAll('.post-card-v2')];
+        for (let i = 0; i < cards.length; i++) {
+          const card = cards[i];
+          if (
+            card.classList.contains('is-expanded') &&
+            card.querySelector('.reply-item-v2 .reply-action-btn') &&
+            card.querySelector('.replies-composer .composer-textarea')
+          ) {
+            return { done: true, index: i };
+          }
+        }
+        return { done: false };
       },
       { timeout: 15000 },
     );
-
-    if (!nestedReady?.done) {
+    if (!stableIdx?.done) {
       skip(
-        '论坛卡片回复框 · E 父组件改写内容后高度回落',
-        '前 6 张卡都没有可展开的回复（数据原因，非代码问题）',
+        '论坛卡片回复框 · A-D 高度四连',
+        '前 6 张卡展开后全部自动收起或回复未渲染（回复预览均拉空/失败，数据原因非代码问题）',
       );
     } else {
-      await page.evaluate((idx) => {
-        const cards = [...document.querySelectorAll('.post-card-v2')];
-        cards[idx]?.querySelector('.reply-btn-v2')?.click();
-      }, nestedReady.cardIndex);
-      await page.waitForSelector('.reply-input-section-v2 .reply-textarea-v2', { timeout: 10000 });
-      await sleep(SETTLE);
-      await api.set(lines(30));
-      await sleep(SETTLE);
-      const beforeSwitch = await page.evaluate(api.read);
+      const stableIdxNum = stableIdx.index;
+      // ⚠️ 收起其他卡的竞态：对「正在自动收起中（Set 已删但类名还在）」的卡再点一次
+      // toggle 会把它**重新展开**（has→false→add）。单轮收起 + 固定等待不可靠，
+      // 做成收敛式：多轮「只收已展开的 + 等一拍」，直到全文档只剩 stableIdx 一个
+      // 输入框；四轮不收敛就 skip（探针口径：数据/时序原因不算代码回归）。
+      let soloSettled = false;
+      for (let round = 0; round < 4 && !soloSettled; round++) {
+        await page.evaluate((idx) => {
+          const cards = [...document.querySelectorAll('.post-card-v2')];
+          cards.forEach((card, i) => {
+            // 只收起「已展开」的卡 —— toggle 语义下对未展开的卡点下去是展开不是收起
+            if (i !== idx && card.classList.contains('is-expanded')) {
+              card.querySelector('.replies-btn-v2')?.click();
+            }
+          });
+        }, stableIdxNum);
+        await sleep(900);
+        soloSettled = await page.evaluate((idx) => {
+          const cards = [...document.querySelectorAll('.post-card-v2')];
+          const othersExpanded = cards.some(
+            (c, i) => i !== idx && c.classList.contains('is-expanded'),
+          );
+          const target = cards[idx];
+          return (
+            !othersExpanded &&
+            Boolean(target?.classList.contains('is-expanded')) &&
+            document.querySelectorAll('.replies-composer .composer-textarea').length === 1
+          );
+        }, stableIdxNum);
+      }
+      if (!soloSettled) {
+        skip(
+          '论坛卡片回复框 · A-D 高度四连',
+          '四轮收起后仍无法收敛到唯一输入框（自动收起/重展开竞态未平息）',
+        );
+      } else {
+        await page.waitForSelector('.replies-composer .composer-textarea', { timeout: 10000 });
 
-      await page.evaluate((idx) => {
-        const cards = [...document.querySelectorAll('.post-card-v2')];
-        cards[idx]?.querySelector('.reply-item-v2 .reply-action-btn')?.click();
-      }, nestedReady.cardIndex);
-      await sleep(SETTLE);
-      const afterSwitch = await page.evaluate(api.read);
-      report.info.switchBox = afterSwitch;
+        const api = await runGrowthChecks(page, {
+          selector: '.replies-composer .composer-textarea',
+          label: '论坛卡片回复框',
+        });
+        report.info.cardBox = {
+          H0: api.H0,
+          maxHeight: api.MAX,
+          samples: api.samples,
+          capped: api.capped,
+        };
+        await page.screenshot({ path: `${OUT}/probe-reply-autogrow-capped.png` });
 
-      check(
-        '论坛卡片回复框 · E 父组件改写内容后高度回落',
-        Boolean(beforeSwitch) &&
-          Boolean(afterSwitch) &&
-          afterSwitch.value !== beforeSwitch.value &&
-          afterSwitch.clientHeight < beforeSwitch.clientHeight &&
-          afterSwitch.clientHeight <= api.H0 + 24,
-        `改写前=${beforeSwitch?.clientHeight}(len ${beforeSwitch?.value.length}) 改写后=${afterSwitch?.clientHeight}(len ${afterSwitch?.value.length} value=${JSON.stringify(afterSwitch?.value?.slice(0, 12))}) 初始=${api.H0}`,
-      );
-      await page.screenshot({ path: `${OUT}/probe-reply-autogrow-after-switch.png` });
+        // ---------- F 竖屏键盘遮挡：只测量并报告 ----------
+        const occl = await page.evaluate(() => {
+          const el = document.querySelector('.replies-composer .composer-textarea');
+          const actions = document.querySelector('.replies-composer .composer-send');
+          if (!el || !actions) return null;
+          const vv = window.visualViewport;
+          const visibleBottom = vv ? vv.offsetTop + vv.height : window.innerHeight;
+          return {
+            innerHeight: window.innerHeight,
+            visualViewportHeight: vv ? Math.round(vv.height) : null,
+            textareaBottom: Math.round(el.getBoundingClientRect().bottom),
+            actionsBottom: Math.round(actions.getBoundingClientRect().bottom),
+            visibleBottom: Math.round(visibleBottom),
+            actionsOccluded: actions.getBoundingClientRect().bottom > visibleBottom,
+          };
+        });
+        report.info.keyboardOcclusion = occl;
+        console.log(
+          `INFO  键盘遮挡测量（未断言）：textarea 底边 ${occl?.textareaBottom} / 操作行底边 ${occl?.actionsBottom} / 可视底 ${occl?.visibleBottom} → 遮挡=${occl?.actionsOccluded}`,
+        );
+
+        // ---------- E 父组件改写内容：切到嵌套回复后必须回落 ----------
+        // 路径：同卡点嵌套回复的「回复」按钮 → toggleReplyInput(postId, parentId, username)
+        // → postId 不变、v-if 仍成立 → **同一个 textarea 元素**留在原地，但 replyContent 被
+        // buildReplyDraft(username) 换成 '@user '。这是 `:value` 受控写法下唯一会命中
+        // watch(value) 的真实路径，只绑 @input 的实现在这里不会收缩。
+        //
+        // plans/051 批 2：输入框随评论区常驻 —— 不再整组重开（那会把 A-D 选中的稳定卡
+        // 收掉、又撞上「展开后回复拉空自动收起」的竞态）。直接复用 A-D 选中的稳定卡：
+        // 它的回复预览已加载成功，必然有可点的行内「回复」按钮。
+        const eReady = await waitForInPage(
+          page,
+          () => {
+            const card = document.querySelector('.post-card-v2.is-expanded');
+            if (!card?.querySelector('.reply-item-v2 .reply-action-btn')) return { done: false };
+            return {
+              done: true,
+              composerCount: document.querySelectorAll('.replies-composer .composer-textarea')
+                .length,
+            };
+          },
+          { timeout: 15000 },
+        );
+        if (!eReady?.done) {
+          skip(
+            '论坛卡片回复框 · E 父组件改写内容后高度回落',
+            '稳定卡上没有可点的行内回复（数据原因，非代码问题）',
+          );
+        } else if (eReady.composerCount !== 1) {
+          skip(
+            '论坛卡片回复框 · E 父组件改写内容后高度回落',
+            `展开卡应恰有 1 个输入框，实测 ${eReady.composerCount} 个（时序异常）`,
+          );
+        } else {
+          await api.set(lines(30));
+          await sleep(SETTLE);
+          const beforeSwitch = await page.evaluate(api.read);
+
+          await page.evaluate(() => {
+            document
+              .querySelector('.post-card-v2.is-expanded')
+              ?.querySelector('.reply-item-v2 .reply-action-btn')
+              ?.click();
+          });
+          await sleep(SETTLE);
+          const afterSwitch = await page.evaluate(api.read);
+          report.info.switchBox = afterSwitch;
+
+          check(
+            '论坛卡片回复框 · E 父组件改写内容后高度回落',
+            Boolean(beforeSwitch) &&
+              Boolean(afterSwitch) &&
+              afterSwitch.value !== beforeSwitch.value &&
+              afterSwitch.clientHeight < beforeSwitch.clientHeight &&
+              afterSwitch.clientHeight <= api.H0 + 24,
+            `改写前=${beforeSwitch?.clientHeight}(len ${beforeSwitch?.value.length}) 改写后=${afterSwitch?.clientHeight}(len ${afterSwitch?.value.length} value=${JSON.stringify(afterSwitch?.value?.slice(0, 12))}) 初始=${api.H0}`,
+          );
+          await page.screenshot({ path: `${OUT}/probe-reply-autogrow-after-switch.png` });
+        }
+      }
     }
-
     // ---------- 绊线：ForumMain「引用转发弹窗」是死 UI，转发撰写在 ShareIsland ----------
     // 2026-10-13 复核（按类名扫出后运行时验证过）：PostCard 无 quote-repost 发射点，
     // ForumMain 的 quoteRepostState 弹窗全站不可达 —— 真实转发入口已迁至
     // ShareIsland 的 .share-compose-input（另一处组件，不在本探针接线范围内）。
     // 走一遍 分享 → 站内转发：ForumMain 的 section[aria-label="引用转发"] 必须保持 0 个。
     // 哪天真有人重新接线，这条会红，提醒同步接 useAutoGrowTextarea 并更新本探针。
+    // plans/051 拍板 7：分享收进卡片 ⋯ 菜单
     await page.evaluate(() => {
-      document.querySelector('.post-card-v2 .share-btn-v2')?.click();
+      document.querySelector('.post-card-v2 .card-actions-menu-trigger')?.click();
     });
+    await page.waitForSelector('.card-actions-menu-panel', { timeout: 10000 });
+    await page.evaluate(() => {
+      const items = [...document.querySelectorAll('.card-actions-menu-panel .menu-item')];
+      items.find((btn) => btn.textContent.includes('分享'))?.click();
+    });
+    await sleep(400);
     const islandUp = await waitForInPage(
       page,
       () => ({ done: Boolean(document.querySelector('.share-island-card')) }),

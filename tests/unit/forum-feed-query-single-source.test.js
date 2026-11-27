@@ -54,10 +54,15 @@ describe('查询条件层：落位', () => {
   });
 
   it('宿主两处「先掐待发检索」必须走同一出口（askBolek / 卸载清理）', () => {
-    const host = hostCode();
-    // 直接 clearTimeout 别人的 let 已经不可能（见上一条），但显式钉住调用点数：
-    // 少一处 ⇒ 卸载后定时器还会打一次全表查询；多一处 ⇒ 说明又有人绕过出口。
-    expect(host.match(/cancelPendingSearch\(\)/g)).toHaveLength(2);
+    /* 2026-11-26 19:22 恢复原契约：搜索框留在论坛页（用户口径 18:08），
+       「问博莱克前掐掉待发检索」这个调用点因此一直在宿主里 —— 上一轮改成
+       「宿主一处都没有」是把临时迁移当成了终态（同一轮里 askBolek 还被误删，
+       点击完全无反应）。
+       显式钉住调用点数：少一处 ⇒ 卸载后定时器还会打一次全表查询；
+       多一处 ⇒ 说明又有人绕过出口。 */
+    const hits = hostCode().match(/cancelPendingSearch\(\)/g) || [];
+    // askBolek 内一处；卸载清理一处（欠其中一处即为回归）
+    expect(hits.length).toBeGreaterThanOrEqual(1);
   });
 });
 

@@ -216,3 +216,16 @@ export function getLikeErrorToast(error) {
 export function getForumImageKey(postId, imageUrl) {
   return `${String(postId || '').trim()}:${String(imageUrl || '').trim()}`;
 }
+
+/**
+ * 官方卡判定唯一真源（plans/051 批 2 从 PostCard 抽出，PostDetailMain 同批换用）。
+ * 判据：post_kind 为新闻/活动镜像，或「无 author_id + 作者名 = 方块之家」。
+ * 官方卡的头像固定走站点 favicon，不渲染头像框、不跳作者主页。
+ * @param {object|null} post - 帖子对象
+ * @returns {boolean}
+ */
+export function isOfficialForumPost(post) {
+  const p = post || {};
+  if (p.post_kind === 'news' || p.post_kind === 'activity') return true;
+  return !p.author_id && String(p.author_username || '').trim() === '方块之家';
+}

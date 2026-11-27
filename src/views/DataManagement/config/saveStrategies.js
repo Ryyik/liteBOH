@@ -215,6 +215,41 @@ export const SAVE_STRATEGIES = {
     });
   },
 
+  forumCards: async ({ editingItem }) => {
+    const label = String(editingItem.label || '').trim();
+    const heroId = String(editingItem.hero_id || '').trim();
+    const kind = String(editingItem.kind || 'hero').trim();
+    const status = String(editingItem.status || 'inactive').trim();
+    const priority = Number(editingItem.priority);
+    const version = Number(editingItem.version);
+    const startsAtIso = toISOStringFromInput(editingItem.starts_at);
+    const endsAtIso = toISOStringFromInput(editingItem.ends_at);
+
+    if (!label) throw new Error('卡片名称不能为空');
+    if (kind !== 'hero') throw new Error('当前管理表单只支持单张 Hero 卡');
+    if (!UUID_REGEX.test(heroId)) throw new Error('Hero ID 必须是有效 UUID');
+    if (!['active', 'inactive'].includes(status)) throw new Error('卡片状态不合法');
+    if (!Number.isInteger(priority) || priority < 0 || priority > 1000) {
+      throw new Error('优先级必须是 0–1000 的整数');
+    }
+    if (!Number.isInteger(version) || version < 1) throw new Error('版本必须是大于等于 1 的整数');
+    if (startsAtIso && endsAtIso && Date.parse(endsAtIso) <= Date.parse(startsAtIso)) {
+      throw new Error('结束时间必须晚于开始时间');
+    }
+
+    return pickWritableFields('forumCards', {
+      label,
+      kind,
+      hero_id: heroId,
+      status,
+      priority,
+      starts_at: startsAtIso,
+      ends_at: endsAtIso,
+      version,
+      updated_at: new Date().toISOString(),
+    });
+  },
+
   subscriptions: async ({ editingItem }) => {
     const normalizedUserId = String(editingItem.user_id || '').trim();
     const normalizedPlanCode = String(editingItem.plan_code || '').trim();

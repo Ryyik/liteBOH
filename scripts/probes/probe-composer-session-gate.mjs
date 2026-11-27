@@ -111,11 +111,15 @@ const clickRail = (page, selector) =>
 const snapshot = (page) =>
   page.evaluate(() => {
     const overlay = document.querySelector('.mobile-composer-overlay');
-    const composeItem = document.querySelector('.userspace-rail-item[data-rail-action="compose"]');
+    /* 「发布」已收进「更多」菜单（2026-11-26）：选中态挂在「更多」按钮上
+       （activeAction 非空 ⇒ .active），菜单项本身只在展开时出现。 */
+    const moreItem = document.querySelector('.userspace-rail-more');
+    const menuCompose = document.querySelector(
+      '.userspace-rail-menu-item[data-rail-action="compose"]',
+    );
     const confirm = document.querySelector('.forum-confirm-modal');
     const contentItem = document.querySelector('.userspace-rail-item[data-tab="community"]');
     return {
-      // ⚠️ 判「有没有遮罩」必须看节点在不在，不能只看可见性 —— 会话是 v-if，残留就是真的盖着
       overlayExists: Boolean(overlay),
       overlayRect: overlay
         ? (() => {
@@ -123,14 +127,11 @@ const snapshot = (page) =>
             return { x: Math.round(b.x), w: Math.round(b.width) };
           })()
         : null,
-      composeItemExists: Boolean(composeItem),
-      composeItemActive: Boolean(composeItem?.classList.contains('active')),
-      composeItemBg: composeItem ? getComputedStyle(composeItem).backgroundColor : '',
-      /* ⚠️ 「选中态」不能只断言 class：这个按钮底色本来就是主操作蓝，
-         .active 若被同优先级的 [data-rail-action="compose"] 规则压过，
-         就会出现「class 在、视觉没变」的假绿（2026-10-11 实际踩过）。
-         所以额外抓一个只由 .active 产生的视觉通道：光晕 box-shadow。 */
-      composeItemShadow: composeItem ? getComputedStyle(composeItem).boxShadow : '',
+      composeItemExists: Boolean(moreItem),
+      composeItemActive: Boolean(moreItem?.classList.contains('active')),
+      composeItemColor: moreItem ? getComputedStyle(moreItem).color : '',
+      composeMenuItemExists: Boolean(menuCompose),
+      composeMenuItemActive: Boolean(menuCompose?.classList.contains('is-active')),
       contentItemActive: Boolean(contentItem?.classList.contains('active')),
       activeTab:
         document.querySelector('.userspace-rail-item.active')?.getAttribute('data-tab') || '',
@@ -153,20 +154,45 @@ const waitFor = async (page, fn, timeoutMs = 3000) => {
   return false;
 };
 
+/* 「更多」菜单里的动作：先展开菜单再点。菜单展开本身由组件控制，失败返回 false。 */
+const openMore = async (page) => {
+  await page.evaluate(() => document.querySelector('.userspace-rail-more')?.click());
+  return waitFor(
+    page,
+    async () => page.evaluate(() => Boolean(document.querySelector('.userspace-rail-menu'))),
+    3000,
+  );
+};
+
+const clickRailAction = async (page, actionId) => {
+  const opened = await openMore(page);
+  if (!opened) return false;
+  return page.evaluate((id) => {
+    const el = document.querySelector(`.userspace-rail-menu-item[data-rail-action="${id}"]`);
+    if (!el) return false;
+    el.click();
+    return true;
+  }, actionId);
+};
+
+const clickCompose = (page) => clickRailAction(page, 'compose');
+
 try {
   const { context, page } = await openHome();
 
   // ---------------- A：点「发布」→ 会话打开 + 该项选中 ----------------
   console.log('\n--- A 点「发布」---');
   const before = await snapshot(page);
-  const clickedCompose = await clickRail(page, '.userspace-rail-item[data-rail-action="compose"]');
-  check('A1 「发布」按钮存在且可点', clickedCompose);
+  const clickedCompose = await clickCompose(page);
+  check('A1 「更多 → 发布」入口存在且可点', clickedCompose);
   check(
-    'A1b 基线：未开会话时「发布」没有光晕',
-    before.composeItemShadow === 'none',
-    before.composeItemShadow,
+    'A1b 基线：未开会话时「更多」不是选中态',
+    !before.composeItemActive && before.composeItemColor !== 'rgb(29, 29, 31)',
+    `${before.composeItemActive} ${before.composeItemColor}`,
   );
   const opened = await waitFor(page, async () => (await snapshot(page)).overlayExists, 6000);
+  // 颜色有 160ms 过渡：等落定再读 computed，否则拿到的是过渡起点（假红）
+  await page.waitForTimeout(320);
   const a = await snapshot(page);
   check('A2 点「发布」打开发布会话', opened && a.overlayExists, JSON.stringify(a.overlayRect));
   check(
@@ -174,11 +200,11 @@ try {
     a.composeItemActive,
     `active=${a.composeItemActive} bg=${a.composeItemBg}`,
   );
-  // 视觉通道：必须有只由 .active 产生的光晕，否则是「class 在、看不出选中」的假绿
+  // 视觉通道：选中必须把「更多」切到主文字色 —— 否则是「class 在、看不出选中」的假绿
   check(
-    'A3b 选中态真的看得见（光晕出现，不只是 class）',
-    a.composeItemShadow !== 'none' && a.composeItemShadow !== before.composeItemShadow,
-    `before=${before.composeItemShadow} after=${a.composeItemShadow}`,
+    'A3b 选中态真的看得见（颜色切到主文字色）',
+    a.composeItemColor === 'rgb(29, 29, 31)' && a.composeItemColor !== before.composeItemColor,
+    `before=${before.composeItemColor} after=${a.composeItemColor}`,
   );
   // 会话左缘 = 栏宽：这条同时证明「遮罩」覆盖的是内容区（用户看到的「盖在页面上」就是它）
   check(
@@ -228,14 +254,14 @@ try {
     `overlayExists=${b2.overlayExists}`,
   );
   check(
-    'B6 会话关掉后「发布」不再选中（class 与光晕一起收掉）',
-    !b2.composeItemActive && b2.composeItemShadow === 'none',
-    `active=${b2.composeItemActive} shadow=${b2.composeItemShadow}`,
+    'B6 会话关掉后「发布」不再选中（class 与颜色一起收掉）',
+    !b2.composeItemActive && b2.composeItemColor !== 'rgb(29, 29, 31)',
+    `active=${b2.composeItemActive} color=${b2.composeItemColor}`,
   );
 
   // ---------------- C：空内容时点「内容」→ 不打扰、直接关 ----------------
   console.log('\n--- C 空内容时点「内容」---');
-  await clickRail(page, '.userspace-rail-item[data-rail-action="compose"]');
+  await clickCompose(page);
   await waitFor(page, async () => (await snapshot(page)).overlayExists, 6000);
   await page.waitForTimeout(600);
   await clickRail(page, '.userspace-rail-item[data-tab="community"]');
@@ -245,45 +271,38 @@ try {
   const closedEmpty = await waitFor(page, async () => !(await snapshot(page)).overlayExists, 4000);
   check('C2 空内容点「内容」会话直接关闭', closedEmpty, `overlay=${!closedEmpty}`);
 
-  // ---------------- D：会话开着点「搜索」→ 也先收会话 ----------------
-  console.log('\n--- D 会话开着点「搜索」---');
-  await clickRail(page, '.userspace-rail-item[data-rail-action="compose"]');
+  // ---------------- D：会话开着点「资产」→ 也先收会话 ----------------
+  console.log('\n--- D 会话开着点「资产」---');
+  await clickCompose(page);
   await waitFor(page, async () => (await snapshot(page)).overlayExists, 6000);
   await page.waitForTimeout(600);
-  await clickRail(page, '.userspace-rail-item[data-rail-action="search"]');
+  await clickRailAction(page, 'assets');
   /* 会话里可能带着上一步的脏内容 ⇒ 允许先弹「保存草稿」确认（这正是闸门在等用户），
      但**不许**出现「既没弹确认、遮罩又没关」的裸留。所以这里：有确认就替他选「不保存」。 */
-  const searchConfirm = await waitFor(page, async () => (await snapshot(page)).confirmExists, 3000);
-  if (searchConfirm) {
+  const assetsConfirm = await waitFor(page, async () => (await snapshot(page)).confirmExists, 3000);
+  if (assetsConfirm) {
     await page.evaluate(() => {
       document.querySelector('.forum-confirm-btn.danger')?.click();
     });
   }
-  const closedBySearch = await waitFor(
+  const closedByAssets = await waitFor(
     page,
     async () => !(await snapshot(page)).overlayExists,
     4000,
   );
   const d = await snapshot(page);
   check(
-    'D1 会话开着点「搜索」：会话先被收掉（不留遮罩）',
-    closedBySearch && !d.overlayExists,
-    `confirmFirst=${searchConfirm} overlayExists=${d.overlayExists}`,
+    'D1 会话开着点「资产」：会话先被收掉（不留遮罩）',
+    closedByAssets && !d.overlayExists,
+    `confirmFirst=${assetsConfirm} overlayExists=${d.overlayExists}`,
   );
-  // 动作必须真的执行了：搜索落点聚焦到工具栏输入框（证明不是「关了会话却什么都没做」）
-  const searchFocused = await page.evaluate(() => {
-    const input = document.querySelector('.forum-page .toolbar-search-input');
-    if (!(input instanceof HTMLInputElement)) return 'absent';
-    return document.activeElement === input
-      ? 'focused'
-      : `blurred(${document.activeElement?.tagName || '?'})`;
-  });
+  const navigatedToAssets = page.url().includes('/user-space') && page.url().includes('tab=assets');
   check(
-    'D2 搜索动作真的落到工具栏输入框（焦点就位）',
-    searchFocused === 'focused',
-    String(searchFocused),
+    'D2 资产动作真的执行（导航到 tab=assets）',
+    navigatedToAssets,
+    page.url().replace(BASE, ''),
   );
-  await page.screenshot({ path: `${OUT}/D-search-after-session.png` });
+  await page.screenshot({ path: `${OUT}/D-assets-after-session.png` });
   await context.close();
 
   // ---------------- F：UserSpace 宿主同一契约（左栏是一份组件、两个宿主） ----------------
@@ -309,14 +328,15 @@ try {
       f0.composeItemExists && f0.contentItemActive,
       `composeItem=${f0.composeItemExists} contentActive=${f0.contentItemActive}`,
     );
-    await clickRail(page2, '.userspace-rail-item[data-rail-action="compose"]');
+    await clickCompose(page2);
     await waitFor(page2, async () => (await snapshot(page2)).overlayExists, 6000);
+    await page2.waitForTimeout(320);
     const f1 = await snapshot(page2);
-    check('F2 UserSpace：点「发布」打开会话', f1.overlayExists, String(f1.overlayExists));
+    check('F2 UserSpace：点「更多 → 发布」打开会话', f1.overlayExists, String(f1.overlayExists));
     check(
-      'F3 UserSpace：「发布」同样进选中态（class + 光晕）',
-      f1.composeItemActive && f1.composeItemShadow !== 'none',
-      `active=${f1.composeItemActive} shadow=${f1.composeItemShadow}`,
+      'F3 UserSpace：「更多」同样进选中态（class + 主文字色）',
+      f1.composeItemActive && f1.composeItemColor === 'rgb(29, 29, 31)',
+      `active=${f1.composeItemActive} color=${f1.composeItemColor}`,
     );
     await page2.fill('.mobile-composer-overlay .post-content-input', '探针：UserSpace 脏内容');
     await page2.waitForTimeout(400);

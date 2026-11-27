@@ -1,34 +1,47 @@
-/* Feed Header V2 */
+/* Feed Header V2 —— plans/052 追加拍板（16:31）：子 tab 已并进顶栏（ForumToolbar 插槽），
+   不再是「灰底胶囊里的一排按钮」。这里改成**纯文字 tab + 下划线指示器**（iOS 分段语义，
+   与 051 极简语言一致）：无底色、无边框、只有 active 的一条 2px 短下划线与加深字色。 */
 .feed-mode-tabs {
   display: flex;
-  gap: 4px;
-  margin-bottom: 12px;
-  padding: 3px;
-  background: rgba(245, 245, 247, 0.6);
-  border-radius: 14px;
-  width: fit-content;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
 }
 
 .feed-mode-tab {
-  padding: 6px 18px;
+  position: relative;
+  flex-shrink: 0;
+  padding: 4px 0 6px;
   border: none;
-  border-radius: 11px;
   background: transparent;
-  color: var(--liquid-text-secondary, #6e6e73);
+  color: var(--appl-text-3);
   font-size: 14px;
-  font-weight: 700;
+  font-weight: 600;
   cursor: pointer;
-  transition: background 0.2s, color 0.2s, box-shadow 0.2s;
-}
-
-.feed-mode-tab.active {
-  background: #ffffff;
-  color: var(--liquid-text-primary, #1d1d1f);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  white-space: nowrap;
+  transition: color 0.18s ease;
 }
 
 .feed-mode-tab:hover:not(.active) {
-  color: var(--liquid-text-primary, #1d1d1f);
+  color: var(--appl-text-2);
+}
+
+.feed-mode-tab.active {
+  color: var(--appl-text-1);
+  font-weight: 650;
+}
+
+/* active 下划线：短条居中，读作「选中」而不是「按钮被按下」 */
+.feed-mode-tab.active::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: 16px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--appl-text-1);
+  transform: translateX(-50%);
 }
 
 /* 关注与内容类型是两个维度：细分隔线区分（内容类型 tab + 关注开关正交共存） */
@@ -36,30 +49,91 @@
   align-self: center;
   flex-shrink: 0;
   width: 1px;
-  height: 16px;
-  margin: 0 5px;
-  background: rgba(0, 0, 0, 0.1);
+  height: 14px;
+  margin: 0 2px;
+  background: var(--appl-hairline);
 }
 
+/* 小屏：允许横向滚动（5 个 tab 在 390 宽下放不下），字号略小 */
 @media (max-width: 768px) {
   .feed-mode-tabs {
-    width: 100%;
+    gap: 13px;
   }
 
   .feed-mode-tab {
-    flex: 1;
-    padding: 6px 6px;
-    font-size: 13px;
-    white-space: nowrap;
-  }
-
-  .feed-mode-tab-divider {
-    margin: 0 2px;
+    font-size: 13.5px;
   }
 }
 
 .posts-feed {
   margin-top: 28px;
+}
+
+/* ══ 横屏三栏帖子流（用户构思图 · plans/052）══════════════════════════
+   草图「轻微错位帖子流」：不是瀑布流（同顶线、只底部不齐），而是三列
+   **出发点就错开** —— 左栏贴顶、中栏下沉一档、右栏略回收，顶端呈台阶状。
+
+   实现：feed-columns 是三列 flex 容器，每列独立纵向排布（按索引取模分列，
+   见 ForumMain 的 feedColumns）；错位完全靠各列的 padding-top 制造。
+   竖屏时 feedColumns 为 null ⇒ 模板只渲染一列 .feed-column，
+   此处的 .feed-columns 不设 flex 方向 ⇒ 天然单列，零行为变化。 */
+
+.feed-columns {
+  display: block;
+}
+
+.feed-columns.is-multi {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.feed-columns.is-multi .feed-column {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+/* 阶梯错位：三列起点参差（左贴顶 → 中下沉 → 右回收） */
+.feed-columns.is-multi .feed-column--0 {
+  padding-top: 0;
+}
+
+.feed-columns.is-multi .feed-column--1 {
+  padding-top: 44px;
+}
+
+.feed-columns.is-multi .feed-column--2 {
+  padding-top: 20px;
+}
+
+/* 多列下卡片之间靠自身 margin 分隔（列内是纵向流，不是 grid 行距） */
+.feed-columns.is-multi .feed-column > * + * {
+  margin-top: 16px;
+}
+
+/* ══ 「正在加载更多」的可见性（2026-11-26 用户口径 18:47）══════════════
+   用户反馈：「翻到八月就翻不动了」—— 实际是**看不出在加载**，等一会儿才有。
+
+   根因：加载提示 `.loading-more` 是 `.feed-columns` 的**兄弟**，排在容器之后。
+   三栏下容器高度取最高列，滚到中/右栏底部时提示在视口外，等于没有反馈；
+   竖屏虽然能看见，但它跟着哨兵一起在「已经滚过头」的位置，也不及时。
+
+   修法：加载中把它**吸在视口底部**（sticky），三栏 / 单列一致可见；
+   位置用 sticky 而不是 fixed，避免与底部 tab 栏 / FAB 抢层级。
+   `pointer-events: none` —— 它只是状态提示，别挡住底下的卡片点击。 */
+.posts-feed .loading-more {
+  position: sticky;
+  bottom: 12px;
+  z-index: 8;
+  pointer-events: none;
+  /* 收紧视觉重量：悬浮态下不要白卡那种「一大块」的压迫感 */
+  margin-top: 8px;
+  padding: 10px 18px;
+  border-radius: 999px;
+  box-shadow: 0 6px 22px color-mix(in srgb, var(--appl-text-1, #1d1d1f) 12%, transparent);
+  background: color-mix(in srgb, var(--appl-card, #fff) 88%, transparent);
+  -webkit-backdrop-filter: var(--liquid-filter-sm);
+  backdrop-filter: var(--liquid-filter-sm);
 }
 
 /* 帖子列表容器 */
@@ -89,7 +163,9 @@
 .ai-search-btn-inner.active {
   background: rgba(17, 24, 39, 0.08);
   color: #111827;
-  box-shadow: inset 0 0 0 1px rgba(17, 24, 39, 0.08), var(--liquid-inner-highlight);
+  box-shadow:
+    inset 0 0 0 1px rgba(17, 24, 39, 0.08),
+    var(--liquid-inner-highlight);
 }
 
 .ai-search-btn-inner.active .ai-search-switch-dot {
@@ -121,24 +197,24 @@
   box-shadow: 0 8px 18px rgba(0, 0, 0, 0.1);
 }
 
-/* Post Card V2 */
-/* 不用 content-visibility:auto：iOS Safari WebKit bug 321501 会让滚入视口的卡片
+/* Post Card V2 — Apple 极简面（plans/051 §0）
+   去外边框、去毛玻璃、去大阴影；实色卡 + 极轻接触阴影 + 同心圆角。
+   不用 content-visibility:auto：iOS Safari WebKit bug 321501 会让滚入视口的卡片
    保持过期零高度布局（整卡空白不自愈），318216 造成反复重排卡顿。列表侧已有
    虚拟窗口（useForumVirtualFeed）+ 分页兜底性能。 */
 .post-card-v2 {
-  padding: 24px;
-  background: rgba(255, 255, 255, 0.86);
+  padding: 20px;
+  background: var(--appl-card);
   margin-bottom: 16px;
-  border-radius: 20px;
-  border: 1px solid rgba(15, 23, 42, 0.07);
-  box-shadow: 0 8px 28px rgba(15, 23, 42, 0.045);
-  transition: opacity 0.3s ease, background-color 0.22s ease, border-color 0.22s ease, box-shadow 0.22s ease;
+  border-radius: var(--appl-radius-card);
+  box-shadow: var(--appl-shadow-card);
+  transition:
+    opacity 0.3s ease,
+    box-shadow 0.22s ease;
   cursor: pointer;
   position: relative;
   animation: forumPostCardEnter 0.42s cubic-bezier(0.16, 1, 0.3, 1) both;
   animation-delay: var(--post-appear-delay, 0ms);
-  backdrop-filter: var(--glass-filter-sm, blur(18px));
-  -webkit-backdrop-filter: var(--glass-filter-sm, blur(18px));
 }
 
 .post-card-theme-cat {
@@ -152,7 +228,9 @@
   line-height: 0;
   opacity: 0.46;
   transform: translateY(4px) rotate(4deg);
-  transition: opacity 0.22s ease, transform 0.22s ease;
+  transition:
+    opacity 0.22s ease,
+    transform 0.22s ease;
   pointer-events: none;
   user-select: none;
   z-index: 0;
@@ -202,7 +280,8 @@
   height: 66px;
   margin: 0;
   line-height: 0;
-  opacity: 0.28;
+  /* plans/051 §3.4：极简白卡上的背景猫降密度（≤0.12），装饰不与正文抢读 */
+  opacity: 0.12;
   transform: rotate(-10deg);
   pointer-events: none;
   user-select: none;
@@ -218,32 +297,30 @@
   z-index: 1;
 }
 
-.forum-page[data-theme="home-cat"] .post-card-v2:hover .post-card-theme-cat,
-.forum-page[data-theme="home-cat"] .post-card-v2.is-new-post .post-card-theme-cat {
+.forum-page[data-theme='home-cat'] .post-card-v2:hover .post-card-theme-cat,
+.forum-page[data-theme='home-cat'] .post-card-v2.is-new-post .post-card-theme-cat {
   opacity: 0.9;
   transform: translateY(0) rotate(0deg);
 }
 
-.forum-page[data-theme="home-cat"] .post-card-v2:hover .post-card-theme-cat.cat-variant-1,
-.forum-page[data-theme="home-cat"] .post-card-v2.is-new-post .post-card-theme-cat.cat-variant-1 {
+.forum-page[data-theme='home-cat'] .post-card-v2:hover .post-card-theme-cat.cat-variant-1,
+.forum-page[data-theme='home-cat'] .post-card-v2.is-new-post .post-card-theme-cat.cat-variant-1 {
   transform: translateY(0) rotate(-2deg);
 }
 
-.forum-page[data-theme="home-cat"] .post-card-v2:hover .post-card-theme-cat.cat-variant-2,
-.forum-page[data-theme="home-cat"] .post-card-v2.is-new-post .post-card-theme-cat.cat-variant-2 {
+.forum-page[data-theme='home-cat'] .post-card-v2:hover .post-card-theme-cat.cat-variant-2,
+.forum-page[data-theme='home-cat'] .post-card-v2.is-new-post .post-card-theme-cat.cat-variant-2 {
   transform: translateY(-50%) rotate(0deg);
 }
 
-.forum-page[data-theme="home-cat"] .post-card-v2:hover .post-card-theme-cat.cat-variant-3,
-.forum-page[data-theme="home-cat"] .post-card-v2.is-new-post .post-card-theme-cat.cat-variant-3 {
+.forum-page[data-theme='home-cat'] .post-card-v2:hover .post-card-theme-cat.cat-variant-3,
+.forum-page[data-theme='home-cat'] .post-card-v2.is-new-post .post-card-theme-cat.cat-variant-3 {
   opacity: 0.62;
   transform: translateY(0) rotate(-3deg);
 }
 
 .post-card-v2:hover {
-  background: rgba(255, 255, 255, 0.94);
-  border-color: rgba(15, 23, 42, 0.12);
-  box-shadow: 0 14px 36px rgba(15, 23, 42, 0.08);
+  box-shadow: var(--appl-shadow-card-hover);
 }
 
 .post-card-v2.is-new-post {
@@ -271,7 +348,9 @@
   }
   18% {
     border-color: rgba(0, 113, 227, 0.32);
-    box-shadow: 0 0 0 5px rgba(0, 113, 227, 0.1), 0 14px 36px rgba(0, 113, 227, 0.1);
+    box-shadow:
+      0 0 0 5px rgba(0, 113, 227, 0.1),
+      0 14px 36px rgba(0, 113, 227, 0.1);
     background: rgba(245, 250, 255, 0.96);
   }
   100% {
@@ -281,53 +360,19 @@
   }
 }
 
-/* 论坛内昵称统一纯色（无动画） */
-.nickname-gold {
-  color: #c4a35a !important;
-  background: none !important;
-  -webkit-background-clip: unset !important;
-  background-clip: unset !important;
-  -webkit-text-fill-color: unset !important;
-  animation: none !important;
-}
-
-.nickname-rainbow {
-  background: linear-gradient(90deg, #ff6b6b, #ffd93d, #6bcb77, #4d96ff, #9b59b6, #ff6b6b) !important;
-  background-size: 200% 100% !important;
-  -webkit-background-clip: text !important;
-  background-clip: text !important;
-  -webkit-text-fill-color: transparent !important;
-  animation: nickname-rainbow-shift 3s linear infinite !important;
-  font-weight: 700;
-}
-
-@keyframes nickname-rainbow-shift {
-  0% { background-position: 0% 50%; }
-  100% { background-position: 200% 50%; }
-}
-
-/* 订阅等级卡片背景微色调
-   2026-11-24（plans/046）：`tier-plus` 那条随 Plus 并入 Pro 删除。 */
-.post-card-v2.tier-pro {
-  background: rgba(250, 248, 240, 0.86);
-}
-.post-card-v2.tier-max {
-  background: rgba(245, 246, 250, 0.86);
-}
+/* 订阅等级卡色：**Ultra 独占**（plans/051 拍板 6）—— pro/max 卡色已删，
+   全站只有 Ultra 一档染卡；色值走 tokens.css 的 --appl-ultra-card（明暗成对）。 */
 .post-card-v2.tier-ultra {
-  background: rgba(252, 245, 248, 0.86);
+  background: var(--appl-ultra-card);
 }
 
-/* Keep the P2 card silhouette: a continuous feed can still use a quiet glass boundary. */
+/* Keep the P2 card silhouette: a continuous feed can still use a quiet boundary. */
 .posts-list .post-card-v2 {
   margin-bottom: 16px;
-  border-radius: 20px;
-  border: 1px solid rgba(255, 255, 255, .86);
-  box-shadow: 0 3px 14px rgba(29, 29, 31, .045);
 }
 
 .posts-list .post-card-v2:hover {
-  box-shadow: 0 7px 20px rgba(29, 29, 31, .07);
+  box-shadow: var(--appl-shadow-card-hover);
 }
 
 .image-post-card-v2 {
@@ -409,7 +454,9 @@
   /* 滚动条隐藏：滑动暗示由露边 + n/N 指示胶囊承担 */
   scrollbar-width: none;
 }
-.image-post-strip::-webkit-scrollbar { display: none; }
+.image-post-strip::-webkit-scrollbar {
+  display: none;
+}
 
 .image-post-strip .image-post-thumb-shell {
   flex: 0 0 auto;
@@ -429,36 +476,9 @@
   aspect-ratio: 16 / 9;
 }
 
-/* 分段横条位置指示（图条上方）：小横条靠左排列，随滑动高亮当前段，可点击跳转 */
-.image-strip-dots {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 6px;
-  margin-bottom: 8px;
-}
-
-.image-strip-dot {
-  flex: none;
-  width: 16px;
-  height: 3px;
-  padding: 0;
-  border: none;
-  border-radius: 999px;
-  background: rgba(15, 23, 42, 0.15);
-  cursor: pointer;
-  transition: background-color 0.2s ease;
-}
-
-.image-strip-dot:hover {
-  background: rgba(15, 23, 42, 0.3);
-}
-
-.image-strip-dot.is-active {
-  background: #1d1d1f;
-}
-
-/* n/N 位置指示胶囊：随横向滚动更新，弥补无滚动条的滑动暗示 */
+/* 分段横条已删（plans/051 拍板 8）：跳段能力由 ForumImageViewer 承接。
+   n/N 只读指示胶囊：随横向滚动更新，弥补无滚动条的滑动暗示。
+   不用 backdrop-filter（液态玻璃门禁 + 极简口径），实色半透明即可。 */
 .image-strip-indicator {
   position: absolute;
   top: 10px;
@@ -469,19 +489,18 @@
   min-height: 24px;
   padding: 0 10px;
   border-radius: 999px;
-  background: rgba(15, 23, 42, 0.55);
-  -webkit-backdrop-filter: var(--liquid-filter-sm, blur(12px));
-  backdrop-filter: var(--liquid-filter-sm, blur(12px));
-  color: #ffffff;
+  background: color-mix(in srgb, var(--appl-text-1) 62%, transparent);
+  color: var(--appl-canvas);
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
   line-height: 1;
   letter-spacing: 0.02em;
   pointer-events: none;
   user-select: none;
 }
 
-/* 末尾"+N 张"占位卡：与缩略图同宽，滚近时触发补全，补全后消失 */
+/* 末尾"+N 张"占位卡：与缩略图同宽，滚近时触发补全，补全后消失（补全链红线 §4-5） */
 .image-post-strip-more {
   flex: 0 0 auto;
   display: flex;
@@ -490,20 +509,19 @@
   gap: 4px;
   width: clamp(110px, 38%, 180px);
   aspect-ratio: 4 / 3;
-  border-radius: 16px;
-  border: 1px dashed rgba(15, 23, 42, 0.18);
-  background: rgba(244, 247, 251, 0.72);
-  color: #5b6774;
+  border-radius: var(--appl-radius-inner);
+  background: var(--appl-subtle);
+  color: var(--appl-text-3);
   font-size: 15px;
-  font-weight: 800;
+  font-weight: 700;
   line-height: 1;
   scroll-snap-align: start;
   user-select: none;
 }
 .image-post-strip-more .image-post-strip-more-num {
   font-size: 22px;
-  font-weight: 850;
-  color: #2f3745;
+  font-weight: 800;
+  color: var(--appl-text-2);
 }
 
 .image-post-thumb-shell {
@@ -521,7 +539,7 @@
 }
 
 .image-post-thumb-shell::before {
-  content: "";
+  content: '';
   position: absolute;
   left: 50%;
   top: 50%;
@@ -549,7 +567,9 @@
   display: block;
   opacity: 0;
   transform: scale(0.985);
-  transition: opacity 0.32s ease, transform 0.32s ease;
+  transition:
+    opacity 0.32s ease,
+    transform 0.32s ease;
 }
 
 .image-post-thumb.is-loaded {
@@ -604,42 +624,38 @@
 
 /* 转发帖引用框：转发文字在上，原帖（作者+标题+摘录）框式展示，点击进原帖 */
 .quoted-post-box {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
   gap: 4px;
   width: 100%;
   margin: 12px 0 2px;
-  padding: 10px 12px;
-  border: 1px solid rgba(15, 23, 42, 0.08);
-  border-radius: 12px;
-  background: rgba(246, 248, 250, 0.88);
+  padding: 12px 14px;
+  /* plans/051 §0：降阶无框灰底块，同心内圆角 */
+  border-radius: var(--appl-radius-inner);
+  background: var(--appl-subtle);
   text-align: left;
   cursor: pointer;
-  transition: background-color 0.18s ease, border-color 0.18s ease;
+  transition: background-color 0.18s ease;
 }
 
 .quoted-post-box:hover {
-  background: rgba(238, 242, 247, 0.96);
-  border-color: rgba(15, 23, 42, 0.16);
+  background: color-mix(in srgb, var(--appl-text-1) 5%, var(--appl-subtle));
 }
 
 .quoted-post-author {
   font-size: 12px;
-  font-weight: 750;
-  color: #5b6774;
+  font-weight: 650;
+  color: var(--appl-text-3);
 }
 
 .quoted-post-title {
   font-size: 13.5px;
-  font-weight: 700;
-  color: var(--liquid-text-primary, #1d1d1f);
+  font-weight: 600;
+  color: var(--appl-text-1);
   line-height: 1.4;
 }
 
 .quoted-post-body {
   font-size: 13px;
-  color: #4a5560;
+  color: var(--appl-text-2);
   line-height: 1.55;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -647,36 +663,10 @@
   overflow: hidden;
 }
 
-[data-theme="dark"] .quoted-post-box {
-  background: rgba(38, 42, 52, 0.6);
-  border-color: rgba(255, 255, 255, 0.1);
+/* 引用框随原帖作者订阅层级显示卡色 —— Ultra 独占（plans/051 拍板 6） */
+.quoted-post-box.tier-ultra {
+  background: var(--appl-ultra-quote);
 }
-
-[data-theme="dark"] .quoted-post-box:hover {
-  background: rgba(48, 53, 65, 0.75);
-}
-
-[data-theme="dark"] .quoted-post-author {
-  color: #98a2ad;
-}
-
-[data-theme="dark"] .quoted-post-title {
-  color: #f2f4f7;
-}
-
-[data-theme="dark"] .quoted-post-body {
-  color: #c3cad2;
-}
-
-/* 引用框随原帖作者订阅层级显示卡色（与帖子卡片 tier 微色调同源）
-   2026-11-24（plans/046）：`tier-plus` 两条随 Plus 并入 Pro 删除。 */
-.quoted-post-box.tier-pro { background: rgba(250, 248, 240, 0.95); }
-.quoted-post-box.tier-max { background: rgba(245, 246, 250, 0.95); }
-.quoted-post-box.tier-ultra { background: rgba(252, 245, 248, 0.95); }
-
-[data-theme="dark"] .quoted-post-box.tier-pro { background: rgba(60, 53, 30, 0.55); }
-[data-theme="dark"] .quoted-post-box.tier-max { background: rgba(32, 42, 62, 0.6); }
-[data-theme="dark"] .quoted-post-box.tier-ultra { background: rgba(60, 32, 45, 0.55); }
 
 /* 旧 count-badge 已随网格布局移除，统一由 .image-post-strip-more 承担 */
 
@@ -739,7 +729,9 @@
 /* 官方卡（新闻/活动「方块之家」）：白底站点 logo，替代深色首字母圆 */
 .post-author-avatar.is-official {
   background: #ffffff;
-  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.08), 0 6px 16px rgba(15, 23, 42, 0.08);
+  box-shadow:
+    inset 0 0 0 1px rgba(15, 23, 42, 0.08),
+    0 6px 16px rgba(15, 23, 42, 0.08);
 }
 
 .post-author-info {
@@ -761,10 +753,10 @@
 }
 
 .post-title-v2 {
-  font-size: 19px;
-  font-weight: 800;
-  color: #0f172a;
-  line-height: 1.35;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--appl-text-1);
+  line-height: 1.4;
   margin-bottom: 8px;
   letter-spacing: 0;
 }
@@ -780,8 +772,14 @@
   vertical-align: 3px;
   font-weight: 800;
 }
-.post-kind-badge.news { color: #a23b00; background: rgba(255, 159, 10, .16); }
-.post-kind-badge.activity { color: #087443; background: rgba(52, 199, 89, .16); }
+.post-kind-badge.news {
+  color: #a23b00;
+  background: rgba(255, 159, 10, 0.16);
+}
+.post-kind-badge.activity {
+  color: #087443;
+  background: rgba(52, 199, 89, 0.16);
+}
 
 .post-card-tags {
   display: flex;
@@ -819,34 +817,49 @@
 
 .post-text-v2 {
   font-size: 15px;
-  line-height: 1.62;
-  color: #4b5563;
+  line-height: 1.58;
+  color: var(--appl-text-2);
   margin-bottom: 18px;
-  max-height: calc(1.62em * 5);
+  /* plans/051 拍板 9：4 行截断；溢出判定真源在 PostCard 的 scrollHeight 实测（P2-4） */
+  max-height: calc(1.58em * 4);
   overflow: hidden;
   overflow-wrap: anywhere;
   position: relative;
   white-space: pre-wrap;
 }
 
+/* ══ 截断省略号（2026-11-26 用户口径 18:47）═══════════════════════════
+   用户要求：**省略号要跟在正文截断处后面**，不要飘在行尾最右边。
+
+   旧做法 `right: 0` 把 `...` 钉死在行尾：正文若在两三成处就断了，
+   中间会留一长条空白，看起来像省略号脱离了文字。
+   新做法：PostCard 用 Range 实测「最后一行文字的右端 x」（--ellipsis-left），
+   这里把省略号定位到那个位置 —— 文字停在哪，省略号就跟在哪。 */
 .post-text-v2.is-overflowing::after {
-  content: "...";
+  content: '...';
   position: absolute;
-  right: 0;
   bottom: 0;
-  min-width: 72px;
-  padding-left: 28px;
-  text-align: right;
+  /* 优先贴文字末端；没测出锚点时（--ellipsis-left 缺省）退回右下角，
+     行为与旧版一致，不会跑到左边去 */
+  left: var(--ellipsis-left, auto);
+  right: var(--ellipsis-right, 0);
+  padding-left: 6px;
   /* 继承正文颜色：暗色主题下省略号自动跟随亮色文字 */
   color: inherit;
   /* 液态玻璃做法：不铺任何底色（玻璃叠玻璃会发白发亮），
-     直接用 backdrop-filter 把背后的文字尾行磨成玻璃雾，
-     mask 把左边缘羽化，任何主题/底色下都无色差 */
+     直接用 backdrop-filter 把背后的文字尾行磨成玻璃雾。
+     mask 只羽化**左侧**一小段：省略号现在紧贴文字，遮挡面积很小，
+     羽化太宽反而会把文字吃掉。 */
   backdrop-filter: var(--liquid-filter-sm);
   -webkit-backdrop-filter: var(--liquid-filter-sm);
-  mask-image: linear-gradient(90deg, transparent, #000 45%);
-  -webkit-mask-image: linear-gradient(90deg, transparent, #000 45%);
+  mask-image: linear-gradient(90deg, transparent, #000 60%);
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 60%);
   pointer-events: none;
+}
+
+/* 测到锚点：省略号不再需要右侧兜底，也不会被 right:0 拉回行尾 */
+.post-text-v2.is-overflowing.has-ellipsis-anchor::after {
+  right: auto;
 }
 
 .search-highlight-snippet {
@@ -868,11 +881,11 @@
 }
 
 .post-actions-v2 {
+  /* 拍板 3：无顶部分割线，靠留白分隔 */
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding-top: 12px;
-  border-top: 1px solid var(--liquid-border-hairline, rgba(15, 23, 42, 0.06));
+  padding-top: 6px;
   gap: 12px;
 }
 
@@ -903,7 +916,11 @@
   min-height: 32px;
   padding: 5px 9px;
   border-radius: 8px;
-  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, opacity 0.2s ease;
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease,
+    opacity 0.2s ease;
   white-space: nowrap;
 }
 
@@ -1274,7 +1291,6 @@
   color: var(--liquid-text-primary);
 }
 
-
 /* ── 搜索结果换批的入场编排（plans/035 §L4 第 5/6 条）──────────────
    病灶：提交搜索后 forumData 直接换掉，列表原地「跳」成另一批内容，
    没有任何「这是新结果」的提示 —— 读起来就是「搜完了没反应」。
@@ -1399,4 +1415,28 @@ html[data-boh-nav-returning] .posts-feed.is-feed-entering .forum-empty,
 html[data-boh-nav-returning] .forum-empty {
   animation-duration: 0s;
   animation-delay: 0s;
+}
+
+/* ⋯ 菜单时代的复制反馈（plans/051 §3.3）：操作栏右侧瞬时「已复制」胶囊 */
+.copy-hint-pill {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--appl-blue);
+  background: color-mix(in srgb, var(--appl-blue) 10%, transparent);
+  border-radius: 999px;
+  padding: 3px 9px;
+  white-space: nowrap;
+}
+
+.copy-hint-enter-active,
+.copy-hint-leave-active {
+  transition:
+    opacity 0.18s ease,
+    transform 0.18s ease;
+}
+
+.copy-hint-enter-from,
+.copy-hint-leave-to {
+  opacity: 0;
+  transform: translateY(3px);
 }
