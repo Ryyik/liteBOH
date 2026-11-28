@@ -1125,23 +1125,18 @@ export const useAuthStore = defineStore(
       //   reload 顺手清掉 —— 漏一个就会让上一个账号的数据活在下一个访客的页面上。
       //   homeHeroes 原先有 resetState 却没人调用，是软重置引入后必须补上的一个。
       try {
-        if (relatedStores === 'lite') {
-          const { useHomeHeroesStore } = await import('@/stores/homeHeroes');
-          await useHomeHeroesStore().resetState();
-        } else {
-          const [
-            notificationStoreModule,
-            bagStoreModule,
-            productsStoreModule,
-            homeHeroesStoreModule,
-          ] = await loadResetStores();
-          await Promise.all([
-            notificationStoreModule.useNotificationStore().resetState(),
-            bagStoreModule.useBagStore().resetState(),
-            productsStoreModule.useProductsStore().resetState(),
-            homeHeroesStoreModule.useHomeHeroesStore().resetState(),
-          ]);
-        }
+        const [
+          notificationStoreModule,
+          bagStoreModule,
+          productsStoreModule,
+          homeHeroesStoreModule,
+        ] = await loadResetStores();
+        await Promise.all([
+          notificationStoreModule.useNotificationStore().resetState(),
+          bagStoreModule.useBagStore().resetState(),
+          productsStoreModule.useProductsStore().resetState(),
+          homeHeroesStoreModule.useHomeHeroesStore().resetState(),
+        ]);
       } catch (error) {
         logger.warn('auth-store', '清理关联状态失败', error);
       }
@@ -1194,38 +1189,45 @@ export const useAuthStore = defineStore(
         if (updates.hide_follow_data !== undefined) {
           dbUpdates.hide_follow_data = Boolean(updates.hide_follow_data);
         }
-        /* 2026-11-26：「隐藏在线状态」开关点了没反应 —— 白名单里根本没有这一列。
-           store 是**字段白名单式**的（逐个 if），漏一列的表现就是「请求成功但什么都没改」：
-           dbUpdates 为空 ⇒ `.update({})` ⇒ postgrest 返回 200、影响 0 行、
-           回读 profile 还是旧值，UI 上的开关弹回去。见 toggleHideOnlineStatus。
-           ⚠️ 注意这一列在线上还有第二道门：2026090803_security_hardening 收窄了
-              authenticated 的列级 UPDATE，`hide_online_status` **不在**授权列表里
-              （只有 hide_follow_data 在）。所以这里补上之后仍需 RPC（见迁移 2026112601）。 */
-        if (updates.hide_online_status !== undefined) {
-          dbUpdates.hide_online_status = Boolean(updates.hide_online_status);
+        /* 隐藏在线状态走 self-only RPC：列级直更权会让管理员绕过 admin_update_user_profile 的审计。 */
+
+        if (Object.keys(dbUpdates).length > 0) {
+          const { error } = await supabase.from('profiles').update(dbUpdates).eq('id', userInfo.id);
+
+          if (error) {
+            /* 2026-10-17（全面审查 P3-9）：postgrest 的 error.message 可能携带约束名 /
+               schema 细节（如 `duplicate key value violates unique constraint
+               "profiles_username_key"`），此前原样进 toast 给用户看。归一化成
+               用户能懂的话，原文进 logger（保留可诊断性），code 照旧透传给调用方分支。 */
+            logger.warn('auth-store', '更新资料失败', error);
+            const friendlyMessages: Record<string, string> = {
+              '23505': '这个用户名已经被占用，换一个试试。',
+              '23514': '提交的内容不符合要求，请检查后重试。',
+              '22P02': '提交的内容格式不正确，请检查后重试。',
+              '42501': '没有权限执行该操作，请重新登录后再试。',
+            };
+            return {
+              success: false,
+              message:
+                friendlyMessages[String(error.code || '').toUpperCase()] ||
+                '资料保存失败，请稍后重试。',
+              code: error.code,
+            };
+          }
         }
 
-        const { error } = await supabase.from('profiles').update(dbUpdates).eq('id', userInfo.id);
-
-        if (error) {
-          /* 2026-10-17（全面审查 P3-9）：postgrest 的 error.message 可能携带约束名 /
-             schema 细节（如 `duplicate key value violates unique constraint
-             "profiles_username_key"`），此前原样进 toast 给用户看。归一化成
-             用户能懂的话，原文进 logger（保留可诊断性），code 照旧透传给调用方分支。 */
-          logger.warn('auth-store', '更新资料失败', error);
-          const friendlyMessages: Record<string, string> = {
-            '23505': '这个用户名已经被占用，换一个试试。',
-            '23514': '提交的内容不符合要求，请检查后重试。',
-            '22P02': '提交的内容格式不正确，请检查后重试。',
-            '42501': '没有权限执行该操作，请重新登录后再试。',
-          };
-          return {
-            success: false,
-            message:
-              friendlyMessages[String(error.code || '').toUpperCase()] ||
-              '资料保存失败，请稍后重试。',
-            code: error.code,
-          };
+        if (updates.hide_online_status !== undefined) {
+          const { error: privacyError } = await supabase.rpc('update_my_hide_online_status', {
+            p_hidden: Boolean(updates.hide_online_status),
+          });
+          if (privacyError) {
+            logger.warn('auth-store', '更新隐藏在线状态失败', privacyError);
+            return {
+              success: false,
+              message: '隐私设置保存失败，请稍后重试。',
+              code: privacyError.code,
+            };
+          }
         }
 
         const { data: refreshedProfile, error: refreshError } = await supabase
